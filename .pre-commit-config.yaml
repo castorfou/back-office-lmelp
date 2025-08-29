@@ -7,7 +7,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace        # Supprime les espaces en fin de ligne
-      - id: end-of-file-fixer         # S'assure qu'il y a une ligne vide en fin de fichier  
+      - id: end-of-file-fixer         # S'assure qu'il y a une ligne vide en fin de fichier
       - id: check-yaml                # Vérifie la syntaxe YAML
       - id: check-toml                # Vérifie la syntaxe TOML
       - id: check-json                # Vérifie la syntaxe JSON
@@ -17,18 +17,18 @@ repos:
         args: ['--maxkb=500']
       - id: mixed-line-ending         # Normalise les fins de ligne
       - id: check-case-conflict       # Détecte les conflits de casse
-      
+
   # Ruff - Linter et formateur Python moderne
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.10
+    rev: v0.12.11
     hooks:
       # Linting avec ruff (remplace flake8, isort, etc.)
       - id: ruff
         name: ruff (lint)
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi, jupyter]
-        
-      # Formatage avec ruff (remplace black)  
+
+      # Formatage avec ruff (remplace black)
       - id: ruff-format
         name: ruff (format)
         types_or: [python, pyi, jupyter]
@@ -46,7 +46,7 @@ repos:
           - types-requests           # Types pour requests
         args: [--config-file=pyproject.toml]
 
-  # Sécurité - Détection de secrets et vulnérabilités  
+  # Sécurité - Détection de secrets et vulnérabilités
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
@@ -67,7 +67,7 @@ fail_fast: false                    # Continue même si un hook échoue
 exclude: |
   (?x)^(
       data/.*|              # Données
-      models/.*|            # Modèles ML  
+      models/.*|            # Modèles ML
       logs/.*|              # Logs
       \.jupyter/.*|         # Config Jupyter
       notebooks/.*\.ipynb$  # Notebooks Jupyter (traités par ruff)
@@ -77,7 +77,7 @@ exclude: |
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit.com hooks
-    
+
     for more information, see https://pre-commit.ci
   autofix_prs: true
   autoupdate_branch: ''
