@@ -1,0 +1,13 @@
+{
+  "name": "back-office-lmelp",
+  "version": "1.0.0",
+  "description": "un back offic pour gerer la base de donnee du projet https://github.com/castorfou/lmelp",
+  "scripts": {
+    "dev": "echo 'Add your development scripts here'",
+    "build": "echo 'Add your build scripts here'"
+  },
+  "keywords": ["data-science", "python", "node"],
+  "author": "castor_fou",
+  "license": "MIT",
+  "devDependencies": {}
+}

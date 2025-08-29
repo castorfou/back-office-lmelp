@@ -1,0 +1,104 @@
+{
+    "name": "back-office lmelp - Dev Environment",
+    "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+    "runArgs": [
+        "--network=host",
+        "--label", "com.centurylinklabs.watchtower.enable=false",
+        "--env", "CONTAINER_NAME=vscode-dev-container_back-office-lmelp"
+    ],
+    
+    // Variables d'environnement
+    "containerEnv": {
+        "PROJECT_NAME": "back-office lmelp",
+        "PROJECT_SLUG": "back-office-lmelp",
+        "PYTHON_VERSION": "3.11",
+        "PYTHONPATH": "/workspaces/back-office-lmelp/src",
+        "UV_VENV_CLEAR": "1"
+    },
+    
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-toolsai.jupyter",
+                "ms-toolsai.vscode-jupyter-cell-tags",
+                "ms-toolsai.jupyter-renderers",
+                "ms-toolsai.vscode-jupyter-slideshow",
+                "ms-toolsai.jupyter-keymap",
+                "ms-python.isort",
+                "ms-python.debugpy",
+                "ms-python.python",
+                "github.vscode-github-actions",
+                "mikoz.black-py",
+                "vscode-icons-team.vscode-icons",
+                "mongodb.mongodb-vscode",
+                "yzhang.markdown-all-in-one",
+                "ukoloff.win-ca",
+                "ms-python.vscode-pylance",
+                "GitHub.copilot-chat",
+                "GitHub.copilot",
+                "dbaeumer.vscode-eslint",
+                "ms-python.autopep8"
+            ],
+            "settings": {
+                // Configuration Python
+                "python.defaultInterpreterPath": "./.venv/bin/python",
+                "python.terminal.activateEnvironment": true,
+				"python.terminal.activateEnvInCurrentTerminal": true,                
+                "python.analysis.autoImportCompletions": true,
+                "python.analysis.typeCheckingMode": "basic",
+				"terminal.integrated.env.linux": {
+					"VIRTUAL_ENV": "/workspaces/back-office-lmelp/.venv",
+					"PATH": "/workspaces/back-office-lmelp/.venv/bin:${env:PATH}"
+				},
+                                
+                // Configuration générale
+                "editor.minimap.enabled": true,
+                "editor.rulers": [100],
+                
+                // Exclusions pour améliorer les performances
+                "files.exclude": {
+                    "**/__pycache__": true,
+                    "**/.pytest_cache": true,
+                    "**/node_modules": true,
+                    "**/.git": true,
+                    "**/.venv": true
+                },
+
+                "search.exclude": {
+                    "**/__pycache__": true,
+                    "**/.venv": true,
+                    "**/node_modules": true
+                }
+            }
+        }
+    },
+    
+    // Features devcontainer
+    "features": {
+        "ghcr.io/va-h/devcontainers-features/uv:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/git:1": {
+            "ppa": true
+        },
+        "ghcr.io/devcontainers/features/node:1": {
+            "nodeGypDependencies": true,
+            "version": "lts"
+        }
+    },
+    
+    // Montages pour hériter de la config git du host
+    "mounts": [
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
+    ],
+       
+    // Configuration du shell et de l'environnement
+    "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
+    "postStartCommand": "echo '🚀 back-office lmelp - Environnement prêt!'",
+    
+    // Utilisateur non-root pour la sécurité
+    "remoteUser": "vscode",
+    
+    // Optimisations de performance
+    "shutdownAction": "none"
+}

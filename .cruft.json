@@ -1,0 +1,18 @@
+{
+  "template": "https://github.com/castorfou/PyFoundry.git",
+  "commit": "6c97d6c2299405bf8b5fdb22a4fd31dd0d3580a2",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "project_name": "back-office lmelp",
+      "project_slug": "back-office-lmelp",
+      "description": "un back offic pour gerer la base de donnee du projet https://github.com/castorfou/lmelp",
+      "python_version": "3.11",
+      "github_username": "castor_fou",
+      "use_node": "y",
+      "_template": "https://github.com/castorfou/PyFoundry.git",
+      "_commit": "6c97d6c2299405bf8b5fdb22a4fd31dd0d3580a2"
+    }
+  },
+  "directory": null
+}

@@ -1,0 +1,175 @@
+[project]
+name = "back-office-lmelp"
+version = "0.1.0"
+description = "un back offic pour gerer la base de donnee du projet https://github.com/castorfou/lmelp"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "back-office-lmelp Team"}
+]
+keywords = ["data-science", "jupyter", "python"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "ipykernel",
+    "ipywidgets", 
+    "python-dotenv",
+    "gitpython",
+    "pandas",
+    "numpy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "pytest",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Homepage = "https://github.com/castor_fou/back-office-lmelp"
+Documentation = "https://github.com/castor_fou/back-office-lmelp#readme"
+Repository = "https://github.com/castor_fou/back-office-lmelp.git"
+Issues = "https://github.com/castor_fou/back-office-lmelp/issues"
+
+[project.scripts]
+back_office_lmelp_setup = "scripts.setup:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+# Configuration uv pour la reproductibilité
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
+
+# Configuration Ruff - Linter et formateur Python moderne
+[tool.ruff]
+# Règles activées
+extend-select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+    "ERA",    # eradicate (commented code)
+    "PD",     # pandas-vet
+    "NPY",    # numpy-specific rules
+]
+
+# Règles ignorées (adaptées Data Science)
+ignore = [
+    "E501",   # Line too long (black/ruff format s'en occupe)
+    "B905",   # zip() sans strict= (Python 3.10+)
+    "PD901",  # Avoid `df` as variable name (commun en DS)
+    "RET504", # Assign + return -> return direct (parfois moins lisible)
+]
+
+# Longueur de ligne (cohérent avec black)
+line-length = 88
+
+# Fichiers à exclure
+extend-exclude = [
+    "data/*",
+    "models/*", 
+    "logs/*",
+    ".jupyter/*",
+]
+
+# Version Python cible
+target-version = "py311"
+
+[tool.ruff.format]
+# Style de formatage
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+# Configuration isort intégrée
+known-first-party = ["back_office_lmelp"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.lint.pep8-naming]
+# Convention de nommage adaptée Data Science
+classmethod-decorators = ["classmethod", "pydantic.validator"]
+
+[tool.ruff.lint.per-file-ignores]
+# Règles spécifiques par type de fichier
+"notebooks/*.py" = ["E402", "F401", "F841"]  # Imports, unused vars OK en notebooks
+"scripts/*.py" = ["T201"]                    # print() OK dans les scripts
+"tests/*.py" = ["S101", "PLR2004"]          # assert OK, magic values OK en tests
+
+# Configuration MyPy - Vérification de types statique
+[tool.mypy]
+# Version Python et compatibilité
+python_version = "3.11"
+platform = "linux"
+
+# Niveau de vérification
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+# Configuration stricte progressive
+disallow_any_generics = false        # Autorisé au début
+disallow_untyped_calls = false       # Autorisé au début  
+disallow_untyped_defs = false        # Autorisé au début
+disallow_incomplete_defs = true      # Fonctions partiellement typées interdites
+disallow_untyped_decorators = false  # Autorisé au début
+disallow_subclassing_any = true
+no_implicit_reexport = true
+
+# Gestion des imports
+ignore_missing_imports = false
+follow_imports = "normal"
+
+# Configuration pour Data Science
+[[tool.mypy.overrides]]
+module = [
+    "matplotlib.*",
+    "seaborn.*", 
+    "sklearn.*",
+    "scipy.*",
+    "plotly.*",
+]
+ignore_missing_imports = true
+
+# Configuration spéciale pour notebooks
+[[tool.mypy.overrides]]
+module = "notebooks.*"
+ignore_errors = true
+
+# Configuration tests
+[[tool.mypy.overrides]] 
+module = "tests.*"
+disallow_untyped_defs = false
