@@ -10,3 +10,21 @@ Retour par Claude
   Maintenant que le serveur MCP est opérationnel, nous pouvons progresser sur la création de l'interface moderne pour gérer cette base
   de données. La prochaine étape serait d'explorer plus en détail le contenu des collections pour mieux comprendre la structure et les
   besoins de nettoyage.
+
+## ⚠️ Point Critique : Hiérarchie de Fiabilité des Données
+
+**Données FIABLES** (source France Inter) :
+- `episodes.titre` et `episodes.description` - Texte surveillé et solide
+
+**Données SUSPECTES** (source Whisper sur MP3) :
+- `episodes.transcription` - Erreurs possibles sur noms propres (auteurs, critiques)
+- `avis_critiques` - Générés depuis transcriptions potentiellement erronées
+
+## 🔧 Stratégie de Nettoyage
+
+**Approche retenue** : Extraire entités erronées → Corriger entités → Stocker propre
+- Partir de la transcription légèrement erronée
+- Extraire les auteurs (avec erreurs type "Neige Sinnault")
+- Corriger les auteurs extraits
+- Stocker les auteurs propres en base
+- Optionnellement corriger après coup la transcription (→ collection `emissions`)
