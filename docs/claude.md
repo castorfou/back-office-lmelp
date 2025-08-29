@@ -22,6 +22,6 @@ je cree le fichier `.mcp.json`
 }
 ```
 
-et je relqnce claude qui va detecter ce nouveau service au redemarrage.
+et je relance claude qui va detecter ce nouveau service au redemarrage.
 
 De facon etrange j'ai du insister pour que claude utilise ce serveur mcp, je crois que je dois explicitement lui dire d'utiliser l'outil mcp MongoDB.
