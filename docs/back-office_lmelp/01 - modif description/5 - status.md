@@ -36,6 +36,10 @@
   # Lancer le backend
   uv run python -m back_office_lmelp.app
 
+● L'argument --port n'est pas géré par notre application. Elle lit seulement la variable d'environnement API_PORT. Changeons cela dans le fichier .env :
+       12 +  API_PORT=8001
+
+
   # Lancer le frontend
   cd frontend && npm install && npm run dev
 
