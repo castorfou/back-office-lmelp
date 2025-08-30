@@ -9,7 +9,8 @@
       "Bash(uv run:*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
-      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_memory_guard_simple.py -v)"
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_memory_guard_simple.py -v)",
+      "Bash(gh run view:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
