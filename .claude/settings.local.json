@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__MongoDB__list-collections",
+      "mcp__MongoDB__find",
+      "mcp__MongoDB__find",
+      "Bash(git add:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "MongoDB"
+  ]
+}

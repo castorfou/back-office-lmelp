@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.episode import Episode
@@ -105,7 +105,7 @@ async def get_episode(episode_id: str) -> dict[str, Any]:
 
 @app.put("/api/episodes/{episode_id}")
 async def update_episode_description(
-    episode_id: str, description_corrigee: str
+    episode_id: str, request: Request
 ) -> dict[str, str]:
     """Met à jour la description corrigée d'un épisode."""
     # Vérification mémoire
@@ -116,6 +116,9 @@ async def update_episode_description(
         print(f"⚠️ {memory_check}")
 
     try:
+        # Lire le body de la requête (text/plain)
+        description_corrigee = (await request.body()).decode("utf-8")
+
         # Vérifier que l'épisode existe
         episode_data = mongodb_service.get_episode_by_id(episode_id)
         if not episode_data:

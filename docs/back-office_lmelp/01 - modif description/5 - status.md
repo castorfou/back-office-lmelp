@@ -36,14 +36,14 @@
   # Lancer le backend
   uv run python -m back_office_lmelp.app
 
-● L'argument --port n'est pas géré par notre application. Elle lit seulement la variable d'environnement API_PORT. Changeons cela dans le fichier .env :
-       12 +  API_PORT=8001
+  Avec vos garde-fous mémoire maintenant en place et la gestion robuste du cycle de vie, vous ne devriez plus avoir de problèmes de processus
+  zombies qui persistent après redémarrage.
 
+  Après le redémarrage, vous pourrez lancer proprement :
+  # Backend sur port 54321
+  uv run python -m back_office_lmelp.app
 
-  # Lancer le frontend
-  cd frontend && npm install && npm run dev
+  # Frontend sur port 5173
+  cd frontend && npm run dev
 
-  # ➜ Interface sur http://localhost:5173
-
-  Votre première page back-office est opérationnelle ! Elle permettra de corriger les descriptions d'épisodes qui seront automatiquement utilisées par
-  l'application LMELP via le champ description_corrigee.
+  À bientôt pour tester le système avec les nouveaux garde-fous mémoire ! 🛡️
