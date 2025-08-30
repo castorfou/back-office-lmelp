@@ -28,3 +28,53 @@ Retour par Claude
 - Corriger les auteurs extraits
 - Stocker les auteurs propres en base
 - Optionnellement corriger après coup la transcription (→ collection `emissions`)
+
+## 🏗️ Architecture Technique
+
+### Stack Technologique
+- **Backend** : FastAPI + Pydantic
+- **Frontend** : Vue.js ou React
+- **Base de données** : MongoDB (accès direct + MCP pour exploration)
+- **LLM** : Azure OpenAI (GPT-4o) pour correction d'entités
+- **Validation** : Pydantic pour type safety et validation
+
+### Structure du Projet
+
+```
+src/back_office_lmelp/
+├── models/
+│   ├── entities.py          # Auteur, Livre, Episode (Pydantic)
+│   ├── corrections.py       # Modèles correction/validation
+│   └── api_models.py        # Request/Response models
+├── services/
+│   ├── mongodb_service.py   # Client MongoDB direct
+│   ├── azure_openai_service.py  # Client Azure OpenAI
+│   └── correction_service.py    # Logique correction entités
+├── api/
+│   └── endpoints.py         # Routes FastAPI
+└── app.py                   # Application FastAPI principale
+
+frontend/                     # Interface Vue.js/React
+├── src/
+│   ├── components/          # Composants réutilisables
+│   │   ├── EntityEditor.vue # Éditeur d'entités
+│   │   └── DataTable.vue    # Tableaux de données
+│   └── views/              # Pages principales
+│       ├── Dashboard.vue    # Vue d'ensemble collections
+│       ├── EntitiesRepair.vue  # ⭐ Correction entités
+│       ├── Episodes.vue     # Gestion épisodes
+│       └── DataExport.vue   # Export données nettoyées
+└── package.json
+```
+
+### Fonctionnalités Clés
+1. **Dashboard** : Statistiques collections, qualité données
+2. **Entities Repair** : Interface de correction des noms d'auteurs/entités erronés ⭐
+3. **Episodes Management** : Gestion épisodes + transcriptions
+4. **Data Export** : Export données nettoyées vers nouvelles collections
+
+### Avantages Architecture
+- **FastAPI** : Performance, documentation auto-générée
+- **Pydantic** : Validation robuste, type safety
+- **Vue.js/React** : Interface moderne et réactive
+- **Séparation claire** : Backend API + Frontend découplé
