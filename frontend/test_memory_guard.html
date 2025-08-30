@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test du garde-fou mémoire Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .memory-stats {
+            background-color: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        #log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Test du garde-fou mémoire Frontend</h1>
+
+    <div class="test-section">
+        <h2>État actuel de la mémoire</h2>
+        <div id="memoryStats" class="memory-stats">
+            Chargement des statistiques mémoire...
+        </div>
+        <button onclick="refreshMemoryStats()">🔄 Actualiser</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Tests de consommation mémoire</h2>
+        <p>Ces tests permettent de vérifier le fonctionnement du garde-fou en allouant progressivement de la mémoire.</p>
+
+        <button onclick="testMemoryAllocation(5)">Allouer 5MB</button>
+        <button onclick="testMemoryAllocation(10)">Allouer 10MB</button>
+        <button onclick="testMemoryAllocation(25)">Allouer 25MB</button>
+        <button onclick="testMemoryAllocation(50)">Allouer 50MB</button>
+        <button onclick="clearMemory()">🗑️ Vider la mémoire</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Contrôle du garde-fou</h2>
+        <button onclick="startMonitoring()">▶️ Démarrer surveillance</button>
+        <button onclick="stopMonitoring()">⏹️ Arrêter surveillance</button>
+        <button onclick="checkMemoryLimit()">🔍 Vérifier limite</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Journal des événements</h2>
+        <div id="log"></div>
+        <button onclick="clearLog()">🗑️ Vider le journal</button>
+    </div>
+
+    <script type="module">
+        import { memoryGuard } from './src/utils/memoryGuard.js';
+
+        // Variables globales pour les tests
+        window.memoryHogs = [];
+        window.testMemoryGuard = memoryGuard;
+
+        // Fonctions utilitaires
+        window.log = function(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const typeIcon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
+
+            logElement.textContent += `[${timestamp}] ${typeIcon} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        };
+
+        window.refreshMemoryStats = function() {
+            const stats = memoryGuard.getMemoryStats();
+            const statsElement = document.getElementById('memoryStats');
+
+            if (typeof stats === 'string') {
+                statsElement.innerHTML = `<span class="warning">${stats}</span>`;
+                log('Statistiques mémoire non disponibles dans ce navigateur', 'warning');
+            } else {
+                statsElement.innerHTML = `
+                    <strong>Mémoire utilisée:</strong> ${stats.used}<br>
+                    <strong>Mémoire totale:</strong> ${stats.total}<br>
+                    <strong>Limite navigateur:</strong> ${stats.limit}<br>
+                    <strong>Pourcentage utilisé:</strong> ${stats.percentage}
+                `;
+                log(`Mémoire utilisée: ${stats.used} (${stats.percentage})`, 'info');
+            }
+        };
+
+        window.testMemoryAllocation = function(sizeMB) {
+            log(`Allocation de ${sizeMB}MB...`, 'info');
+
+            try {
+                // Allouer de la mémoire
+                const data = new ArrayBuffer(sizeMB * 1024 * 1024);
+                const view = new Uint8Array(data);
+
+                // Remplir avec des données pour forcer l'allocation réelle
+                for (let i = 0; i < view.length; i += 1024) {
+                    view[i] = Math.random() * 255;
+                }
+
+                window.memoryHogs.push(data);
+
+                log(`✅ ${sizeMB}MB alloués avec succès`, 'success');
+
+                // Vérifier la limite après allocation
+                setTimeout(() => {
+                    checkMemoryLimit();
+                    refreshMemoryStats();
+                }, 100);
+
+            } catch (error) {
+                log(`Erreur lors de l'allocation: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearMemory = function() {
+            log('Libération de la mémoire...', 'info');
+
+            window.memoryHogs = [];
+
+            // Forcer le garbage collection si possible
+            if (window.gc) {
+                window.gc();
+                log('Garbage collection forcé', 'success');
+            }
+
+            setTimeout(() => {
+                refreshMemoryStats();
+                log('Mémoire libérée', 'success');
+            }, 500);
+        };
+
+        window.checkMemoryLimit = function() {
+            const check = memoryGuard.checkMemoryLimit();
+
+            if (check) {
+                if (check.includes('LIMITE MÉMOIRE DÉPASSÉE')) {
+                    log(check, 'error');
+                } else {
+                    log(check, 'warning');
+                }
+            } else {
+                log('Mémoire dans les limites normales', 'success');
+            }
+        };
+
+        window.startMonitoring = function() {
+            memoryGuard.startMonitoring();
+            log('Surveillance mémoire démarrée', 'success');
+        };
+
+        window.stopMonitoring = function() {
+            memoryGuard.stopMonitoring();
+            log('Surveillance mémoire arrêtée', 'success');
+        };
+
+        window.clearLog = function() {
+            document.getElementById('log').textContent = '';
+        };
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🛡️ Système de garde-fou mémoire initialisé', 'success');
+            refreshMemoryStats();
+
+            // Écouter les événements du garde-fou
+            const originalConsoleWarn = console.warn;
+            const originalConsoleError = console.error;
+
+            console.warn = function(...args) {
+                if (args[0] && args[0].includes('⚠️')) {
+                    log(args.join(' '), 'warning');
+                }
+                originalConsoleWarn.apply(console, args);
+            };
+
+            console.error = function(...args) {
+                if (args[0] && args[0].includes('🚨')) {
+                    log(args.join(' '), 'error');
+                }
+                originalConsoleError.apply(console, args);
+            };
+        });
+    </script>
+</body>
+</html>

@@ -65,6 +65,7 @@
 import debounce from 'lodash.debounce';
 import { episodeService } from '../services/api.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
+import { memoryGuard } from '../utils/memoryGuard.js';
 
 export default {
   name: 'EpisodeEditor',
@@ -128,6 +129,16 @@ export default {
     async saveDescription() {
       if (!this.hasChanges || !this.episode) {
         return;
+      }
+
+      // Vérification mémoire avant sauvegarde
+      const memoryCheck = memoryGuard.checkMemoryLimit();
+      if (memoryCheck) {
+        if (memoryCheck.includes('LIMITE MÉMOIRE DÉPASSÉE')) {
+          memoryGuard.forceShutdown(memoryCheck);
+          return;
+        }
+        console.warn(`⚠️ ${memoryCheck}`);
       }
 
       this.saveStatus = 'saving';
