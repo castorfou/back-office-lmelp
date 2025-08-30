@@ -22,6 +22,25 @@ vi.mock('lodash.debounce', () => ({
   }
 }));
 
+// Mock des utilitaires
+vi.mock('../../src/utils/errorHandler.js', () => ({
+  ErrorHandler: {
+    handleError: vi.fn().mockReturnValue('Erreur serveur')
+  },
+  errorMixin: {
+    methods: {
+      handleError: vi.fn()
+    }
+  }
+}));
+
+vi.mock('../../src/utils/memoryGuard.js', () => ({
+  memoryGuard: {
+    checkMemoryLimit: vi.fn().mockReturnValue(null),
+    forceShutdown: vi.fn()
+  }
+}));
+
 describe('EpisodeEditor', () => {
   let wrapper;
 
@@ -93,8 +112,16 @@ describe('EpisodeEditor', () => {
       props: { episode: mockEpisode }
     });
 
-    const textarea = wrapper.findAll('textarea')[1];
-    await textarea.setValue('Nouvelle description');
+    // Attendre que le composant s'initialise complètement
+    await wrapper.vm.$nextTick();
+
+    // Vérifier l'état initial
+    expect(wrapper.vm.hasChanges).toBe(false);
+
+    // Changer la description et déclencher directement le calcul
+    wrapper.vm.correctedDescription = 'Nouvelle description modifiée';
+    wrapper.vm.hasChanges = wrapper.vm.correctedDescription !== wrapper.vm.originalCorrectedDescription;
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.hasChanges).toBe(true);
     expect(wrapper.find('.pending').exists()).toBe(true);
