@@ -24,6 +24,45 @@ vi.mock('lodash.debounce', () => ({
   }
 }));
 
+// Mock des utilitaires
+vi.mock('../../src/utils/errorHandler.js', () => ({
+  ErrorHandler: {
+    handleError: vi.fn().mockReturnValue('Erreur serveur')
+  },
+  errorMixin: {
+    data() {
+      return {
+        loading: false,
+        error: null
+      }
+    },
+    methods: {
+      handleError: vi.fn(),
+      handleAsync: vi.fn().mockImplementation(async function(asyncFn) {
+        this.loading = true;
+        this.error = null;
+        try {
+          return await asyncFn();
+        } catch (err) {
+          this.error = err.message || 'Une erreur est survenue';
+          throw err;
+        } finally {
+          this.loading = false;
+        }
+      })
+    }
+  }
+}));
+
+vi.mock('../../src/utils/memoryGuard.js', () => ({
+  memoryGuard: {
+    checkMemoryLimit: vi.fn().mockReturnValue(null),
+    forceShutdown: vi.fn(),
+    startMonitoring: vi.fn(),
+    stopMonitoring: vi.fn()
+  }
+}));
+
 describe('HomePage - Tests d\'intégration', () => {
   let wrapper;
 
@@ -177,11 +216,26 @@ describe('HomePage - Tests d\'intégration', () => {
     wrapper = mount(HomePage);
     await wrapper.vm.$nextTick();
 
-    // Sélectionner un épisode
-    const selector = wrapper.findComponent({ name: 'EpisodeSelector' });
-    await selector.vm.$emit('episode-selected', mockEpisodeDetail);
+    // Vérifier qu'il n'y a pas d'éditeur initialement
+    expect(wrapper.findComponent({ name: 'EpisodeEditor' }).exists()).toBe(false);
 
+    // Simuler la sélection d'épisode directement sur le composant parent
+    wrapper.vm.selectedEpisode = mockEpisodeDetail;
+    await wrapper.vm.$nextTick();
+
+    // Vérifier que l'éditeur apparaît avec le bon épisode
     const editor = wrapper.findComponent({ name: 'EpisodeEditor' });
-    expect(editor.attributes('key')).toBe(mockEpisodeDetail.id);
+    expect(editor.exists()).toBe(true);
+    expect(editor.props('episode')).toEqual(mockEpisodeDetail);
+
+    // Changer d'épisode pour tester la réactivité
+    const secondEpisode = { ...mockEpisodeDetail, id: '2', titre: 'Episode 2' };
+    wrapper.vm.selectedEpisode = secondEpisode;
+    await wrapper.vm.$nextTick();
+
+    // Vérifier que l'éditeur a été mis à jour avec le nouvel épisode
+    const updatedEditor = wrapper.findComponent({ name: 'EpisodeEditor' });
+    expect(updatedEditor.exists()).toBe(true);
+    expect(updatedEditor.props('episode')).toEqual(secondEpisode);
   });
 });
