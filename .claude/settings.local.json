@@ -6,7 +6,8 @@
       "mcp__MongoDB__find",
       "Bash(git add:*)",
       "Bash(uv run ruff check:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(gh issue list:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
