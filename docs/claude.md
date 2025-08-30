@@ -35,3 +35,5 @@ puis
 ```bash
 uv sync
 ```
+
+claude sait comment on fait

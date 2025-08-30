@@ -29,3 +29,9 @@ API_PORT=54322 python -m back_office_lmelp.app
 # frontend
 cd frontend && npm run dev
 ```
+
+## lancement des tests
+
+```bash
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v
+```

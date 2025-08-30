@@ -98,6 +98,18 @@ class MongoDBService:
             print(f"Erreur lors de la mise à jour de l'épisode {episode_id}: {e}")
             return False
 
+    def insert_episode(self, episode_data: dict[str, Any]) -> str:
+        """Insère un nouvel épisode."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            result = self.episodes_collection.insert_one(episode_data)
+            return str(result.inserted_id)
+        except Exception as e:
+            print(f"Erreur lors de l'insertion de l'épisode: {e}")
+            raise
+
 
 # Instance globale du service
 mongodb_service = MongoDBService()

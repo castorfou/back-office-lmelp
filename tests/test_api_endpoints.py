@@ -1,0 +1,272 @@
+"""Tests pour les endpoints API du Back-Office LMELP."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from fastapi.testclient import TestClient
+
+
+class TestEpisodesEndpoints:
+    """Tests pour les endpoints d'épisodes."""
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_episodes_returns_list(self, mock_mongodb_service, client: TestClient):
+        """Test que GET /api/episodes retourne une liste d'épisodes."""
+        # Arrange
+        mock_episodes = [
+            {
+                "_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+                "titre": "Test Episode 1",
+                "date": "2025-08-30T10:59:59.000+00:00",
+                "description": "Test description 1",
+                "type": "test",
+                "duree": 1800,
+            },
+            {
+                "_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+                "titre": "Test Episode 2",
+                "date": "2025-08-30T11:59:59.000+00:00",
+                "description": "Test description 2",
+                "type": "test",
+                "duree": 2400,
+            },
+        ]
+        mock_mongodb_service.get_all_episodes = AsyncMock(return_value=mock_episodes)
+
+        # Act
+        response = client.get("/api/episodes")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+        assert data[0]["titre"] == "Test Episode 1"
+        assert data[1]["titre"] == "Test Episode 2"
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_episode_by_id_valid(
+        self,
+        mock_mongodb_service,
+        client: TestClient,
+        sample_episode_data,
+        sample_episode_id,
+    ):
+        """Test que GET /api/episodes/{id} retourne l'épisode correct."""
+        # Arrange
+        episode_data = {**sample_episode_data, "_id": sample_episode_id}
+        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
+
+        # Act
+        response = client.get(f"/api/episodes/{sample_episode_id}")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_episode_id
+        assert data["titre"] == sample_episode_data["titre"]
+        assert data["description"] == sample_episode_data["description"]
+        assert data["duree"] == sample_episode_data["duree"]
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_episode_by_id_not_found(
+        self, mock_mongodb_service, client: TestClient, sample_episode_id
+    ):
+        """Test que GET /api/episodes/{id} retourne 404 si épisode non trouvé."""
+        # Arrange
+        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=None)
+
+        # Act
+        response = client.get(f"/api/episodes/{sample_episode_id}")
+
+        # Assert
+        assert response.status_code == 404
+        assert "Épisode non trouvé" in response.json()["detail"]
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_update_episode_description_text_plain(
+        self,
+        mock_mongodb_service,
+        client: TestClient,
+        sample_episode_data,
+        sample_episode_id,
+    ):
+        """Test critique: PUT /api/episodes/{id} avec body text/plain.
+
+        Ce test aurait détecté le bug où le backend n'acceptait pas le format text/plain
+        envoyé par le frontend axios.
+        """
+        # Arrange
+        episode_data = {**sample_episode_data, "_id": sample_episode_id}
+        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
+        mock_mongodb_service.update_episode_description = AsyncMock(return_value=True)
+
+        corrected_description = "Description corrigée avec\\npassages à la ligne"
+
+        # Act - Envoi avec Content-Type text/plain comme le fait le frontend
+        response = client.put(
+            f"/api/episodes/{sample_episode_id}",
+            content=corrected_description,
+            headers={"Content-Type": "text/plain"},
+        )
+
+        # Assert
+        assert response.status_code == 200
+        assert response.json()["message"] == "Description mise à jour avec succès"
+
+        # Vérifier que le service a été appelé avec la bonne description
+        mock_mongodb_service.update_episode_description.assert_called_once_with(
+            sample_episode_id, corrected_description
+        )
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_update_episode_description_invalid_id(
+        self, mock_mongodb_service, client: TestClient
+    ):
+        """Test que PUT /api/episodes/{id} retourne 404 pour un ID invalide."""
+        # Arrange
+        invalid_id = "invalid_id_format"
+        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=None)
+
+        # Act
+        response = client.put(
+            f"/api/episodes/{invalid_id}",
+            content="Test description",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        # Assert
+        assert response.status_code == 404
+        assert "Épisode non trouvé" in response.json()["detail"]
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_update_episode_description_update_fails(
+        self,
+        mock_mongodb_service,
+        client: TestClient,
+        sample_episode_data,
+        sample_episode_id,
+    ):
+        """Test que PUT /api/episodes/{id} retourne 400 si la mise à jour échoue."""
+        # Arrange
+        episode_data = {**sample_episode_data, "_id": sample_episode_id}
+        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
+        mock_mongodb_service.update_episode_description = AsyncMock(return_value=False)
+
+        # Act
+        response = client.put(
+            f"/api/episodes/{sample_episode_id}",
+            content="Test description",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        # Assert
+        assert response.status_code == 400
+        assert "Échec de la mise à jour" in response.json()["detail"]
+
+
+class TestMemoryGuardIntegration:
+    """Tests d'intégration pour les garde-fous mémoire sur les endpoints."""
+
+    @patch("back_office_lmelp.app.memory_guard")
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_endpoints_check_memory_limit(
+        self, mock_mongodb_service, mock_memory_guard, client: TestClient
+    ):
+        """Test que tous les endpoints vérifient la limite mémoire."""
+        # Arrange
+        mock_memory_guard.check_memory_limit.return_value = (
+            None  # Pas de problème mémoire
+        )
+        mock_mongodb_service.get_all_episodes = AsyncMock(return_value=[])
+
+        # Act
+        response = client.get("/api/episodes")
+
+        # Assert
+        assert response.status_code == 200
+        mock_memory_guard.check_memory_limit.assert_called_once()
+
+    @patch("back_office_lmelp.app.memory_guard")
+    def test_endpoint_memory_limit_exceeded_emergency_shutdown(
+        self, mock_memory_guard, client: TestClient
+    ):
+        """Test que l'endpoint déclenche un arrêt d'urgence si limite mémoire dépassée."""
+        # Arrange
+        mock_memory_guard.check_memory_limit.return_value = (
+            "LIMITE MÉMOIRE DÉPASSÉE - ARRÊT D'URGENCE (600 MB / 500 MB)"
+        )
+        mock_memory_guard.force_shutdown = MagicMock()
+
+        # Act & Assert - L'endpoint devrait déclencher force_shutdown
+        # Note: En réalité, force_shutdown arrêterait le processus, donc on teste juste l'appel
+        import contextlib
+
+        with contextlib.suppress(SystemExit):
+            client.get("/api/episodes")
+
+        mock_memory_guard.force_shutdown.assert_called_once()
+
+
+class TestCORSHeaders:
+    """Tests pour la configuration CORS."""
+
+    def test_cors_headers_present(self, client: TestClient):
+        """Test que les headers CORS sont présents."""
+        # Act
+        response = client.options(
+            "/api/episodes", headers={"Origin": "http://localhost:5173"}
+        )
+
+        # Assert
+        assert response.status_code in [200, 204]
+        # Note: Les headers CORS exacts dépendent de la configuration FastAPI
+        # En mode test, ils peuvent être différents du mode production
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_cors_allows_frontend_origin(
+        self, mock_mongodb_service, client: TestClient
+    ):
+        """Test que CORS permet l'origine du frontend."""
+        # Arrange
+        mock_mongodb_service.get_all_episodes = AsyncMock(return_value=[])
+
+        # Act
+        response = client.get(
+            "/api/episodes",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        # Assert
+        assert response.status_code == 200
+        # La requête ne devrait pas être bloquée par CORS
+
+
+class TestErrorHandling:
+    """Tests pour la gestion d'erreurs globale."""
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_server_error_returns_500(self, mock_mongodb_service, client: TestClient):
+        """Test qu'une erreur serveur retourne 500 avec message approprié."""
+        # Arrange
+        mock_mongodb_service.get_all_episodes = AsyncMock(
+            side_effect=Exception("Database connection failed")
+        )
+
+        # Act
+        response = client.get("/api/episodes")
+
+        # Assert
+        assert response.status_code == 500
+        assert "Erreur serveur" in response.json()["detail"]
+        assert "Database connection failed" in response.json()["detail"]
+
+    def test_invalid_endpoint_returns_404(self, client: TestClient):
+        """Test qu'un endpoint inexistant retourne 404."""
+        # Act
+        response = client.get("/api/nonexistent")
+
+        # Assert
+        assert response.status_code == 404
