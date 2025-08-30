@@ -33,5 +33,12 @@ cd frontend && npm run dev
 ## lancement des tests
 
 ```bash
+# Tests backend uniquement
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v
+
+# Tests frontend uniquement
+cd frontend && npm test
+
+# Ou en une commande :
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v && cd frontend && npm test -- --run
 ```
