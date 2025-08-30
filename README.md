@@ -1,6 +1,6 @@
-# back-office lmelp
+# Back-office LMELP
 
-un back offic pour gerer la base de donnee du projet https://github.com/castorfou/lmelp
+Interface de gestion pour la base de données du projet [LMELP](https://github.com/castorfou/lmelp) (Le Masque et La Plume).
 
 [![CI](https://github.com/castor_fou/back-office-lmelp/actions/workflows/ci.yml/badge.svg)](https://github.com/castor_fou/back-office-lmelp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/castor_fou/back-office-lmelp/branch/main/graph/badge.svg)](https://codecov.io/gh/castor_fou/back-office-lmelp)
@@ -8,9 +8,151 @@ un back offic pour gerer la base de donnee du projet https://github.com/castorfo
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
-## Installation
+## 🎯 Objectif
 
-Ce projet utilise **uv** pour la gestion des dépendances et des environnements Python.
+Nettoyer et corriger les données des épisodes du Masque et la Plume, en particulier les descriptions générées automatiquement qui peuvent contenir des erreurs de transcription.
+
+## 🏗️ Architecture
+
+### Stack technique
+- **Backend** : FastAPI + Python 3.11
+- **Frontend** : Vue.js 3 + Vite
+- **Base de données** : MongoDB (collection `masque_et_la_plume`)
+- **Tests** : pytest (backend) + Vitest (frontend)
+
+### Structure du projet
+
+```
+├── src/back_office_lmelp/          # Backend FastAPI
+│   ├── app.py                      # Application principale
+│   ├── services/                   # Services (MongoDB, etc.)
+│   └── models/                     # Modèles de données
+├── frontend/                       # Interface Vue.js
+│   ├── src/components/            # Composants Vue
+│   ├── tests/                     # Tests frontend
+│   └── README.md                  # Doc frontend détaillée
+├── docs/                          # Documentation projet
+└── pyproject.toml                 # Configuration Python/uv
+```
+
+## 🚀 Installation
+
+### Prérequis
+
+- **Python 3.11+** avec [uv](https://docs.astral.sh/uv/) (gestionnaire de paquets)
+- **Node.js 18+** pour le frontend
+- **MongoDB** accessible (configuré dans `.env`)
+
+### Configuration
+
+1. **Cloner et installer le backend** :
+```bash
+git clone [URL_DU_REPO]
+cd back-office-lmelp
+
+# Installer les dépendances Python
+uv sync
+
+# Configurer les variables d'environnement
+cp .env.example .env
+# Éditer .env avec vos paramètres MongoDB et Azure OpenAI
+```
+
+2. **Installer le frontend** :
+```bash
+cd frontend
+npm install
+```
+
+3. **Configuration MongoDB** :
+```bash
+# Fichier .env
+MONGODB_URL=mongodb://localhost:27017/masque_et_la_plume
+API_HOST=0.0.0.0
+API_PORT=8000
+
+# Azure OpenAI (pour fonctionnalités futures)
+AZURE_OPENAI_API_KEY=your_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+```
+
+## 🎮 Lancement
+
+### Démarrage rapide
+
+```bash
+# Terminal 1 : Backend FastAPI
+uv run python -m back_office_lmelp.app
+# ➜ API disponible sur http://localhost:8000
+
+# Terminal 2 : Frontend Vue.js
+cd frontend && npm run dev
+# ➜ Interface sur http://localhost:5173
+```
+
+### Vérification
+
+- **API** : http://localhost:8000/docs (documentation Swagger)
+- **Frontend** : http://localhost:5173 (interface principale)
+- **Santé** : GET http://localhost:8000/api/episodes (doit retourner la liste)
+
+## 📖 Utilisation
+
+### Interface utilisateur
+
+1. **Sélectionner un épisode** dans la liste déroulante (217 épisodes disponibles)
+2. **Visualiser** la description originale (lecture seule)
+3. **Modifier** la description dans la zone d'édition
+4. **Sauvegarde automatique** après 2 secondes d'inactivité
+
+### Fonctionnalités
+
+- ✅ **Tri automatique** : Épisodes par date décroissante
+- ✏️ **Édition en temps réel** : Modification libre du texte
+- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`
+- 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
+- 📱 **Interface responsive** : Compatible mobile/desktop
+
+### API disponible
+
+```bash
+# Lister tous les épisodes
+GET /api/episodes
+
+# Détails d'un épisode
+GET /api/episodes/{id}
+
+# Mettre à jour la description corrigée
+PUT /api/episodes/{id}
+```
+
+## 🧪 Tests
+
+### Backend
+```bash
+# Tests Python (à implémenter)
+uv run pytest tests/
+
+# Linting et formatage
+uv run ruff check .
+uv run ruff format .
+```
+
+### Frontend
+```bash
+cd frontend
+
+# Tests unitaires et d'intégration
+npm run test
+
+# Tests avec interface graphique
+npm run test:ui
+
+# Tests en mode watch
+npm run test -- --watch
+```
+
+## 🔧 Développement
 
 ### Avec VS Code + Devcontainer (Recommandé)
 
@@ -27,24 +169,92 @@ code .
 # VS Code proposera "Reopen in Container"
 ```
 
-## Structure du projet
+### Ajout de fonctionnalités
 
+1. **Backend** : Ajouter routes dans `src/back_office_lmelp/app.py`
+2. **Frontend** : Créer composants dans `frontend/src/components/`
+3. **Tests** : Couvrir les nouvelles fonctionnalités
+4. **Documentation** : Mettre à jour les README
+
+### Architecture des données
+
+**Collection `episodes`** :
+```javascript
+{
+  "_id": ObjectId,
+  "titre": "Titre de l'épisode",
+  "date": ISODate,
+  "type": "livres|cinema|theatre",
+  "description": "Description originale France Inter",
+  "description_corrigee": "Description corrigée manuellement", // ⭐ Ajouté par le back-office
+  "transcription": "Transcription Whisper (avec erreurs possibles)"
+}
 ```
-├── src/           # Code source du projet
-├── data/          # Données du projet
-│   ├── raw/       # Données brutes
-│   └── processed/ # Données traitées
-├── notebooks/     # Notebooks Jupyter
-└── pyproject.toml # Configuration du projet
-```
 
-## Usage
+### Qualité du code
 
-Décrivez ici comment utiliser votre projet.
+- **Python** : Ruff (linting + formatage), MyPy (types)
+- **JavaScript** : ESLint (optionnel), tests Vitest obligatoires
+- **Git** : Pre-commit hooks configurés
+- **CI/CD** : Tests automatiques sur push
 
-## Contribution
+## 📋 Roadmap
 
-1. Installez les hooks pre-commit : `pre-commit install`
-2. Créez une branche pour votre fonctionnalité
-3. Commitez vos changements
-4. Ouvrez une Pull Request
+### Version 0.1.0 (actuelle)
+- ✅ Interface de base pour correction des descriptions
+- ✅ Sauvegarde automatique en base MongoDB
+- ✅ Tests unitaires et d'intégration
+
+### Versions futures
+- 🤖 **IA** : Suggestions de corrections via Azure OpenAI
+- 🔍 **Recherche** : Filtres avancés par date, type, contenu
+- 📊 **Analytics** : Statistiques de correction et qualité
+- 👥 **Multi-user** : Gestion des utilisateurs et permissions
+- 📤 **Export** : Sauvegarde des données nettoyées
+
+## 💡 Contexte projet
+
+### Problématique LMELP
+
+Le projet [LMELP](https://github.com/castorfou/lmelp) développe un système de recommandation littéraire basé sur l'affinité avec les critiques du Masque et la Plume.
+
+**Hiérarchie de fiabilité des données** :
+- **✅ FIABLES** : Titres et descriptions (source France Inter)
+- **⚠️ SUSPECTES** : Transcriptions Whisper avec erreurs de noms propres
+- **❌ DÉRIVÉES** : Données extraites des transcriptions erronées
+
+### Stratégie de nettoyage
+
+1. **Partir des transcriptions** légèrement erronées (noms d'auteurs incorrects)
+2. **Extraire les entités** (auteurs, livres, éditeurs) avec les erreurs
+3. **Corriger les entités** via interface back-office + IA
+4. **Stocker proprement** dans de nouvelles collections MongoDB
+5. **Optionnel** : Corriger les transcriptions a posteriori
+
+## 🤝 Contribution
+
+1. **Fork** le repository
+2. **Créer** une branche feature (`git checkout -b feature/amazing-feature`)
+3. **Tester** les modifications (`npm test` + `uv run pytest`)
+4. **Commiter** (`git commit -m 'feat: add amazing feature'`)
+5. **Push** (`git push origin feature/amazing-feature`)
+6. **Créer** une Pull Request
+
+### Conventions
+
+- **Commits** : [Conventional Commits](https://conventionalcommits.org/)
+- **Code** : Respecter les linters (Ruff, ESLint)
+- **Tests** : Couverture > 80% obligatoire
+- **Docs** : Mettre à jour les README si nécessaire
+
+## 📄 Licence
+
+MIT - Voir [LICENSE](LICENSE) pour plus de détails.
+
+## 🔗 Liens utiles
+
+- **Projet principal** : https://github.com/castorfou/lmelp
+- **FastAPI** : https://fastapi.tiangolo.com/
+- **Vue.js** : https://vuejs.org/
+- **MongoDB** : https://docs.mongodb.com/
+- **uv (Python)** : https://docs.astral.sh/uv/

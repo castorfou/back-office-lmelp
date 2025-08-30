@@ -19,13 +19,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "ipykernel",
-    "ipywidgets", 
-    "python-dotenv",
-    "gitpython",
-    "pandas",
-    "numpy",
-    "matplotlib",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pymongo>=4.6.0",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
+    "fastapi-cors>=0.0.6",
+    "openai>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -95,7 +95,7 @@ line-length = 88
 # Fichiers à exclure
 extend-exclude = [
     "data/*",
-    "models/*", 
+    "models/*",
     "logs/*",
     ".jupyter/*",
 ]
@@ -142,7 +142,7 @@ warn_unreachable = true
 
 # Configuration stricte progressive
 disallow_any_generics = false        # Autorisé au début
-disallow_untyped_calls = false       # Autorisé au début  
+disallow_untyped_calls = false       # Autorisé au début
 disallow_untyped_defs = false        # Autorisé au début
 disallow_incomplete_defs = true      # Fonctions partiellement typées interdites
 disallow_untyped_decorators = false  # Autorisé au début
@@ -157,10 +157,16 @@ follow_imports = "normal"
 [[tool.mypy.overrides]]
 module = [
     "matplotlib.*",
-    "seaborn.*", 
+    "seaborn.*",
     "sklearn.*",
     "scipy.*",
     "plotly.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "pymongo.*",
+    "bson.*",
+    "python_dotenv.*",
+    "dotenv",
 ]
 ignore_missing_imports = true
 
@@ -170,6 +176,6 @@ module = "notebooks.*"
 ignore_errors = true
 
 # Configuration tests
-[[tool.mypy.overrides]] 
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
