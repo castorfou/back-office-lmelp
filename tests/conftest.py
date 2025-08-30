@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +23,13 @@ def event_loop():
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
-    return TestClient(app)
+    # Mock MongoDB service pour éviter les connexions réelles
+    with patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service"
+    ) as mock_service:
+        mock_service.connect = MagicMock(return_value=True)
+        mock_service.disconnect = MagicMock()
+        yield TestClient(app)
 
 
 @pytest.fixture

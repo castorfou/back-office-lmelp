@@ -1,6 +1,6 @@
 """Tests pour les endpoints API du Back-Office LMELP."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 class TestEpisodesEndpoints:
     """Tests pour les endpoints d'épisodes."""
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_get_episodes_returns_list(self, mock_mongodb_service, client: TestClient):
         """Test que GET /api/episodes retourne une liste d'épisodes."""
         # Arrange
@@ -30,7 +30,7 @@ class TestEpisodesEndpoints:
                 "duree": 2400,
             },
         ]
-        mock_mongodb_service.get_all_episodes = AsyncMock(return_value=mock_episodes)
+        mock_mongodb_service.get_all_episodes = MagicMock(return_value=mock_episodes)
 
         # Act
         response = client.get("/api/episodes")
@@ -43,7 +43,7 @@ class TestEpisodesEndpoints:
         assert data[0]["titre"] == "Test Episode 1"
         assert data[1]["titre"] == "Test Episode 2"
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_get_episode_by_id_valid(
         self,
         mock_mongodb_service,
@@ -54,7 +54,7 @@ class TestEpisodesEndpoints:
         """Test que GET /api/episodes/{id} retourne l'épisode correct."""
         # Arrange
         episode_data = {**sample_episode_data, "_id": sample_episode_id}
-        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
+        mock_mongodb_service.get_episode_by_id = MagicMock(return_value=episode_data)
 
         # Act
         response = client.get(f"/api/episodes/{sample_episode_id}")
@@ -67,13 +67,13 @@ class TestEpisodesEndpoints:
         assert data["description"] == sample_episode_data["description"]
         assert data["duree"] == sample_episode_data["duree"]
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_get_episode_by_id_not_found(
         self, mock_mongodb_service, client: TestClient, sample_episode_id
     ):
         """Test que GET /api/episodes/{id} retourne 404 si épisode non trouvé."""
         # Arrange
-        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=None)
+        mock_mongodb_service.get_episode_by_id = MagicMock(return_value=None)
 
         # Act
         response = client.get(f"/api/episodes/{sample_episode_id}")
@@ -82,7 +82,7 @@ class TestEpisodesEndpoints:
         assert response.status_code == 404
         assert "Épisode non trouvé" in response.json()["detail"]
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_update_episode_description_text_plain(
         self,
         mock_mongodb_service,
@@ -97,8 +97,8 @@ class TestEpisodesEndpoints:
         """
         # Arrange
         episode_data = {**sample_episode_data, "_id": sample_episode_id}
-        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
-        mock_mongodb_service.update_episode_description = AsyncMock(return_value=True)
+        mock_mongodb_service.get_episode_by_id = MagicMock(return_value=episode_data)
+        mock_mongodb_service.update_episode_description = MagicMock(return_value=True)
 
         corrected_description = "Description corrigée avec\\npassages à la ligne"
 
@@ -118,14 +118,14 @@ class TestEpisodesEndpoints:
             sample_episode_id, corrected_description
         )
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_update_episode_description_invalid_id(
         self, mock_mongodb_service, client: TestClient
     ):
         """Test que PUT /api/episodes/{id} retourne 404 pour un ID invalide."""
         # Arrange
         invalid_id = "invalid_id_format"
-        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=None)
+        mock_mongodb_service.get_episode_by_id = MagicMock(return_value=None)
 
         # Act
         response = client.put(
@@ -138,7 +138,7 @@ class TestEpisodesEndpoints:
         assert response.status_code == 404
         assert "Épisode non trouvé" in response.json()["detail"]
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_update_episode_description_update_fails(
         self,
         mock_mongodb_service,
@@ -149,8 +149,8 @@ class TestEpisodesEndpoints:
         """Test que PUT /api/episodes/{id} retourne 400 si la mise à jour échoue."""
         # Arrange
         episode_data = {**sample_episode_data, "_id": sample_episode_id}
-        mock_mongodb_service.get_episode_by_id = AsyncMock(return_value=episode_data)
-        mock_mongodb_service.update_episode_description = AsyncMock(return_value=False)
+        mock_mongodb_service.get_episode_by_id = MagicMock(return_value=episode_data)
+        mock_mongodb_service.update_episode_description = MagicMock(return_value=False)
 
         # Act
         response = client.put(
@@ -167,8 +167,8 @@ class TestEpisodesEndpoints:
 class TestMemoryGuardIntegration:
     """Tests d'intégration pour les garde-fous mémoire sur les endpoints."""
 
-    @patch("back_office_lmelp.app.memory_guard")
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.utils.memory_guard.memory_guard")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_endpoints_check_memory_limit(
         self, mock_mongodb_service, mock_memory_guard, client: TestClient
     ):
@@ -186,7 +186,7 @@ class TestMemoryGuardIntegration:
         assert response.status_code == 200
         mock_memory_guard.check_memory_limit.assert_called_once()
 
-    @patch("back_office_lmelp.app.memory_guard")
+    @patch("back_office_lmelp.utils.memory_guard.memory_guard")
     def test_endpoint_memory_limit_exceeded_emergency_shutdown(
         self, mock_memory_guard, client: TestClient
     ):
@@ -222,7 +222,7 @@ class TestCORSHeaders:
         # Note: Les headers CORS exacts dépendent de la configuration FastAPI
         # En mode test, ils peuvent être différents du mode production
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_cors_allows_frontend_origin(
         self, mock_mongodb_service, client: TestClient
     ):
@@ -247,7 +247,7 @@ class TestCORSHeaders:
 class TestErrorHandling:
     """Tests pour la gestion d'erreurs globale."""
 
-    @patch("back_office_lmelp.app.mongodb_service")
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service")
     def test_server_error_returns_500(self, mock_mongodb_service, client: TestClient):
         """Test qu'une erreur serveur retourne 500 avec message approprié."""
         # Arrange

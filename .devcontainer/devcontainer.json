@@ -4,9 +4,9 @@
     "runArgs": [
         "--network=host",
         "--label", "com.centurylinklabs.watchtower.enable=false",
-        "--env", "CONTAINER_NAME=vscode-dev-container_back-office-lmelp"
+        "--env", "CONTAINER_NAME=vscode-dev-container_back-office-lmelp"  // pragma: allowlist secret
     ],
-    
+
     // Variables d'environnement
     "containerEnv": {
         "PROJECT_NAME": "back-office lmelp",
@@ -15,7 +15,7 @@
         "PYTHONPATH": "/workspaces/back-office-lmelp/src",
         "UV_VENV_CLEAR": "1"
     },
-    
+
     "customizations": {
         "vscode": {
             "extensions": [
@@ -43,18 +43,18 @@
                 // Configuration Python
                 "python.defaultInterpreterPath": "./.venv/bin/python",
                 "python.terminal.activateEnvironment": true,
-				"python.terminal.activateEnvInCurrentTerminal": true,                
+				"python.terminal.activateEnvInCurrentTerminal": true,
                 "python.analysis.autoImportCompletions": true,
                 "python.analysis.typeCheckingMode": "basic",
 				"terminal.integrated.env.linux": {
 					"VIRTUAL_ENV": "/workspaces/back-office-lmelp/.venv",
 					"PATH": "/workspaces/back-office-lmelp/.venv/bin:${env:PATH}"
 				},
-                                
+
                 // Configuration générale
                 "editor.minimap.enabled": true,
                 "editor.rulers": [100],
-                
+
                 // Exclusions pour améliorer les performances
                 "files.exclude": {
                     "**/__pycache__": true,
@@ -72,7 +72,7 @@
             }
         }
     },
-    
+
     // Features devcontainer
     "features": {
         "ghcr.io/va-h/devcontainers-features/uv:1": {},
@@ -85,20 +85,20 @@
             "version": "lts"
         }
     },
-    
+
     // Montages pour hériter de la config git du host
     "mounts": [
         "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
     ],
-       
+
     // Configuration du shell et de l'environnement
     "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
     "postStartCommand": "echo '🚀 back-office lmelp - Environnement prêt!'",
-    
+
     // Utilisateur non-root pour la sécurité
     "remoteUser": "vscode",
-    
+
     // Optimisations de performance
     "shutdownAction": "none"
 }
