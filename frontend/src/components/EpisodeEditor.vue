@@ -88,6 +88,11 @@ export default {
     };
   },
 
+  created() {
+    // Créer la fonction debounced avec cancel
+    this.debouncedSave = debounce(this.saveDescription, 2000);
+  },
+
   watch: {
     episode: {
       handler(newEpisode) {
@@ -116,12 +121,6 @@ export default {
       }
     },
 
-    /**
-     * Sauvegarde avec debounce (2 secondes)
-     */
-    debouncedSave: debounce(function() {
-      this.saveDescription();
-    }, 2000),
 
     /**
      * Sauvegarde la description corrigée
@@ -177,7 +176,11 @@ export default {
       if (!dateString) return 'Date inconnue';
 
       try {
-        return new Date(dateString).toLocaleDateString('fr-FR', {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          return 'Date invalide';
+        }
+        return date.toLocaleDateString('fr-FR', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
