@@ -46,7 +46,7 @@ jobs:
         path: 'site'
 
   deploy:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix-issue-5-setup-mkdocs-github-pages'
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.head_ref == 'fix-issue-5-setup-mkdocs-github-pages')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
