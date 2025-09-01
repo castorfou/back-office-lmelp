@@ -2,7 +2,7 @@ name: Deploy MkDocs to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, fix-issue-5-setup-mkdocs-github-pages ]
     paths: [ 'docs/**', 'mkdocs.yml' ]
   pull_request:
     branches: [ main ]
