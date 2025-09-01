@@ -4,6 +4,7 @@ anyio==4.10.0
 certifi==2025.8.3
 cfgv==3.4.0
 click==8.2.1
+coverage==7.10.6
 distlib==0.4.0
 distro==1.9.0
 dnspython==2.7.0
@@ -20,6 +21,7 @@ idna==3.10
 iniconfig==2.1.0
 jiter==0.10.0
 marshmallow==4.0.1
+motor==3.7.1
 mypy==1.17.1
 mypy-extensions==1.1.0
 nodeenv==1.9.1
@@ -35,6 +37,9 @@ pydantic-core==2.33.2
 pygments==2.19.2
 pymongo==4.14.1
 pytest==8.4.1
+pytest-asyncio==1.1.0
+pytest-cov==6.2.1
+pytest-mock==3.14.1
 python-dotenv==1.1.1
 python-multipart==0.0.20
 pyyaml==6.0.2
