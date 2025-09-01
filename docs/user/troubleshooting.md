@@ -40,7 +40,7 @@
 1. **Vérifiez que le backend tourne :**
    ```bash
    # Vérifiez dans un autre terminal
-   API_PORT=54322 python -m back_office_lmelp.app
+   PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
    ```
 
 2. **Testez l'API directement :**
@@ -342,10 +342,11 @@ localStorage.debug = '*'
 **Impact :** Nécessite modification manuelle en cas de changement
 **Amélioration prévue :** Découverte automatique des ports
 
-### 3. Pas de tests unitaires (Issue #4)
+### 3. Tests frontend activés (Issue #7 - RÉSOLU)
 
-**Impact :** Difficile de détecter les régressions
-**Résolution prévue :** Implémentation CI/CD avec tests
+**Problème précédent :** 26 tests frontend ignorés dans CI/CD
+**Résolution :** Tests intégrés dans le pipeline (38 tests total : 12 backend + 26 frontend)
+**Status :** ✅ Complètement résolu depuis septembre 2025
 
 ## Escalation et support
 

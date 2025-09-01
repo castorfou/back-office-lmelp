@@ -32,12 +32,14 @@ Le Back-Office LMELP est une application web full-stack pour la gestion d'épiso
 - **Vue.js 3** : Framework progressif avec Composition API
 - **Axios** : Client HTTP pour communication API
 - **Vite** : Build tool et dev server
+- **Vitest** : Framework de tests avec @vue/test-utils
 
 ### Outils de développement
 - **uv** : Gestionnaire de dépendances Python rapide
 - **Ruff** : Linter et formatter Python
 - **MyPy** : Type checker Python
 - **Pre-commit** : Hooks de qualité de code
+- **CI/CD** : Pipeline GitHub Actions (Python 3.11/3.12 + Node.js 18)
 
 ## Structure du projet
 
@@ -53,11 +55,13 @@ back-office-lmelp/
 │   │   ├── components/            # Composants Vue
 │   │   ├── services/              # Services API
 │   │   └── utils/                 # Utilitaires frontend
-│   └── tests/                     # Tests frontend
+│   └── tests/                     # Tests frontend (26 tests Vitest)
+│       ├── unit/                  # Tests unitaires (EpisodeSelector, EpisodeEditor)
+│       └── integration/           # Tests d'intégration (HomePage)
 ├── docs/                          # Documentation
 │   ├── dev/                       # Documentation développeurs
 │   └── user/                      # Documentation utilisateurs
-└── tests/                         # Tests backend (à créer)
+└── tests/                         # Tests backend (12 tests pytest)
 ```
 
 ## Démarrage développement
@@ -127,15 +131,19 @@ uv run mypy src/
 uv run pre-commit run --all-files
 ```
 
-### Tests
+### Tests (38 au total)
 ```bash
-# Tests backend (à implémenter)
-uv run pytest tests/ -v
+# Suite complète (backend + frontend)
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
 
-# Tests frontend
+# Tests backend (12 tests)
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Tests frontend (26 tests)
 cd frontend
-npm run test:unit
-npm run test:integration
+npm test -- --run
+npm run test:ui  # Interface graphique
+npm test -- --coverage  # Avec couverture
 ```
 
 ## Variables d'environnement
