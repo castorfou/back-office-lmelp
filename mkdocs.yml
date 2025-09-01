@@ -25,17 +25,11 @@ theme:
 plugins:
   - search:
       lang: fr
-  - mermaid2:
-      arguments:
-        theme: default
 
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
+  - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -61,3 +55,6 @@ nav:
     - Architecture: dev/architecture.md
     - API Reference: dev/api.md
     - Base de données: dev/database.md
+    - Développement: dev/development.md
+    - Déploiement: dev/deployment.md
+    - Sécurité: dev/security.md
