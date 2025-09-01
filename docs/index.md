@@ -45,16 +45,20 @@ Cette application permet de :
 ### Lancement
 ```bash
 # Backend (port 54322)
-API_PORT=54322 python -m back_office_lmelp.app
+PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
 
 # Frontend (port 5173)
 cd frontend && npm run dev
+
+# Documentation locale (port 8000)
+uv run mkdocs serve
 ```
 
 ### Accès
 - **Application** : http://localhost:5173
 - **API Backend** : http://localhost:54322
 - **Documentation API** : http://localhost:54322/docs
+- **Documentation MkDocs** : http://localhost:8000 (local) | [GitHub Pages](https://castorfou.github.io/back-office-lmelp/) (production)
 
 ## Fonctionnalités principales
 
@@ -70,11 +74,17 @@ cd frontend && npm run dev
 - Édition en temps réel des descriptions
 - Sauvegarde automatique avec indicateur visuel
 
+### 🧪 Tests complets
+- **Suite de tests** : 38 tests validés (12 backend + 26 frontend)
+- **CI/CD Pipeline** : GitHub Actions avec Python 3.11/3.12 + Node.js 18
+- **Couverture backend** : 40% avec pytest + coverage
+- **Tests frontend** : Vitest + @vue/test-utils (EpisodeSelector, EpisodeEditor, HomePage)
+
 ### 🔧 Qualité de code
-- Linting avec Ruff
-- Type checking avec MyPy
-- Pre-commit hooks automatiques
-- Tests (à venir - voir [issue #4](https://github.com/castorfou/back-office-lmelp/issues/4))
+- **Linting** : Ruff avec configuration optimisée
+- **Type checking** : MyPy avec strictness progressive
+- **Pre-commit hooks** : Formatage, sécurité, qualité automatiques
+- **Documentation** : MkDocs + Material Design sur GitHub Pages
 
 ## Problèmes connus
 
