@@ -25,6 +25,9 @@ uv sync --extra dev
 # Install pre-commit hooks (required for contributors)
 pre-commit install
 
+# Run backend application (port 54322 to avoid conflicts)
+PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
+
 # Run backend linting
 uv run ruff check . --output-format=github
 
@@ -65,6 +68,18 @@ cd frontend && npm run preview
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
+### Documentation Commands
+```bash
+# Serve documentation locally (port 8000)
+uv run mkdocs serve
+
+# Build documentation (for deployment)
+uv run mkdocs build --strict
+
+# View production documentation
+open https://castorfou.github.io/back-office-lmelp/
+```
+
 ## Project Structure
 ```
 ├── src/                        # Backend Python source code
@@ -86,12 +101,17 @@ PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd front
 │   ├── package-lock.json       # Locked frontend dependencies
 │   └── vite.config.js          # Vite configuration
 ├── tests/                      # Backend tests (pytest)
+├── docs/                       # Documentation (MkDocs)
+│   ├── dev/                   # Developer documentation
+│   ├── user/                  # User documentation
+│   └── index.md               # Documentation homepage
 ├── data/                       # Data files
 │   ├── raw/                   # Raw data
 │   └── processed/             # Processed data
 ├── notebooks/                  # Jupyter notebooks
 ├── pyproject.toml             # Backend Python configuration
-├── .github/workflows/         # CI/CD pipeline
+├── mkdocs.yml                 # MkDocs configuration
+├── .github/workflows/         # CI/CD pipeline (includes docs deployment)
 └── CLAUDE.md                  # This file
 ```
 
@@ -129,6 +149,7 @@ PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd front
 ### CI/CD Pipeline
 - **Backend tests**: Python 3.11 and 3.12 matrix
 - **Frontend tests**: Node.js 18 with npm cache
+- **Documentation**: MkDocs build and GitHub Pages deployment
 - **Security scan**: detect-secrets on all files
 - **Quality gate**: All test suites must pass before deployment
 
@@ -154,6 +175,7 @@ PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd front
 - **FastAPI**: Web framework with MongoDB integration
 - **Core**: pandas, numpy (data processing)
 - **Database**: MongoDB via motor/pymongo
+- **Documentation**: MkDocs with Material theme
 - **Development**: pytest, ruff, mypy, pre-commit
 
 ### Frontend Dependencies
@@ -162,3 +184,16 @@ PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd front
 - **HTTP**: Axios for API communication
 - **Utilities**: lodash.debounce for UI interactions
 - **Testing**: Vitest, @vue/test-utils, jsdom
+
+## Documentation
+
+### MkDocs Setup
+- **Theme**: Material Design with French language support
+- **Features**: Navigation, search, code highlighting
+- **Local development**: `uv run mkdocs serve` on port 8000
+- **Production**: https://castorfou.github.io/back-office-lmelp/
+
+### Structure
+- **User documentation**: docs/user/ (guides, troubleshooting)
+- **Developer documentation**: docs/dev/ (architecture, API, security)
+- **Automatic deployment**: GitHub Actions on docs changes

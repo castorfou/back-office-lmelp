@@ -83,8 +83,8 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 
 ```bash
 # Terminal 1 : Backend FastAPI
-uv run python -m back_office_lmelp.app
-# ➜ API disponible sur http://localhost:8000
+PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
+# ➜ API disponible sur http://localhost:54322
 
 # Terminal 2 : Frontend Vue.js
 cd frontend && npm run dev
@@ -93,9 +93,10 @@ cd frontend && npm run dev
 
 ### Vérification
 
-- **API** : http://localhost:8000/docs (documentation Swagger)
+- **API** : http://localhost:54322/docs (documentation Swagger)
 - **Frontend** : http://localhost:5173 (interface principale)
-- **Santé** : GET http://localhost:8000/api/episodes (doit retourner la liste)
+- **Documentation** : https://castorfou.github.io/back-office-lmelp/ (MkDocs)
+- **Santé** : GET http://localhost:54322/api/episodes (doit retourner la liste)
 
 ## 📖 Utilisation
 
@@ -126,6 +127,8 @@ GET /api/episodes/{id}
 # Mettre à jour la description corrigée
 PUT /api/episodes/{id}
 ```
+
+**📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
 
 ## 🧪 Tests
 
@@ -210,6 +213,7 @@ code .
 - **JavaScript** : Tests Vitest complets avec @vue/test-utils
 - **Git** : Pre-commit hooks configurés (detect-secrets, formatage)
 - **CI/CD** : Pipeline complet (Python 3.11/3.12 + Node.js 18) validant 38 tests
+- **Documentation** : MkDocs avec Material Design déployé sur GitHub Pages
 
 ### Tests détaillés
 
@@ -231,6 +235,7 @@ code .
 - ✅ Tests complets : 38 tests validés (12 backend + 26 frontend)
 - ✅ CI/CD pipeline avec validation complète
 - ✅ Architecture full-stack (FastAPI + Vue.js 3)
+- ✅ Documentation MkDocs + GitHub Pages avec Material Design
 
 ### Versions futures
 - 🤖 **IA** : Suggestions de corrections via Azure OpenAI
@@ -280,8 +285,10 @@ MIT - Voir [LICENSE](LICENSE) pour plus de détails.
 
 ## 🔗 Liens utiles
 
+- **📚 Documentation** : https://castorfou.github.io/back-office-lmelp/
 - **Projet principal** : https://github.com/castorfou/lmelp
 - **FastAPI** : https://fastapi.tiangolo.com/
 - **Vue.js** : https://vuejs.org/
 - **MongoDB** : https://docs.mongodb.com/
 - **uv (Python)** : https://docs.astral.sh/uv/
+- **MkDocs** : https://www.mkdocs.org/
