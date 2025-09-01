@@ -3,6 +3,7 @@
 Interface de gestion pour la base de données du projet [LMELP](https://github.com/castorfou/lmelp) (Le Masque et La Plume).
 
 [![CI/CD Pipeline](https://github.com/castorfou/back-office-lmelp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/castorfou/back-office-lmelp/actions/workflows/ci-cd.yml)
+[![Documentation](https://img.shields.io/badge/docs-MkDocs-blue.svg)](https://castorfou.github.io/back-office-lmelp/)
 [![codecov](https://codecov.io/gh/castorfou/back-office-lmelp/branch/main/graph/badge.svg)](https://codecov.io/gh/castorfou/back-office-lmelp)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
