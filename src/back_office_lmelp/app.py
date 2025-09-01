@@ -138,18 +138,32 @@ async def update_episode_description(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
-if __name__ == "__main__":
+# Variables globales pour la gestion propre du serveur
+_server_instance = None
+
+
+def signal_handler(signum, frame):
+    """Gestionnaire de signaux pour arrêt propre."""
+    print(f"\n🛑 Signal {signum} reçu - Arrêt en cours...")
+
+    # Arrêter le serveur proprement si disponible
+    if _server_instance is not None:
+        _server_instance.should_exit = True
+        print("📡 Signal d'arrêt envoyé au serveur")
+
+    # Forcer la fermeture des ressources
+    with suppress(Exception):
+        mongodb_service.disconnect()
+        print("🔌 MongoDB déconnecté")
+
+
+def main():
+    """Fonction principale pour démarrer le serveur."""
+    global _server_instance
+
     import signal
 
     import uvicorn
-
-    def signal_handler(signum, frame):
-        """Gestionnaire de signaux pour arrêt propre."""
-        print(f"\n🛑 Signal {signum} reçu - Arrêt en cours...")
-        # Forcer la fermeture des ressources
-        with suppress(Exception):
-            mongodb_service.disconnect()
-        exit(0)
 
     # Enregistrer les gestionnaires de signaux
     signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
@@ -162,7 +176,8 @@ if __name__ == "__main__":
     print("🛡️ Garde-fou mémoire activé")
 
     try:
-        uvicorn.run(
+        # Créer la configuration uvicorn avec des paramètres pour un arrêt propre
+        config = uvicorn.Config(
             app,
             host=host,
             port=port,
@@ -170,10 +185,28 @@ if __name__ == "__main__":
             server_header=False,
             date_header=False,
             lifespan="on",
+            # Paramètres pour un arrêt plus propre
+            timeout_keep_alive=5,
+            timeout_graceful_shutdown=10,
         )
+
+        # Créer le serveur et le garder en référence globale
+        _server_instance = uvicorn.Server(config)
+
+        # Démarrer le serveur
+        _server_instance.run()
+
+    except KeyboardInterrupt:
+        print("\n⚠️ Interruption clavier détectée")
     except Exception as e:
         print(f"❌ Erreur serveur: {e}")
-        # Nettoyage forcé
+    finally:
+        # Nettoyage final garanti
+        print("🧹 Nettoyage final...")
         with suppress(Exception):
             mongodb_service.disconnect()
-        exit(1)
+        print("✅ Arrêt complet")
+
+
+if __name__ == "__main__":
+    main()

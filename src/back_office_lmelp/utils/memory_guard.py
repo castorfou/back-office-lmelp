@@ -1,7 +1,5 @@
 """Garde-fou mémoire pour éviter les fuites."""
 
-import os
-
 import psutil
 
 
@@ -48,7 +46,7 @@ class MemoryGuard:
         return None
 
     def force_shutdown(self, reason: str) -> None:
-        """Force l'arrêt de l'application."""
+        """Force l'arrêt de l'application de manière plus gracieuse."""
         print(f"🚨 ARRÊT D'URGENCE: {reason}")
         print(f"Mémoire actuelle: {self.get_memory_usage_mb():.1f}MB")
         print("Application fermée pour éviter un crash système")
@@ -59,11 +57,31 @@ class MemoryGuard:
             import gc
 
             gc.collect()
+            print("🧹 Garbage collector exécuté")
         except Exception:
             pass
 
-        # Arrêt immédiat
-        os._exit(1)
+        # Essayer d'arrêter le serveur proprement si possible
+        try:
+            # Importer ici pour éviter les dépendances circulaires
+            from back_office_lmelp.app import _server_instance
+
+            if _server_instance is not None:
+                _server_instance.should_exit = True
+                print("📡 Signal d'arrêt envoyé au serveur")
+                # Donner un peu de temps pour l'arrêt gracieux
+                import time
+
+                time.sleep(0.5)
+        except ImportError:
+            # Si on ne peut pas importer (par exemple dans les tests),
+            # on continue avec l'arrêt normal
+            pass
+        except Exception as e:
+            print(f"⚠️ Erreur lors de l'arrêt gracieux: {e}")
+
+        # Arrêt via exception plutôt qu'os._exit pour permettre le cleanup
+        raise SystemExit(1)
 
 
 # Instance globale

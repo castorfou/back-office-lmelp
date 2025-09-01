@@ -43,7 +43,9 @@ Le hook `detect-secrets` analyse :
 - ✅ HTTPS uniquement en production
 - ✅ Mise à jour régulière des dépendances
 - ✅ Logs sécurisés (pas de données sensibles)
+- ✅ Arrêt gracieux du serveur avec gestion des signaux
 - ❌ Jamais de mode debug en production
+- ❌ Jamais d'os._exit() sans cleanup approprié
 
 ## Audit de sécurité
 
