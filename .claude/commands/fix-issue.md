@@ -9,4 +9,5 @@
 9. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
 10. Verifie l'etat de la CI/CD (gh run view)
 11. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 3 à 10) jusqu'à satisfaction
-12. Prepare la merge request et demande à l'utilisateur de la valider
+12. Met à jour README.md et CLAUDE.md si necessaire
+13. Prepare la merge request et demande à l'utilisateur de la valider
