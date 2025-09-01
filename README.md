@@ -2,8 +2,8 @@
 
 Interface de gestion pour la base de données du projet [LMELP](https://github.com/castorfou/lmelp) (Le Masque et La Plume).
 
-[![CI](https://github.com/castor_fou/back-office-lmelp/actions/workflows/ci.yml/badge.svg)](https://github.com/castor_fou/back-office-lmelp/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/castor_fou/back-office-lmelp/branch/main/graph/badge.svg)](https://codecov.io/gh/castor_fou/back-office-lmelp)
+[![CI/CD Pipeline](https://github.com/castorfou/back-office-lmelp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/castorfou/back-office-lmelp/actions/workflows/ci-cd.yml)
+[![codecov](https://codecov.io/gh/castorfou/back-office-lmelp/branch/main/graph/badge.svg)](https://codecov.io/gh/castorfou/back-office-lmelp)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -128,28 +128,40 @@ PUT /api/episodes/{id}
 
 ## 🧪 Tests
 
-### Backend
+### Suite complète (38 tests)
 ```bash
-# Tests Python (à implémenter)
-uv run pytest tests/
-
-# Linting et formatage
-uv run ruff check .
-uv run ruff format .
+# Lancer tous les tests (backend + frontend)
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
-### Frontend
+### Backend (12 tests)
+```bash
+# Tests Python avec couverture
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Linting et formatage
+uv run ruff check . --output-format=github
+uv run ruff format .
+
+# Type checking
+uv run mypy src/
+```
+
+### Frontend (26 tests)
 ```bash
 cd frontend
 
-# Tests unitaires et d'intégration
-npm run test
+# Tests unitaires et d'intégration (Vitest)
+npm test -- --run
 
 # Tests avec interface graphique
 npm run test:ui
 
 # Tests en mode watch
-npm run test -- --watch
+npm test -- --watch
+
+# Tests avec couverture
+npm test -- --coverage
 ```
 
 ## 🔧 Développement
@@ -193,17 +205,31 @@ code .
 
 ### Qualité du code
 
-- **Python** : Ruff (linting + formatage), MyPy (types)
-- **JavaScript** : ESLint (optionnel), tests Vitest obligatoires
-- **Git** : Pre-commit hooks configurés
-- **CI/CD** : Tests automatiques sur push
+- **Python** : Ruff (linting + formatage), MyPy (types), 40% couverture
+- **JavaScript** : Tests Vitest complets avec @vue/test-utils
+- **Git** : Pre-commit hooks configurés (detect-secrets, formatage)
+- **CI/CD** : Pipeline complet (Python 3.11/3.12 + Node.js 18) validant 38 tests
+
+### Tests détaillés
+
+**Backend (12 tests)** :
+- API endpoints FastAPI
+- Services MongoDB (CRUD épisodes)
+- Utilitaires (memory guard, etc.)
+
+**Frontend (26 tests)** :
+- **EpisodeSelector** : 7 tests (chargement, sélection, erreurs)
+- **EpisodeEditor** : 12 tests (édition, sauvegarde, validation)
+- **HomePage** : 7 tests d'intégration (flux complets)
 
 ## 📋 Roadmap
 
 ### Version 0.1.0 (actuelle)
 - ✅ Interface de base pour correction des descriptions
 - ✅ Sauvegarde automatique en base MongoDB
-- ✅ Tests unitaires et d'intégration
+- ✅ Tests complets : 38 tests validés (12 backend + 26 frontend)
+- ✅ CI/CD pipeline avec validation complète
+- ✅ Architecture full-stack (FastAPI + Vue.js 3)
 
 ### Versions futures
 - 🤖 **IA** : Suggestions de corrections via Azure OpenAI
