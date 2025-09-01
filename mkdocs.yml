@@ -1,0 +1,63 @@
+site_name: Back-Office LMELP
+site_description: Documentation du back-office pour la gestion des épisodes LMELP
+site_author: Back-Office LMELP Team
+site_url: https://castorfou.github.io/back-office-lmelp/
+
+repo_name: castorfou/back-office-lmelp
+repo_url: https://github.com/castorfou/back-office-lmelp
+
+theme:
+  name: material
+  language: fr
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: fr
+  - mermaid2:
+      arguments:
+        theme: default
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - toc:
+      permalink: true
+
+nav:
+  - Accueil: index.md
+  - 👤 Guide utilisateur:
+    - Démarrage rapide: user/README.md
+    - Gestion des épisodes: user/episodes.md
+    - Résolution de problèmes: user/troubleshooting.md
+  - 👨‍💻 Documentation technique:
+    - Vue d'ensemble: dev/README.md
+    - Architecture: dev/architecture.md
+    - API Reference: dev/api.md
+    - Base de données: dev/database.md
