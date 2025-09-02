@@ -50,7 +50,7 @@ class TestAutomaticPortSelection(unittest.TestCase):
 
             port = find_free_port_or_default()
             self.assertEqual(port, 54321)
-            mock_socket_instance.bind.assert_called_with(("localhost", 54321))
+            mock_socket_instance.bind.assert_called_with(("0.0.0.0", 54321))
 
     def test_find_free_port_falls_back_to_range_when_default_occupied(self):
         """Test fallback to port range when default port is occupied."""

@@ -98,7 +98,7 @@ class PortDiscovery:
         for port in range(start_port, start_port + max_attempts):
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(("localhost", port))
+                    s.bind(("0.0.0.0", port))
                     return port
             except OSError:
                 continue

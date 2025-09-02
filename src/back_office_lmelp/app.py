@@ -196,7 +196,7 @@ def find_free_port_or_default() -> int:
     # 2. Try preferred default port 54321
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("localhost", 54321))
+            s.bind(("0.0.0.0", 54321))
             return 54321
     except OSError:
         # Port 54321 is occupied, continue to fallback range
