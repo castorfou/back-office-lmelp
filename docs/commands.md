@@ -42,3 +42,18 @@ cd frontend && npm test
 # Ou en une commande :
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v && cd frontend && npm test -- --run
 ```
+
+## "Failed to add the ECDSA host key ..." - maj du ssh known_host
+
+Le devcontainer monte ta config SSH depuis l'hôte en bind-mount. Dans devcontainer.json on a cette ligne :
+
+source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly
+Explication courte :
+
+Le dossier ~/.ssh de l'hôte est monté dans le conteneur (donc les clés privées sont accessibles au conteneur).
+Le mount est en readonly, donc le conteneur ne peut pas écrire dans known_hosts — d'où l'erreur "Failed to add the ECDSA host key ...".
+
+```bash
+# exécuter sur l'hôte (pas dans le conteneur)
+ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+```
