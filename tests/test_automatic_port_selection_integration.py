@@ -104,15 +104,15 @@ class TestAutomaticPortSelectionIntegration(unittest.TestCase):
                 self.skipTest("Pas assez de ports libres pour ce test")
 
             # Créer les context managers dynamiquement
+            import contextlib
+
             context_managers = [
                 self.occupy_port(port, "0.0.0.0") for port in ports_to_occupy
             ]
 
-            with (
-                context_managers[0]
-                if len(context_managers) == 1
-                else (*context_managers,)
-            ):
+            with contextlib.ExitStack() as stack:
+                for cm in context_managers:
+                    stack.enter_context(cm)
                 selected_port = find_free_port_or_default()
 
                 # Le port sélectionné ne doit pas être dans ceux qu'on a occupés
