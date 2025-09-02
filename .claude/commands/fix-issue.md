@@ -12,3 +12,4 @@
 12. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 3 à 10) jusqu'à satisfaction
 13. Met à jour README.md et CLAUDE.md si necessaire
 14. Prepare la pull request et demande à l'utilisateur de la valider
+15. Clos la todo list si elle est bien vide
