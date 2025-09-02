@@ -69,6 +69,43 @@ npm run test:coverage
 npm run build
 ```
 
+### Dynamic Port Discovery
+
+Le système de découverte dynamique de port synchronise automatiquement les ports entre le backend FastAPI et le proxy Vite du frontend.
+
+#### Fonctionnement
+
+1. **Backend** : Au démarrage, écrit ses informations de port dans `.backend-port.json`
+2. **Frontend** : Vite lit ce fichier au démarrage pour configurer le proxy automatiquement
+3. **Nettoyage** : Le fichier est supprimé à l'arrêt du backend
+
+#### Fichier de découverte (`/.backend-port.json`)
+
+```json
+{
+  "port": 54321,
+  "host": "localhost",
+  "timestamp": 1640995200,
+  "url": "http://localhost:54321"
+}
+```
+
+#### Configuration
+
+- **Variable d'environnement** : `API_PORT=0` pour sélection automatique de port
+- **Fallback** : Port 54322 si le fichier est manquant ou obsolète (>30s)
+- **Développement** : Permet de démarrer backend/frontend dans n'importe quel ordre
+
+#### Tests
+
+```bash
+# Tests backend port discovery
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_dynamic_port_discovery.py -v
+
+# Tests frontend port discovery
+cd frontend && npm test -- --run tests/unit/PortDiscovery.test.js
+```
+
 ## Qualité de code
 
 ### Pre-commit hooks
