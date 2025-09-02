@@ -204,3 +204,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
 addopts = "-v --cov=src --cov-report=term-missing --cov-report=xml"
+filterwarnings = [
+    "ignore::DeprecationWarning:websockets.legacy.*",
+    "ignore::DeprecationWarning:uvicorn.protocols.websockets.*"
+]
