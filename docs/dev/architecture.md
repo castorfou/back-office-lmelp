@@ -12,13 +12,15 @@ graph TB
         UI[Interface Vue.js]
         MG1[Memory Guard Frontend]
         API_CLIENT[Client API Axios]
+        PD[Port Discovery]
     end
 
-    subgraph "Backend (Port 54322)"
+    subgraph "Backend (Port Auto-sélectionné)"
         FASTAPI[FastAPI App]
         MG2[Memory Guard Backend]
         SERVICES[Services Layer]
         MODELS[Models Layer]
+        PS[Port Selection]
     end
 
     subgraph "Database"
@@ -32,13 +34,18 @@ graph TB
     end
 
     UI --> API_CLIENT
+    PD --> API_CLIENT
     API_CLIENT -.->|HTTP/JSON| FASTAPI
     MG1 -.->|Monitor| UI
     MG2 -.->|Monitor| FASTAPI
+    PS -.->|Configure| FASTAPI
 
     FASTAPI --> SERVICES
     SERVICES --> MODELS
     MODELS --> MONGO
+
+    PS -.->|Write| PORT_FILE[.backend-port.json]
+    PD -.->|Read| PORT_FILE
 
     SIGNALS --> FASTAPI
     LIFESPAN --> FASTAPI
@@ -58,6 +65,7 @@ graph TB
 #### Services
 - **API Service** : Communication avec le backend
 - **Memory Guard** : Protection contre les fuites mémoire
+- **Port Discovery** : Découverte automatique du port backend
 
 ### Backend (FastAPI)
 
@@ -79,6 +87,7 @@ graph TB
 
 **Utils (`utils/`)**
 - **MemoryGuard** : Surveillance mémoire avec psutil
+- **Port Selection** : Sélection automatique de port libre
 - Gestion signaux système
 
 ### Base de données (MongoDB)

@@ -2,8 +2,18 @@
 
 ## Base URL
 
-```
-http://localhost:54322/api
+**Découverte automatique de port** (depuis Issue #13) :
+
+Le backend utilise maintenant une sélection automatique de port. Consultez les logs de démarrage ou le fichier `.backend-port.json` pour connaître le port utilisé.
+
+```bash
+# Port découvert automatiquement, exemple :
+http://localhost:54324/api
+
+# Ports possibles :
+# - Port préféré : 54321
+# - Ports de fallback : 54322-54350
+# - Attribution OS : port aléatoire si nécessaire
 ```
 
 ## Authentification
@@ -95,7 +105,8 @@ Récupère un épisode spécifique par son ID.
 #### Exemple de requête
 
 ```bash
-curl -X GET "http://localhost:54322/api/episodes/68a3911df8b628e552fdf11f"
+# Remplacez [PORT] par le port affiché au démarrage du backend
+curl -X GET "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f"
 ```
 
 ---
@@ -154,7 +165,8 @@ Guillaume Gault
 #### Exemple de requête
 
 ```bash
-curl -X PUT "http://localhost:54322/api/episodes/68a3911df8b628e552fdf11f" \
+# Remplacez [PORT] par le port affiché au démarrage du backend
+curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f" \
   -H "Content-Type: text/plain" \
   -d "Nouvelle description corrigée avec passages à la ligne"
 ```
@@ -240,14 +252,17 @@ def to_dict(self) -> dict[str, Any]:
 ### Avec curl
 
 ```bash
-# Lister les épisodes
-curl -X GET "http://localhost:54322/api/episodes"
+# Consultez d'abord les logs backend pour connaître le port utilisé
+# Exemple : "🚀 Démarrage du serveur sur 0.0.0.0:54324"
+
+# Lister les épisodes (remplacez [PORT])
+curl -X GET "http://localhost:[PORT]/api/episodes"
 
 # Récupérer un épisode
-curl -X GET "http://localhost:54322/api/episodes/68a3911df8b628e552fdf11f"
+curl -X GET "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f"
 
 # Mettre à jour une description
-curl -X PUT "http://localhost:54322/api/episodes/68a3911df8b628e552fdf11f" \
+curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f" \
   -H "Content-Type: text/plain" \
   -d "Description corrigée"
 ```
@@ -255,14 +270,16 @@ curl -X PUT "http://localhost:54322/api/episodes/68a3911df8b628e552fdf11f" \
 ### Avec HTTPie
 
 ```bash
+# Consultez les logs backend pour connaître le port (ex: 54324)
+
 # Lister les épisodes
-http GET localhost:54322/api/episodes
+http GET localhost:[PORT]/api/episodes
 
 # Récupérer un épisode
-http GET localhost:54322/api/episodes/68a3911df8b628e552fdf11f
+http GET localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f
 
 # Mettre à jour une description
-echo "Description corrigée" | http PUT localhost:54322/api/episodes/68a3911df8b628e552fdf11f \
+echo "Description corrigée" | http PUT localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f \
   Content-Type:text/plain
 ```
 
@@ -270,9 +287,11 @@ echo "Description corrigée" | http PUT localhost:54322/api/episodes/68a3911df8b
 
 FastAPI génère automatiquement une documentation interactive :
 
-- **Swagger UI** : http://localhost:54322/docs
-- **ReDoc** : http://localhost:54322/redoc
-- **OpenAPI Schema** : http://localhost:54322/openapi.json
+- **Swagger UI** : http://localhost:[PORT]/docs
+- **ReDoc** : http://localhost:[PORT]/redoc
+- **OpenAPI Schema** : http://localhost:[PORT]/openapi.json
+
+*Remplacez [PORT] par le port affiché au démarrage du backend*
 
 ## CORS Configuration
 
@@ -288,7 +307,7 @@ app.add_middleware(
 
 ## Limitations connues
 
-1. **Port fixe** : Configuration hardcodée pour le frontend proxy
+1. ~~**Port fixe** : Configuration hardcodée pour le frontend proxy~~ **✅ RÉSOLU (Issue #13)**
 2. **Pas d'authentification** : Accès libre en développement
 3. **Pas de pagination** : Tous les épisodes retournés d'un coup
 4. **Pas de filtrage** : Impossible de filtrer les épisodes

@@ -39,17 +39,32 @@
 
 1. **Vérifiez que le backend tourne :**
    ```bash
-   # Démarrage avec sélection automatique de port (recommandé)
+   # Démarrage avec sélection automatique de port (recommandé depuis Issue #13)
    PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
-   # Ou avec port spécifique si nécessaire
+   # Le serveur affichera automatiquement quelque chose comme :
+   # 🚀 Démarrage du serveur sur 0.0.0.0:54324 (port automatiquement sélectionné)
+   ```
+
+   **Avantages de la sélection automatique :**
+   - ✅ Aucune configuration manuelle nécessaire
+   - ✅ Évite automatiquement les ports occupés
+   - ✅ Le frontend trouve automatiquement le bon port
+
+   ```bash
+   # Ou avec port spécifique si vous voulez forcer un port
    PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
    ```
 
 2. **Testez l'API directement :**
-   - Consultez le terminal backend pour voir le port utilisé
+   - **Consultez le terminal backend** pour voir le port automatiquement sélectionné (ex: 54324)
    - Ouvrez : `http://localhost:[PORT]/api/episodes` (remplacez [PORT] par le port affiché)
    - Vous devez voir du JSON avec les épisodes
+
+3. **Vérifiez la découverte automatique de port :**
+   - Le fichier `.backend-port.json` doit être créé automatiquement à la racine du projet
+   - Il contient les informations de connexion pour le frontend
+   - En cas de problème, supprimez ce fichier et redémarrez le backend
 
 3. **Vérifiez les logs backend :**
    - Messages d'erreur dans le terminal backend
