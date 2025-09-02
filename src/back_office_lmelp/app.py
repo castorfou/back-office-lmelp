@@ -1,6 +1,7 @@
 """Application FastAPI principale."""
 
 import os
+import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from typing import Any
@@ -164,6 +165,47 @@ def signal_handler(signum, frame):
         print("🧹 Port discovery file cleaned up")
 
 
+def find_free_port_or_default() -> int:
+    """Find a free port using priority strategy.
+
+    Priority order:
+    1. Environment variable API_PORT if specified (current behavior)
+    2. Default preferred port 54321 (try first)
+    3. Fallback range 54322-54350 (scan for first available)
+
+    Returns:
+        Available port number
+
+    Raises:
+        ValueError: If environment variable contains invalid port number
+        RuntimeError: If no available port is found in the range
+    """
+    # 1. Check environment variable first
+    if "API_PORT" in os.environ:
+        api_port_str = os.getenv("API_PORT")
+        if api_port_str is None:
+            # Should not happen since we checked the key exists, but satisfy mypy
+            raise ValueError("API_PORT environment variable is None")
+        try:
+            return int(api_port_str)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Invalid API_PORT environment variable: {api_port_str}"
+            ) from e
+
+    # 2. Try preferred default port 54321
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("localhost", 54321))
+            return 54321
+    except OSError:
+        # Port 54321 is occupied, continue to fallback range
+        pass
+
+    # 3. Scan fallback range 54322-54350 (29 attempts)
+    return PortDiscovery.find_available_port(start_port=54322, max_attempts=29)
+
+
 def main():
     """Fonction principale pour démarrer le serveur."""
     global _server_instance
@@ -177,9 +219,15 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)  # Termination
 
     host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
+    port = find_free_port_or_default()
 
-    print(f"🚀 Démarrage du serveur sur {host}:{port}")
+    # Determine if port was automatically selected
+    port_auto_selected = "API_PORT" not in os.environ
+    port_message = f"🚀 Démarrage du serveur sur {host}:{port}"
+    if port_auto_selected:
+        port_message += " (port automatiquement sélectionné)"
+
+    print(port_message)
     print("🛡️ Garde-fou mémoire activé")
 
     # Create port discovery file for frontend
