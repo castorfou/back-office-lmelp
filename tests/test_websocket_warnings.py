@@ -106,8 +106,13 @@ class TestWebSocketWarnings:
         except ImportError:
             import tomllib as toml
 
-        # Read pyproject.toml
-        with open("/workspaces/back-office-lmelp/pyproject.toml", "rb") as f:
+        # Read pyproject.toml from project root (relative to test file location)
+        import pathlib
+
+        project_root = pathlib.Path(__file__).parent.parent
+        pyproject_path = project_root / "pyproject.toml"
+
+        with open(pyproject_path, "rb") as f:
             config = toml.load(f)
 
         # Check if pytest configuration exists
