@@ -26,11 +26,14 @@ const DEFAULT_CONFIG = {
  */
 function readBackendPort() {
   const portFilePath = path.resolve(process.cwd(), '../.backend-port.json');
+  const isTestMode = process.env.NODE_ENV === 'test' || process.env.VITEST;
 
   try {
     // Check if file exists
     if (!fs.existsSync(portFilePath)) {
-      console.warn('Backend port discovery file not found, using default port');
+      if (!isTestMode) {
+        console.warn('Backend port discovery file not found, using default port');
+      }
       return DEFAULT_CONFIG;
     }
 
@@ -43,13 +46,17 @@ function readBackendPort() {
     const fileAge = currentTime - (portData.timestamp * 1000);
 
     if (fileAge > MAX_FILE_AGE) {
-      console.warn('Backend port discovery file is stale, using default port');
+      if (!isTestMode) {
+        console.warn('Backend port discovery file is stale, using default port');
+      }
       return DEFAULT_CONFIG;
     }
 
     // Validate required fields
     if (!portData.port || !portData.host) {
-      console.warn('Invalid port discovery file format, using default port');
+      if (!isTestMode) {
+        console.warn('Invalid port discovery file format, using default port');
+      }
       return DEFAULT_CONFIG;
     }
 
@@ -60,7 +67,9 @@ function readBackendPort() {
     };
 
   } catch (error) {
-    console.warn('Failed to read backend port discovery file:', error.message);
+    if (!isTestMode) {
+      console.warn('Failed to read backend port discovery file:', error.message);
+    }
     return DEFAULT_CONFIG;
   }
 }

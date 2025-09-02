@@ -25,7 +25,7 @@ uv sync --extra dev
 # Install pre-commit hooks (required for contributors)
 pre-commit install
 
-# Run backend application (automatic port discovery)
+# Run backend application (automatic port selection)
 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
 # Or specify a specific port if needed
@@ -40,7 +40,7 @@ uv run ruff format .
 # Type checking
 uv run mypy src/
 
-# Run backend tests (32 tests)
+# Run backend tests (39 tests)
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Run pre-commit hooks manually
@@ -67,7 +67,7 @@ cd frontend && npm run preview
 
 ### Full Test Suite
 ```bash
-# Run all tests (63 total: 32 backend + 31 frontend)
+# Run all tests (70 total: 39 backend + 31 frontend)
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
 ```
 

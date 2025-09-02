@@ -10,7 +10,7 @@ Le Back-Office LMELP est une application web full-stack pour la gestion d'épiso
 ┌─────────────────┐    HTTP/JSON    ┌──────────────────┐    MongoDB    ┌─────────────┐
 │   Frontend      │◄───────────────►│    Backend       │◄─────────────►│   Database  │
 │   Vue.js        │                 │    FastAPI       │               │   MongoDB   │
-│   Port 5173     │                 │    Port 54322    │               │   Port 27017│
+│   Port 5173     │                 │ Port Auto-sélect │               │   Port 27017│
 └─────────────────┘                 └──────────────────┘               └─────────────┘
          │                                   │
          ▼                                   ▼
@@ -99,8 +99,11 @@ npm install
 # Démarrer MongoDB (si local)
 mongod
 
-# Démarrer l'API
-API_PORT=54322 python -m back_office_lmelp.app
+# Démarrer l'API (sélection automatique de port)
+PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+
+# Ou spécifier un port si nécessaire
+API_PORT=54322 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 ```
 
 **Terminal 2 - Frontend :**
@@ -111,8 +114,8 @@ npm run dev
 
 **Accès :**
 - Application : http://localhost:5173
-- API Backend : http://localhost:54322
-- API Docs : http://localhost:54322/docs
+- API Backend : Consultez les logs pour le port (ex: http://localhost:54324)
+- API Docs : http://localhost:[PORT]/docs (remplacez [PORT])
 
 ## Commandes de développement
 
@@ -149,7 +152,7 @@ npm test -- --coverage  # Avec couverture
 ## Variables d'environnement
 
 ### Backend
-- `API_PORT` : Port du serveur FastAPI (défaut: 54321)
+- `API_PORT` : Port du serveur FastAPI (défaut: sélection automatique 54321-54350)
 - `MONGODB_URL` : URL de connexion MongoDB (défaut: mongodb://localhost:27017)
 - `MEMORY_LIMIT_MB` : Limite mémoire backend (défaut: 500)
 
@@ -175,16 +178,17 @@ npm test -- --coverage  # Avec couverture
 - **Branches** : feature/, bugfix/, hotfix/
 - **PRs** : Template avec checklist
 
-## Problèmes connus
+## Problèmes résolus
 
-1. **Port 54321 occupé** → Utiliser `API_PORT=54322`
-2. **Processus zombies** → Gestionnaires de signaux implémentés
-3. **Découverte ports** → Refonte prévue (issue #2)
+1. ~~**Port 54321 occupé**~~ → ✅ **Sélection automatique implémentée (Issue #13)**
+2. ~~**Processus zombies**~~ → ✅ **Gestionnaires de signaux implémentés (Issue #1)**
+3. ~~**Découverte ports**~~ → ✅ **Système automatique implémenté (Issue #2, #13)**
 
 ## Ressources
 
 - [Architecture détaillée](architecture.md)
 - [Documentation API](api.md)
+- [Découverte automatique de port](port-discovery.md)
 - [Schéma base de données](database.md)
 - [Guide déploiement](deployment.md)
 - [Sécurité et garde-fous](security.md)

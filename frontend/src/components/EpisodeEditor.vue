@@ -163,7 +163,10 @@ export default {
       } catch (error) {
         this.saveStatus = 'error';
         this.saveError = ErrorHandler.handleError(error);
-        console.error('Erreur de sauvegarde:', error);
+        // Only log errors in non-test environments
+        if (process.env.NODE_ENV !== 'test' && !import.meta.env?.VITEST) {
+          console.error('Erreur de sauvegarde:', error);
+        }
       }
     },
 

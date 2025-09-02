@@ -39,13 +39,32 @@
 
 1. **Vérifiez que le backend tourne :**
    ```bash
-   # Vérifiez dans un autre terminal
+   # Démarrage avec sélection automatique de port (recommandé depuis Issue #13)
+   PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+
+   # Le serveur affichera automatiquement quelque chose comme :
+   # 🚀 Démarrage du serveur sur 0.0.0.0:54324 (port automatiquement sélectionné)
+   ```
+
+   **Avantages de la sélection automatique :**
+   - ✅ Aucune configuration manuelle nécessaire
+   - ✅ Évite automatiquement les ports occupés
+   - ✅ Le frontend trouve automatiquement le bon port
+
+   ```bash
+   # Ou avec port spécifique si vous voulez forcer un port
    PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
    ```
 
 2. **Testez l'API directement :**
-   - Ouvrez : `http://localhost:54322/api/episodes`
+   - **Consultez le terminal backend** pour voir le port automatiquement sélectionné (ex: 54324)
+   - Ouvrez : `http://localhost:[PORT]/api/episodes` (remplacez [PORT] par le port affiché)
    - Vous devez voir du JSON avec les épisodes
+
+3. **Vérifiez la découverte automatique de port :**
+   - Le fichier `.backend-port.json` doit être créé automatiquement à la racine du projet
+   - Il contient les informations de connexion pour le frontend
+   - En cas de problème, supprimez ce fichier et redémarrez le backend
 
 3. **Vérifiez les logs backend :**
    - Messages d'erreur dans le terminal backend
@@ -122,8 +141,8 @@
 
 3. **Redémarrez les services :**
    ```bash
-   # Backend
-   Ctrl+C puis API_PORT=54322 python -m back_office_lmelp.app
+   # Backend (sélection automatique de port)
+   Ctrl+C puis python -m back_office_lmelp.app
 
    # Frontend
    Ctrl+C puis npm run dev
@@ -292,19 +311,20 @@ Vérifiez le stockage local :
 
 #### Test API directe
 
-1. **Ouvrez :** `http://localhost:54322/docs`
-2. **Testez GET /api/episodes**
-3. **Testez GET /api/episodes/{id}**
-4. **Testez PUT /api/episodes/{id}**
+1. **Consultez le terminal backend pour connaître le port utilisé**
+2. **Ouvrez :** `http://localhost:[PORT]/docs` (remplacez [PORT] par le port affiché)
+3. **Testez GET /api/episodes**
+4. **Testez GET /api/episodes/{id}**
+5. **Testez PUT /api/episodes/{id}**
 
 #### Test de connectivité
 
 ```bash
-# Test ping du backend
-curl http://localhost:54322/api/episodes
+# Test ping du backend (consultez le terminal pour connaître le port)
+curl http://localhost:[PORT]/api/episodes
 
 # Test avec timeout
-curl --max-time 5 http://localhost:54322/api/episodes
+curl --max-time 5 http://localhost:[PORT]/api/episodes
 ```
 
 ### Logs détaillés
@@ -340,6 +360,18 @@ localStorage.debug = '*'
 - Ajout de timeouts configurables pour l'arrêt gracieux d'uvicorn
 - Tests ajoutés pour vérifier l'arrêt propre du serveur
 **Status :** ✅ Complètement résolu
+
+### 3. Sélection manuelle de port (Issue #13 - RÉSOLU)
+
+**Problème précédent :** Utilisateurs devaient manuellement spécifier un port libre lors du démarrage
+**Impact précédent :** Échec de démarrage si le port par défaut était occupé
+**Résolution appliquée :**
+- Sélection automatique de port avec stratégie de priorité
+- Port préféré 54321, fallback 54322-54350, attribution OS en dernier recours
+- Variable d'environnement `API_PORT` conservée pour override manuel
+- Message clair indiquant quand le port est sélectionné automatiquement
+- 7 nouveaux tests couvrant tous les scénarios de sélection
+**Status :** ✅ Complètement résolu depuis Issue #13
 
 ### 2. Configuration ports statique (Issue #2 - RÉSOLU)
 

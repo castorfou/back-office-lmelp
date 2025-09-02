@@ -42,8 +42,11 @@ back-office-lmelp/
 
 ### Backend (FastAPI)
 ```bash
-# Lancer le serveur de développement
+# Lancer le serveur de développement (sélection automatique de port)
 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+
+# Ou spécifier un port manuellement
+API_PORT=54325 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
 # Tests
 uv run pytest tests/ -v --cov=src
@@ -69,6 +72,36 @@ npm run test:coverage
 npm run build
 ```
 
+### Sélection automatique de port
+
+Le backend implémente une sélection automatique de port pour éviter les conflits lors du développement.
+
+#### Stratégie de priorité
+
+1. **Variable d'environnement** : `API_PORT` si définie (comportement manuel)
+2. **Port préféré** : 54321 (essai automatique)
+3. **Plage de fallback** : 54322-54350 (scan séquentiel)
+4. **Attribution OS** : En dernier recours si tous les ports sont occupés
+
+#### Utilisation
+
+```bash
+# Démarrage automatique (recommandé)
+python -m back_office_lmelp.app
+# 🚀 Démarrage du serveur sur 0.0.0.0:54323 (port automatiquement sélectionné)
+
+# Démarrage manuel (si besoin de port spécifique)
+API_PORT=8000 python -m back_office_lmelp.app
+# 🚀 Démarrage du serveur sur 0.0.0.0:8000
+```
+
+#### Avantages
+
+- ✅ **Zero configuration** : `python -m back_office_lmelp.app` fonctionne toujours
+- ✅ **Résistant aux conflits** : Gère les ports occupés gracieusement
+- ✅ **Compatible** : Variable d'environnement `API_PORT` toujours supportée
+- ✅ **Feedback clair** : Indication quand le port est sélectionné automatiquement
+
 ### Dynamic Port Discovery
 
 Le système de découverte dynamique de port synchronise automatiquement les ports entre le backend FastAPI et le proxy Vite du frontend.
@@ -83,22 +116,25 @@ Le système de découverte dynamique de port synchronise automatiquement les por
 
 ```json
 {
-  "port": 54321,
+  "port": 54323,
   "host": "localhost",
   "timestamp": 1640995200,
-  "url": "http://localhost:54321"
+  "url": "http://localhost:54323"
 }
 ```
 
 #### Configuration
 
-- **Variable d'environnement** : `API_PORT=0` pour sélection automatique de port
-- **Fallback** : Port 54322 si le fichier est manquant ou obsolète (>30s)
+- **Sélection automatique** : Aucune configuration requise, port auto-découvert
+- **Fallback frontend** : Port 54322 si le fichier est manquant ou obsolète (>30s)
 - **Développement** : Permet de démarrer backend/frontend dans n'importe quel ordre
 
 #### Tests
 
 ```bash
+# Tests sélection automatique de port
+PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection.py -v
+
 # Tests backend port discovery
 PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_dynamic_port_discovery.py -v
 

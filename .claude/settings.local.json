@@ -15,7 +15,10 @@
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --tb=short)",
       "Bash(gh issue develop:*)",
       "Bash(npm test:*)",
-      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v)"
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection.py -v)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection_integration.py::TestAutomaticPortSelectionIntegration::test_actual_server_binding_after_selection -v -s)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection_integration.py -v)"
     ]
   },
   "enableAllProjectMcpServers": true,

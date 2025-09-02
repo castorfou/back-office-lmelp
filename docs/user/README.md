@@ -7,13 +7,29 @@ Le Back-Office LMELP est une application web simple et intuitive pour consulter 
 ## Accès à l'application
 
 ### URL d'accès
+
+L'application est accessible via le frontend sur le port standard :
 ```
 http://localhost:5173
 ```
 
+Le backend utilise maintenant une **sélection automatique de port** pour éviter les conflits :
+- **Port par défaut** : 54321 (si disponible)
+- **Ports alternatifs** : 54322-54350 (sélection automatique si 54321 occupé)
+- **Découverte automatique** : Le frontend trouve automatiquement le bon port
+
+### Démarrage simplifié
+
+**Plus de configuration manuelle de ports !** Le système fonctionne automatiquement :
+
+1. **Démarrer le backend** : Se lance automatiquement sur un port libre
+2. **Démarrer le frontend** : Trouve automatiquement le backend
+3. **Accéder à l'application** : Toujours sur http://localhost:5173
+
 ### Prérequis
 - Navigateur web moderne (Chrome, Firefox, Safari, Edge)
 - Connexion réseau locale au serveur
+- **Aucune configuration de port nécessaire** (gestion automatique)
 
 ## Vue d'ensemble de l'interface
 
