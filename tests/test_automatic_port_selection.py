@@ -14,6 +14,7 @@ class TestAutomaticPortSelection(unittest.TestCase):
         """Set up test environment."""
         # Store original env vars to restore later
         self.original_api_port = os.environ.get("API_PORT")
+        self.original_api_host = os.environ.get("API_HOST")
 
     def tearDown(self):
         """Clean up test environment."""
@@ -22,6 +23,11 @@ class TestAutomaticPortSelection(unittest.TestCase):
             os.environ["API_PORT"] = self.original_api_port
         elif "API_PORT" in os.environ:
             del os.environ["API_PORT"]
+
+        if self.original_api_host is not None:
+            os.environ["API_HOST"] = self.original_api_host
+        elif "API_HOST" in os.environ:
+            del os.environ["API_HOST"]
 
     def test_find_free_port_respects_environment_variable(self):
         """Test that environment variable API_PORT is respected when set."""
@@ -40,7 +46,10 @@ class TestAutomaticPortSelection(unittest.TestCase):
         if "API_PORT" in os.environ:
             del os.environ["API_PORT"]
 
-        # Import here to ensure environment is cleared
+        # Set API_HOST to known value for predictable testing
+        os.environ["API_HOST"] = "0.0.0.0"
+
+        # Import here to ensure environment is set
         from back_office_lmelp.app import find_free_port_or_default
 
         with patch("socket.socket") as mock_socket:
@@ -50,6 +59,7 @@ class TestAutomaticPortSelection(unittest.TestCase):
 
             port = find_free_port_or_default()
             self.assertEqual(port, 54321)
+            # Should use API_HOST (set to 0.0.0.0)
             mock_socket_instance.bind.assert_called_with(("0.0.0.0", 54321))
 
     def test_find_free_port_falls_back_to_range_when_default_occupied(self):
@@ -58,7 +68,10 @@ class TestAutomaticPortSelection(unittest.TestCase):
         if "API_PORT" in os.environ:
             del os.environ["API_PORT"]
 
-        # Import here to ensure environment is cleared
+        # Set API_HOST to known value for predictable testing
+        os.environ["API_HOST"] = "0.0.0.0"
+
+        # Import here to ensure environment is set
         from back_office_lmelp.app import find_free_port_or_default
 
         with patch("socket.socket") as mock_socket:
@@ -78,7 +91,9 @@ class TestAutomaticPortSelection(unittest.TestCase):
             ) as mock_find:
                 port = find_free_port_or_default()
                 self.assertEqual(port, 54322)
-                mock_find.assert_called_once_with(start_port=54322, max_attempts=29)
+                mock_find.assert_called_once_with(
+                    start_port=54322, max_attempts=29, host="0.0.0.0"
+                )
 
     def test_find_free_port_handles_all_ports_occupied(self):
         """Test error handling when all ports in range are occupied."""

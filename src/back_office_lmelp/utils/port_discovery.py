@@ -82,12 +82,15 @@ class PortDiscovery:
             pass
 
     @staticmethod
-    def find_available_port(start_port: int = 8000, max_attempts: int = 100) -> int:
+    def find_available_port(
+        start_port: int = 8000, max_attempts: int = 100, host: str = "0.0.0.0"
+    ) -> int:
         """Find an available port starting from the given port.
 
         Args:
             start_port: Port to start searching from
             max_attempts: Maximum number of ports to try
+            host: Host address to bind to (default: "0.0.0.0")
 
         Returns:
             Available port number
@@ -98,7 +101,7 @@ class PortDiscovery:
         for port in range(start_port, start_port + max_attempts):
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(("0.0.0.0", port))
+                    s.bind((host, port))
                     return port
             except OSError:
                 continue

@@ -193,17 +193,22 @@ def find_free_port_or_default() -> int:
                 f"Invalid API_PORT environment variable: {api_port_str}"
             ) from e
 
+    # Get the same host that will be used by the server
+    host = os.getenv("API_HOST", "0.0.0.0")
+
     # 2. Try preferred default port 54321
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("0.0.0.0", 54321))
+            s.bind((host, 54321))
             return 54321
     except OSError:
         # Port 54321 is occupied, continue to fallback range
         pass
 
     # 3. Scan fallback range 54322-54350 (29 attempts)
-    return PortDiscovery.find_available_port(start_port=54322, max_attempts=29)
+    return PortDiscovery.find_available_port(
+        start_port=54322, max_attempts=29, host=host
+    )
 
 
 def main():
