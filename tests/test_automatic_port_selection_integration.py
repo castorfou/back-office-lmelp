@@ -88,41 +88,43 @@ class TestAutomaticPortSelectionIntegration(unittest.TestCase):
         original_api_host = os.environ.pop("API_HOST", None)
 
         try:
-            # Trouver des ports libres pour les tests
-            test_ports = []
-            for port in [
-                54326,
-                54327,
-                54328,
-            ]:  # Éviter 54321-54325 qui peuvent être occupés
-                if not self._is_port_occupied(port, "0.0.0.0"):
-                    test_ports.append(port)
+            # Construire une liste de ports à occuper de manière dynamique
+            ports_to_occupy = []
 
-            if len(test_ports) < 3:
+            # Toujours essayer d'occuper 54321 pour forcer le fallback
+            if not self._is_port_occupied(54321, "0.0.0.0"):
+                ports_to_occupy.append(54321)
+
+            # Occuper les premiers ports de la plage de fallback
+            for port in [54322, 54323, 54324]:
+                if not self._is_port_occupied(port, "0.0.0.0"):
+                    ports_to_occupy.append(port)
+
+            if len(ports_to_occupy) < 2:
                 self.skipTest("Pas assez de ports libres pour ce test")
 
-            # Occupe les premiers ports de test
+            # Créer les context managers dynamiquement
+            context_managers = [
+                self.occupy_port(port, "0.0.0.0") for port in ports_to_occupy
+            ]
+
             with (
-                self.occupy_port(test_ports[0], "0.0.0.0"),
-                self.occupy_port(test_ports[1], "0.0.0.0"),
-                self.occupy_port(test_ports[2], "0.0.0.0"),
+                context_managers[0]
+                if len(context_managers) == 1
+                else (*context_managers,)
             ):
                 selected_port = find_free_port_or_default()
 
-                # Doit sélectionner un port libre (pas parmi ceux occupés)
+                # Le port sélectionné ne doit pas être dans ceux qu'on a occupés
                 self.assertNotIn(
                     selected_port,
-                    test_ports,
-                    f"Port sélectionné {selected_port} ne doit pas être dans {test_ports}",
+                    ports_to_occupy,
+                    f"Port sélectionné {selected_port} ne doit pas être dans {ports_to_occupy}",
                 )
 
-                # Le port sélectionné doit être dans la plage de fallback
-                self.assertGreaterEqual(
-                    selected_port, 54322, "Port doit être dans la plage de fallback"
-                )
-                self.assertLessEqual(
-                    selected_port, 54350, "Port doit être dans la plage de fallback"
-                )
+                # Vérifier que le port est dans la plage valide
+                self.assertGreaterEqual(selected_port, 54321, "Port doit être >= 54321")
+                self.assertLessEqual(selected_port, 54350, "Port doit être <= 54350")
         finally:
             # Restaurer l'environnement
             if original_api_port is not None:
