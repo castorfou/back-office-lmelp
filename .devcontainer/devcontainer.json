@@ -13,7 +13,8 @@
         "PROJECT_SLUG": "back-office-lmelp",
         "PYTHON_VERSION": "3.11",
         "PYTHONPATH": "/workspaces/back-office-lmelp/src",
-        "UV_VENV_CLEAR": "1"
+        "UV_VENV_CLEAR": "1",
+        "TZ": "${localEnv:TZ}"
     },
 
     "customizations": {
@@ -86,10 +87,12 @@
         }
     },
 
-    // Montages pour hériter de la config git du host
+    // Montages pour hériter de la config git du host et de la timezone
     "mounts": [
         "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
+        "source=/etc/timezone,target=/etc/timezone,type=bind,consistency=cached,readonly",
+        "source=/etc/localtime,target=/etc/localtime,type=bind,consistency=cached,readonly"
     ],
 
     // Configuration du shell et de l'environnement
