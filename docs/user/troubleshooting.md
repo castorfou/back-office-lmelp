@@ -341,16 +341,21 @@ localStorage.debug = '*'
 - Tests ajoutés pour vérifier l'arrêt propre du serveur
 **Status :** ✅ Complètement résolu
 
-### 2. Configuration ports statique (Issue #2)
+### 2. Configuration ports statique (Issue #2 - RÉSOLU)
 
-**Problème :** Port hardcodé dans la configuration frontend
-**Impact :** Nécessite modification manuelle en cas de changement
-**Amélioration prévue :** Découverte automatique des ports
+**Problème précédent :** Port hardcodé dans la configuration frontend créant des désynchronisations
+**Impact précédent :** Nécessitait modification manuelle en cas de changement de port backend
+**Résolution appliquée :**
+- Système de découverte automatique de port via fichier `.backend-port.json`
+- Frontend lit automatiquement les informations de port du backend
+- Fallback intelligent vers port par défaut si fichier manquant ou obsolète
+- Tests complets pour garantir la robustesse (13 nouveaux tests)
+**Status :** ✅ Complètement résolu
 
 ### 3. Tests frontend activés (Issue #7 - RÉSOLU)
 
 **Problème précédent :** 26 tests frontend ignorés dans CI/CD
-**Résolution :** Tests intégrés dans le pipeline (38 tests total : 12 backend + 26 frontend)
+**Résolution :** Tests intégrés dans le pipeline (63 tests total : 32 backend + 31 frontend)
 **Status :** ✅ Complètement résolu depuis septembre 2025
 
 ## Escalation et support

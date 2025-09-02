@@ -82,21 +82,40 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 ### Démarrage rapide
 
 ```bash
-# Terminal 1 : Backend FastAPI
+# Terminal 1 : Backend FastAPI (découverte automatique de port)
 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
-# ➜ API disponible sur http://localhost:54321
+# ➜ API disponible sur port automatiquement détecté (voir sortie console)
 
-# Terminal 2 : Frontend Vue.js
+# Terminal 2 : Frontend Vue.js (découverte automatique du backend)
 cd frontend && npm run dev
 # ➜ Interface sur http://localhost:5173
 ```
 
+### Système de découverte dynamique
+
+Le backend et le frontend se synchronisent automatiquement via un fichier `.backend-port.json` :
+
+```bash
+# Le backend écrit ses informations de port au démarrage
+🚀 Démarrage du serveur sur 127.0.0.1:54323
+📡 Port discovery file created: /workspaces/back-office-lmelp/.backend-port.json
+
+# Le frontend lit automatiquement ces informations
+Using backend target from discovery file: http://127.0.0.1:54323
+```
+
+**Avantages :**
+- ✅ **Zéro configuration** : pas de gestion manuelle des ports
+- ✅ **Toujours fonctionnel** : évite les conflits de ports
+- ✅ **Ordre flexible** : démarrez backend/frontend dans n'importe quel ordre
+- ✅ **Fallback intelligent** : port 54322 par défaut si fichier manquant
+
 ### Vérification
 
-- **API** : http://localhost:54321/docs (documentation Swagger)
+- **API** : Voir l'URL dans la sortie console du backend pour la documentation Swagger
 - **Frontend** : http://localhost:5173 (interface principale)
 - **Documentation** : https://castorfou.github.io/back-office-lmelp/ (MkDocs)
-- **Santé** : GET http://localhost:54321/api/episodes (doit retourner la liste)
+- **Santé** : Tester l'endpoint `/api/episodes` avec l'URL affichée au démarrage
 
 ## 📖 Utilisation
 

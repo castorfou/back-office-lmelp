@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models.episode import Episode
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
+from .utils.port_discovery import PortDiscovery
 
 
 @asynccontextmanager
@@ -156,6 +157,12 @@ def signal_handler(signum, frame):
         mongodb_service.disconnect()
         print("🔌 MongoDB déconnecté")
 
+    # Nettoyer le fichier de découverte de port
+    with suppress(Exception):
+        port_file = PortDiscovery.get_port_file_path()
+        PortDiscovery.cleanup_port_file(port_file)
+        print("🧹 Port discovery file cleaned up")
+
 
 def main():
     """Fonction principale pour démarrer le serveur."""
@@ -174,6 +181,11 @@ def main():
 
     print(f"🚀 Démarrage du serveur sur {host}:{port}")
     print("🛡️ Garde-fou mémoire activé")
+
+    # Create port discovery file for frontend
+    port_file = PortDiscovery.get_port_file_path()
+    PortDiscovery.write_port_info(port, port_file, host)
+    print(f"📡 Port discovery file created: {port_file}")
 
     try:
         # Créer la configuration uvicorn avec des paramètres pour un arrêt propre
@@ -205,6 +217,9 @@ def main():
         print("🧹 Nettoyage final...")
         with suppress(Exception):
             mongodb_service.disconnect()
+        with suppress(Exception):
+            port_file = PortDiscovery.get_port_file_path()
+            PortDiscovery.cleanup_port_file(port_file)
         print("✅ Arrêt complet")
 
 
