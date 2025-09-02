@@ -24,7 +24,7 @@ fuser -k 8000/tcp 2>/dev/null; sleep 2; netstat -tlnp | grep :8000
 
 ```bash
 # backend, demarrage sur port API_PORT
-API_PORT=54322 python -m back_office_lmelp.app
+python -m back_office_lmelp.app
 
 # frontend
 cd frontend && npm run dev
@@ -34,13 +34,13 @@ cd frontend && npm run dev
 
 ```bash
 # Tests backend uniquement
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v
+pytest -v
 
 # Tests frontend uniquement
 cd frontend && npm test
 
 # Ou en une commande :
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest -v && cd frontend && npm test -- --run
+pytest -v && cd frontend && npm test -- --run
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
@@ -53,7 +53,20 @@ Explication courte :
 Le dossier ~/.ssh de l'hôte est monté dans le conteneur (donc les clés privées sont accessibles au conteneur).
 Le mount est en readonly, donc le conteneur ne peut pas écrire dans known_hosts — d'où l'erreur "Failed to add the ECDSA host key ...".
 
+le prb
+
 ```bash
-# exécuter sur l'hôte (pas dans le conteneur)
-ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+(.venv) vscode ➜ /workspaces/back-office-lmelp (main) $ git push
+Failed to add the ECDSA host key for IP address '140.82.121.3' to the list of known hosts (/home/vscode/.ssh/known_hosts).
+Everything up-to-date
+```
+
+à faire
+
+```bash
+# ajouter la clé publique de l'IP GitHub sur l'hôte
+ssh-keyscan -H 140.82.121.3 >> ~/.ssh/known_hosts
+
+# vérifier que l'entrée a bien été ajoutée
+ssh-keygen -F 140.82.121.3
 ```
