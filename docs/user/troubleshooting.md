@@ -330,11 +330,16 @@ localStorage.debug = '*'
 
 ## Problèmes connus et workarounds
 
-### 1. Port 54321 occupé (Issue #1)
+### 1. Port 54321 occupé (Issue #1 - RÉSOLU)
 
-**Problème :** Le port 54321 reste occupé après arrêt du backend
-**Workaround :** Utiliser `API_PORT=54322`
-**Résolution :** En cours d'investigation
+**Problème précédent :** Le port 54321 restait occupé après arrêt du serveur FastAPI
+**Cause identifiée :** Arrêt non gracieux du serveur (utilisation d'os._exit() et signaux mal gérés)
+**Résolution appliquée :**
+- Amélioration de la gestion des signaux SIGINT/SIGTERM
+- Remplacement d'os._exit() par SystemExit pour permettre un cleanup propre
+- Ajout de timeouts configurables pour l'arrêt gracieux d'uvicorn
+- Tests ajoutés pour vérifier l'arrêt propre du serveur
+**Status :** ✅ Complètement résolu
 
 ### 2. Configuration ports statique (Issue #2)
 

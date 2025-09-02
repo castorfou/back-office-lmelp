@@ -69,17 +69,16 @@ class TestMemoryGuardSimple:
         assert "LIMITE MÉMOIRE DÉPASSÉE" in result
         assert "600.0MB" in result
 
-    @patch("back_office_lmelp.utils.memory_guard.os._exit")
-    def test_force_shutdown(self, mock_exit, memory_guard):
+    def test_force_shutdown(self, memory_guard):
         """Test arrêt d'urgence forcé."""
         # Arrange
         error_message = "LIMITE MÉMOIRE DÉPASSÉE - ARRÊT D'URGENCE"
 
-        # Act
-        memory_guard.force_shutdown(error_message)
+        # Act & Assert
+        with pytest.raises(SystemExit) as exc_info:
+            memory_guard.force_shutdown(error_message)
 
-        # Assert
-        mock_exit.assert_called_once_with(1)
+        assert exc_info.value.code == 1
 
     def test_memory_guard_custom_limit(self):
         """Test création avec limite personnalisée."""

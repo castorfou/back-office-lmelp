@@ -25,8 +25,8 @@ uv sync --extra dev
 # Install pre-commit hooks (required for contributors)
 pre-commit install
 
-# Run backend application (port 54322 to avoid conflicts)
-PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
+# Run backend application (default port 54321)
+PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
 # Run backend linting
 uv run ruff check . --output-format=github

@@ -83,8 +83,8 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 
 ```bash
 # Terminal 1 : Backend FastAPI
-PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
-# ➜ API disponible sur http://localhost:54322
+PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+# ➜ API disponible sur http://localhost:54321
 
 # Terminal 2 : Frontend Vue.js
 cd frontend && npm run dev
@@ -93,10 +93,10 @@ cd frontend && npm run dev
 
 ### Vérification
 
-- **API** : http://localhost:54322/docs (documentation Swagger)
+- **API** : http://localhost:54321/docs (documentation Swagger)
 - **Frontend** : http://localhost:5173 (interface principale)
 - **Documentation** : https://castorfou.github.io/back-office-lmelp/ (MkDocs)
-- **Santé** : GET http://localhost:54322/api/episodes (doit retourner la liste)
+- **Santé** : GET http://localhost:54321/api/episodes (doit retourner la liste)
 
 ## 📖 Utilisation
 

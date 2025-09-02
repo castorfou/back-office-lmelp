@@ -44,8 +44,8 @@ Cette application permet de :
 
 ### Lancement
 ```bash
-# Backend (port 54322)
-PYTHONPATH=/workspaces/back-office-lmelp/src API_PORT=54322 python -m back_office_lmelp.app
+# Backend (port 54321)
+PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
 # Frontend (port 5173)
 cd frontend && npm run dev
@@ -88,8 +88,9 @@ uv run mkdocs serve
 
 ## Problèmes connus
 
-- **Port 54321 occupé** : Utiliser `API_PORT=54322` (voir [issue #1](https://github.com/castorfou/back-office-lmelp/issues/1))
+- ~~**Port 54321 occupé** : ✅ **Résolu** (voir [issue #1](https://github.com/castorfou/back-office-lmelp/issues/1))~~
 - **Configuration ports** : Refonte nécessaire pour découverte automatique (voir [issue #2](https://github.com/castorfou/back-office-lmelp/issues/2))
+- **CI/CD sur branches** : Tests ne s'exécutent que sur main/develop (voir [issue #10](https://github.com/castorfou/back-office-lmelp/issues/10))
 
 ## Contribuer
 
