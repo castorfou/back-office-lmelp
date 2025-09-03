@@ -53,17 +53,47 @@ uv run pre-commit run --all-files
 cd frontend && npm ci
 
 # Run frontend tests (31 tests)
-cd frontend && npm test -- --run
+# IMPORTANT: Always specify full path to avoid directory confusion
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 # Start development server
-cd frontend && npm run dev
+cd /workspaces/back-office-lmelp/frontend && npm run dev
 
 # Build for production
-cd frontend && npm run build
+cd /workspaces/back-office-lmelp/frontend && npm run build
 
 # Preview production build
-cd frontend && npm run preview
+cd /workspaces/back-office-lmelp/frontend && npm run preview
 ```
+
+### Command Execution Best Practices
+**IMPORTANT**: To avoid directory confusion when switching between backend/frontend:
+
+1. **Always use absolute paths** in commands:
+   ```bash
+   # ✅ Good - absolute paths
+   cd /workspaces/back-office-lmelp/frontend && npm test -- --run
+   PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v
+
+   # ❌ Bad - relative paths can cause confusion
+   cd frontend && npm test -- --run
+   cd ../backend && pytest tests/
+   ```
+
+2. **Verify working directory** before executing commands:
+   ```bash
+   pwd  # Always check current directory
+   ```
+
+3. **Use single-command execution** with `&&` to chain directory changes:
+   ```bash
+   cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
+   ```
+
+4. **Return to project root** after frontend operations:
+   ```bash
+   cd /workspaces/back-office-lmelp  # Always return to project root when done
+   ```
 
 ### Full Test Suite
 ```bash
@@ -171,6 +201,43 @@ open https://castorfou.github.io/back-office-lmelp/
 - Coverage:
   - **Unit tests**: EpisodeSelector (7), EpisodeEditor (12)
   - **Integration tests**: HomePage (7)
+
+## Development Workflow
+
+### Test-Driven Development (TDD)
+**IMPORTANT**: Always follow TDD methodology for ALL code changes, including small modifications and UX improvements.
+
+#### TDD Process (Red-Green-Refactor)
+1. **Write failing tests first** - Even for small changes, write tests that capture the expected behavior
+2. **Implement minimal code** to make tests pass
+3. **Refactor** while keeping tests green
+4. **Update tests** if behavior changes, but always test-first
+
+#### Examples requiring TDD approach:
+- Adding new component properties or methods
+- Modifying UI behavior (save status, validation, etc.)
+- Changing API responses or database interactions
+- UX improvements that alter component state
+
+#### Why TDD for all changes:
+- Prevents regression bugs
+- Documents expected behavior
+- Ensures code quality consistency
+- Maintains test coverage
+- Facilitates safe refactoring
+
+**Never implement code changes without corresponding tests, regardless of change size.**
+
+### Verification Best Practices
+**CRITICAL**: Always verify the actual state before marking tasks as completed.
+
+- **Before marking any task as 'completed'**: Use appropriate tools to verify the action is actually accomplished
+- **For Pull Requests**: Use `gh pr view <number>` to confirm merge status before declaring success
+- **For deployments**: Check actual deployment status, not just pipeline success
+- **For file changes**: Use `Read` or `ls` to verify files exist/changed as expected
+- **For test results**: Verify all tests actually pass, not just assume from commands run
+
+**Never rely solely on user declarations of intent** - always verify the real world state using available tools.
 
 ## Dependencies
 

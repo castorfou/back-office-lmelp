@@ -73,6 +73,21 @@ export const episodeService = {
     });
     return response.data;
   },
+
+  /**
+   * Met à jour le titre corrigé d'un épisode
+   * @param {string} episodeId - ID de l'épisode
+   * @param {string} titreCorrige - Nouveau titre
+   * @returns {Promise<Object>} Résultat de la mise à jour
+   */
+  async updateEpisodeTitle(episodeId, titreCorrige) {
+    const response = await api.put(`/episodes/${episodeId}/title`, titreCorrige, {
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+    return response.data;
+  },
 };
 
 export default api;

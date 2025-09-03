@@ -21,3 +21,4 @@ class TestSimpleEndpoints:
         routes = [route.path for route in app.routes]
         assert "/api/episodes" in routes
         assert "/api/episodes/{episode_id}" in routes
+        assert "/api/episodes/{episode_id}/title" in routes

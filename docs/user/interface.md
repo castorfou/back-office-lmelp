@@ -30,7 +30,12 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 │  📝 Détails de l'épisode                                   │
 │  ═══════════════════════════════════════════════════════════ │
 │                                                             │
-│  Titre: Les nouveaux livres de Simon Chevrier, Sylvain...  │
+│  🏷️ Titre:                                                  │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ Les nouveaux livres de Simon Chevrier, Sylvain Tesson  │ │
+│  │ [Zone éditable avec curseur]                           │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
 │  Date: 2025-08-03T10:59:59.000+00:00                      │
 │  Type: livres                        Durée: 00:51:36       │
 │                                                             │
@@ -97,7 +102,7 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 
 | Champ | Format | Exemple | Description |
 |-------|--------|---------|-------------|
-| **Titre** | Texte libre | "Les nouveaux livres de Simon Chevrier..." | Titre complet de l'épisode |
+| **Titre** | Texte libre éditable | "Les nouveaux livres de Simon Chevrier..." | Titre complet de l'épisode (modifiable) |
 | **Date** | ISO 8601 | "2025-08-03T10:59:59.000+00:00" | Date/heure de diffusion |
 | **Type** | Catégorie | "livres" | Type d'émission |
 | **Durée** | MM:SS | "00:51:36" | Durée totale de l'épisode |
@@ -125,7 +130,43 @@ critique littéraire et productrice chez France Inter, littéraire, Hubert
 Artus : Journaliste et chroniqueur Guillaume Gault
 ```
 
-### 4. Description corrigée
+### 4. Éditeur de titre
+
+#### Caractéristiques
+- **Type** : Input text éditable
+- **Fond** : Blanc
+- **Bordure** : Bleue quand active, grise sinon
+- **Curseur** : Clignotant quand sélectionné
+- **Largeur** : Pleine largeur
+- **Sauvegarde** : Automatique avec debounce de 2 secondes
+
+#### États d'interaction
+
+**État normal :**
+```
+┌─────────────────────────────────────┐
+│ Les nouveaux livres de Simon...     │
+│ [Titre éditable]                   │
+└─────────────────────────────────────┘
+```
+
+**État focus :**
+```
+┌═════════════════════════════════════┐  ← Bordure bleue épaisse
+║ Les nouveaux livres de Simon...     ║
+║ [Curseur actif]                    ║
+└═════════════════════════════════════┘
+```
+
+#### Fonctionnalités d'édition
+
+- **Saisie libre** : Tout caractère accepté (ligne unique)
+- **Sélection de texte** : Clic-glisser ou Shift+flèches
+- **Copier/coller** : Ctrl+C / Ctrl+V
+- **Annuler/refaire** : Ctrl+Z / Ctrl+Y
+- **Sauvegarde automatique** : Après 2 secondes d'inactivité
+
+### 5. Description corrigée
 
 #### Caractéristiques
 - **Zone** : Textarea éditable
@@ -160,7 +201,7 @@ Artus : Journaliste et chroniqueur Guillaume Gault
 - **Copier/coller** : Ctrl+C / Ctrl+V
 - **Annuler/refaire** : Ctrl+Z / Ctrl+Y
 
-### 5. Indicateur de sauvegarde
+### 6. Indicateur de sauvegarde
 
 #### États possibles
 
@@ -189,7 +230,7 @@ Utilisateur tape → Délai 1 seconde → Sauvegarde automatique
          Succès: "Sauvegardé" / Échec: "Erreur"
 ```
 
-### 6. Zone de transcription
+### 7. Zone de transcription
 
 #### Caractéristiques
 - **Type** : Zone de texte étendue

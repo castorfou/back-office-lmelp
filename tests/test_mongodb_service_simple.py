@@ -40,6 +40,44 @@ class TestMongoDBServiceSimple:
             {"$set": {"description_corrigee": new_description}},
         )
 
+    def test_update_episode_title_success(self, mongodb_service):
+        """Test mise à jour réussie du titre d'un épisode."""
+        # Arrange
+        episode_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        new_title = "Nouveau titre corrigé"
+        mock_result = MagicMock()
+        mock_result.modified_count = 1
+        mongodb_service.episodes_collection.update_one = MagicMock(
+            return_value=mock_result
+        )
+
+        # Act
+        result = mongodb_service.update_episode_title(episode_id, new_title)
+
+        # Assert
+        assert result is True
+        mongodb_service.episodes_collection.update_one.assert_called_once_with(
+            {"_id": ObjectId(episode_id)},
+            {"$set": {"titre_corrige": new_title}},
+        )
+
+    def test_update_episode_title_failure(self, mongodb_service):
+        """Test échec de mise à jour du titre d'un épisode."""
+        # Arrange
+        episode_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        new_title = "Nouveau titre corrigé"
+        mock_result = MagicMock()
+        mock_result.modified_count = 0  # No document modified
+        mongodb_service.episodes_collection.update_one = MagicMock(
+            return_value=mock_result
+        )
+
+        # Act
+        result = mongodb_service.update_episode_title(episode_id, new_title)
+
+        # Assert
+        assert result is False
+
     def test_insert_episode_success(self, mongodb_service):
         """Test insertion réussie d'un épisode."""
         # Arrange

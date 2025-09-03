@@ -98,6 +98,23 @@ class MongoDBService:
             print(f"Erreur lors de la mise à jour de l'épisode {episode_id}: {e}")
             return False
 
+    def update_episode_title(self, episode_id: str, titre_corrige: str) -> bool:
+        """Met à jour le titre corrigé d'un épisode."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            result = self.episodes_collection.update_one(
+                {"_id": ObjectId(episode_id)},
+                {"$set": {"titre_corrige": titre_corrige}},
+            )
+            return bool(result.modified_count > 0)
+        except Exception as e:
+            print(
+                f"Erreur lors de la mise à jour du titre de l'épisode {episode_id}: {e}"
+            )
+            return False
+
     def insert_episode(self, episode_data: dict[str, Any]) -> str:
         """Insère un nouvel épisode."""
         if self.episodes_collection is None:

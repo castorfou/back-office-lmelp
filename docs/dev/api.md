@@ -80,6 +80,7 @@ Récupère un épisode spécifique par son ID.
   "date": "2025-08-03T10:59:59.000+00:00",
   "description": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre - Un...",
   "description_corrigee": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre -\n...",
+  "titre_corrige": "Les nouveaux livres de Simon Chevrier, Sylvain Tesson et Gaël Octavia",
   "url": "https://proxycast.radiofrance.fr/e7ade132-cccd-4bcc-ba98-f620f9c4a0d0/...",
   "audio_rel_filename": "2025/14007-03.08.2025-ITEMA_2420925-2025F400TS0215-NET_MFI_28633905-6...",
   "transcription": " France Inter Le masque et la plume Un tour du monde sur des stacks, u...",
@@ -180,6 +181,72 @@ description_corrigee = (await request.body()).decode('utf-8')
 
 ---
 
+### PUT /episodes/{episode_id}/title
+
+Met à jour le titre corrigé d'un épisode.
+
+#### Paramètres
+
+- `episode_id` (string, required) : ID MongoDB de l'épisode
+
+#### Body
+
+**Content-Type: `text/plain`**
+
+Le nouveau titre corrigé en texte brut.
+
+```
+Les nouveaux livres de Simon Chevrier, Sylvain Tesson et Gaël Octavia
+```
+
+#### Réponses
+
+**200 OK**
+```json
+{
+  "message": "Titre mis à jour avec succès"
+}
+```
+
+**400 Bad Request**
+```json
+{
+  "detail": "Échec de la mise à jour"
+}
+```
+
+**404 Not Found**
+```json
+{
+  "detail": "Épisode non trouvé"
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "detail": "Erreur serveur: message d'erreur"
+}
+```
+
+#### Exemple de requête
+
+```bash
+# Remplacez [PORT] par le port affiché au démarrage du backend
+curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title" \
+  -H "Content-Type: text/plain" \
+  -d "Nouveau titre corrigé et plus lisible"
+```
+
+#### Note importante
+
+L'endpoint lit le body de la requête comme `text/plain` via :
+```python
+titre_corrige = (await request.body()).decode('utf-8')
+```
+
+---
+
 ## Codes d'erreur
 
 | Code | Signification | Description |
@@ -222,6 +289,7 @@ class Episode:
     date: datetime
     description: str
     description_corrigee: Optional[str]
+    titre_corrige: Optional[str]
     url: str
     audio_rel_filename: str
     transcription: str
@@ -239,6 +307,7 @@ def to_dict(self) -> dict[str, Any]:
         "date": self.data.get("date"),
         "description": self.data.get("description", ""),
         "description_corrigee": self.data.get("description_corrigee"),
+        "titre_corrige": self.data.get("titre_corrige"),
         "url": self.data.get("url", ""),
         "audio_rel_filename": self.data.get("audio_rel_filename", ""),
         "transcription": self.data.get("transcription", ""),
@@ -265,6 +334,11 @@ curl -X GET "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f"
 curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f" \
   -H "Content-Type: text/plain" \
   -d "Description corrigée"
+
+# Mettre à jour un titre
+curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title" \
+  -H "Content-Type: text/plain" \
+  -d "Nouveau titre corrigé"
 ```
 
 ### Avec HTTPie
@@ -280,6 +354,10 @@ http GET localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f
 
 # Mettre à jour une description
 echo "Description corrigée" | http PUT localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f \
+  Content-Type:text/plain
+
+# Mettre à jour un titre
+echo "Nouveau titre corrigé" | http PUT localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title \
   Content-Type:text/plain
 ```
 

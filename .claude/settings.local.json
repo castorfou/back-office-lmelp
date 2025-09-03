@@ -19,7 +19,10 @@
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection.py -v)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection_integration.py::TestAutomaticPortSelectionIntegration::test_actual_server_binding_after_selection -v -s)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_automatic_port_selection_integration.py -v)",
-      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_websocket_warnings.py -v)"
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_websocket_warnings.py -v)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_mongodb_service_simple.py::TestMongoDBServiceSimple::test_update_episode_title_success -v)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_api_endpoints_simple.py::TestSimpleEndpoints::test_app_has_routes -v)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/test_mongodb_service_simple.py -v)"
     ]
   },
   "enableAllProjectMcpServers": true,
