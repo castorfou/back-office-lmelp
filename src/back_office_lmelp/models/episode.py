@@ -15,6 +15,7 @@ class Episode:
         self.type: str = data.get("type", "")
         self.description: str = data.get("description", "")
         self.description_corrigee: str | None = data.get("description_corrigee")
+        self.titre_corrige: str | None = data.get("titre_corrige")
         self.transcription: str | None = data.get("transcription")
 
     def to_dict(self) -> dict[str, Any]:
@@ -26,6 +27,7 @@ class Episode:
             "type": self.type,
             "description": self.description,
             "description_corrigee": self.description_corrigee,
+            "titre_corrige": self.titre_corrige,
             "transcription": self.transcription,
         }
 

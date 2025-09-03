@@ -4,7 +4,33 @@
 
     <!-- Informations de l'épisode -->
     <div class="episode-info">
-      <h3>{{ episode.titre }}</h3>
+      <!-- Édition du titre -->
+      <div class="form-group">
+        <label for="titre-corrected" class="form-label">Titre:</label>
+        <input
+          id="titre-corrected"
+          v-model="correctedTitle"
+          @input="onTitleChange"
+          class="form-control"
+          placeholder="Titre de l'épisode"
+        />
+
+        <!-- Statut de sauvegarde du titre -->
+        <div class="save-status">
+          <span v-if="titleSaveStatus === 'saving'" class="saving">
+            💾 Sauvegarde du titre en cours...
+          </span>
+          <span v-else-if="titleSaveStatus === 'saved'" class="saved">
+            ✅ Titre sauvegardé automatiquement
+          </span>
+          <span v-else-if="titleSaveStatus === 'error'" class="error">
+            ❌ Erreur de sauvegarde du titre - {{ titleSaveError }}
+          </span>
+          <span v-else-if="hasTitleChanges" class="pending">
+            ⏳ Modification du titre en attente...
+          </span>
+        </div>
+      </div>
       <p class="episode-meta">
         <strong>Date:</strong> {{ formatDate(episode.date) }} |
         <strong>Type:</strong> {{ episode.type || 'Non spécifié' }}
@@ -37,19 +63,19 @@
         placeholder="Tapez ici votre version corrigée de la description..."
       ></textarea>
 
-      <!-- Statut de sauvegarde -->
+      <!-- Statut de sauvegarde de la description -->
       <div class="save-status">
-        <span v-if="saveStatus === 'saving'" class="saving">
-          💾 Sauvegarde en cours...
+        <span v-if="descriptionSaveStatus === 'saving'" class="saving">
+          💾 Sauvegarde de la description en cours...
         </span>
-        <span v-else-if="saveStatus === 'saved'" class="saved">
-          ✅ Sauvegardé automatiquement
+        <span v-else-if="descriptionSaveStatus === 'saved'" class="saved">
+          ✅ Description sauvegardée automatiquement
         </span>
-        <span v-else-if="saveStatus === 'error'" class="error">
-          ❌ Erreur de sauvegarde - {{ saveError }}
+        <span v-else-if="descriptionSaveStatus === 'error'" class="error">
+          ❌ Erreur de sauvegarde de la description - {{ descriptionSaveError }}
         </span>
-        <span v-else-if="hasChanges" class="pending">
-          ⏳ Modification en attente...
+        <span v-else-if="hasDescriptionChanges" class="pending">
+          ⏳ Modification de la description en attente...
         </span>
       </div>
     </div>
@@ -80,17 +106,24 @@ export default {
   data() {
     return {
       correctedDescription: '',
+      correctedTitle: '',
       originalCorrectedDescription: '',
-      saveStatus: '', // '', 'saving', 'saved', 'error'
-      saveError: '',
+      originalCorrectedTitle: '',
+      titleSaveStatus: '', // '', 'saving', 'saved', 'error'
+      titleSaveError: '',
+      descriptionSaveStatus: '', // '', 'saving', 'saved', 'error'
+      descriptionSaveError: '',
       error: null,
       hasChanges: false,
+      hasTitleChanges: false,
+      hasDescriptionChanges: false,
     };
   },
 
   created() {
-    // Créer la fonction debounced avec cancel
-    this.debouncedSave = debounce(this.saveDescription, 2000);
+    // Créer les fonctions debounced avec cancel
+    this.debouncedSaveDescription = debounce(this.saveDescription, 2000);
+    this.debouncedSaveTitle = debounce(this.saveTitle, 2000);
   },
 
   watch: {
@@ -98,9 +131,14 @@ export default {
       handler(newEpisode) {
         if (newEpisode) {
           this.correctedDescription = newEpisode.description_corrigee || newEpisode.description || '';
+          this.correctedTitle = newEpisode.titre_corrige || newEpisode.titre || '';
           this.originalCorrectedDescription = this.correctedDescription;
+          this.originalCorrectedTitle = this.correctedTitle;
           this.hasChanges = false;
-          this.saveStatus = '';
+          this.hasTitleChanges = false;
+          this.hasDescriptionChanges = false;
+          this.titleSaveStatus = '';
+          this.descriptionSaveStatus = '';
           this.error = null;
         }
       },
@@ -113,11 +151,25 @@ export default {
      * Gère les changements dans la description
      */
     onDescriptionChange() {
-      this.hasChanges = this.correctedDescription !== this.originalCorrectedDescription;
+      this.hasDescriptionChanges = this.correctedDescription !== this.originalCorrectedDescription;
+      this.hasChanges = this.hasDescriptionChanges || this.hasTitleChanges;
 
-      if (this.hasChanges) {
-        this.saveStatus = '';
-        this.debouncedSave();
+      if (this.hasDescriptionChanges) {
+        this.descriptionSaveStatus = '';
+        this.debouncedSaveDescription();
+      }
+    },
+
+    /**
+     * Gère les changements dans le titre
+     */
+    onTitleChange() {
+      this.hasTitleChanges = this.correctedTitle !== this.originalCorrectedTitle;
+      this.hasChanges = this.hasTitleChanges || this.hasDescriptionChanges;
+
+      if (this.hasTitleChanges) {
+        this.titleSaveStatus = '';
+        this.debouncedSaveTitle();
       }
     },
 
@@ -140,7 +192,7 @@ export default {
         console.warn(`⚠️ ${memoryCheck}`);
       }
 
-      this.saveStatus = 'saving';
+      this.descriptionSaveStatus = 'saving';
       this.error = null;
 
       try {
@@ -150,19 +202,69 @@ export default {
         );
 
         this.originalCorrectedDescription = this.correctedDescription;
-        this.hasChanges = false;
-        this.saveStatus = 'saved';
+        this.hasDescriptionChanges = false;
+        this.hasChanges = this.hasTitleChanges;
+        this.descriptionSaveStatus = 'saved';
 
         // Masquer le statut "sauvegardé" après 3 secondes
         setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = '';
+          if (this.descriptionSaveStatus === 'saved') {
+            this.descriptionSaveStatus = '';
           }
         }, 3000);
 
       } catch (error) {
-        this.saveStatus = 'error';
-        this.saveError = ErrorHandler.handleError(error);
+        this.descriptionSaveStatus = 'error';
+        this.descriptionSaveError = ErrorHandler.handleError(error);
+        // Only log errors in non-test environments
+        if (process.env.NODE_ENV !== 'test' && !import.meta.env?.VITEST) {
+          console.error('Erreur de sauvegarde:', error);
+        }
+      }
+    },
+
+    /**
+     * Sauvegarde le titre corrigé
+     */
+    async saveTitle() {
+      if (!this.hasChanges || !this.episode) {
+        return;
+      }
+
+      // Vérification mémoire avant sauvegarde
+      const memoryCheck = memoryGuard.checkMemoryLimit();
+      if (memoryCheck) {
+        if (memoryCheck.includes('LIMITE MÉMOIRE DÉPASSÉE')) {
+          memoryGuard.forceShutdown(memoryCheck);
+          return;
+        }
+        console.warn(`⚠️ ${memoryCheck}`);
+      }
+
+      this.titleSaveStatus = 'saving';
+      this.error = null;
+
+      try {
+        await episodeService.updateEpisodeTitle(
+          this.episode.id,
+          this.correctedTitle
+        );
+
+        this.originalCorrectedTitle = this.correctedTitle;
+        this.hasTitleChanges = false;
+        this.hasChanges = this.hasDescriptionChanges;
+        this.titleSaveStatus = 'saved';
+
+        // Masquer le statut "sauvegardé" après 3 secondes
+        setTimeout(() => {
+          if (this.titleSaveStatus === 'saved') {
+            this.titleSaveStatus = '';
+          }
+        }, 3000);
+
+      } catch (error) {
+        this.titleSaveStatus = 'error';
+        this.titleSaveError = ErrorHandler.handleError(error);
         // Only log errors in non-test environments
         if (process.env.NODE_ENV !== 'test' && !import.meta.env?.VITEST) {
           console.error('Erreur de sauvegarde:', error);
@@ -195,9 +297,12 @@ export default {
   },
 
   beforeUnmount() {
-    // Annuler le debounce si le composant est détruit
-    if (this.debouncedSave) {
-      this.debouncedSave.cancel();
+    // Annuler les debounces si le composant est détruit
+    if (this.debouncedSaveDescription) {
+      this.debouncedSaveDescription.cancel();
+    }
+    if (this.debouncedSaveTitle) {
+      this.debouncedSaveTitle.cancel();
     }
   },
 };

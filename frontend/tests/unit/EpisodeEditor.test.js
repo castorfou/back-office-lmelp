@@ -11,6 +11,7 @@ import { episodeService } from '../../src/services/api.js';
 vi.mock('../../src/services/api.js', () => ({
   episodeService: {
     updateEpisodeDescription: vi.fn(),
+    updateEpisodeTitle: vi.fn(),
   }
 }));
 
@@ -50,7 +51,8 @@ describe('EpisodeEditor', () => {
     date: '2024-01-15T09:00:00Z',
     type: 'livres',
     description: 'Description originale',
-    description_corrigee: 'Description déjà corrigée'
+    description_corrigee: 'Description déjà corrigée',
+    titre_corrige: 'Titre déjà corrigé'
   };
 
   beforeEach(() => {
@@ -71,7 +73,7 @@ describe('EpisodeEditor', () => {
       props: { episode: mockEpisode }
     });
 
-    expect(wrapper.find('h3').text()).toBe(mockEpisode.titre);
+    expect(wrapper.find('#titre-corrected').element.value).toBe(mockEpisode.titre_corrige);
     expect(wrapper.text()).toContain('15 janvier 2024');
     expect(wrapper.text()).toContain('livres');
   });
@@ -120,7 +122,8 @@ describe('EpisodeEditor', () => {
 
     // Changer la description et déclencher directement le calcul
     wrapper.vm.correctedDescription = 'Nouvelle description modifiée';
-    wrapper.vm.hasChanges = wrapper.vm.correctedDescription !== wrapper.vm.originalCorrectedDescription;
+    wrapper.vm.hasDescriptionChanges = wrapper.vm.correctedDescription !== wrapper.vm.originalCorrectedDescription;
+    wrapper.vm.hasChanges = wrapper.vm.hasDescriptionChanges || wrapper.vm.hasTitleChanges;
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.hasChanges).toBe(true);
@@ -159,12 +162,12 @@ describe('EpisodeEditor', () => {
     await textarea.setValue('Nouvelle description');
 
     // Simuler le statut de sauvegarde
-    wrapper.vm.saveStatus = 'saving';
+    wrapper.vm.descriptionSaveStatus = 'saving';
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.saving').exists()).toBe(true);
 
     // Simuler la fin de sauvegarde
-    wrapper.vm.saveStatus = 'saved';
+    wrapper.vm.descriptionSaveStatus = 'saved';
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.saved').exists()).toBe(true);
   });
@@ -182,8 +185,8 @@ describe('EpisodeEditor', () => {
     await textarea.setValue('Nouvelle description');
     await wrapper.vm.saveDescription();
 
-    expect(wrapper.vm.saveStatus).toBe('error');
-    expect(wrapper.vm.saveError).toBeTruthy();
+    expect(wrapper.vm.descriptionSaveStatus).toBe('error');
+    expect(wrapper.vm.descriptionSaveError).toBeTruthy();
   });
 
   it('ne sauvegarde pas s\'il n\'y a pas de changements', async () => {
@@ -228,6 +231,95 @@ describe('EpisodeEditor', () => {
     await wrapper.setProps({ episode: newEpisode });
 
     expect(wrapper.vm.hasChanges).toBe(false);
-    expect(wrapper.vm.saveStatus).toBe('');
+    expect(wrapper.vm.descriptionSaveStatus).toBe('');
+    expect(wrapper.vm.titleSaveStatus).toBe('');
+  });
+
+  // Tests pour l'édition du titre
+  it('affiche le champ d\'édition du titre', () => {
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: mockEpisode }
+    });
+
+    const titleInput = wrapper.find('#titre-corrected');
+    expect(titleInput.exists()).toBe(true);
+    expect(titleInput.element.value).toBe(mockEpisode.titre_corrige);
+  });
+
+  it('initialise l\'éditeur de titre avec titre corrigé existant', () => {
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: mockEpisode }
+    });
+
+    expect(wrapper.vm.correctedTitle).toBe(mockEpisode.titre_corrige);
+  });
+
+  it('initialise l\'éditeur de titre avec titre original si pas de correction', () => {
+    const episodeWithoutTitleCorrection = {
+      ...mockEpisode,
+      titre_corrige: null
+    };
+
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: episodeWithoutTitleCorrection }
+    });
+
+    expect(wrapper.vm.correctedTitle).toBe(mockEpisode.titre);
+  });
+
+  it('détecte les changements dans le titre', async () => {
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: mockEpisode }
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.hasChanges).toBe(false);
+
+    // Changer le titre
+    wrapper.vm.correctedTitle = 'Nouveau titre modifié';
+    wrapper.vm.hasTitleChanges = wrapper.vm.correctedTitle !== wrapper.vm.originalCorrectedTitle;
+    wrapper.vm.hasChanges = wrapper.vm.hasTitleChanges || wrapper.vm.hasDescriptionChanges;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.hasChanges).toBe(true);
+  });
+
+  it('sauvegarde automatiquement après modification du titre', async () => {
+    episodeService.updateEpisodeTitle.mockResolvedValue({ success: true });
+
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: mockEpisode }
+    });
+
+    // Modifier le titre
+    const titleInput = wrapper.find('#titre-corrected');
+    await titleInput.setValue('Nouveau titre');
+
+    // Déclencher la sauvegarde (normalement déclenchée par debounce)
+    await wrapper.vm.saveTitle();
+
+    expect(episodeService.updateEpisodeTitle).toHaveBeenCalledWith(
+      mockEpisode.id,
+      'Nouveau titre'
+    );
+  });
+
+  it('détecte les changements combinés titre et description', async () => {
+    wrapper = mount(EpisodeEditor, {
+      props: { episode: mockEpisode }
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.hasChanges).toBe(false);
+
+    // Changer titre et description
+    wrapper.vm.correctedTitle = 'Nouveau titre';
+    wrapper.vm.correctedDescription = 'Nouvelle description';
+    wrapper.vm.hasTitleChanges = wrapper.vm.correctedTitle !== wrapper.vm.originalCorrectedTitle;
+    wrapper.vm.hasDescriptionChanges = wrapper.vm.correctedDescription !== wrapper.vm.originalCorrectedDescription;
+    wrapper.vm.hasChanges = wrapper.vm.hasTitleChanges || wrapper.vm.hasDescriptionChanges;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.hasChanges).toBe(true);
   });
 });

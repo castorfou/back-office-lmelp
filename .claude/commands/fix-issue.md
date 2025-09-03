@@ -1,6 +1,6 @@
 1. Utilise une todo list pour garder la trace complete de ce travail, et être sûr de ne rater aucune etape
 2. Utilise `gh issue view` pour récupérer les détails
-3. Crée une PR venant de cette issue, et bascule sur la branche associée
+3. Create a feature branch from issue using `gh issue develop {issue_number}`, then immediately checkout to that branch locally with `git checkout {branch_name}` before starting any work. Ensure you're working on the feature branch and NOT on main.
 4. Comprends le problème décrit
 5. Cherche les fichiers concernés dans le codebase
 6. Implémente la correction en TDD. Ecris d'abors les tests (qui echouent) puis le code

@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. Elle vous permet de consulter, modifier et améliorer les descriptions des épisodes de podcast de manière intuitive et efficace.
+La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. Elle vous permet de consulter, modifier et améliorer les titres et descriptions des épisodes de podcast de manière intuitive et efficace.
 
 ## Cycle de vie d'un épisode
 
@@ -10,30 +10,34 @@ La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. E
 
 ```
 📥 Épisode importé
+├── Titre automatique généré
 ├── Description automatique générée
 ├── Transcription automatique créée
 ├── Métadonnées extraites
-└── Status: description_corrigee = null
+└── Status: titre_corrige = null, description_corrigee = null
 ```
 
 ### 2. État en cours de modification
 
 ```
 ✏️ Épisode en édition
+├── Titre original → Titre corrigé (éditable)
 ├── Description originale (lecture seule)
 ├── Description corrigée (en cours)
 ├── Sauvegarde automatique active
-└── Status: description_corrigee = "en cours..."
+└── Status: titre_corrige = "en cours...", description_corrigee = "en cours..."
 ```
 
 ### 3. État finalisé
 
 ```
 ✅ Épisode corrigé
+├── Titre original conservé
+├── Titre corrigé finalisé
 ├── Description originale conservée
 ├── Description corrigée finalisée
 ├── Historique des modifications (futur)
-└── Status: description_corrigee = "version finale"
+└── Status: titre_corrige = "version finale", description_corrigee = "version finale"
 ```
 
 ## Types d'épisodes
@@ -203,16 +207,27 @@ Au programme : [liste des sujets abordés].
 
 ### Phase 1 : Analyse (2-3 minutes)
 
-1. **Lecture complète** de la description originale
-2. **Consultation** de la transcription si nécessaire
-3. **Écoute rapide** de l'épisode si des clarifications sont nécessaires
-4. **Identification** des éléments clés :
+1. **Lecture** du titre original
+2. **Lecture complète** de la description originale
+3. **Consultation** de la transcription si nécessaire
+4. **Écoute rapide** de l'épisode si des clarifications sont nécessaires
+5. **Identification** des éléments clés :
+   - Titre principal et sujets abordés
    - Présentateur principal
    - Invités et leurs fonctions
    - Sujets/œuvres abordés
    - Structure de l'émission
 
-### Phase 2 : Structuration (5-7 minutes)
+### Phase 2 : Correction du titre (1-2 minutes)
+
+1. **Amélioration** du titre si nécessaire :
+   - Correction des fautes d'orthographe
+   - Clarification des noms propres
+   - Amélioration de la lisibilité
+   - Ajout d'informations manquantes importantes
+2. **Sauvegarde automatique** avec debounce de 2 secondes
+
+### Phase 3 : Structuration de la description (5-7 minutes)
 
 1. **Conservation** des informations essentielles (durée, émission, présentateur)
 2. **Réorganisation** en sections logiques
@@ -220,9 +235,9 @@ Au programme : [liste des sujets abordés].
 4. **Clarification** des noms propres et titres
 5. **Ajout** de passages à la ligne pour la lisibilité
 
-### Phase 3 : Finalisation (1-2 minutes)
+### Phase 4 : Finalisation (1-2 minutes)
 
-1. **Relecture** complète de la version corrigée
+1. **Relecture** complète du titre et de la description corrigés
 2. **Vérification** de la cohérence avec l'original
 3. **Contrôle qualité** :
    - Orthographe correcte

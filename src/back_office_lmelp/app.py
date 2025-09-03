@@ -140,6 +140,37 @@ async def update_episode_description(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.put("/api/episodes/{episode_id}/title")
+async def update_episode_title(episode_id: str, request: Request) -> dict[str, str]:
+    """Met à jour le titre corrigé d'un épisode."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Lire le body de la requête (text/plain)
+        titre_corrige = (await request.body()).decode("utf-8")
+
+        # Vérifier que l'épisode existe
+        episode_data = mongodb_service.get_episode_by_id(episode_id)
+        if not episode_data:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        # Mettre à jour le titre
+        success = mongodb_service.update_episode_title(episode_id, titre_corrige)
+        if not success:
+            raise HTTPException(status_code=400, detail="Échec de la mise à jour")
+
+        return {"message": "Titre mis à jour avec succès"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Variables globales pour la gestion propre du serveur
 _server_instance = None
 
