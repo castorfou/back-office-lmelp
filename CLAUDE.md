@@ -32,19 +32,19 @@ PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 API_PORT=54321 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
 # Run backend linting
-uv run ruff check . --output-format=github
+ruff check . --output-format=github
 
 # Format backend code
-uv run ruff format .
+ruff format .
 
 # Type checking
-uv run mypy src/
+mypy src/
 
 # Run backend tests (39 tests)
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
+PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Run pre-commit hooks manually
-uv run pre-commit run --all-files
+pre-commit run --all-files
 ```
 
 ### Frontend Setup and Commands
@@ -73,7 +73,7 @@ cd /workspaces/back-office-lmelp/frontend && npm run preview
    ```bash
    # ✅ Good - absolute paths
    cd /workspaces/back-office-lmelp/frontend && npm test -- --run
-   PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v
+   PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v
 
    # ❌ Bad - relative paths can cause confusion
    cd frontend && npm test -- --run
@@ -98,16 +98,16 @@ cd /workspaces/back-office-lmelp/frontend && npm run preview
 ### Full Test Suite
 ```bash
 # Run all tests (70 total: 39 backend + 31 frontend)
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
+PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
 ### Documentation Commands
 ```bash
 # Serve documentation locally (port 8000)
-uv run mkdocs serve
+mkdocs serve
 
 # Build documentation (for deployment)
-uv run mkdocs build --strict
+mkdocs build --strict
 
 # View production documentation
 open https://castorfou.github.io/back-office-lmelp/
@@ -260,7 +260,7 @@ open https://castorfou.github.io/back-office-lmelp/
 ### MkDocs Setup
 - **Theme**: Material Design with French language support
 - **Features**: Navigation, search, code highlighting
-- **Local development**: `uv run mkdocs serve` on port 8000
+- **Local development**: `mkdocs serve` on port 8000
 - **Production**: https://castorfou.github.io/back-office-lmelp/
 
 ### Structure
