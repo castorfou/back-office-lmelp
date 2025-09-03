@@ -28,6 +28,9 @@ python -m back_office_lmelp.app
 
 # frontend
 cd frontend && npm run dev
+
+# en une seule commande
+./scripts/start-dev.sh
 ```
 
 ## lancement des tests

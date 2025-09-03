@@ -4,17 +4,17 @@
       "mcp__MongoDB__list-collections",
       "mcp__MongoDB__find",
       "Bash(git add:*)",
-      "Bash(uv run ruff check:*)",
-      "Bash(uv run:*)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src pytest:*)",
+      "Bash(npm test:*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
-      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)",
+      "Bash(gh issue develop:*)",
       "Bash(gh run view:*)",
       "Bash(gh run list:*)",
-      "Bash(gh issue develop:*)",
-      "Bash(npm test:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "Bash(ruff check:*)",
+      "Bash(mypy:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
