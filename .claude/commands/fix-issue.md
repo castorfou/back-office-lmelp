@@ -1,4 +1,4 @@
-1. Utilise une todo list pour garder la trace complete de ce travail, et être sûr de ne rater aucune etape
+1. Utilise une todo list pour garder la trace complète de ce travail, et être sûr de ne rater aucune étape. IMPORTANT : Ne marque jamais une étape comme 'completed' tant que tu n'as pas ENTIÈREMENT terminé cette étape, y compris toutes les sous-actions qu'elle contient. Si une étape contient plusieurs actions (comme 'créer une PR ET demander validation'), elle ne peut être marquée comme terminée que lorsque TOUTES les actions sont accomplies. Reste toujours sur l'étape en cours jusqu'à sa completion totale.
 2. Utilise `gh issue view` pour récupérer les détails
 3. Create a feature branch from issue using `gh issue develop {issue_number}`, then immediately checkout to that branch locally with `git checkout {branch_name}` before starting any work. Ensure you're working on the feature branch and NOT on main.
 4. Comprends le problème décrit
