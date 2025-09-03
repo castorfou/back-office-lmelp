@@ -228,6 +228,17 @@ open https://castorfou.github.io/back-office-lmelp/
 
 **Never implement code changes without corresponding tests, regardless of change size.**
 
+### Verification Best Practices
+**CRITICAL**: Always verify the actual state before marking tasks as completed.
+
+- **Before marking any task as 'completed'**: Use appropriate tools to verify the action is actually accomplished
+- **For Pull Requests**: Use `gh pr view <number>` to confirm merge status before declaring success
+- **For deployments**: Check actual deployment status, not just pipeline success
+- **For file changes**: Use `Read` or `ls` to verify files exist/changed as expected
+- **For test results**: Verify all tests actually pass, not just assume from commands run
+
+**Never rely solely on user declarations of intent** - always verify the real world state using available tools.
+
 ## Dependencies
 
 ### Backend Dependencies
