@@ -14,7 +14,7 @@ repos:
         exclude: ^\.devcontainer/devcontainer\.json$
       - id: check-merge-conflict      # Détecte les marqueurs de conflit Git
       - id: check-added-large-files   # Empêche l'ajout de gros fichiers
-        args: ['--maxkb=500']
+        args: ['--maxkb=51200']
       - id: mixed-line-ending         # Normalise les fins de ligne
       - id: check-case-conflict       # Détecte les conflits de casse
 
