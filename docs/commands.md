@@ -37,10 +37,10 @@ cd frontend && npm run dev
 pytest -v
 
 # Tests frontend uniquement
-cd frontend && npm test
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 # Ou en une commande :
-pytest -v && cd frontend && npm test -- --run
+pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
