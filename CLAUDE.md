@@ -101,6 +101,12 @@ cd /workspaces/back-office-lmelp/frontend && npm run preview
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
+### Development Scripts
+```bash
+# Start both backend and frontend with unified script
+./scripts/start-dev.sh
+```
+
 ### Documentation Commands
 ```bash
 # Serve documentation locally (port 8000)
@@ -133,6 +139,8 @@ open https://castorfou.github.io/back-office-lmelp/
 │   ├── package.json            # Frontend dependencies
 │   ├── package-lock.json       # Locked frontend dependencies
 │   └── vite.config.js          # Vite configuration
+├── scripts/                    # Development and utility scripts
+│   └── start-dev.sh           # Unified development server launcher
 ├── tests/                      # Backend tests (pytest)
 ├── docs/                       # Documentation (MkDocs)
 │   ├── dev/                   # Developer documentation
