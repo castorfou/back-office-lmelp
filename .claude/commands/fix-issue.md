@@ -14,3 +14,4 @@
 14. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
 15. Clos la todo list si elle est bien vide
 16. Repasse sur la branche main locale, et recupere les dernieres modifications
+17. Finis en appelant /stocke-memoire
