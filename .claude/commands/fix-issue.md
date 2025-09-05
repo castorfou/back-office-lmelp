@@ -9,7 +9,7 @@
 9. Cree les modifications necessaires dans la doc utilisateur et la doc developpeur
 10. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
 11. Verifie l'etat de la CI/CD (gh run view)
-12. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 3 à 10) jusqu'à satisfaction
+12. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 11) jusqu'à satisfaction
 13. Met à jour README.md et CLAUDE.md si necessaire
 14. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
 15. Clos la todo list si elle est bien vide
