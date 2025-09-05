@@ -150,13 +150,13 @@ PUT /api/episodes/{id}
 
 ## 🧪 Tests
 
-### Suite complète (38 tests)
+### Suite complète
 ```bash
 # Lancer tous les tests (backend + frontend)
 pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
-### Backend (12 tests)
+### Backend
 ```bash
 # Tests Python avec couverture
 pytest tests/ -v --cov=src --cov-report=term-missing
@@ -169,7 +169,7 @@ ruff format .
 mypy src/
 ```
 
-### Frontend (26 tests)
+### Frontend
 ```bash
 cd frontend
 
