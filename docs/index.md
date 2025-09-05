@@ -44,14 +44,14 @@ Cette application permet de :
 
 ### Lancement
 ```bash
-# Backend (port 54321)
-PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+# Backend (port 54321 ou autre si inutilise)
+python -m back_office_lmelp.app
 
 # Frontend (port 5173)
 cd frontend && npm run dev
 
 # Documentation locale (port 8000)
-uv run mkdocs serve
+mkdocs serve
 ```
 
 ### Accès
@@ -75,7 +75,7 @@ uv run mkdocs serve
 - Sauvegarde automatique avec indicateur visuel
 
 ### 🧪 Tests complets
-- **Suite de tests** : 38 tests validés (12 backend + 26 frontend)
+- **Suite de tests** :
 - **CI/CD Pipeline** : GitHub Actions avec Python 3.11/3.12 + Node.js 18
 - **Couverture backend** : 40% avec pytest + coverage
 - **Tests frontend** : Vitest + @vue/test-utils (EpisodeSelector, EpisodeEditor, HomePage)
@@ -85,12 +85,6 @@ uv run mkdocs serve
 - **Type checking** : MyPy avec strictness progressive
 - **Pre-commit hooks** : Formatage, sécurité, qualité automatiques
 - **Documentation** : MkDocs + Material Design sur GitHub Pages
-
-## Problèmes connus
-
-- ~~**Port 54321 occupé** : ✅ **Résolu** (voir [issue #1](https://github.com/castorfou/back-office-lmelp/issues/1))~~
-- **Configuration ports** : Refonte nécessaire pour découverte automatique (voir [issue #2](https://github.com/castorfou/back-office-lmelp/issues/2))
-- **CI/CD sur branches** : Tests ne s'exécutent que sur main/develop (voir [issue #10](https://github.com/castorfou/back-office-lmelp/issues/10))
 
 ## Contribuer
 

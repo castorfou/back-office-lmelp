@@ -51,21 +51,14 @@ Nettoyer et corriger les données des épisodes du Masque et la Plume, en partic
 git clone [URL_DU_REPO]
 cd back-office-lmelp
 
-# Installer les dépendances Python
-uv sync
+# Ouvrir avec code
+code .
 
-# Configurer les variables d'environnement
-cp .env.example .env
-# Éditer .env avec vos paramètres MongoDB et Azure OpenAI
+# Open in container
+> Dev Containers: Open in container
 ```
 
-2. **Installer le frontend** :
-```bash
-cd frontend
-npm install
-```
-
-3. **Configuration MongoDB** :
+2. **Configuration MongoDB** :
 ```bash
 # Fichier .env
 MONGODB_URL=mongodb://localhost:27017/masque_et_la_plume
@@ -82,8 +75,15 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 ### Démarrage rapide
 
 ```bash
+# lancement via script
+./scripts/start-dev.sh
+```
+
+ou en demarrant separemment backend et frontend
+
+```bash
 # Terminal 1 : Backend FastAPI (découverte automatique de port)
-PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+python -m back_office_lmelp.app
 # ➜ API disponible sur port automatiquement détecté (voir sortie console)
 
 # Terminal 2 : Frontend Vue.js (découverte automatique du backend)
@@ -122,15 +122,14 @@ Using backend target from discovery file: http://127.0.0.1:54323
 ### Interface utilisateur
 
 1. **Sélectionner un épisode** dans la liste déroulante (217 épisodes disponibles)
-2. **Visualiser** la description originale (lecture seule)
-3. **Modifier** la description dans la zone d'édition
-4. **Sauvegarde automatique** après 2 secondes d'inactivité
+2. **Visualiser/Modifier** titre ou description
+3. **Sauvegarde automatique** après 2 secondes d'inactivité
 
 ### Fonctionnalités
 
 - ✅ **Tri automatique** : Épisodes par date décroissante
 - ✏️ **Édition en temps réel** : Modification libre du texte
-- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`
+- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`, 'titre_corrige'
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
 
@@ -154,20 +153,20 @@ PUT /api/episodes/{id}
 ### Suite complète (38 tests)
 ```bash
 # Lancer tous les tests (backend + frontend)
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
+pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
 ### Backend (12 tests)
 ```bash
 # Tests Python avec couverture
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
+pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Linting et formatage
-uv run ruff check . --output-format=github
-uv run ruff format .
+ruff check . --output-format=github
+ruff format .
 
 # Type checking
-uv run mypy src/
+mypy src/
 ```
 
 ### Frontend (26 tests)
@@ -218,6 +217,7 @@ code .
 {
   "_id": ObjectId,
   "titre": "Titre de l'épisode",
+  "titre_corrige": "Titre du super épisode", // ⭐ Ajouté par le back-office
   "date": ISODate,
   "type": "livres|cinema|theatre",
   "description": "Description originale France Inter",
@@ -228,27 +228,27 @@ code .
 
 ### Qualité du code
 
-- **Python** : Ruff (linting + formatage), MyPy (types), 40% couverture
+- **Python** : Ruff (linting + formatage), MyPy (types)
 - **JavaScript** : Tests Vitest complets avec @vue/test-utils
 - **Git** : Pre-commit hooks configurés (detect-secrets, formatage)
-- **CI/CD** : Pipeline complet (Python 3.11/3.12 + Node.js 18) validant 38 tests
+- **CI/CD** : Pipeline complet (Python 3.11/3.12 + Node.js 18)
 - **Documentation** : MkDocs avec Material Design déployé sur GitHub Pages
 
 ### Tests détaillés
 
-**Backend (12 tests)** :
+**Backend** :
 - API endpoints FastAPI
 - Services MongoDB (CRUD épisodes)
 - Utilitaires (memory guard, etc.)
 
-**Frontend (26 tests)** :
+**Frontend** :
 - **EpisodeSelector** : 7 tests (chargement, sélection, erreurs)
 - **EpisodeEditor** : 12 tests (édition, sauvegarde, validation)
 - **HomePage** : 7 tests d'intégration (flux complets)
 
 ## 📋 Roadmap
 
-### Version 0.1.0 (actuelle)
+### MVP 0
 - ✅ Interface de base pour correction des descriptions
 - ✅ Sauvegarde automatique en base MongoDB
 - ✅ Tests complets : 38 tests validés (12 backend + 26 frontend)
