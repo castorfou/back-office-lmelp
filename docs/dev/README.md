@@ -85,7 +85,7 @@ cd back-office-lmelp
 uv sync --extra dev
 
 # Installer pre-commit hooks
-uv run pre-commit install
+pre-commit install
 
 # Installer dépendances frontend
 cd frontend
@@ -100,10 +100,10 @@ npm install
 mongod
 
 # Démarrer l'API (sélection automatique de port)
-PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+python -m back_office_lmelp.app
 
 # Ou spécifier un port si nécessaire
-API_PORT=54322 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
+API_PORT=54322 python -m back_office_lmelp.app
 ```
 
 **Terminal 2 - Frontend :**
@@ -122,27 +122,27 @@ npm run dev
 ### Code quality
 ```bash
 # Linting
-uv run ruff check .
+ruff check .
 
 # Formatting
-uv run ruff format .
+ruff format .
 
 # Type checking
-uv run mypy src/
+mypy src/
 
 # Pre-commit (tous les hooks)
-uv run pre-commit run --all-files
+pre-commit run --all-files
 ```
 
-### Tests (38 au total)
+### Tests
 ```bash
 # Suite complète (backend + frontend)
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v && cd frontend && npm test -- --run
+pytest tests/ -v && cd frontend && npm test -- --run
 
-# Tests backend (12 tests)
-PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v --cov=src --cov-report=term-missing
+# Tests backend
+pytest tests/ -v --cov=src --cov-report=term-missing
 
-# Tests frontend (26 tests)
+# Tests frontend
 cd frontend
 npm test -- --run
 npm run test:ui  # Interface graphique
@@ -177,12 +177,6 @@ npm test -- --coverage  # Avec couverture
 - **Commits** : Conventional commits (feat:, fix:, docs:)
 - **Branches** : feature/, bugfix/, hotfix/
 - **PRs** : Template avec checklist
-
-## Problèmes résolus
-
-1. ~~**Port 54321 occupé**~~ → ✅ **Sélection automatique implémentée (Issue #13)**
-2. ~~**Processus zombies**~~ → ✅ **Gestionnaires de signaux implémentés (Issue #1)**
-3. ~~**Découverte ports**~~ → ✅ **Système automatique implémenté (Issue #2, #13)**
 
 ## Ressources
 
