@@ -1,12 +1,33 @@
 <template>
   <div v-if="episode" class="episode-editor card">
-    <h2>Édition de l'épisode</h2>
+    <!-- En-tête compact avec date et type à droite -->
+    <h2>
+      Édition de l'épisode | Date: {{ formatDate(episode.date) }} | Type: {{ episode.type || 'Non spécifié' }}
+    </h2>
 
     <!-- Informations de l'épisode -->
     <div class="episode-info">
-      <!-- Édition du titre -->
+      <!-- Édition du titre avec indicateur de modification -->
       <div class="form-group">
-        <label for="titre-corrected" class="form-label">Titre:</label>
+        <div class="title-header">
+          <label for="titre-corrected" class="form-label">Titre:</label>
+          <button
+            v-if="hasTitleModification"
+            @click="toggleOriginalTitle"
+            data-testid="title-modification-indicator"
+            class="modification-indicator"
+            title="Cliquez pour voir/masquer le titre original"
+          >
+            📝
+          </button>
+        </div>
+
+        <!-- Titre original (conditionnel) -->
+        <div v-if="showOriginalTitle" data-testid="original-title" class="original-content">
+          <label class="form-label-small">Titre original:</label>
+          <div class="original-text">{{ episode.titre }}</div>
+        </div>
+
         <input
           id="titre-corrected"
           v-model="correctedTitle"
@@ -31,29 +52,35 @@
           </span>
         </div>
       </div>
-      <p class="episode-meta">
-        <strong>Date:</strong> {{ formatDate(episode.date) }} |
-        <strong>Type:</strong> {{ episode.type || 'Non spécifié' }}
-      </p>
     </div>
 
-    <!-- Description originale (lecture seule) -->
+    <!-- Éditeur de description avec indicateur -->
     <div class="form-group">
-      <label class="form-label">Description originale:</label>
-      <textarea
-        :value="episode.description"
-        class="form-control"
-        readonly
-        rows="8"
-        style="background-color: #f8f9fa; resize: vertical;"
-      ></textarea>
-    </div>
+      <div class="title-header">
+        <label for="description-corrected" class="form-label">
+          Description:
+        </label>
+        <button
+          v-if="hasDescriptionModification"
+          @click="toggleOriginalDescription"
+          data-testid="description-modification-indicator"
+          class="modification-indicator"
+          title="Cliquez pour voir/masquer la description originale"
+        >
+          📝
+        </button>
+      </div>
 
-    <!-- Éditeur de description corrigée -->
-    <div class="form-group">
-      <label for="description-corrected" class="form-label">
-        Description corrigée:
-      </label>
+      <!-- Description originale (conditionnelle) -->
+      <div v-if="showOriginalDescription" data-testid="original-description" class="original-content">
+        <label class="form-label-small">Description originale:</label>
+        <textarea
+          :value="episode.description"
+          class="form-control original-textarea"
+          readonly
+          rows="4"
+        ></textarea>
+      </div>
       <textarea
         id="description-corrected"
         v-model="correctedDescription"
@@ -117,6 +144,14 @@ export default {
       hasChanges: false,
       hasTitleChanges: false,
       hasDescriptionChanges: false,
+      // Nouvel état pour les toggles (Issue #23)
+      showOriginalTitle: false,
+      showOriginalDescription: false,
+      // Persistence des toggles pendant la session
+      sessionToggleState: {
+        showOriginalTitle: false,
+        showOriginalDescription: false
+      }
     };
   },
 
@@ -124,6 +159,22 @@ export default {
     // Créer les fonctions debounced avec cancel
     this.debouncedSaveDescription = debounce(this.saveDescription, 2000);
     this.debouncedSaveTitle = debounce(this.saveTitle, 2000);
+  },
+
+  computed: {
+    // Détermine si le titre a été modifié par rapport à l'original
+    hasTitleModification() {
+      return this.episode && this.episode.titre_corrige &&
+             this.episode.titre_corrige.trim() !== '' &&
+             this.episode.titre_corrige !== this.episode.titre;
+    },
+
+    // Détermine si la description a été modifiée par rapport à l'original
+    hasDescriptionModification() {
+      return this.episode && this.episode.description_corrigee &&
+             this.episode.description_corrigee.trim() !== '' &&
+             this.episode.description_corrigee !== this.episode.description;
+    }
   },
 
   watch: {
@@ -140,6 +191,10 @@ export default {
           this.titleSaveStatus = '';
           this.descriptionSaveStatus = '';
           this.error = null;
+
+          // Restaurer l'état des toggles pour la persistance de session (Issue #23)
+          this.showOriginalTitle = this.sessionToggleState.showOriginalTitle;
+          this.showOriginalDescription = this.sessionToggleState.showOriginalDescription;
         }
       },
       immediate: true,
@@ -294,6 +349,24 @@ export default {
         return 'Date invalide';
       }
     },
+
+    /**
+     * Toggle l'affichage du titre original (Issue #23)
+     */
+    toggleOriginalTitle() {
+      this.showOriginalTitle = !this.showOriginalTitle;
+      // Sauvegarder l'état pour la persistance de session
+      this.sessionToggleState.showOriginalTitle = this.showOriginalTitle;
+    },
+
+    /**
+     * Toggle l'affichage de la description originale (Issue #23)
+     */
+    toggleOriginalDescription() {
+      this.showOriginalDescription = !this.showOriginalDescription;
+      // Sauvegarder l'état pour la persistance de session
+      this.sessionToggleState.showOriginalDescription = this.showOriginalDescription;
+    },
   },
 
   beforeUnmount() {
@@ -356,5 +429,65 @@ export default {
 
 .save-status .pending {
   color: #ffc107;
+}
+
+/* Styles pour la nouvelle interface compacte (Issue #23) */
+.title-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.modification-indicator {
+  background: none;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.modification-indicator:hover {
+  background-color: #007bff;
+  color: white;
+  transform: scale(1.05);
+}
+
+.original-content {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+.form-label-small {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.original-text {
+  color: #333;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.original-textarea {
+  background-color: #fff !important;
+  border-color: #ddd;
+  font-size: 0.9rem;
+}
+
+/* En-tête compact */
+h2 {
+  font-size: 1.3rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
 }
 </style>
