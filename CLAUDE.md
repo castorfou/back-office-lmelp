@@ -175,6 +175,66 @@ open https://castorfou.github.io/back-office-lmelp/
 - **CI/CD Pipeline**: Validates both backend and frontend tests (38 total)
 - **Security**: detect-secrets scanning on all commits
 
+## Linting and Code Quality Requirements
+
+### CRITICAL: Pre-commit Validation
+**ALWAYS run linting and formatting checks before committing any changes**:
+
+```bash
+# Backend linting (MUST pass)
+ruff check . --output-format=github
+
+# Backend formatting (auto-fix)
+ruff format .
+
+# Type checking (MUST pass)
+mypy src/
+
+# Run all pre-commit hooks
+pre-commit run --all-files
+```
+
+### Expected Linting Standards
+
+#### Backend (Python) - Ruff Configuration
+- **No linting errors allowed**: All `ruff check` issues must be resolved
+- **Auto-formatting required**: Always run `ruff format .` before committing
+- **Line length**: 88 characters maximum (Black-compatible)
+- **Import sorting**: Automatic via Ruff (replaces isort)
+- **Code style**: PEP 8 compliance with modern Python practices
+
+#### Common Linting Issues to Avoid
+- **W291**: Trailing whitespace - remove all trailing spaces
+- **W293**: Blank line contains whitespace - ensure blank lines are completely empty
+- **E501**: Line too long - keep lines under 88 characters
+- **F401**: Unused imports - remove or mark with `# noqa: F401` if intentional
+- **F841**: Unused variables - remove or prefix with `_` if intentional
+
+#### Type Checking Requirements
+- **MyPy compliance**: All type annotations must be valid
+- **Progressive typing**: New code should include type hints
+- **Import resolution**: Use proper module imports for type checking
+
+#### Pre-commit Hook Enforcement
+The project uses pre-commit hooks that will **automatically block commits** if:
+- Ruff linting fails
+- MyPy type checking fails
+- Security issues detected by detect-secrets
+- File formatting is inconsistent
+
+#### Quick Fix Commands
+```bash
+# Fix most formatting issues automatically
+ruff format .
+
+# Check what still needs manual fixing
+ruff check . --output-format=github
+
+# Fix specific file
+ruff format path/to/file.py
+ruff check path/to/file.py --fix
+```
+
 ## Key Configuration Notes
 
 ### Backend Configuration
