@@ -15,7 +15,8 @@
       "Bash(gh pr view:*)",
       "Bash(ruff check:*)",
       "Bash(mypy:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(ruff format:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

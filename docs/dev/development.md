@@ -179,3 +179,57 @@ Cette configuration offre un **feedback immédiat** sur chaque commit, permettan
 - **Concurrence** : Isolation par branche (`cancel-in-progress: true`)
 - **Cache** : Dependencies Python (uv) et Node.js (npm)
 - **Déploiement conditionnel** : Staging/Production uniquement sur `main`
+
+### Workflow de documentation (MkDocs)
+
+Le pipeline de documentation fonctionne **séparément** du pipeline principal avec des déclencheurs conditionnels optimisés.
+
+#### Configuration spécifique
+
+```yaml
+# .github/workflows/docs.yml
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'docs/**', 'mkdocs.yml' ]  # ⬅️ Déclenchement conditionnel
+```
+
+#### Déclencheurs
+
+Le workflow MkDocs ne s'exécute **que si** :
+- Des fichiers dans le dossier `docs/` sont modifiés
+- OU le fichier `mkdocs.yml` est modifié
+- ET le push est sur la branche `main`
+
+#### Comportement normal
+
+🟢 **Workflow déclenché** :
+```bash
+# Modifications qui déclenchent le build de documentation
+git add docs/dev/api.md mkdocs.yml
+git commit -m "docs: update API documentation"
+git push origin main
+# ➜ Le workflow docs.yml s'exécute
+```
+
+🔴 **Workflow PAS déclenché** :
+```bash
+# Modifications de code qui n'affectent pas la documentation
+git add frontend/src/components/EpisodeEditor.vue
+git commit -m "refactor: improve UI interface"
+git push origin main
+# ➜ Le workflow docs.yml ne s'exécute PAS
+```
+
+#### Avantages
+
+- ✅ **Optimisation ressources** : Évite les builds inutiles de documentation
+- ✅ **Feedback rapide** : PRs de code non impactées par le build docs
+- ✅ **Économie CI/CD** : Moins de minutes consommées
+- ✅ **Séparation des responsabilités** : Pipeline docs indépendant
+
+#### Notes pour les développeurs
+
+- Si vous ne voyez pas le job MkDocs dans votre PR, c'est **normal** si vous n'avez pas modifié la documentation
+- Pour forcer un rebuild de la documentation, modifiez un fichier dans `docs/` ou `mkdocs.yml`
+- La documentation est automatiquement déployée sur [GitHub Pages](https://castorfou.github.io/back-office-lmelp/) quand le workflow se déclenche
