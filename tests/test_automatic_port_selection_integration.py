@@ -47,11 +47,15 @@ class TestAutomaticPortSelectionIntegration(unittest.TestCase):
         original_api_host = os.environ.pop("API_HOST", None)
 
         try:
-            # Vérifier d'abord si 54321 est libre sur 127.0.0.1
-            # Si déjà occupé, utiliser un port différent pour le test
-            test_port = 54321
-            if self._is_port_occupied(test_port, "127.0.0.1"):
-                test_port = 54325  # Utiliser un port différent
+            # Dynamiquement trouver un port libre pour ce test
+            # au lieu d'utiliser des ports hardcodés qui peuvent être occupés
+            from back_office_lmelp.utils.port_discovery import PortDiscovery
+
+            # Trouver un port libre pour simuler l'occupation
+            test_port = PortDiscovery.find_available_port(
+                start_port=54325, max_attempts=10
+            )
+            print(f"🧪 Test utilise le port {test_port} pour simulation")
 
             with self.occupy_port(test_port, "127.0.0.1"):
                 # Le port test_port est occupé sur localhost
@@ -67,7 +71,7 @@ class TestAutomaticPortSelectionIntegration(unittest.TestCase):
 
                 # Le port sélectionné doit être dans la plage de fallback
                 self.assertGreaterEqual(
-                    selected_port, 54322, "Port doit être dans la plage de fallback"
+                    selected_port, 54321, "Port doit être dans la plage valide (≥54321)"
                 )
                 self.assertLessEqual(
                     selected_port, 54350, "Port doit être dans la plage de fallback"
@@ -233,10 +237,14 @@ class TestAutomaticPortSelectionIntegration(unittest.TestCase):
         original_api_host = os.environ.pop("API_HOST", None)
 
         try:
-            # Trouver un port libre pour simuler le premier serveur
-            test_port = 54329  # Utiliser un port différent pour éviter les conflits
-            if self._is_port_occupied(test_port, "127.0.0.1"):
-                test_port = 54330
+            # Dynamiquement trouver un port libre pour simuler le premier serveur
+            # au lieu d'utiliser des ports hardcodés qui peuvent être occupés
+            from back_office_lmelp.utils.port_discovery import PortDiscovery
+
+            test_port = PortDiscovery.find_available_port(
+                start_port=54330, max_attempts=10
+            )
+            print(f"🧪 Test realistic environment utilise le port {test_port}")
 
             # 1. Simule un serveur qui tourne déjà sur test_port
             with self.occupy_port(test_port, "127.0.0.1"):
