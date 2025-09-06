@@ -13,6 +13,7 @@ vi.mock('../../src/services/api.js', () => ({
     getAllEpisodes: vi.fn(),
     getEpisodeById: vi.fn(),
     updateEpisodeDescription: vi.fn(),
+    updateEpisodeTitle: vi.fn(),
   }
 }));
 
@@ -237,5 +238,46 @@ describe('HomePage - Tests d\'intégration', () => {
     const updatedEditor = wrapper.findComponent({ name: 'EpisodeEditor' });
     expect(updatedEditor.exists()).toBe(true);
     expect(updatedEditor.props('episode')).toEqual(secondEpisode);
+  });
+
+  it('met à jour la liste des épisodes quand un titre est modifié', async () => {
+    const mockRefreshEpisodesList = vi.fn();
+
+    // Mock de EpisodeSelector avec la méthode refreshEpisodesList
+    const EpisodeSelectorStub = {
+      name: 'EpisodeSelector',
+      template: '<div>Episode Selector</div>',
+      methods: {
+        refreshEpisodesList: mockRefreshEpisodesList
+      }
+    };
+
+    episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
+    episodeService.getEpisodeById.mockResolvedValue(mockEpisodeDetail);
+
+    wrapper = mount(HomePage, {
+      global: {
+        stubs: {
+          'EpisodeSelector': EpisodeSelectorStub
+        }
+      }
+    });
+    await wrapper.vm.$nextTick();
+
+    // Sélectionner un épisode pour afficher l'éditeur
+    wrapper.vm.selectedEpisode = mockEpisodeDetail;
+    await wrapper.vm.$nextTick();
+
+    // Simuler l'événement title-updated émis par EpisodeEditor
+    const editor = wrapper.findComponent({ name: 'EpisodeEditor' });
+    expect(editor.exists()).toBe(true);
+
+    await editor.vm.$emit('title-updated', {
+      episodeId: '1',
+      newTitle: 'Nouveau titre corrigé'
+    });
+
+    // Vérifier que refreshEpisodesList a été appelé
+    expect(mockRefreshEpisodesList).toHaveBeenCalled();
   });
 });

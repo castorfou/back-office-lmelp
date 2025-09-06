@@ -72,6 +72,14 @@ export default {
     },
 
     /**
+     * Recharge la liste des épisodes (utilisé pour la mise à jour dynamique)
+     * Méthode publique appelable depuis un composant parent
+     */
+    async refreshEpisodesList() {
+      await this.loadEpisodes();
+    },
+
+    /**
      * Gère le changement de sélection d'épisode
      */
     async onEpisodeChange() {
@@ -88,14 +96,30 @@ export default {
 
     /**
      * Formate l'option d'épisode pour l'affichage
+     * Nouveau format: "24 août 2025 - titre corrigé"
      * @param {Object} episode - L'épisode à formater
      * @returns {string} Texte formaté
      */
     formatEpisodeOption(episode) {
-      const date = episode.date ? new Date(episode.date).toLocaleDateString('fr-FR') : 'Date inconnue';
-      const type = episode.type ? `[${episode.type}]` : '';
+      const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
+      const titre = episode.titre_corrige || episode.titre;
 
-      return `${date} ${type} - ${episode.titre}`;
+      return `${date} - ${titre}`;
+    },
+
+    /**
+     * Formate une date au format littéraire français
+     * @param {string} dateStr - Date au format ISO
+     * @returns {string} Date formatée (ex: "24 août 2025")
+     */
+    formatDateLitteraire(dateStr) {
+      const date = new Date(dateStr);
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      };
+      return date.toLocaleDateString('fr-FR', options);
     },
   },
 };
