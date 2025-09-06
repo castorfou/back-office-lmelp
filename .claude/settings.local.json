@@ -16,7 +16,8 @@
       "Bash(ruff check:*)",
       "Bash(mypy:*)",
       "Bash(git checkout:*)",
-      "Bash(ruff format:*)"
+      "Bash(ruff format:*)",
+      "Bash(mkdir -p /workspaces/back-office-lmelp/docs/claude/memory)"
     ]
   },
   "enableAllProjectMcpServers": true,
