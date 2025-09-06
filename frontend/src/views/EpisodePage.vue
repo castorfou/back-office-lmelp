@@ -1,11 +1,7 @@
 <template>
-  <div class="home-page">
-    <header class="page-header">
-      <h1>Back-office LMELP</h1>
-      <p class="subtitle">
-        Gestion et correction des épisodes du Masque et la Plume
-      </p>
-    </header>
+  <div class="episode-page">
+    <!-- Navigation -->
+    <Navigation pageTitle="Gestion des Épisodes" />
 
     <main>
       <!-- Sélecteur d'épisode -->
@@ -54,13 +50,15 @@
 <script>
 import EpisodeSelector from '../components/EpisodeSelector.vue';
 import EpisodeEditor from '../components/EpisodeEditor.vue';
+import Navigation from '../components/Navigation.vue';
 
 export default {
-  name: 'HomePage',
+  name: 'EpisodePage',
 
   components: {
     EpisodeSelector,
     EpisodeEditor,
+    Navigation,
   },
 
   data() {
@@ -96,33 +94,10 @@ export default {
 </script>
 
 <style scoped>
-.home-page {
+.episode-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 3rem;
-  padding: 2rem 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px;
-  margin: -2rem -2rem 3rem -2rem;
-  padding: 3rem 2rem;
-}
-
-.page-header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.subtitle {
-  font-size: 1.1rem;
-  opacity: 0.9;
-  font-weight: 300;
 }
 
 main {
@@ -191,15 +166,6 @@ main {
 }
 
 @media (max-width: 768px) {
-  .page-header {
-    margin: -2rem -1rem 2rem -1rem;
-    padding: 2rem 1rem;
-  }
-
-  .page-header h1 {
-    font-size: 2rem;
-  }
-
   .help-message {
     padding: 2rem 1rem;
   }

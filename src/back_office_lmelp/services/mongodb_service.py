@@ -131,6 +131,65 @@ class MongoDBService:
             print(f"Erreur lors de l'insertion de l'épisode: {e}")
             raise
 
+    def get_statistics(self) -> dict[str, Any]:
+        """Récupère les statistiques de la base de données."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Total des épisodes
+            total_episodes = self.episodes_collection.count_documents({})
+
+            # Épisodes avec titres corrigés
+            episodes_with_corrected_titles = self.episodes_collection.count_documents(
+                {"titre_corrige": {"$ne": None, "$exists": True}}
+            )
+
+            # Épisodes avec descriptions corrigées
+            episodes_with_corrected_descriptions = (
+                self.episodes_collection.count_documents(
+                    {"description_corrigee": {"$ne": None, "$exists": True}}
+                )
+            )
+
+            # Dernière date de mise à jour (basée sur le plus récent titre ou description modifiée)
+            # Utilisation de l'aggregation pour trouver la plus récente date de modification
+            pipeline: list[dict[str, Any]] = [
+                {
+                    "$match": {
+                        "$or": [
+                            {"titre_corrige": {"$ne": None, "$exists": True}},
+                            {"description_corrigee": {"$ne": None, "$exists": True}},
+                        ]
+                    }
+                },
+                {"$sort": {"date": -1}},
+                {"$limit": 1},
+                {"$project": {"date": 1}},
+            ]
+
+            last_update_result = list(self.episodes_collection.aggregate(pipeline))
+            last_update_date = None
+            if last_update_result:
+                date_obj = last_update_result[0].get("date")
+                if date_obj:
+                    # Convertir en format ISO string pour JSON
+                    last_update_date = (
+                        date_obj.isoformat()
+                        if hasattr(date_obj, "isoformat")
+                        else str(date_obj)
+                    )
+
+            return {
+                "total_episodes": total_episodes,
+                "episodes_with_corrected_titles": episodes_with_corrected_titles,
+                "episodes_with_corrected_descriptions": episodes_with_corrected_descriptions,
+                "last_update_date": last_update_date,
+            }
+        except Exception as e:
+            print(f"Erreur lors de la récupération des statistiques: {e}")
+            raise
+
 
 # Instance globale du service
 mongodb_service = MongoDBService()

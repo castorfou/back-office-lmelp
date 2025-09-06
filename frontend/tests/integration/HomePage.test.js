@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import HomePage from '../../src/views/HomePage.vue';
+import EpisodePage from '../../src/views/EpisodePage.vue';
 import { episodeService } from '../../src/services/api.js';
 
 // Mock du service API
@@ -64,7 +64,7 @@ vi.mock('../../src/utils/memoryGuard.js', () => ({
   }
 }));
 
-describe('HomePage - Tests d\'intégration', () => {
+describe('EpisodePage - Tests d\'intégration (legacy)', () => {
   let wrapper;
 
   const mockEpisodes = [
@@ -101,19 +101,35 @@ describe('HomePage - Tests d\'intégration', () => {
     }
   });
 
-  it('affiche le titre et la description de la page', () => {
+  it('affiche la page des épisodes sans le grand titre d\'accueil', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
 
-    expect(wrapper.find('h1').text()).toBe('Back-office LMELP');
-    expect(wrapper.text()).toContain('Masque et la Plume');
+    // La page EpisodePage ne devrait plus avoir le titre "Back-office LMELP"
+    const mainHeader = wrapper.find('.page-header h1');
+    expect(mainHeader.exists()).toBe(false);
+
+    // Mais elle devrait toujours contenir du contenu lié aux épisodes
+    expect(wrapper.text()).toContain('Sélectionnez un épisode');
   });
 
   it('affiche le message d\'aide quand aucun épisode n\'est sélectionné', async () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('.help-message').exists()).toBe(true);
@@ -126,7 +142,13 @@ describe('HomePage - Tests d\'intégration', () => {
     episodeService.getEpisodeById.mockResolvedValue(mockEpisodeDetail);
     episodeService.updateEpisodeDescription.mockResolvedValue({ success: true });
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
 
     // Attendre que les épisodes se chargent
     await wrapper.vm.$nextTick();
@@ -151,7 +173,13 @@ describe('HomePage - Tests d\'intégration', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
     episodeService.getEpisodeById.mockResolvedValue(mockEpisodeDetail);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
     await wrapper.vm.$nextTick();
 
     // Sélectionner un épisode
@@ -183,7 +211,13 @@ describe('HomePage - Tests d\'intégration', () => {
       .mockResolvedValueOnce(mockEpisodeDetail)
       .mockResolvedValueOnce(secondEpisodeDetail);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
     await wrapper.vm.$nextTick();
 
     // Sélectionner le premier épisode
@@ -202,7 +236,13 @@ describe('HomePage - Tests d\'intégration', () => {
   it('affiche les bonnes informations dans le footer', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
 
     const footer = wrapper.find('.page-footer');
     expect(footer.exists()).toBe(true);
@@ -214,7 +254,13 @@ describe('HomePage - Tests d\'intégration', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
     episodeService.getEpisodeById.mockResolvedValue(mockEpisodeDetail);
 
-    wrapper = mount(HomePage);
+    wrapper = mount(EpisodePage, {
+      global: {
+        stubs: {
+          Navigation: true
+        }
+      }
+    });
     await wrapper.vm.$nextTick();
 
     // Vérifier qu'il n'y a pas d'éditeur initialement
@@ -255,10 +301,11 @@ describe('HomePage - Tests d\'intégration', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
     episodeService.getEpisodeById.mockResolvedValue(mockEpisodeDetail);
 
-    wrapper = mount(HomePage, {
+    wrapper = mount(EpisodePage, {
       global: {
         stubs: {
-          'EpisodeSelector': EpisodeSelectorStub
+          'EpisodeSelector': EpisodeSelectorStub,
+          'Navigation': true
         }
       }
     });

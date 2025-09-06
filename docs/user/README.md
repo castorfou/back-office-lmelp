@@ -33,9 +33,44 @@ Le backend utilise maintenant une **sélection automatique de port** pour évite
 
 ## Vue d'ensemble de l'interface
 
-L'interface se compose de deux parties principales :
+L'interface comprend maintenant **deux pages principales** :
+
+### Page d'accueil (Dashboard)
 
 ```
+┌─────────────────────────────────────┐
+│        Back-office LMELP            │
+│   Gestion des épisodes du           │
+│     Masque et la Plume              │
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│       Informations générales        │
+│                                     │
+│  [142]      [37]      [45]    [...]  │
+│ Épisodes  Titres   Descriptions Date │
+│  total   corrigés  corrigées   maj   │
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│      Fonctions disponibles          │
+│                                     │
+│ ┌─────────────┐ ┌─────────────┐     │
+│ │📝 Episode - │ │🔍 Recherche │     │
+│ │  Modification│ │  avancée    │     │
+│ │  Titre/Desc.│ │ (bientôt)   │     │
+│ │    [→]      │ │             │     │
+│ └─────────────┘ └─────────────┘     │
+└─────────────────────────────────────┘
+```
+
+### Page de gestion des épisodes
+
+```
+┌─────────────────────────────────────┐
+│ 🏠 Accueil    Gestion des Épisodes  │
+└─────────────────────────────────────┘
+
 ┌─────────────────────────────────────┐
 │           Sélecteur d'épisodes      │
 │  [Dropdown: Choisir un épisode ▼]  │
@@ -43,38 +78,33 @@ L'interface se compose de deux parties principales :
 
 ┌─────────────────────────────────────┐
 │         Détails de l'épisode        │
-│                                     │
-│  Titre: Les nouveaux livres de...   │
-│  Date: 2025-08-03                   │
-│  Type: livres                       │
-│  Durée: 51:36                       │
-│                                     │
-│  Description originale:             │
-│  ┌─────────────────────────────────┐ │
-│  │ [Texte en lecture seule]       │ │
-│  └─────────────────────────────────┘ │
-│                                     │
-│  Description corrigée:              │
-│  ┌─────────────────────────────────┐ │
-│  │ [Zone d'édition]               │ │
-│  │                                │ │
-│  └─────────────────────────────────┘ │
-│                                     │
-│  💾 Sauvegardé automatiquement      │
+│ (Interface identique à l'ancienne)  │
 └─────────────────────────────────────┘
 ```
 
 ## Utilisation pas à pas
 
-### 1. Sélectionner un épisode
+### 1. Navigation dans l'application
 
-1. **Ouvrez** le sélecteur d'épisodes en haut de la page
-2. **Parcourez** la liste des épisodes disponibles
-3. **Cliquez** sur l'épisode que vous souhaitez modifier
+#### Page d'accueil
+1. **Consultez** les statistiques générales en haut de page
+2. **Cliquez** sur "Episode - Modification Titre/Description" pour accéder à la gestion des épisodes
+3. Les autres fonctions seront disponibles dans les futures versions
+
+#### Navigation
+- **Depuis la page d'épisodes** : Cliquez sur "🏠 Accueil" pour revenir au tableau de bord
+- **Depuis l'accueil** : Les fonctions disponibles sont directement accessibles
+
+### 2. Sélectionner un épisode
+
+1. **Accédez** à la page "Gestion des Épisodes" depuis l'accueil
+2. **Ouvrez** le sélecteur d'épisodes en haut de la page
+3. **Parcourez** la liste des épisodes disponibles
+4. **Cliquez** sur l'épisode que vous souhaitez modifier
 
 📋 *La liste affiche le titre complet de chaque épisode avec la date*
 
-### 2. Consulter les informations
+### 3. Consulter les informations
 
 Une fois l'épisode sélectionné, vous verrez :
 
@@ -85,7 +115,7 @@ Une fois l'épisode sélectionné, vous verrez :
 - **URL** de l'épisode original
 - **Transcription** complète (si disponible)
 
-### 3. Modifier la description
+### 4. Modifier la description
 
 #### Description originale
 - Zone **en lecture seule**
@@ -195,9 +225,21 @@ L'application gère différents types d'émissions :
 
 ## Navigation
 
+### Navigation entre les pages
+
+L'application utilise maintenant un système de navigation à deux pages :
+
+#### Depuis la page d'accueil
+- **Cliquez** sur les fonctions disponibles pour y accéder directement
+- **Visualisez** les statistiques globales en un coup d'œil
+
+#### Depuis une page de fonction (ex: Gestion des Épisodes)
+- **Cliquez** sur "🏠 Accueil" pour revenir au tableau de bord principal
+- Le titre de la page courante est affiché à côté du lien d'accueil
+
 ### Changement d'épisode
 
-Pour passer à un autre épisode :
+Pour passer à un autre épisode sur la page de gestion :
 
 1. **Utilisez le sélecteur** en haut de page
 2. **Choisissez** un nouvel épisode

@@ -37,6 +37,20 @@ api.interceptors.response.use(
 );
 
 /**
+ * Service pour la gestion des statistiques
+ */
+export const statisticsService = {
+  /**
+   * Récupère les statistiques générales de l'application
+   * @returns {Promise<Object>} Statistiques
+   */
+  async getStatistics() {
+    const response = await api.get('/statistics');
+    return response.data;
+  },
+};
+
+/**
  * Service pour la gestion des épisodes
  */
 export const episodeService = {
