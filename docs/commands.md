@@ -6,18 +6,7 @@ Toutes les commandes que je suis amene a lancer souvent dans le cadre de ce proj
 
 ```bash
 npm install -g @anthropic-ai/claude-code
-claude
-```
-
-## reseau port utilise
-
-```bash
-# depuis le host (sous devcontainer ne rend pas la main)
-lsof -i:8000
-
-# depuis devcontainer
-netstat -tlnp | grep :8000
-fuser -k 8000/tcp 2>/dev/null; sleep 2; netstat -tlnp | grep :8000
+claude --resume
 ```
 
 ## lancement backend - frontend
@@ -72,4 +61,15 @@ ssh-keyscan -H 140.82.121.3 >> ~/.ssh/known_hosts
 
 # vérifier que l'entrée a bien été ajoutée
 ssh-keygen -F 140.82.121.3
+```
+
+## reseau port utilise
+
+```bash
+# depuis le host (sous devcontainer ne rend pas la main)
+lsof -i:8000
+
+# depuis devcontainer
+netstat -tlnp | grep :8000
+fuser -k 8000/tcp 2>/dev/null; sleep 2; netstat -tlnp | grep :8000
 ```

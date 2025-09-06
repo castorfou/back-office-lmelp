@@ -17,7 +17,23 @@ L'affichage des titres d'épisodes dans la liste déroulante de sélection n'ét
 **Avant** : `24/08/2025 [livres] - Titre original`
 **Après** : `24 août 2025 - Titre corrigé par l'utilisateur`
 
-### 2. Composants modifiés
+### 2. Correction critique backend
+
+**Problème découvert** : L'API backend ne transmettait pas le champ `titre_corrige` dans la méthode `to_summary_dict()`, causant l'affichage des titres originaux malgré les corrections frontend.
+
+**Solution** : Modification du modèle `Episode` pour inclure `titre_corrige` dans les données de résumé :
+```python
+def to_summary_dict(self) -> dict[str, Any]:
+    return {
+        "id": self.id,
+        "titre": self.titre,
+        "titre_corrige": self.titre_corrige,  # AJOUT CRITIQUE
+        "date": self.date.isoformat() if self.date else None,
+        "type": self.type,
+    }
+```
+
+### 3. Composants modifiés
 
 #### `EpisodeSelector.vue`
 - **Méthode `formatEpisodeOption()`** : Mise à jour du format d'affichage
@@ -68,18 +84,24 @@ async onTitleUpdated(data) {
 }
 ```
 
-### 3. Tests ajoutés
+### 4. Tests ajoutés
 
-#### Tests EpisodeSelector
+#### Tests Backend (Episode Model)
+- **Nouveau test critique** : `test_episode_to_summary_dict_with_titre_corrige()` dans `tests/test_models_validation.py`
+- Vérification que `titre_corrige` est inclus dans `to_summary_dict()`
+- Mise à jour des tests existants pour valider le nouveau champ
+- **Test de régression** : Empêche la répétition du bug où `titre_corrige` était absent
+
+#### Tests Frontend (EpisodeSelector)
 - Test du nouveau format d'affichage avec date littéraire
 - Test de l'utilisation du titre corrigé vs titre original
 - Mise à jour des tests existants pour le nouveau format
 
-#### Test HomePage
+#### Test Frontend (HomePage)
 - Test de la mise à jour dynamique lors de la modification d'un titre
 - Vérification que `refreshEpisodesList()` est appelé correctement
 
-### 4. Flux de mise à jour dynamique
+### 5. Flux de mise à jour dynamique
 
 ```
 1. Utilisateur modifie un titre dans EpisodeEditor
@@ -133,6 +155,7 @@ async onTitleUpdated(data) {
 - Impact minimal : Une seule requête API supplémentaire lors de la mise à jour d'un titre
 - Optimisation : Le rechargement se fait seulement lors des modifications, pas en continu
 - Réactivité : Mise à jour immédiate visible par l'utilisateur
+- **Test Coverage** : Couverture totale avec 165 tests (117 backend + 48 frontend)
 
 ## Maintenance
 

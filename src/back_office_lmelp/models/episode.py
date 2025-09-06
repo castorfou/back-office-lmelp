@@ -36,6 +36,7 @@ class Episode:
         return {
             "id": self.id,
             "titre": self.titre,
+            "titre_corrige": self.titre_corrige,
             "date": self.date.isoformat() if self.date else None,
             "type": self.type,
         }
