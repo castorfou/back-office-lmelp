@@ -55,9 +55,15 @@ class TestMobileNetworkAccess:
         # Ce test vérifie que le fichier de configuration Vite sera modifié
         # pour permettre l'accès réseau
 
-        # Lire la configuration Vite actuelle
-        vite_config_path = "/workspaces/back-office-lmelp/frontend/vite.config.js"
-        assert os.path.exists(vite_config_path), "vite.config.js should exist"
+        # Lire la configuration Vite actuelle avec un chemin relatif
+        import pathlib
+
+        project_root = pathlib.Path(__file__).parent.parent
+        vite_config_path = project_root / "frontend" / "vite.config.js"
+
+        assert vite_config_path.exists(), (
+            f"vite.config.js should exist at {vite_config_path}"
+        )
 
         with open(vite_config_path) as f:
             config_content = f.read()
@@ -70,17 +76,21 @@ class TestMobileNetworkAccess:
     def test_mobile_access_documentation_exists(self):
         """Test qu'il existe de la documentation pour l'accès mobile."""
         # Vérifier qu'il y aura de la documentation pour guider les utilisateurs
+        import pathlib
+
+        project_root = pathlib.Path(__file__).parent.parent
+
         docs_paths = [
-            "/workspaces/back-office-lmelp/docs/user/mobile-access.md",
-            "/workspaces/back-office-lmelp/docs/user/README.md",
+            project_root / "docs" / "user" / "mobile-access.md",
+            project_root / "docs" / "user" / "README.md",
         ]
 
-        documentation_exists = any(os.path.exists(path) for path in docs_paths)
+        documentation_exists = any(path.exists() for path in docs_paths)
 
         # Si aucun fichier de doc spécifique n'existe, vérifier le README principal
         if not documentation_exists:
-            readme_path = "/workspaces/back-office-lmelp/docs/user/README.md"
-            if os.path.exists(readme_path):
+            readme_path = project_root / "docs" / "user" / "README.md"
+            if readme_path.exists():
                 with open(readme_path) as f:
                     readme_content = f.read().lower()
                 documentation_exists = (
@@ -88,5 +98,6 @@ class TestMobileNetworkAccess:
                 )
 
         assert documentation_exists, (
-            "Documentation should exist for mobile access instructions"
+            f"Documentation should exist for mobile access instructions. "
+            f"Checked paths: {[str(p) for p in docs_paths]}"
         )
