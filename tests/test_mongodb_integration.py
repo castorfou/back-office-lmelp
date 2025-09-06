@@ -222,8 +222,8 @@ class TestMongoDBService:
         """Test update episode description when no connection established."""
         with pytest.raises(Exception, match="Connexion MongoDB non établie"):
             mongodb_service.update_episode_description(
-                "507f1f77bcf86cd799439011"  # pragma: allowlist secret,
-                "description",  # pragma: allowlist secret
+                "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+                "description",
             )
 
     def test_update_episode_description_database_error(self, mongodb_service):
@@ -277,8 +277,9 @@ class TestMongoDBService:
         """Test update episode title when no connection established."""
         with pytest.raises(Exception, match="Connexion MongoDB non établie"):
             mongodb_service.update_episode_title(
-                "507f1f77bcf86cd799439011"  # pragma: allowlist secret, "title"
-            )  # pragma: allowlist secret
+                "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+                "title",
+            )
 
     def test_update_episode_title_database_error(self, mongodb_service):
         """Test update episode title with database error."""
