@@ -25,6 +25,7 @@ theme:
 plugins:
   - search:
       lang: fr
+  - mermaid2
 
 markdown_extensions:
   - admonition
