@@ -4,8 +4,6 @@ import os
 import subprocess
 from pathlib import Path
 
-import yaml
-
 
 class TestMkDocsMermaidConfiguration:
     """Test MkDocs configuration for Mermaid diagram support."""
@@ -15,24 +13,12 @@ class TestMkDocsMermaidConfiguration:
         mkdocs_path = Path(__file__).parent.parent / "mkdocs.yml"
 
         with open(mkdocs_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            content = f.read()
 
-        # Check that plugins section exists
-        assert "plugins" in config, "mkdocs.yml should have a 'plugins' section"
-
-        plugins = config["plugins"]
-
-        # Extract plugin names (handle both string and dict formats)
-        plugin_names = []
-        for plugin in plugins:
-            if isinstance(plugin, str):
-                plugin_names.append(plugin)
-            elif isinstance(plugin, dict):
-                plugin_names.extend(plugin.keys())
-
-        # Check that mermaid2 plugin is present
-        assert "mermaid2" in plugin_names, (
-            f"mermaid2 plugin should be in plugins list. Found: {plugin_names}"
+        # Check for mermaid2 plugin in raw content to avoid YAML parsing issues
+        assert "plugins:" in content, "mkdocs.yml should have a 'plugins' section"
+        assert "- mermaid2" in content, (
+            "mkdocs.yml should include mermaid2 plugin in the plugins list"
         )
 
     def test_mkdocs_yml_has_superfences_mermaid_extension(self):
@@ -40,33 +26,22 @@ class TestMkDocsMermaidConfiguration:
         mkdocs_path = Path(__file__).parent.parent / "mkdocs.yml"
 
         with open(mkdocs_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            content = f.read()
 
-        assert "markdown_extensions" in config, (
+        # Check for superfences with mermaid configuration in raw content
+        # since YAML safe_load cannot handle !!python/name: syntax
+        assert "pymdownx.superfences:" in content, (
+            "mkdocs.yml should have pymdownx.superfences configuration"
+        )
+        assert "custom_fences:" in content, (
+            "pymdownx.superfences should have custom_fences configuration"
+        )
+        assert "name: mermaid" in content, (
+            "custom_fences should have mermaid fence configured"
+        )
+        assert "markdown_extensions:" in content, (
             "mkdocs.yml should have markdown_extensions"
         )
-
-        extensions = config["markdown_extensions"]
-
-        # Look for pymdownx.superfences configuration
-        superfences_config = None
-        for ext in extensions:
-            if isinstance(ext, dict) and "pymdownx.superfences" in ext:
-                superfences_config = ext["pymdownx.superfences"]
-                break
-            if ext == "pymdownx.superfences":
-                # Extension is present but not configured - that's okay for basic Mermaid
-                return
-
-        if superfences_config:
-            # If superfences is configured, check it supports Mermaid
-            custom_fences = superfences_config.get("custom_fences", [])
-            mermaid_fence = any(
-                fence.get("name") == "mermaid" for fence in custom_fences
-            )
-            assert mermaid_fence, (
-                "pymdownx.superfences should have mermaid custom fence configured"
-            )
 
     def test_mkdocs_build_succeeds(self):
         """Test that mkdocs build command succeeds with current configuration."""
