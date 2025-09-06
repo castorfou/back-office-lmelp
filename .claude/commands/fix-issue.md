@@ -8,13 +8,13 @@
 8. Vérifie que tout passe (tests, lint, typecheck)
 9. Cree les modifications necessaires dans la doc utilisateur et la doc developpeur
 10. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
-11. Verifie l'etat de la CI/CD (gh run view)
+11. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
 12. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 11) jusqu'à satisfaction
 13. Met à jour README.md et CLAUDE.md si necessaire
 14. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
 15. Clos la todo list si elle est bien vide
 16. Repasse sur la branche main locale, et recupere les dernieres modifications
-17. Finis en appelant
+17. Finis en appelant la slash-command interne de claude
 ```claude
 /stocke-memoire
 ```
