@@ -26,14 +26,15 @@
       <div v-if="!selectedEpisode" class="help-message card">
         <h3>👆 Sélectionnez un épisode pour commencer</h3>
         <p>
-          Choisissez un épisode dans la liste déroulante ci-dessus pour voir sa description
-          et pouvoir la corriger si nécessaire.
+          Choisissez un épisode dans la liste déroulante ci-dessus pour voir son titre et sa description
+          et pouvoir les corriger si nécessaire.
         </p>
         <div class="features">
           <h4>Fonctionnalités disponibles :</h4>
           <ul>
-            <li>✅ Visualisation de la description originale</li>
-            <li>✏️ Édition de la description corrigée</li>
+            <li>✅ Visualisation des titres et descriptions (corrigés s'ils existent)</li>
+            <li>✏️ Correction des titres et descriptions</li>
+            <li>🖥️ Affichage possible des versions originales pour comparaison</li>
             <li>💾 Sauvegarde automatique (2 secondes après modification)</li>
             <li>🔄 Gestion robuste des erreurs avec retry automatique</li>
           </ul>

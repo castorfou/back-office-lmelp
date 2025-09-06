@@ -38,7 +38,8 @@
                 "GitHub.copilot-chat",
                 "GitHub.copilot",
                 "dbaeumer.vscode-eslint",
-                "ms-python.autopep8"
+                "ms-python.autopep8",
+                "Vue.volar"
             ],
             "settings": {
                 // Configuration Python
