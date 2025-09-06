@@ -1,6 +1,6 @@
 <template>
   <div class="episode-selector card">
-    <h2>Sélection d'épisode</h2>
+    <h2>Episode - Modification Titre/Description</h2>
 
     <!-- État de chargement -->
     <div v-if="loading" class="loading">
