@@ -2,7 +2,7 @@ name: Deploy MkDocs to GitHub Pages
 
 on:
   push:
-    branches: [ main, fix-issue-5-setup-mkdocs-github-pages ]
+    branches: [ main, fix-issue-5-setup-mkdocs-github-pages, 31-permettre-laffichage-des-diagrammes-darchitecture-dans-la-doc-developpeur ]
     paths: [ 'docs/**', 'mkdocs.yml' ]
   pull_request:
     branches: [ main ]
@@ -46,7 +46,7 @@ jobs:
         path: 'site'
 
   deploy:
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.head_ref == 'fix-issue-5-setup-mkdocs-github-pages')
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/31-permettre-laffichage-des-diagrammes-darchitecture-dans-la-doc-developpeur' || (github.event_name == 'pull_request' && github.head_ref == 'fix-issue-5-setup-mkdocs-github-pages')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

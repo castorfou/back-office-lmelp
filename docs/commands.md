@@ -73,3 +73,29 @@ lsof -i:8000
 netstat -tlnp | grep :8000
 fuser -k 8000/tcp 2>/dev/null; sleep 2; netstat -tlnp | grep :8000
 ```
+
+## voir la todo de claude code
+
+Avec `ctrl-t` pour voir les taches en cours
+
+```text
+ Creating documentation modifications… (esc to interrupt · ctrl+t to hide todos)
+  ⎿  ☒ Use gh issue view to get issue 31 details
+     ☒ Create feature branch from issue using gh issue develop 31
+     ☒ Checkout to the feature branch locally
+     ☒ Understand the problem described in the issue
+     ☒ Search for relevant files in the codebase
+     ☒ Implement fix using TDD - write failing tests first
+     ☒ Write code to make tests pass
+     ☒ Iterate between code and test execution until complete resolution
+     ☒ Verify all tests, lint, and typecheck pass
+     ☐ Create necessary modifications in user and developer documentation
+     ☐ Commit atomically with descriptive message and push changes
+     ☐ Verify CI/CD state using gh run view
+     ☐ Ask user for global testing and iterate if needed
+     ☐ Update README.md and CLAUDE.md if necessary
+     ☐ Prepare pull request and ask user for validation, then merge using gh
+     ☐ Close todo list when empty
+     ☐ Switch back to main branch locally and get latest changes
+     ☐ Call /stocke-memoire to finish
+```
