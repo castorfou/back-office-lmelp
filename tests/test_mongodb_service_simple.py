@@ -97,3 +97,44 @@ class TestMongoDBServiceSimple:
         mongodb_service.episodes_collection.insert_one.assert_called_once_with(
             episode_data
         )
+
+    def test_get_all_episodes_includes_titre_corrige_field(self, mongodb_service):
+        """Test que get_all_episodes inclut le champ titre_corrige dans la projection."""
+        # Arrange - Mock MongoDB data with titre_corrige field
+        mock_episodes = [
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439011"),
+                "titre": "Episode test",
+                "titre_corrige": "Episode test corrigé",
+                "date": "2025-08-03T10:59:59.000Z",
+                "type": "livres",
+            },
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439012"),
+                "titre": "Episode test 2",
+                "titre_corrige": None,
+                "date": "2025-08-02T10:59:59.000Z",
+                "type": "cinema",
+            },
+        ]
+
+        # Mock the MongoDB find chain
+        mock_cursor = MagicMock()
+        mock_cursor.sort = MagicMock(return_value=mock_episodes)
+        mongodb_service.episodes_collection.find = MagicMock(return_value=mock_cursor)
+
+        # Act
+        result = mongodb_service.get_all_episodes()
+
+        # Assert - Vérifier que la projection inclut titre_corrige
+        mongodb_service.episodes_collection.find.assert_called_once_with(
+            {}, {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1}
+        )
+
+        # Assert - Vérifier que le résultat contient bien titre_corrige
+        assert len(result) == 2
+        assert result[0]["titre_corrige"] == "Episode test corrigé"
+        assert result[1]["titre_corrige"] is None
+        # Vérifier que les ObjectIds sont convertis en strings
+        assert result[0]["_id"] == "507f1f77bcf86cd799439011"
+        assert result[1]["_id"] == "507f1f77bcf86cd799439012"
