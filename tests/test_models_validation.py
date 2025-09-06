@@ -150,6 +150,7 @@ class TestEpisodeModel:
         expected = {
             "id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
             "titre": "Summary Episode",
+            "titre_corrige": None,
             "date": "2024-02-10T09:15:00",
             "type": "news",
         }
@@ -159,6 +160,9 @@ class TestEpisodeModel:
         assert "description" not in result
         assert "transcription" not in result
         assert "description_corrigee" not in result
+        # titre_corrige should be included even if None for frontend compatibility
+        assert "titre_corrige" in result
+        assert result["titre_corrige"] is None
 
     def test_episode_to_summary_dict_null_date(self):
         """Test episode to_summary_dict method with null date."""
@@ -174,6 +178,7 @@ class TestEpisodeModel:
         expected = {
             "id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
             "titre": "No Date Summary",
+            "titre_corrige": None,
             "date": None,
             "type": "test",
         }
@@ -187,9 +192,42 @@ class TestEpisodeModel:
         episode = Episode(data)
         result = episode.to_summary_dict()
 
-        expected = {"id": "", "titre": "", "date": None, "type": ""}
+        expected = {
+            "id": "",
+            "titre": "",
+            "titre_corrige": None,
+            "date": None,
+            "type": "",
+        }
 
         assert result == expected
+
+    def test_episode_to_summary_dict_with_titre_corrige(self):
+        """Test episode to_summary_dict method with titre_corrige."""
+        test_date = datetime(2024, 8, 24, 9, 0)
+        data = {
+            "_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "titre": "Titre original",
+            "titre_corrige": "Justine Lévy, Antoine Wauters, Alice Ferney",
+            "date": test_date,
+            "type": "livres",
+        }
+
+        episode = Episode(data)
+        result = episode.to_summary_dict()
+
+        expected = {
+            "id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "titre": "Titre original",
+            "titre_corrige": "Justine Lévy, Antoine Wauters, Alice Ferney",
+            "date": "2024-08-24T09:00:00",
+            "type": "livres",
+        }
+
+        assert result == expected
+        # Verify titre_corrige is present and correct
+        assert "titre_corrige" in result
+        assert result["titre_corrige"] == "Justine Lévy, Antoine Wauters, Alice Ferney"
 
     def test_episode_handles_none_values_gracefully(self):
         """Test episode handles None values in data gracefully."""

@@ -123,6 +123,8 @@ import { memoryGuard } from '../utils/memoryGuard.js';
 export default {
   name: 'EpisodeEditor',
 
+  emits: ['title-updated'],
+
   props: {
     episode: {
       type: Object,
@@ -309,6 +311,12 @@ export default {
         this.hasTitleChanges = false;
         this.hasChanges = this.hasDescriptionChanges;
         this.titleSaveStatus = 'saved';
+
+        // Émettre l'événement pour notifier que le titre a été mis à jour
+        this.$emit('title-updated', {
+          episodeId: this.episode.id,
+          newTitle: this.correctedTitle
+        });
 
         // Masquer le statut "sauvegardé" après 3 secondes
         setTimeout(() => {

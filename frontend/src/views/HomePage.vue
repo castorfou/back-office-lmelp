@@ -9,13 +9,17 @@
 
     <main>
       <!-- Sélecteur d'épisode -->
-      <EpisodeSelector @episode-selected="onEpisodeSelected" />
+      <EpisodeSelector
+        ref="episodeSelector"
+        @episode-selected="onEpisodeSelected"
+      />
 
       <!-- Éditeur d'épisode -->
       <EpisodeEditor
         v-if="selectedEpisode"
         :episode="selectedEpisode"
         :key="selectedEpisode.id"
+        @title-updated="onTitleUpdated"
       />
 
       <!-- Message d'aide si aucun épisode sélectionné -->
@@ -71,6 +75,20 @@ export default {
      */
     onEpisodeSelected(episode) {
       this.selectedEpisode = episode;
+    },
+
+    /**
+     * Gère la mise à jour d'un titre d'épisode
+     * Recharge la liste des épisodes pour afficher le nouveau titre
+     * @param {Object} data - Données de l'événement (episodeId, newTitle)
+     */
+    async onTitleUpdated(data) {
+      console.log('Titre mis à jour:', data);
+
+      // Recharger la liste des épisodes dans le sélecteur
+      if (this.$refs.episodeSelector) {
+        await this.$refs.episodeSelector.refreshEpisodesList();
+      }
     },
   },
 };

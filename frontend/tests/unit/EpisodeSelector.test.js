@@ -61,12 +61,14 @@ describe('EpisodeSelector', () => {
     {
       id: '1',
       titre: 'Episode Test 1',
+      titre_corrige: null, // Pas de titre corrigé
       date: '2024-01-15T09:00:00Z',
       type: 'livres'
     },
     {
       id: '2',
       titre: 'Episode Test 2',
+      titre_corrige: 'Episode Test 2 Corrigé', // Avec titre corrigé
       date: '2024-01-10T09:00:00Z',
       type: 'cinema'
     }
@@ -161,9 +163,18 @@ describe('EpisodeSelector', () => {
       },
       methods: {
         formatEpisodeOption(episode) {
-          const date = episode.date ? new Date(episode.date).toLocaleDateString('fr-FR') : 'Date inconnue';
-          const type = episode.type ? `[${episode.type}]` : '';
-          return `${date} ${type} - ${episode.titre}`;
+          const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
+          const titre = episode.titre_corrige || episode.titre;
+          return `${date} - ${titre}`;
+        },
+        formatDateLitteraire(dateStr) {
+          const date = new Date(dateStr);
+          const options = {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          };
+          return date.toLocaleDateString('fr-FR', options);
         }
       }
     };
@@ -175,8 +186,8 @@ describe('EpisodeSelector', () => {
 
     // Option par défaut + 2 épisodes
     expect(options).toHaveLength(3);
-    expect(options[1].text()).toContain('Episode Test 1');
-    expect(options[2].text()).toContain('Episode Test 2');
+    expect(options[1].text()).toContain('Episode Test 1'); // Premier épisode sans titre corrigé
+    expect(options[2].text()).toContain('Episode Test 2 Corrigé'); // Deuxième épisode avec titre corrigé
   });
 
   it('émet un événement quand un épisode est sélectionné', async () => {
@@ -233,9 +244,18 @@ describe('EpisodeSelector', () => {
           this.$emit('episode-selected', episode);
         },
         formatEpisodeOption(episode) {
-          const date = episode.date ? new Date(episode.date).toLocaleDateString('fr-FR') : 'Date inconnue';
-          const type = episode.type ? `[${episode.type}]` : '';
-          return `${date} ${type} - ${episode.titre}`;
+          const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
+          const titre = episode.titre_corrige || episode.titre;
+          return `${date} - ${titre}`;
+        },
+        formatDateLitteraire(dateStr) {
+          const date = new Date(dateStr);
+          const options = {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          };
+          return date.toLocaleDateString('fr-FR', options);
         }
       }
     };
@@ -286,7 +306,7 @@ describe('EpisodeSelector', () => {
     expect(wrapper.vm.error).toBeTruthy();
   });
 
-  it('formate correctement les options d\'épisode', () => {
+  it('formate correctement les options d\'épisode avec le nouveau format', () => {
     // Créer un stub simple pour éviter les erreurs du composant original
     const EpisodeSelectorStub = {
       template: `<div></div>`,
@@ -300,9 +320,19 @@ describe('EpisodeSelector', () => {
       },
       methods: {
         formatEpisodeOption(episode) {
-          const date = episode.date ? new Date(episode.date).toLocaleDateString('fr-FR') : 'Date inconnue';
-          const type = episode.type ? `[${episode.type}]` : '';
-          return `${date} ${type} - ${episode.titre}`;
+          // Nouveau format attendu: "24 août 2025 - titre corrigé"
+          const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
+          const titre = episode.titre_corrige || episode.titre;
+          return `${date} - ${titre}`;
+        },
+        formatDateLitteraire(dateStr) {
+          const date = new Date(dateStr);
+          const options = {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          };
+          return date.toLocaleDateString('fr-FR', options);
         }
       }
     };
@@ -310,9 +340,57 @@ describe('EpisodeSelector', () => {
     wrapper = mount(EpisodeSelectorStub);
     const formatted = wrapper.vm.formatEpisodeOption(mockEpisodes[0]);
 
-    expect(formatted).toContain('15/01/2024');
-    expect(formatted).toContain('[livres]');
+    // Nouveau format: date littéraire sans le [type]
+    expect(formatted).toContain('15 janvier 2024');
+    expect(formatted).not.toContain('[livres]'); // Plus de type
     expect(formatted).toContain('Episode Test 1');
+    expect(formatted).toBe('15 janvier 2024 - Episode Test 1');
+  });
+
+  it('utilise le titre corrigé quand disponible', () => {
+    const EpisodeSelectorStub = {
+      template: `<div></div>`,
+      data() {
+        return {
+          loading: false,
+          error: null,
+          episodes: [],
+          selectedEpisodeId: ''
+        }
+      },
+      methods: {
+        formatEpisodeOption(episode) {
+          const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
+          const titre = episode.titre_corrige || episode.titre;
+          return `${date} - ${titre}`;
+        },
+        formatDateLitteraire(dateStr) {
+          const date = new Date(dateStr);
+          const options = {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          };
+          return date.toLocaleDateString('fr-FR', options);
+        }
+      }
+    };
+
+    const episodeAvecTitreCorrige = {
+      id: '1',
+      titre: 'Titre original',
+      titre_corrige: 'Titre corrigé par l\'utilisateur',
+      date: '2024-08-24T09:00:00Z',
+      type: 'livres'
+    };
+
+    wrapper = mount(EpisodeSelectorStub);
+    const formatted = wrapper.vm.formatEpisodeOption(episodeAvecTitreCorrige);
+
+    expect(formatted).toContain('24 août 2024');
+    expect(formatted).toContain('Titre corrigé par l\'utilisateur');
+    expect(formatted).not.toContain('Titre original');
+    expect(formatted).toBe('24 août 2024 - Titre corrigé par l\'utilisateur');
   });
 
   it('permet de réessayer après une erreur', async () => {
