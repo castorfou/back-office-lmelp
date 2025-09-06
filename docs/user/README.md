@@ -82,6 +82,19 @@ L'interface comprend maintenant **deux pages principales** :
 └─────────────────────────────────────┘
 ```
 
+## Accès depuis un téléphone mobile
+
+Pour accéder à l'application depuis votre téléphone ou tablette, consultez le guide détaillé : **[Accès Mobile](mobile-access.md)**
+
+### Configuration rapide
+1. Démarrez l'application avec `ENVIRONMENT=development ./scripts/start-dev.sh`
+2. Trouvez l'adresse IP de votre ordinateur (`ipconfig` ou `ifconfig`)
+3. Sur votre téléphone, ouvrez `http://[ADRESSE_IP]:5173`
+
+L'interface s'adapte automatiquement aux écrans mobiles pour une utilisation optimale.
+
+---
+
 ## Utilisation pas à pas
 
 ### 1. Navigation dans l'application

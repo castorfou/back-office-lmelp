@@ -45,17 +45,35 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # Configuration CORS pour le frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ],  # Vue.js dev servers
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def get_cors_configuration():
+    """Retourne la configuration CORS selon l'environnement."""
+    env = os.getenv("ENVIRONMENT", "development")
+
+    if env == "development":
+        # En développement, autoriser toutes les origines pour faciliter l'accès mobile
+        return {
+            "allow_origins": ["*"],
+            "allow_credentials": False,  # Must be False when allow_origins is "*"
+            "allow_methods": ["*"],
+            "allow_headers": ["*"],
+        }
+    else:
+        # En production, être restrictif
+        return {
+            "allow_origins": [
+                "http://localhost:3000",
+                "http://localhost:5173",
+            ],
+            "allow_credentials": True,
+            "allow_methods": ["*"],
+            "allow_headers": ["*"],
+        }
+
+
+cors_config = get_cors_configuration()
+app.add_middleware(CORSMiddleware, **cors_config)
 
 
 @app.get("/")
