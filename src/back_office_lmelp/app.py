@@ -171,6 +171,32 @@ async def update_episode_title(episode_id: str, request: Request) -> dict[str, s
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/statistics", response_model=dict[str, Any])
+async def get_statistics() -> dict[str, Any]:
+    """Récupère les statistiques de l'application."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        stats_data = mongodb_service.get_statistics()
+
+        # Transformer les clés pour correspondre au format frontend
+        return {
+            "totalEpisodes": stats_data["total_episodes"],
+            "episodesWithCorrectedTitles": stats_data["episodes_with_corrected_titles"],
+            "episodesWithCorrectedDescriptions": stats_data[
+                "episodes_with_corrected_descriptions"
+            ],
+            "lastUpdateDate": stats_data["last_update_date"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Variables globales pour la gestion propre du serveur
 _server_instance = None
 

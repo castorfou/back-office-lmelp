@@ -1,0 +1,370 @@
+<template>
+  <div class="dashboard">
+    <!-- Bandeau d'en-tête -->
+    <header class="page-header">
+      <h1>Back-office LMELP</h1>
+      <p class="subtitle">
+        Gestion et correction des épisodes du Masque et la Plume
+      </p>
+    </header>
+
+    <main class="dashboard-content">
+      <!-- Section Statistiques -->
+      <section class="statistics-section">
+        <h2>Informations générales</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value">{{ statistics.totalEpisodes || '...' }}</div>
+            <div class="stat-label">Épisodes au total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ statistics.episodesWithCorrectedTitles || '...' }}</div>
+            <div class="stat-label">Titres corrigés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ statistics.episodesWithCorrectedDescriptions || '...' }}</div>
+            <div class="stat-label">Descriptions corrigées</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
+            <div class="stat-label">Dernière mise à jour</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section Fonctions -->
+      <section class="functions-section">
+        <h2>Fonctions disponibles</h2>
+        <div class="functions-grid">
+          <div
+            class="function-card clickable"
+            data-testid="function-episode-edit"
+            @click="navigateToEpisodes"
+          >
+            <div class="function-icon">📝</div>
+            <h3>Episode - Modification Titre/Description</h3>
+            <p>Sélectionnez un épisode pour modifier son titre et sa description</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <!-- Placeholder pour futures fonctions -->
+          <div class="function-card coming-soon">
+            <div class="function-icon">🔍</div>
+            <h3>Recherche avancée</h3>
+            <p>Rechercher des épisodes par critères spécifiques</p>
+            <div class="coming-soon-label">Bientôt disponible</div>
+          </div>
+
+          <div class="function-card coming-soon">
+            <div class="function-icon">📊</div>
+            <h3>Rapports et analyses</h3>
+            <p>Générer des rapports sur l'état des corrections</p>
+            <div class="coming-soon-label">Bientôt disponible</div>
+          </div>
+
+          <div class="function-card coming-soon">
+            <div class="function-icon">⚙️</div>
+            <h3>Configuration</h3>
+            <p>Paramètres et configuration du système</p>
+            <div class="coming-soon-label">Bientôt disponible</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <p>
+        Version 0.1.0 - Back-office pour le projet
+        <a href="https://github.com/castorfou/lmelp" target="_blank">LMELP</a>
+      </p>
+    </footer>
+  </div>
+</template>
+
+<script>
+import { statisticsService } from '../services/api.js';
+
+export default {
+  name: 'Dashboard',
+
+  data() {
+    return {
+      statistics: {
+        totalEpisodes: null,
+        episodesWithCorrectedTitles: null,
+        episodesWithCorrectedDescriptions: null,
+        lastUpdateDate: null
+      },
+      loading: true,
+      error: null
+    };
+  },
+
+  computed: {
+    formattedLastUpdate() {
+      if (!this.statistics.lastUpdateDate) {
+        return null;
+      }
+
+      try {
+        const date = new Date(this.statistics.lastUpdateDate);
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch (error) {
+        console.error('Erreur de formatage de date:', error);
+        return '--';
+      }
+    }
+  },
+
+  async mounted() {
+    await this.loadStatistics();
+  },
+
+  methods: {
+    async loadStatistics() {
+      try {
+        this.loading = true;
+        this.error = null;
+        const stats = await statisticsService.getStatistics();
+        this.statistics = stats;
+      } catch (error) {
+        console.error('Erreur lors du chargement des statistiques:', error);
+        this.error = error.message;
+        // Garder les valeurs '...' en cas d'erreur
+        this.statistics = {
+          totalEpisodes: '--',
+          episodesWithCorrectedTitles: '--',
+          episodesWithCorrectedDescriptions: '--',
+          lastUpdateDate: null
+        };
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    navigateToEpisodes() {
+      this.$router.push('/episodes');
+    }
+  }
+};
+</script>
+
+<style scoped>
+.dashboard {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  margin: -2rem -2rem 3rem -2rem;
+}
+
+.page-header h1 {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  font-weight: 300;
+}
+
+.dashboard-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.statistics-section h2,
+.functions-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #333;
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.functions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.function-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.function-card.clickable {
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.function-card.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  border-color: #667eea;
+}
+
+.function-card.coming-soon {
+  opacity: 0.7;
+  background: #f8f9fa;
+}
+
+.function-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.function-card h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.function-card p {
+  font-size: 0.9rem;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.function-arrow {
+  font-size: 1.5rem;
+  color: #667eea;
+  font-weight: bold;
+}
+
+.coming-soon-label {
+  background: #ffc107;
+  color: #333;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-block;
+}
+
+.page-footer {
+  margin-top: 4rem;
+  text-align: center;
+  padding: 2rem 0;
+  color: #666;
+  font-size: 0.9rem;
+  border-top: 1px solid #eee;
+}
+
+.page-footer a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.page-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .page-header {
+    margin: -2rem -1rem 2rem -1rem;
+    padding: 2rem 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.8rem;
+  }
+
+  .functions-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .function-card {
+    padding: 1.5rem;
+  }
+
+  .dashboard-content {
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+}
+</style>
