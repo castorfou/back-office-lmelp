@@ -275,3 +275,4 @@ def setup_signal_handlers():
 - **Load balancing** : Multiple instances FastAPI
 - **Database indexing** : Index MongoDB optimisés
 - **CDN** : Assets statiques via CDN
+Sat Sep  6 11:47:29 CEST 2025: Test trigger for Mermaid deployment
