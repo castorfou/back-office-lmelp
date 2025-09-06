@@ -40,7 +40,7 @@ ruff format .
 # Type checking
 mypy src/
 
-# Run backend tests (39 tests)
+# Run backend tests (116 tests)
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Run pre-commit hooks manually
@@ -97,7 +97,7 @@ cd /workspaces/back-office-lmelp/frontend && npm run preview
 
 ### Full Test Suite
 ```bash
-# Run all tests (70 total: 39 backend + 31 frontend)
+# Run all tests (147 total: 116 backend + 31 frontend)
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
@@ -240,7 +240,7 @@ ruff check path/to/file.py --fix
 ### Backend Configuration
 - Ruff configuration excludes data/, models/, logs/, and .jupyter/ directories
 - MyPy ignores missing imports for common data science libraries
-- pytest with coverage reporting (40% current coverage)
+- pytest with coverage reporting (85% current coverage)
 
 ### Frontend Configuration
 - Vitest configuration in frontend/vite.config.js
@@ -256,13 +256,13 @@ ruff check path/to/file.py --fix
 
 ## Testing
 
-### Backend Tests (12 tests)
+### Backend Tests (116 tests)
 - Location: `tests/` directory
 - Framework: pytest with coverage
 - Command: `PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v`
 - Coverage: API endpoints, MongoDB service, memory guard utilities
 
-### Frontend Tests (26 tests)
+### Frontend Tests (31 tests)
 - Location: `frontend/tests/` directory
 - Framework: Vitest with @vue/test-utils
 - Command: `cd frontend && npm test -- --run`

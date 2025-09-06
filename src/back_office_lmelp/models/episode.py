@@ -9,11 +9,11 @@ class Episode:
 
     def __init__(self, data: dict[str, Any]):
         """Initialise un épisode à partir des données MongoDB."""
-        self.id: str = data.get("_id", "")
-        self.titre: str = data.get("titre", "")
+        self.id: str = data.get("_id") or ""
+        self.titre: str = data.get("titre") or ""
         self.date: datetime | None = data.get("date")
-        self.type: str = data.get("type", "")
-        self.description: str = data.get("description", "")
+        self.type: str = data.get("type") or ""
+        self.description: str = data.get("description") or ""
         self.description_corrigee: str | None = data.get("description_corrigee")
         self.titre_corrige: str | None = data.get("titre_corrige")
         self.transcription: str | None = data.get("transcription")

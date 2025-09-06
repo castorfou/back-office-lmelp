@@ -36,6 +36,10 @@ class MongoDBService:
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
+            # Clean up on connection failure
+            self.client = None
+            self.db = None
+            self.episodes_collection = None
             return False
 
     def disconnect(self) -> None:
