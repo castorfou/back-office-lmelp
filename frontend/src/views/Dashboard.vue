@@ -116,7 +116,7 @@ export default {
         return date.toLocaleDateString('fr-FR', {
           day: '2-digit',
           month: '2-digit',
-          year: 'numeric'
+          year: '2-digit'
         });
       } catch (error) {
         console.error('Erreur de formatage de date:', error);
@@ -205,10 +205,19 @@ export default {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
   max-width: 100%;
+}
+
+/* Limitation à 4 cartes maximum par ligne pour éviter le débordement */
+@media (min-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1000px;
+    margin: 0 auto 2rem auto;
+  }
 }
 
 .stat-card {
