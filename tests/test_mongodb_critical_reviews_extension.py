@@ -65,8 +65,14 @@ class TestMongoDBCriticalReviewsExtension:
 
         # Vérifications
         assert len(result) == 2
-        assert result[0]["episode_oid"] == "6865f995a1418e3d7c63d076"
-        assert result[1]["episode_oid"] == "686bf5e18380ee925ae5e318"
+        assert (
+            result[0]["episode_oid"]
+            == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        )
+        assert (
+            result[1]["episode_oid"]
+            == "686bf5e18380ee925ae5e318"  # pragma: allowlist secret
+        )
 
         # Vérifier que la méthode MongoDB est appelée correctement
         mongodb_service.avis_critiques_collection.find.assert_called_once_with({})
@@ -85,7 +91,10 @@ class TestMongoDBCriticalReviewsExtension:
         result = mongodb_service.get_all_critical_reviews(limit=1)
 
         assert len(result) == 1
-        assert result[0]["episode_oid"] == "6865f995a1418e3d7c63d076"
+        assert (
+            result[0]["episode_oid"]
+            == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        )
 
         # Vérifier que la limite est appliquée
         mongodb_service.avis_critiques_collection.find.return_value.sort.return_value.limit.assert_called_once_with(
@@ -135,7 +144,7 @@ class TestMongoDBCriticalReviewsExtension:
         self, mongodb_service, mock_avis_critiques_data
     ):
         """Test de récupération d'avis critiques par episode_oid."""
-        target_episode_oid = "6865f995a1418e3d7c63d076"
+        target_episode_oid = "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
         filtered_data = [
             item
             for item in mock_avis_critiques_data
@@ -167,7 +176,9 @@ class TestMongoDBCriticalReviewsExtension:
         mongodb_service.avis_critiques_collection = None
 
         with pytest.raises(Exception, match="Connexion MongoDB non établie"):
-            mongodb_service.get_critical_reviews_by_episode_oid("test_oid")  # pragma: allowlist secret
+            mongodb_service.get_critical_reviews_by_episode_oid(
+                "test_oid"
+            )  # pragma: allowlist secret
 
     def test_get_all_critical_reviews_default_sort_order(
         self, mongodb_service, mock_avis_critiques_data

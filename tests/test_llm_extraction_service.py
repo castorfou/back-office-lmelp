@@ -68,7 +68,10 @@ class TestLLMExtractionService:
 
         assert len(result) == 1
         book = result[0]
-        assert book["episode_oid"] == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        assert (
+            book["episode_oid"]
+            == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        )
         assert book["episode_title"] == "Test Episode"
         assert book["episode_date"] == "01 jan. 2025"
         assert book["auteur"] == "Test Auteur"
@@ -114,7 +117,10 @@ class TestLLMExtractionService:
         assert len(result) == 2
         # Vérifier que les métadonnées d'épisode sont propagées
         for book in result:
-            assert book["episode_oid"] == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret  # pragma: allowlist secret
+            assert (
+                book["episode_oid"]
+                == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+            )
             assert book["episode_title"] == "Test Episode"
             assert book["episode_date"] == "01 jan. 2025"
 
@@ -182,7 +188,10 @@ class TestLLMExtractionService:
 
         assert len(result) == 1
         book = result[0]
-        assert book["episode_oid"] == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        assert (
+            book["episode_oid"]
+            == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        )
         assert book["episode_title"] == "Test Episode"
         assert book["episode_date"] == "01 jan. 2025"
         assert book["auteur"] == "Test Auteur"

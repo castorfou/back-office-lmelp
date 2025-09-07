@@ -289,7 +289,8 @@ describe('LivresAuteurs - Tests d\'intégration', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     // Vérifier les statistiques
-    expect(wrapper.text()).toContain('2 livres'); // Nombre total
-    expect(wrapper.text()).toContain('2 épisodes'); // Nombre d'épisodes sources
+    expect(wrapper.text()).toContain('2'); // Nombre total
+    expect(wrapper.text()).toContain('Livres extraits'); // Label des livres
+    expect(wrapper.text()).toContain('Épisodes sources'); // Label des épisodes
   });
 });

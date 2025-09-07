@@ -119,4 +119,19 @@ export const episodeService = {
   },
 };
 
+/**
+ * Service pour la gestion des livres et auteurs extraits via LLM
+ */
+export const livresAuteursService = {
+  /**
+   * Récupère la liste des livres/auteurs extraits depuis les avis critiques
+   * @param {Object} params - Paramètres de requête (ex: limit)
+   * @returns {Promise<Array>} Liste des livres avec métadonnées
+   */
+  async getLivresAuteurs(params = {}) {
+    const response = await api.get('/livres-auteurs', { params });
+    return response.data;
+  },
+};
+
 export default api;

@@ -82,7 +82,10 @@ class TestLivresAuteursEndpoint:
 
         # Vérifier le premier livre
         book1 = data[0]
-        assert book1["episode_oid"] == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        assert (
+            book1["episode_oid"]
+            == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
+        )
         assert book1["episode_title"] == "Test Episode"
         assert book1["episode_date"] == "01 jan. 2025"
         assert book1["auteur"] == "Test Auteur"
@@ -94,7 +97,10 @@ class TestLivresAuteursEndpoint:
 
         # Vérifier le deuxième livre
         book2 = data[1]
-        assert book2["episode_oid"] == "6865f995a1418e3d7c63d077"  # pragma: allowlist secret
+        assert (
+            book2["episode_oid"]
+            == "6865f995a1418e3d7c63d077"  # pragma: allowlist secret
+        )
         assert book2["auteur"] == "Autre Auteur"
 
     @patch("back_office_lmelp.app.mongodb_service")
