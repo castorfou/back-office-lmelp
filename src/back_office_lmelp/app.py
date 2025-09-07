@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.episode import Episode
+from .services.llm_extraction_service import llm_extraction_service
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
@@ -212,6 +213,39 @@ async def get_statistics() -> dict[str, Any]:
             "criticalReviews": stats_data["critical_reviews_count"],
             "lastUpdateDate": stats_data["last_update_date"],
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
+async def get_livres_auteurs(limit: int | None = None) -> list[dict[str, Any]]:
+    """Récupère la liste des livres/auteurs extraits des avis critiques via LLM."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Récupérer tous les avis critiques
+        avis_critiques = mongodb_service.get_all_critical_reviews(limit=limit)
+
+        if not avis_critiques:
+            return []
+
+        # Extraire les informations bibliographiques via LLM
+        extracted_books = await llm_extraction_service.extract_books_from_reviews(
+            avis_critiques
+        )
+
+        # Formater pour l'affichage
+        formatted_books = llm_extraction_service.format_books_for_display(
+            extracted_books
+        )
+
+        return formatted_books
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

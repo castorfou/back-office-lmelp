@@ -51,6 +51,21 @@ export const statisticsService = {
 };
 
 /**
+ * Service pour la gestion des livres/auteurs extraits via LLM
+ */
+export const livresAuteursService = {
+  /**
+   * Récupère la liste des livres/auteurs extraits des avis critiques
+   * @param {Object} params - Paramètres optionnels (limit, etc.)
+   * @returns {Promise<Array>} Liste des livres avec métadonnées
+   */
+  async getLivresAuteurs(params = {}) {
+    const response = await api.get('/livres-auteurs', { params });
+    return response.data;
+  },
+};
+
+/**
  * Service pour la gestion des épisodes
  */
 export const episodeService = {

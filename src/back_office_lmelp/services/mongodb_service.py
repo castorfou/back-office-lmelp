@@ -134,6 +134,55 @@ class MongoDBService:
             print(f"Erreur lors de l'insertion de l'épisode: {e}")
             raise
 
+    def get_all_critical_reviews(
+        self, limit: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Récupère tous les avis critiques avec tri par date de création décroissante."""
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            query = self.avis_critiques_collection.find({}).sort("created_at", -1)
+
+            if limit:
+                query = query.limit(limit)
+
+            avis_critiques = list(query)
+
+            # Conversion ObjectId en string pour JSON
+            for avis in avis_critiques:
+                avis["_id"] = str(avis["_id"])
+
+            return avis_critiques
+        except Exception as e:
+            print(f"Erreur lors de la récupération des avis critiques: {e}")
+            return []
+
+    def get_critical_reviews_by_episode_oid(
+        self, episode_oid: str
+    ) -> list[dict[str, Any]]:
+        """Récupère les avis critiques pour un épisode spécifique."""
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            avis_critiques = list(
+                self.avis_critiques_collection.find({"episode_oid": episode_oid}).sort(
+                    "created_at", -1
+                )
+            )
+
+            # Conversion ObjectId en string pour JSON
+            for avis in avis_critiques:
+                avis["_id"] = str(avis["_id"])
+
+            return avis_critiques
+        except Exception as e:
+            print(
+                f"Erreur lors de la récupération des avis critiques pour l'épisode {episode_oid}: {e}"
+            )
+            return []
+
     def get_statistics(self) -> dict[str, Any]:
         """Récupère les statistiques de la base de données."""
         if self.episodes_collection is None or self.avis_critiques_collection is None:

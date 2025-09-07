@@ -51,6 +51,17 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-livres-auteurs"
+            @click="navigateToLivresAuteurs"
+          >
+            <div class="function-icon">📚</div>
+            <h3>Livres et Auteurs</h3>
+            <p>Extraction LLM des informations bibliographiques depuis les avis critiques</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <!-- Placeholder pour futures fonctions -->
           <div class="function-card coming-soon">
             <div class="function-icon">🔍</div>
@@ -154,6 +165,10 @@ export default {
 
     navigateToEpisodes() {
       this.$router.push('/episodes');
+    },
+
+    navigateToLivresAuteurs() {
+      this.$router.push('/livres-auteurs');
     }
   }
 };

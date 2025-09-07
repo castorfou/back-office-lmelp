@@ -99,3 +99,7 @@ Avec `ctrl-t` pour voir les taches en cours
      ☐ Switch back to main branch locally and get latest changes
      ☐ Call /stocke-memoire to finish
 ```
+
+## voir le detail de claude code
+
+Avec `ctrl-r` pour voir le detail des actions
