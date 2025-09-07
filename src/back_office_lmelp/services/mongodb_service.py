@@ -24,6 +24,7 @@ class MongoDBService:
         self.client: MongoClient | None = None
         self.db: Database | None = None
         self.episodes_collection: Collection | None = None
+        self.avis_critiques_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -33,6 +34,7 @@ class MongoDBService:
             self.client.admin.command("ping")
             self.db = self.client.get_default_database()
             self.episodes_collection = self.db.episodes
+            self.avis_critiques_collection = self.db.avis_critiques
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -40,6 +42,7 @@ class MongoDBService:
             self.client = None
             self.db = None
             self.episodes_collection = None
+            self.avis_critiques_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -133,7 +136,7 @@ class MongoDBService:
 
     def get_statistics(self) -> dict[str, Any]:
         """Récupère les statistiques de la base de données."""
-        if self.episodes_collection is None:
+        if self.episodes_collection is None or self.avis_critiques_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
         try:
@@ -151,6 +154,9 @@ class MongoDBService:
                     {"description_corrigee": {"$ne": None, "$exists": True}}
                 )
             )
+
+            # Nombre total d'avis critiques
+            critical_reviews_count = self.avis_critiques_collection.count_documents({})
 
             # Dernière date de mise à jour (basée sur le plus récent titre ou description modifiée)
             # Utilisation de l'aggregation pour trouver la plus récente date de modification
@@ -184,6 +190,7 @@ class MongoDBService:
                 "total_episodes": total_episodes,
                 "episodes_with_corrected_titles": episodes_with_corrected_titles,
                 "episodes_with_corrected_descriptions": episodes_with_corrected_descriptions,
+                "critical_reviews_count": critical_reviews_count,
                 "last_update_date": last_update_date,
             }
         except Exception as e:

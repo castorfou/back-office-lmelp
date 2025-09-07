@@ -89,6 +89,7 @@ const stats = await statisticsService.getStatistics();
 //   totalEpisodes: number,
 //   episodesWithCorrectedTitles: number,
 //   episodesWithCorrectedDescriptions: number,
+//   criticalReviews: number,
 //   lastUpdateDate: string | null
 // }
 ```

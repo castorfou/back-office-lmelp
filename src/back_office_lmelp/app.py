@@ -209,6 +209,7 @@ async def get_statistics() -> dict[str, Any]:
             "episodesWithCorrectedDescriptions": stats_data[
                 "episodes_with_corrected_descriptions"
             ],
+            "criticalReviews": stats_data["critical_reviews_count"],
             "lastUpdateDate": stats_data["last_update_date"],
         }
     except Exception as e:

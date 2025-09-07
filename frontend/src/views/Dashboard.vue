@@ -26,6 +26,10 @@
             <div class="stat-label">Descriptions corrigées</div>
           </div>
           <div class="stat-card">
+            <div class="stat-value">{{ statistics.criticalReviews || '...' }}</div>
+            <div class="stat-label">Avis critiques extraits</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </div>
@@ -93,6 +97,7 @@ export default {
         totalEpisodes: null,
         episodesWithCorrectedTitles: null,
         episodesWithCorrectedDescriptions: null,
+        criticalReviews: null,
         lastUpdateDate: null
       },
       loading: true,
@@ -111,7 +116,7 @@ export default {
         return date.toLocaleDateString('fr-FR', {
           day: '2-digit',
           month: '2-digit',
-          year: 'numeric'
+          year: '2-digit'
         });
       } catch (error) {
         console.error('Erreur de formatage de date:', error);
@@ -139,6 +144,7 @@ export default {
           totalEpisodes: '--',
           episodesWithCorrectedTitles: '--',
           episodesWithCorrectedDescriptions: '--',
+          criticalReviews: '--',
           lastUpdateDate: null
         };
       } finally {
@@ -202,14 +208,25 @@ export default {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
+  max-width: 100%;
+}
+
+/* Limitation à 4 cartes maximum par ligne pour éviter le débordement */
+@media (min-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1000px;
+    margin: 0 auto 2rem auto;
+  }
 }
 
 .stat-card {
   background: white;
-  padding: 1.5rem;
+  padding: 1.2rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   text-align: center;
+  min-width: 0; /* Permet au contenu de rétrécir */
 }
 
 .stat-value {
@@ -220,10 +237,13 @@ export default {
 }
 
 .stat-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .functions-grid {
@@ -313,6 +333,22 @@ export default {
 }
 
 /* Responsive Design */
+/* Règle spécifique pour gérer 5 cartes de statistiques */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 768px) {
   .page-header {
     margin: -2rem -1rem 2rem -1rem;
