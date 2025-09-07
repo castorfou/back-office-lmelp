@@ -39,6 +39,7 @@ describe('Dashboard - Tests d\'intégration', () => {
     totalEpisodes: 142,
     episodesWithCorrectedTitles: 37,
     episodesWithCorrectedDescriptions: 45,
+    criticalReviews: 28,
     lastUpdateDate: '2025-09-06T10:30:00Z'
   };
 
@@ -108,7 +109,26 @@ describe('Dashboard - Tests d\'intégration', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(wrapper.text()).toContain('142'); // Total episodes
+    expect(wrapper.text()).toContain('28'); // Critical reviews
     expect(wrapper.text()).toContain('épisode'); // Should contain the word episodes somewhere
+  });
+
+  it('affiche le nombre d\'avis critiques dans les statistiques', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Vérifier que la valeur des avis critiques est affichée
+    expect(wrapper.text()).toContain('28'); // Critical reviews count
+    // Vérifier que le libellé correspondant est présent
+    expect(wrapper.text()).toMatch(/avis.*critique/i); // Should contain text related to critical reviews
   });
 
   it('affiche la fonction Episode - Modification Titre/Description comme cliquable', async () => {

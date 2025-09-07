@@ -26,6 +26,10 @@
             <div class="stat-label">Descriptions corrigées</div>
           </div>
           <div class="stat-card">
+            <div class="stat-value">{{ statistics.criticalReviews || '...' }}</div>
+            <div class="stat-label">Avis critiques extraits</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </div>
@@ -93,6 +97,7 @@ export default {
         totalEpisodes: null,
         episodesWithCorrectedTitles: null,
         episodesWithCorrectedDescriptions: null,
+        criticalReviews: null,
         lastUpdateDate: null
       },
       loading: true,
@@ -139,6 +144,7 @@ export default {
           totalEpisodes: '--',
           episodesWithCorrectedTitles: '--',
           episodesWithCorrectedDescriptions: '--',
+          criticalReviews: '--',
           lastUpdateDate: null
         };
       } finally {

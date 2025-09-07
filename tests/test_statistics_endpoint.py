@@ -32,6 +32,7 @@ class TestStatisticsEndpoint:
             "total_episodes": 142,
             "episodes_with_corrected_titles": 37,
             "episodes_with_corrected_descriptions": 45,
+            "critical_reviews_count": 28,
             "last_update_date": "2025-09-06T10:30:00Z",
         }
 
@@ -47,6 +48,7 @@ class TestStatisticsEndpoint:
         assert data["totalEpisodes"] == 142
         assert data["episodesWithCorrectedTitles"] == 37
         assert data["episodesWithCorrectedDescriptions"] == 45
+        assert data["criticalReviews"] == 28
         assert data["lastUpdateDate"] == "2025-09-06T10:30:00Z"
 
         # Vérifier que le service a été appelé
@@ -58,6 +60,7 @@ class TestStatisticsEndpoint:
             "total_episodes": 0,
             "episodes_with_corrected_titles": 0,
             "episodes_with_corrected_descriptions": 0,
+            "critical_reviews_count": 0,
             "last_update_date": None,
         }
 
@@ -71,6 +74,7 @@ class TestStatisticsEndpoint:
         assert data["totalEpisodes"] == 0
         assert data["episodesWithCorrectedTitles"] == 0
         assert data["episodesWithCorrectedDescriptions"] == 0
+        assert data["criticalReviews"] == 0
         assert data["lastUpdateDate"] is None
 
     def test_get_statistics_database_error(self, client, mock_mongodb_service):
@@ -92,6 +96,7 @@ class TestStatisticsEndpoint:
             "total_episodes": 10,
             "episodes_with_corrected_titles": 5,
             "episodes_with_corrected_descriptions": 3,
+            "critical_reviews_count": 12,
             "last_update_date": "2025-09-06T10:30:00Z",
         }
         mock_mongodb_service.return_value = mock_stats_data
