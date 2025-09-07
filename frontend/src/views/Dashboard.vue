@@ -205,17 +205,19 @@ export default {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
+  max-width: 100%;
 }
 
 .stat-card {
   background: white;
-  padding: 1.5rem;
+  padding: 1.2rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   text-align: center;
+  min-width: 0; /* Permet au contenu de rétrécir */
 }
 
 .stat-value {
@@ -226,10 +228,13 @@ export default {
 }
 
 .stat-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .functions-grid {
@@ -319,6 +324,22 @@ export default {
 }
 
 /* Responsive Design */
+/* Règle spécifique pour gérer 5 cartes de statistiques */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 768px) {
   .page-header {
     margin: -2rem -1rem 2rem -1rem;
