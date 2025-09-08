@@ -133,7 +133,7 @@ describe('EpisodePage - Tests d\'intégration', () => {
 
     const navigation = wrapper.find('[data-testid="navigation"]');
     expect(navigation.exists()).toBe(true);
-    expect(navigation.text()).toContain('Gestion des Épisodes');
+    expect(navigation.text()).toContain('Episode - Modification Titre/Description');
   });
 
   it('affiche le sélecteur et l\'éditeur d\'épisodes', async () => {
