@@ -207,17 +207,9 @@ class MongoDBService:
             # Nombre total d'avis critiques
             critical_reviews_count = self.avis_critiques_collection.count_documents({})
 
-            # Dernière date de mise à jour (basée sur le plus récent titre ou description modifiée)
-            # Utilisation de l'aggregation pour trouver la plus récente date de modification
+            # Dernière date de mise à jour (basée sur l'épisode le plus récent)
+            # Utilisation de l'aggregation pour trouver la plus récente date
             pipeline: list[dict[str, Any]] = [
-                {
-                    "$match": {
-                        "$or": [
-                            {"titre_corrige": {"$ne": None, "$exists": True}},
-                            {"description_corrigee": {"$ne": None, "$exists": True}},
-                        ]
-                    }
-                },
                 {"$sort": {"date": -1}},
                 {"$limit": 1},
                 {"$project": {"date": 1}},

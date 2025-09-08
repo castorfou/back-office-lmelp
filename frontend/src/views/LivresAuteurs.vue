@@ -1,22 +1,51 @@
 <template>
   <div class="livres-auteurs">
-    <!-- En-tête avec navigation -->
-    <header class="page-header">
-      <div class="header-content">
-        <router-link to="/" class="back-link">
-          <span class="back-icon">🏠</span>
-          Accueil
-        </router-link>
-        <h1>Livres et Auteurs</h1>
-        <p class="subtitle">
-          Extraction des informations bibliographiques depuis les avis critiques via LLM
-        </p>
-      </div>
-    </header>
+    <!-- Navigation -->
+    <Navigation pageTitle="Livres et Auteurs" />
 
-    <main class="content">
+    <main>
+      <!-- Sélecteur d'épisode -->
+      <section class="episode-selector-section">
+        <div class="episode-selector card">
+          <!-- État de chargement des épisodes -->
+          <div v-if="episodesLoading" class="loading">
+            Chargement des épisodes avec avis critiques...
+          </div>
+
+          <!-- Affichage d'erreur des épisodes -->
+          <div v-if="episodesError" class="alert alert-error">
+            {{ episodesError }}
+            <button @click="loadEpisodesWithReviews" class="btn btn-primary" style="margin-left: 1rem;">
+              Réessayer
+            </button>
+          </div>
+
+          <!-- Sélecteur d'épisode -->
+          <div v-if="!episodesLoading && !episodesError" class="form-group">
+            <label for="episode-select" class="form-label">
+              Choisir un épisode avec avis critiques ({{ episodesWithReviews.length }} disponibles)
+            </label>
+            <select
+              id="episode-select"
+              v-model="selectedEpisodeId"
+              @change="onEpisodeChange"
+              class="form-control"
+            >
+              <option value="">-- Sélectionner un épisode --</option>
+              <option
+                v-for="episode in episodesWithReviews"
+                :key="episode.id"
+                :value="episode.id"
+              >
+                {{ formatEpisodeOption(episode) }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <!-- Statistiques de synthèse -->
-      <section v-if="!loading && !error && books.length > 0" class="stats-section">
+      <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value">{{ books.length }}</div>
@@ -37,8 +66,27 @@
         </div>
       </section>
 
+      <!-- Message d'aide si aucun épisode sélectionné -->
+      <div v-if="!selectedEpisodeId && !episodesLoading && !episodesError" class="help-message card">
+        <h3>👆 Sélectionnez un épisode pour commencer</h3>
+        <p>
+          Choisissez un épisode dans la liste déroulante ci-dessus pour voir les livres et auteurs
+          extraits de ses avis critiques via LLM.
+        </p>
+        <div class="features">
+          <h4>Fonctionnalités disponibles :</h4>
+          <ul>
+            <li>📚 Extraction des livres discutés au programme</li>
+            <li>✍️ Identification des auteurs et éditeurs</li>
+            <li>⭐ Notes moyennes et nombre de critiques</li>
+            <li>❤️ Coups de cœur des critiques</li>
+            <li>🔍 Recherche et filtrage des résultats</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- Filtre de recherche -->
-      <section v-if="!loading && !error && books.length > 0" class="filter-section">
+      <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="filter-section">
         <div class="filter-controls">
           <input
             v-model="searchFilter"
@@ -58,28 +106,28 @@
       </section>
 
       <!-- État de chargement -->
-      <div v-if="loading" class="loading-state">
+      <div v-if="selectedEpisodeId && loading" class="loading-state">
         <div class="loader"></div>
         <p>Chargement des extractions LLM...</p>
       </div>
 
       <!-- État d'erreur -->
-      <div v-if="error" class="error-state">
+      <div v-if="selectedEpisodeId && error" class="error-state">
         <div class="error-icon">❌</div>
         <h3>Erreur de chargement</h3>
         <p>{{ error }}</p>
-        <button @click="loadLivresAuteurs" class="retry-button">Réessayer</button>
+        <button @click="loadBooksForEpisode" class="retry-button">Réessayer</button>
       </div>
 
       <!-- État vide -->
-      <div v-if="!loading && !error && books.length === 0" class="empty-state">
+      <div v-if="selectedEpisodeId && !loading && !error && books.length === 0" class="empty-state">
         <div class="empty-icon">📚</div>
         <h3>Aucun livre trouvé</h3>
-        <p>Les avis critiques n'ont pas encore été traités par le système LLM.</p>
+        <p>Aucun livre n'a pu être extrait des avis critiques de cet épisode.</p>
       </div>
 
       <!-- Liste des livres -->
-      <section v-if="!loading && !error && filteredBooks.length > 0" class="books-section">
+      <section v-if="selectedEpisodeId && !loading && !error && filteredBooks.length > 0" class="books-section">
         <div class="books-grid">
           <div
             v-for="book in filteredBooks"
@@ -128,7 +176,7 @@
       </section>
 
       <!-- Message de filtrage -->
-      <div v-if="!loading && !error && books.length > 0 && filteredBooks.length === 0" class="no-results">
+      <div v-if="selectedEpisodeId && !loading && !error && books.length > 0 && filteredBooks.length === 0" class="no-results">
         <div class="no-results-icon">🔍</div>
         <h3>Aucun résultat</h3>
         <p>Aucun livre ne correspond aux critères de recherche "{{ searchFilter }}"</p>
@@ -139,14 +187,26 @@
 
 <script>
 import { livresAuteursService } from '../services/api.js';
+import Navigation from '../components/Navigation.vue';
 
 export default {
   name: 'LivresAuteurs',
 
+  components: {
+    Navigation,
+  },
+
   data() {
     return {
+      // Données pour les épisodes
+      episodesWithReviews: [],
+      episodesLoading: true,
+      episodesError: null,
+      selectedEpisodeId: '',
+
+      // Données pour les livres
       books: [],
-      loading: true,
+      loading: false,
       error: null,
       searchFilter: '',
       sortOrder: 'rating_desc'
@@ -208,21 +268,68 @@ export default {
   },
 
   async mounted() {
-    await this.loadLivresAuteurs();
+    await this.loadEpisodesWithReviews();
   },
 
   methods: {
-    async loadLivresAuteurs() {
+    /**
+     * Charge la liste des épisodes avec avis critiques
+     */
+    async loadEpisodesWithReviews() {
+      try {
+        this.episodesLoading = true;
+        this.episodesError = null;
+        this.episodesWithReviews = await livresAuteursService.getEpisodesWithReviews();
+      } catch (error) {
+        this.episodesError = error.message;
+        console.error('Erreur lors du chargement des épisodes:', error);
+      } finally {
+        this.episodesLoading = false;
+      }
+    },
+
+    /**
+     * Charge les livres pour un épisode sélectionné
+     */
+    async loadBooksForEpisode() {
+      if (!this.selectedEpisodeId) {
+        this.books = [];
+        return;
+      }
+
       try {
         this.loading = true;
         this.error = null;
-        this.books = await livresAuteursService.getLivresAuteurs();
+
+        // Récupérer SEULEMENT les livres de cet épisode (efficace !)
+        this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
       } catch (error) {
-        console.error('Erreur lors du chargement des livres/auteurs:', error);
         this.error = error.message;
+        console.error('Erreur lors du chargement des livres/auteurs:', error);
       } finally {
         this.loading = false;
       }
+    },
+
+    /**
+     * Gère le changement d'épisode sélectionné
+     */
+    async onEpisodeChange() {
+      // Réinitialiser les filtres
+      this.searchFilter = '';
+      this.sortOrder = 'rating_desc';
+
+      // Charger les livres pour le nouvel épisode
+      await this.loadBooksForEpisode();
+    },
+
+    /**
+     * Formate l'affichage d'un épisode dans la liste
+     */
+    formatEpisodeOption(episode) {
+      const date = new Date(episode.date).toLocaleDateString('fr-FR');
+      const title = episode.titre_corrige || episode.titre;
+      return `${date} - ${title}`;
     },
 
     getRatingClass(rating) {
@@ -242,50 +349,7 @@ export default {
   flex-direction: column;
 }
 
-/* En-tête */
-.page-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  margin: -2rem -2rem 2rem -2rem;
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: white;
-  text-decoration: none;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-  opacity: 0.9;
-  transition: opacity 0.3s ease;
-}
-
-.back-link:hover {
-  opacity: 1;
-}
-
-.back-icon {
-  font-size: 1.1rem;
-}
-
-.page-header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.subtitle {
-  font-size: 1.1rem;
-  opacity: 0.9;
-  font-weight: 300;
-}
+/* Styles supprimés car remplacés par le composant Navigation standardisé */
 
 /* Contenu principal */
 .content {
@@ -552,5 +616,122 @@ export default {
   .stats-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Styles pour le sélecteur d'épisodes (basés sur EpisodeSelector.vue) */
+.episode-selector-section {
+  margin-bottom: 2rem;
+}
+
+.episode-selector.card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+}
+
+.episode-selector h2 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.form-control {
+  font-family: monospace;
+  font-size: 0.9rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.loading {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
+  font-style: italic;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.alert-error {
+  background-color: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #667eea;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #5a67d8;
+}
+
+/* Message d'aide (basé sur EpisodePage.vue) */
+.help-message {
+  text-align: center;
+  padding: 3rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border: none;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.help-message h3 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.help-message p {
+  color: #666;
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.features {
+  text-align: left;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.features h4 {
+  color: #333;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.features ul {
+  list-style: none;
+  padding: 0;
+}
+
+.features li {
+  padding: 0.5rem 0;
+  font-size: 1rem;
+  color: #555;
 }
 </style>
