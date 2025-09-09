@@ -1,4 +1,4 @@
-"""Service d'extraction LLM pour les livres/auteurs/éditeurs depuis les avis critiques."""
+"""Service d'extraction de livres/auteurs/éditeurs depuis les tableaux markdown des avis critiques."""
 
 import json
 import os
@@ -11,11 +11,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-class LLMExtractionService:
-    """Service pour extraire les informations bibliographiques via LLM."""
+class BooksExtractionService:
+    """Service pour extraire les informations bibliographiques via parsing des tableaux markdown."""
 
     def __init__(self):
-        """Initialise le service LLM."""
+        """Initialise le service d'extraction de livres."""
 
         # Configuration Azure OpenAI (à adapter selon vos credentials)
         self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -47,13 +47,14 @@ class LLMExtractionService:
         self, avis_critiques: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """
-        Extrait les informations bibliographiques depuis les avis critiques.
+        Extrait les informations bibliographiques depuis les tableaux markdown des avis critiques.
+        Parse les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES CRITIQUES".
 
         Args:
             avis_critiques: Liste des avis critiques avec leurs summaries
 
         Returns:
-            Liste des livres extraits avec métadonnées
+            Liste des livres extraits avec métadonnées (auteur/titre/éditeur)
         """
         if not avis_critiques:
             return []
@@ -164,23 +165,53 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
     ) -> list[dict[str, Any]]:
         """
         Mode fallback : extrait les livres directement du summary sans LLM.
-        Parse le tableau markdown pour extraire les informations de livres.
+        Parse les DEUX tableaux markdown pour extraire les informations de livres.
         """
         import re
 
         books: list[dict[str, Any]] = []
 
-        # Chercher le tableau "LIVRES DISCUTÉS AU PROGRAMME"
+        # 1. Chercher le tableau "LIVRES DISCUTÉS AU PROGRAMME"
         program_section = re.search(
             r"## 1\. LIVRES DISCUTÉS AU PROGRAMME.*?\n\n(.*?)(?=## 2\.|$)",
             summary,
             re.DOTALL,
         )
 
-        if not program_section:
-            return books
+        if program_section:
+            table_content = program_section.group(1)
+            books.extend(
+                self._parse_program_table(
+                    table_content, episode_oid, episode_title, episode_date
+                )
+            )
 
-        table_content = program_section.group(1)
+        # 2. Chercher le tableau "COUPS DE CŒUR DES CRITIQUES"
+        coups_coeur_section = re.search(
+            r"## 2\. COUPS DE CŒUR DES CRITIQUES.*?\n\n(.*?)(?=## 3\.|$)",
+            summary,
+            re.DOTALL,
+        )
+
+        if coups_coeur_section:
+            table_content = coups_coeur_section.group(1)
+            books.extend(
+                self._parse_coups_de_coeur_table(
+                    table_content, episode_oid, episode_title, episode_date
+                )
+            )
+
+        return books
+
+    def _parse_program_table(
+        self,
+        table_content: str,
+        episode_oid: str,
+        episode_title: str,
+        episode_date: str,
+    ) -> list[dict[str, Any]]:
+        """Parse le tableau des livres discutés au programme."""
+        books = []
 
         # Parser les lignes du tableau markdown
         lines = table_content.strip().split("\n")
@@ -196,42 +227,58 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                     part.strip() for part in line.split("|")[1:-1]
                 ]  # Enlever premiers et derniers vides
 
-                if (
-                    len(parts) >= 6
-                ):  # Au moins: Auteur, Titre, Éditeur, Avis, Note, Nb critiques
+                if len(parts) >= 3:  # Au moins: Auteur, Titre, Éditeur
                     auteur = parts[0].strip()
                     titre = parts[1].strip()
                     editeur = parts[2].strip()
-                    note_str = parts[4].strip()
-                    nb_critiques_str = parts[5].strip()
 
                     if auteur and titre and not auteur.startswith("---"):
-                        # Extraire la note moyenne
-                        note_match = re.search(r"(\d+\.?\d*)", note_str)
-                        note_moyenne = float(note_match.group(1)) if note_match else 0.0
-
-                        # Extraire le nombre de critiques
-                        nb_match = re.search(r"(\d+)", nb_critiques_str)
-                        nb_critiques = int(nb_match.group(1)) if nb_match else 0
-
-                        # Extraire les coups de coeur (simplifié)
-                        coups_de_coeur = []
-                        if len(parts) >= 7:
-                            coeurs_text = parts[6].strip()
-                            if coeurs_text and coeurs_text not in ["", "|"]:
-                                coups_de_coeur = [
-                                    c.strip()
-                                    for c in coeurs_text.split(",")
-                                    if c.strip()
-                                ]
-
                         book = {
                             "auteur": auteur,
                             "titre": titre,
                             "editeur": editeur,
-                            "note_moyenne": note_moyenne,
-                            "nb_critiques": nb_critiques,
-                            "coups_de_coeur": coups_de_coeur,
+                            "episode_oid": episode_oid,
+                            "episode_title": episode_title,
+                            "episode_date": episode_date,
+                        }
+                        books.append(book)
+
+        return books
+
+    def _parse_coups_de_coeur_table(
+        self,
+        table_content: str,
+        episode_oid: str,
+        episode_title: str,
+        episode_date: str,
+    ) -> list[dict[str, Any]]:
+        """Parse le tableau des coups de cœur des critiques."""
+        books = []
+
+        # Parser les lignes du tableau markdown
+        lines = table_content.strip().split("\n")
+
+        for line in lines:
+            if line.startswith("|") and not line.startswith("|-----"):
+                # Ignorer les en-têtes
+                if "Auteur" in line and "Titre" in line:
+                    continue
+
+                # Parser chaque ligne de livre
+                parts = [
+                    part.strip() for part in line.split("|")[1:-1]
+                ]  # Enlever premiers et derniers vides
+
+                if len(parts) >= 3:  # Au moins: Auteur, Titre, Éditeur
+                    auteur = parts[0].strip()
+                    titre = parts[1].strip()
+                    editeur = parts[2].strip()
+
+                    if auteur and titre and not auteur.startswith("---"):
+                        book = {
+                            "auteur": auteur,
+                            "titre": titre,
+                            "editeur": editeur,
                             "episode_oid": episode_oid,
                             "episode_title": episode_title,
                             "episode_date": episode_date,
@@ -275,6 +322,37 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
 
         return formatted_books
 
+    def format_books_for_simplified_display(
+        self, books_data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Formate les données de livres pour l'affichage simplifié.
+        Ne retourne que les champs essentiels: auteur, titre, éditeur + métadonnées épisode.
+
+        Args:
+            books_data: Données brutes des livres extraits
+
+        Returns:
+            Données simplifiées pour l'affichage (sans statistiques)
+        """
+        if not books_data:
+            return []
+
+        simplified_books = []
+
+        for book in books_data:
+            simplified_book = {
+                "episode_oid": book.get("episode_oid", ""),
+                "episode_title": book.get("episode_title", ""),
+                "episode_date": book.get("episode_date", ""),
+                "auteur": book.get("auteur", ""),
+                "titre": book.get("titre", ""),
+                "editeur": book.get("editeur", ""),
+            }
+            simplified_books.append(simplified_book)
+
+        return simplified_books
+
 
 # Instance globale du service
-llm_extraction_service = LLMExtractionService()
+books_extraction_service = BooksExtractionService()

@@ -1,6 +1,6 @@
-# Extraction LLM des Livres et Auteurs
+# Extraction des Livres et Auteurs
 
-La nouvelle fonctionnalité d'extraction automatique permet d'identifier et de cataloguer les livres, auteurs et éditeurs mentionnés dans les avis critiques du Masque et la Plume grâce à l'intelligence artificielle.
+La fonctionnalité d'extraction permet d'identifier et de cataloguer les livres, auteurs et éditeurs mentionnés dans les avis critiques du Masque et la Plume en analysant les tableaux markdown structurés des résumés d'épisodes.
 
 ## Accès à la fonctionnalité
 
@@ -11,91 +11,81 @@ La nouvelle fonctionnalité d'extraction automatique permet d'identifier et de c
 
 ### Informations affichées
 
-Pour chaque livre extrait, vous verrez :
+La page présente un tableau simple avec trois colonnes :
 
-- **Titre du livre** et nom de l'auteur
-- **Éditeur** de publication
-- **Note moyenne** calculée à partir des critiques
-- **Nombre de critiques** reçues
-- **Coups de cœur** (noms des critiques ayant donné un coup de cœur)
-- **Épisode source** avec titre et date d'origine
+- **Auteur** : Nom de l'auteur du livre
+- **Titre** : Titre du livre
+- **Éditeur** : Maison d'édition (peut être vide si non mentionné)
 
-### Statistiques de synthèse
+### Statistiques simplifiées
 
-En haut de page, un tableau de bord présente :
-- Nombre total de livres extraits
-- Nombre d'auteurs différents identifiés
-- Nombre d'épisodes sources analysés
-- Note moyenne globale de tous les livres
+En haut de page, un compteur indique simplement le nombre de livres extraits de l'épisode sélectionné.
 
-## Recherche et filtrage
+## Navigation et fonctionnalités
 
-### Barre de recherche
-Utilisez la barre de recherche pour filtrer par :
-- Titre de livre
+### Sélection d'épisode
+Commencez par choisir un épisode dans la liste déroulante "Choisir un épisode avec avis critiques". Seuls les épisodes ayant des avis critiques analysés sont disponibles.
+
+### Tri du tableau
+Cliquez sur les en-têtes de colonnes pour trier :
+- **Auteur** : tri alphabétique des noms d'auteurs
+- **Titre** : tri alphabétique des titres de livres
+- **Éditeur** : tri alphabétique des éditeurs
+
+Le tri bascule entre croissant (↑) et décroissant (↓) à chaque clic.
+
+### Recherche
+Utilisez la barre de recherche pour filtrer instantanément par :
 - Nom d'auteur
+- Titre de livre
 - Nom d'éditeur
-- Titre d'épisode
 
 La recherche est instantanée et insensible à la casse.
 
-### Options de tri
+## Source et fiabilité des données
 
-Plusieurs options de tri sont disponibles :
-- **Note décroissante** (par défaut) : du mieux noté au moins bien noté
-- **Note croissante** : du moins bien noté au mieux noté
-- **Auteur A→Z** : tri alphabétique par nom d'auteur
-- **Auteur Z→A** : tri alphabétique inverse par nom d'auteur
-- **Date décroissante** : épisodes les plus récents en premier
-- **Date croissante** : épisodes les plus anciens en premier
+### Extraction des tableaux markdown
+Les livres sont extraits automatiquement en analysant les tableaux markdown des résumés d'épisodes stockés dans la base de données. L'extraction parse deux sections :
 
-## Comprendre les données
+1. **"LIVRES DISCUTÉS AU PROGRAMME"** : Livres principaux de l'émission
+2. **"COUPS DE CŒUR DES CRITIQUES"** : Recommandations des critiques
 
-### Source des données
-Les livres sont extraits automatiquement des résumés d'épisodes du Masque et la Plume à l'aide d'un modèle d'intelligence artificielle (Azure OpenAI). Seuls les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" sont extractés.
-
-### Notes et critiques
-- **Note moyenne** : Moyenne des notes attribuées par les critiques (sur une échelle généralement de 0 à 10)
-- **Nombre de critiques** : Nombre total de critiques ayant évalué ce livre dans l'épisode
-- **Coups de cœur** : Liste des critiques ayant particulièrement apprécié le livre
-
-### Fiabilité des données
-L'extraction étant automatisée, des erreurs peuvent occasionnellement survenir :
-- Titres ou noms d'auteurs légèrement modifiés
-- Attribution incorrecte d'éditeurs
-- Notes mal interprétées
+### Fiabilité
+L'extraction étant basée sur l'analyse de tableaux structurés, elle est généralement fiable mais peut présenter des limites :
+- Dépendance à la structure markdown correcte
+- Éditeurs parfois non mentionnés dans les tableaux d'origine
+- Variations possibles dans la présentation des noms
 
 En cas de données manifestement erronées, contactez l'administrateur.
 
 ## Cas d'usage typiques
 
+### Explorer les livres d'un épisode
+1. Sélectionnez un épisode dans la liste déroulante
+2. Le tableau affiche tous les livres mentionnés dans cet épisode (programme + coups de cœur)
+
 ### Recherche par auteur
-Pour voir tous les livres d'un auteur spécifique :
-1. Tapez le nom de l'auteur dans la barre de recherche
-2. Les résultats se filtrent automatiquement
+1. Sélectionnez d'abord un épisode
+2. Tapez le nom de l'auteur dans la barre de recherche
+3. Les résultats se filtrent automatiquement
 
-### Découverte de livres bien notés
-1. Utilisez le tri "Note décroissante" (activé par défaut)
-2. Les livres avec les meilleures notes apparaissent en premier
-
-### Suivi chronologique
-1. Utilisez le tri "Date décroissante" pour voir les dernières découvertes
-2. Ou "Date croissante" pour un parcours historique
-
-### Analyse d'un épisode
-1. Recherchez le titre de l'épisode ou sa date
-2. Vous verrez tous les livres discutés dans cet épisode
+### Tri et organisation
+1. Cliquez sur "Auteur" pour trier alphabétiquement par nom d'auteur
+2. Cliquez sur "Titre" pour trier par titre de livre
+3. Cliquez sur "Éditeur" pour regrouper par maison d'édition
 
 ## Limitations actuelles
 
-- **Extraction automatique** : Parfois imparfaite, peut nécessiter des corrections manuelles
-- **Données historiques** : Seuls les épisodes avec avis critiques analysés sont inclus
-- **Babelio non intégré** : Les enrichissements prévus (couvertures, résumés) ne sont pas encore disponibles
+- **Par épisode** : Il faut sélectionner un épisode à la fois pour voir ses livres
+- **Données disponibles** : Seuls les épisodes avec avis critiques analysés sont inclus
+- **Informations limitées** : Affichage simple auteur/titre/éditeur uniquement
+- **Éditeurs manquants** : Certains livres peuvent ne pas avoir d'éditeur mentionné
 
 ## Évolutions prévues
 
 Cette fonctionnalité évoluera avec :
-- **Intégration Babelio** : Ajout d'images de couverture, résumés détaillés, et données complémentaires
-- **Correction manuelle** : Interface d'administration pour corriger les erreurs d'extraction
+- **Vue globale** : Affichage de tous les livres de tous les épisodes
+- **Intégration Babelio** : Vérification et correction orthographique via l'API Babelio
+- **Enrichissement** : Ajout d'images de couverture, résumés détaillés, et métadonnées
 - **Export de données** : Possibilité d'exporter les listes en CSV ou autres formats
-- **Statistiques avancées** : Analyse des tendances, auteurs les plus mentionnés, etc.
+- **Interface d'administration** : Correction manuelle et validation des extractions

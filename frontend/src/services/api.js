@@ -51,7 +51,7 @@ export const statisticsService = {
 };
 
 /**
- * Service pour la gestion des livres/auteurs extraits via LLM
+ * Service pour la gestion des livres/auteurs extraits des avis critiques
  */
 export const livresAuteursService = {
   /**

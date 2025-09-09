@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.episode import Episode
-from .services.llm_extraction_service import llm_extraction_service
+from .services.books_extraction_service import books_extraction_service
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
@@ -221,7 +221,7 @@ async def get_statistics() -> dict[str, Any]:
 async def get_livres_auteurs(
     limit: int | None = None, episode_oid: str | None = None
 ) -> list[dict[str, Any]]:
-    """Récupère la liste des livres/auteurs extraits des avis critiques via LLM."""
+    """Récupère la liste des livres/auteurs extraits des avis critiques via parsing des tableaux markdown (format simplifié : auteur/titre/éditeur)."""
     # Vérification mémoire
     memory_check = memory_guard.check_memory_limit()
     if memory_check:
@@ -243,13 +243,13 @@ async def get_livres_auteurs(
         if not avis_critiques:
             return []
 
-        # Extraire les informations bibliographiques via LLM
-        extracted_books = await llm_extraction_service.extract_books_from_reviews(
+        # Extraire les informations bibliographiques via parsing markdown
+        extracted_books = await books_extraction_service.extract_books_from_reviews(
             avis_critiques
         )
 
-        # Formater pour l'affichage
-        formatted_books = llm_extraction_service.format_books_for_display(
+        # Formater pour l'affichage simplifié (auteur/titre/éditeur uniquement)
+        formatted_books = books_extraction_service.format_books_for_simplified_display(
             extracted_books
         )
 

@@ -51,7 +51,7 @@ class TestLivresAuteursEndpoint:
     """Tests de l'endpoint /api/livres-auteurs."""
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_success(
         self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
     ):
@@ -70,7 +70,24 @@ class TestLivresAuteursEndpoint:
         mock_llm_service.extract_books_from_reviews = AsyncMock(
             return_value=mock_extracted_books
         )
-        mock_llm_service.format_books_for_display.return_value = mock_extracted_books
+        mock_llm_service.format_books_for_simplified_display.return_value = [
+            {
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "episode_title": "Test Episode",
+                "episode_date": "01 jan. 2025",
+                "auteur": "Test Auteur",
+                "titre": "Test Livre",
+                "editeur": "Test Éditeur",
+            },
+            {
+                "episode_oid": "6865f995a1418e3d7c63d077",  # pragma: allowlist secret
+                "episode_title": "Autre Episode",
+                "episode_date": "15 fév. 2025",
+                "auteur": "Autre Auteur",
+                "titre": "Autre Livre",
+                "editeur": "Autre Éditeur",
+            },
+        ]
 
         # Test de l'endpoint
         response = client.get("/api/livres-auteurs")
@@ -91,9 +108,10 @@ class TestLivresAuteursEndpoint:
         assert book1["auteur"] == "Test Auteur"
         assert book1["titre"] == "Test Livre"
         assert book1["editeur"] == "Test Éditeur"
-        assert book1["note_moyenne"] == 8.0
-        assert book1["nb_critiques"] == 2
-        assert len(book1["coups_de_coeur"]) == 2
+        # Les champs superflus ne doivent plus être présents (format simplifié)
+        assert "note_moyenne" not in book1
+        assert "nb_critiques" not in book1
+        assert "coups_de_coeur" not in book1
 
         # Vérifier le deuxième livre
         book2 = data[1]
@@ -101,10 +119,18 @@ class TestLivresAuteursEndpoint:
             book2["episode_oid"]
             == "6865f995a1418e3d7c63d077"  # pragma: allowlist secret
         )
+        assert book2["episode_title"] == "Autre Episode"
+        assert book2["episode_date"] == "15 fév. 2025"
         assert book2["auteur"] == "Autre Auteur"
+        assert book2["titre"] == "Autre Livre"
+        assert book2["editeur"] == "Autre Éditeur"
+        # Les champs superflus ne doivent plus être présents
+        assert "note_moyenne" not in book2
+        assert "nb_critiques" not in book2
+        assert "coups_de_coeur" not in book2
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_no_reviews(
         self, mock_llm_service, mock_mongodb_service, client
     ):
@@ -131,7 +157,7 @@ class TestLivresAuteursEndpoint:
         assert "Erreur serveur" in response.json()["detail"]
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_llm_error(
         self, mock_llm_service, mock_mongodb_service, client
     ):
@@ -149,7 +175,7 @@ class TestLivresAuteursEndpoint:
         assert "Erreur serveur" in response.json()["detail"]
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_with_limit_parameter(
         self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
     ):
@@ -160,7 +186,24 @@ class TestLivresAuteursEndpoint:
         mock_llm_service.extract_books_from_reviews = AsyncMock(
             return_value=mock_extracted_books
         )
-        mock_llm_service.format_books_for_display.return_value = mock_extracted_books
+        mock_llm_service.format_books_for_simplified_display.return_value = [
+            {
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "episode_title": "Test Episode",
+                "episode_date": "01 jan. 2025",
+                "auteur": "Test Auteur",
+                "titre": "Test Livre",
+                "editeur": "Test Éditeur",
+            },
+            {
+                "episode_oid": "6865f995a1418e3d7c63d077",  # pragma: allowlist secret
+                "episode_title": "Autre Episode",
+                "episode_date": "15 fév. 2025",
+                "auteur": "Autre Auteur",
+                "titre": "Autre Livre",
+                "editeur": "Autre Éditeur",
+            },
+        ]
 
         response = client.get("/api/livres-auteurs?limit=1")
 
@@ -174,7 +217,7 @@ class TestLivresAuteursEndpoint:
         mock_mongodb_service.get_all_critical_reviews.assert_called_once()
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_memory_guard_warning(
         self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
     ):
@@ -193,32 +236,30 @@ class TestLivresAuteursEndpoint:
             mock_memory_guard.check_memory_limit.assert_called_once()
 
     @patch("back_office_lmelp.app.mongodb_service")
-    @patch("back_office_lmelp.app.llm_extraction_service")
+    @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_response_format(
         self, mock_llm_service, mock_mongodb_service, client
     ):
         """Test du format de réponse de l'endpoint."""
-        expected_book = {
+        # Format simplifié : seulement les champs essentiels
+        expected_book_simplified = {
             "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
             "episode_title": "Test Episode",
             "episode_date": "01 jan. 2025",
             "auteur": "Test Auteur",
             "titre": "Test Livre",
             "editeur": "Test Éditeur",
-            "note_moyenne": 8.0,
-            "nb_critiques": 2,
-            "coups_de_coeur": ["Critique1"],
-            "created_at": "2025-01-07T10:00:00Z",
-            "updated_at": "2025-01-07T10:00:00Z",
         }
 
         mock_mongodb_service.get_all_critical_reviews.return_value = [
             {"_id": "test_id", "episode_oid": "test_oid", "summary": "test"}
         ]
         mock_llm_service.extract_books_from_reviews = AsyncMock(
-            return_value=[expected_book]
+            return_value=[expected_book_simplified]
         )
-        mock_llm_service.format_books_for_display.return_value = [expected_book]
+        mock_llm_service.format_books_for_simplified_display.return_value = [
+            expected_book_simplified
+        ]
 
         response = client.get("/api/livres-auteurs")
 
@@ -228,7 +269,7 @@ class TestLivresAuteursEndpoint:
         assert len(data) == 1
         book = data[0]
 
-        # Vérifier que tous les champs attendus sont présents
+        # Vérifier que seuls les champs essentiels sont présents (format simplifié)
         required_fields = [
             "episode_oid",
             "episode_title",
@@ -236,21 +277,21 @@ class TestLivresAuteursEndpoint:
             "auteur",
             "titre",
             "editeur",
-            "note_moyenne",
-            "nb_critiques",
-            "coups_de_coeur",
         ]
 
+        # Vérifier la présence des champs requis
         for field in required_fields:
             assert field in book, f"Champ manquant: {field}"
 
-        # Vérifier les types
+        # Vérifier l'absence des champs superflus
+        forbidden_fields = ["note_moyenne", "nb_critiques", "coups_de_coeur"]
+        for field in forbidden_fields:
+            assert field not in book, f"Champ superflu présent: {field}"
+
+        # Vérifier les types des champs simplifiés
         assert isinstance(book["episode_oid"], str)
         assert isinstance(book["episode_title"], str)
         assert isinstance(book["episode_date"], str)
         assert isinstance(book["auteur"], str)
         assert isinstance(book["titre"], str)
         assert isinstance(book["editeur"], str)
-        assert isinstance(book["note_moyenne"], int | float)
-        assert isinstance(book["nb_critiques"], int)
-        assert isinstance(book["coups_de_coeur"], list)

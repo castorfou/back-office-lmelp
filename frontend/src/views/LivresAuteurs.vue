@@ -44,25 +44,10 @@
         </div>
       </section>
 
-      <!-- Statistiques de synthèse -->
+      <!-- Section simplifiée : nombre de livres extraits seulement -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value">{{ books.length }}</div>
-            <div class="stat-label">Livres extraits</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ uniqueAuthors }}</div>
-            <div class="stat-label">Auteurs différents</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ uniqueEpisodes }}</div>
-            <div class="stat-label">Épisodes sources</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ averageRating.toFixed(1) }}</div>
-            <div class="stat-label">Note moyenne globale</div>
-          </div>
+        <div class="simple-stats">
+          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span>
         </div>
       </section>
 
@@ -71,15 +56,15 @@
         <h3>👆 Sélectionnez un épisode pour commencer</h3>
         <p>
           Choisissez un épisode dans la liste déroulante ci-dessus pour voir les livres et auteurs
-          extraits de ses avis critiques via LLM.
+          extraits de ses avis critiques.
         </p>
         <div class="features">
           <h4>Fonctionnalités disponibles :</h4>
           <ul>
             <li>📚 Extraction des livres discutés au programme</li>
             <li>✍️ Identification des auteurs et éditeurs</li>
-            <li>⭐ Notes moyennes et nombre de critiques</li>
-            <li>❤️ Coups de cœur des critiques</li>
+            <li>📋 Affichage en tableau simple et navigable</li>
+            <li>🔄 Tri alphabétique par colonnes (cliquez sur les en-têtes)</li>
             <li>🔍 Recherche et filtrage des résultats</li>
           </ul>
         </div>
@@ -94,21 +79,14 @@
             placeholder="Filtrer par auteur, titre ou éditeur..."
             class="search-input"
           />
-          <select v-model="sortOrder" class="sort-select">
-            <option value="rating_desc">Note décroissante</option>
-            <option value="rating_asc">Note croissante</option>
-            <option value="author_asc">Auteur A→Z</option>
-            <option value="author_desc">Auteur Z→A</option>
-            <option value="date_desc">Date décroissante</option>
-            <option value="date_asc">Date croissante</option>
-          </select>
+          <span class="search-help">💡 Cliquez sur les en-têtes du tableau pour trier</span>
         </div>
       </section>
 
       <!-- État de chargement -->
       <div v-if="selectedEpisodeId && loading" class="loading-state">
         <div class="loader"></div>
-        <p>Chargement des extractions LLM...</p>
+        <p>Chargement des livres et auteurs...</p>
       </div>
 
       <!-- État d'erreur -->
@@ -126,52 +104,34 @@
         <p>Aucun livre n'a pu être extrait des avis critiques de cet épisode.</p>
       </div>
 
-      <!-- Liste des livres -->
+      <!-- Tableau des livres -->
       <section v-if="selectedEpisodeId && !loading && !error && filteredBooks.length > 0" class="books-section">
-        <div class="books-grid">
-          <div
-            v-for="book in filteredBooks"
-            :key="`${book.episode_oid}-${book.auteur}-${book.titre}`"
-            class="book-card"
-            data-testid="book-item"
-          >
-            <!-- Métadonnées d'épisode -->
-            <div class="episode-metadata">
-              <div class="episode-title">{{ book.episode_title }}</div>
-              <div class="episode-date">{{ book.episode_date }}</div>
-            </div>
-
-            <!-- Informations bibliographiques -->
-            <div class="book-info">
-              <h3 class="book-title">{{ book.titre }}</h3>
-              <div class="book-author">par {{ book.auteur }}</div>
-              <div class="book-publisher">{{ book.editeur }}</div>
-            </div>
-
-            <!-- Métriques et évaluations -->
-            <div class="book-metrics">
-              <div class="rating-section">
-                <div class="rating-value" :class="getRatingClass(book.note_moyenne)">
-                  {{ book.note_moyenne.toFixed(1) }}
-                </div>
-                <div class="rating-label">{{ book.nb_critiques }} critiques</div>
-              </div>
-
-              <!-- Coups de cœur -->
-              <div v-if="book.coups_de_coeur.length > 0" class="favorites-section">
-                <div class="favorites-label">Coups de cœur :</div>
-                <div class="favorites-list">
-                  <span
-                    v-for="critique in book.coups_de_coeur"
-                    :key="critique"
-                    class="favorite-tag"
-                  >
-                    {{ critique }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="table-container">
+          <table class="books-table">
+            <thead>
+              <tr>
+                <th class="sortable-header" @click="setSortOrder('author')">
+                  Auteur
+                  <span class="sort-indicator" :class="getSortClass('author')">↕</span>
+                </th>
+                <th class="sortable-header" @click="setSortOrder('title')">
+                  Titre
+                  <span class="sort-indicator" :class="getSortClass('title')">↕</span>
+                </th>
+                <th class="sortable-header" @click="setSortOrder('publisher')">
+                  Éditeur
+                  <span class="sort-indicator" :class="getSortClass('publisher')">↕</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" class="book-row" data-testid="book-item">
+                <td class="author-cell">{{ book.auteur }}</td>
+                <td class="title-cell">{{ book.titre }}</td>
+                <td class="publisher-cell">{{ book.editeur || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -209,26 +169,12 @@ export default {
       loading: false,
       error: null,
       searchFilter: '',
-      sortOrder: 'rating_desc'
+      currentSortField: 'author',
+      sortAscending: true
     };
   },
 
   computed: {
-    uniqueAuthors() {
-      const authors = new Set(this.books.map(book => book.auteur));
-      return authors.size;
-    },
-
-    uniqueEpisodes() {
-      const episodes = new Set(this.books.map(book => book.episode_oid));
-      return episodes.size;
-    },
-
-    averageRating() {
-      if (this.books.length === 0) return 0;
-      const sum = this.books.reduce((total, book) => total + book.note_moyenne, 0);
-      return sum / this.books.length;
-    },
 
     filteredBooks() {
       let filtered = [...this.books];
@@ -243,24 +189,27 @@ export default {
         );
       }
 
-      // Appliquer le tri
+      // Appliquer le tri par colonnes
       filtered.sort((a, b) => {
-        switch (this.sortOrder) {
-          case 'rating_desc':
-            return b.note_moyenne - a.note_moyenne;
-          case 'rating_asc':
-            return a.note_moyenne - b.note_moyenne;
-          case 'author_asc':
-            return a.auteur.localeCompare(b.auteur);
-          case 'author_desc':
-            return b.auteur.localeCompare(a.auteur);
-          case 'date_desc':
-            return new Date(b.episode_date) - new Date(a.episode_date);
-          case 'date_asc':
-            return new Date(a.episode_date) - new Date(b.episode_date);
+        let sortValue = 0;
+
+        switch (this.currentSortField) {
+          case 'author':
+            sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
+            break;
+          case 'title':
+            sortValue = a.titre.localeCompare(b.titre, 'fr', { sensitivity: 'base' });
+            break;
+          case 'publisher':
+            const publisherA = a.editeur || '';
+            const publisherB = b.editeur || '';
+            sortValue = publisherA.localeCompare(publisherB, 'fr', { sensitivity: 'base' });
+            break;
           default:
-            return 0;
+            sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
         }
+
+        return this.sortAscending ? sortValue : -sortValue;
       });
 
       return filtered;
@@ -332,12 +281,22 @@ export default {
       return `${date} - ${title}`;
     },
 
-    getRatingClass(rating) {
-      if (rating >= 8) return 'rating-excellent';
-      if (rating >= 7) return 'rating-good';
-      if (rating >= 5) return 'rating-average';
-      return 'rating-poor';
+    setSortOrder(field) {
+      if (this.currentSortField === field) {
+        this.sortAscending = !this.sortAscending;
+      } else {
+        this.currentSortField = field;
+        this.sortAscending = true;
+      }
+    },
+
+    getSortClass(field) {
+      if (this.currentSortField !== field) {
+        return '';
+      }
+      return this.sortAscending ? 'sort-asc' : 'sort-desc';
     }
+
   }
 };
 </script>
@@ -363,33 +322,15 @@ export default {
 }
 
 /* Statistiques */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.simple-stats {
+  margin-bottom: 1.5rem;
   text-align: center;
 }
 
-.stat-value {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #667eea;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-size: 0.9rem;
+.books-count {
+  font-size: 1.1rem;
   color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
 /* Filtres */
@@ -467,122 +408,104 @@ export default {
   background: #5a6fd8;
 }
 
-/* Grille de livres */
-.books-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.book-card {
+/* Tableau des livres */
+.table-container {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.book-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+.books-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.episode-metadata {
+.books-table thead {
   background: #f8f9fa;
+}
+
+.books-table th {
   padding: 1rem;
-  border-bottom: 1px solid #eee;
-}
-
-.episode-title {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-  line-height: 1.3;
-}
-
-.episode-date {
-  font-size: 0.8rem;
-  color: #999;
-}
-
-.book-info {
-  padding: 1.5rem;
-  border-bottom: 1px solid #eee;
-}
-
-.book-title {
-  font-size: 1.2rem;
+  text-align: left;
   font-weight: 600;
   color: #333;
-  margin-bottom: 0.5rem;
-  line-height: 1.3;
+  border-bottom: 2px solid #eee;
 }
 
-.book-author {
-  font-size: 1rem;
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.sortable-header:hover {
+  background: #e9ecef;
+}
+
+.sort-indicator {
+  opacity: 0.5;
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  transition: opacity 0.2s ease;
+}
+
+.sort-asc .sort-indicator {
+  opacity: 1;
   color: #667eea;
+}
+
+.sort-asc .sort-indicator::before {
+  content: '↑';
+}
+
+.sort-desc .sort-indicator {
+  opacity: 1;
+  color: #667eea;
+}
+
+.sort-desc .sort-indicator::before {
+  content: '↓';
+}
+
+.books-table tbody tr {
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.books-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.books-table td {
+  padding: 1rem;
+  vertical-align: top;
+}
+
+.author-cell {
   font-weight: 500;
-  margin-bottom: 0.25rem;
+  color: #667eea;
 }
 
-.book-publisher {
-  font-size: 0.9rem;
+.title-cell {
+  font-weight: 600;
+  color: #333;
+}
+
+.publisher-cell {
   color: #666;
 }
 
-.book-metrics {
-  padding: 1.5rem;
-}
-
-.rating-section {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.rating-value {
-  font-size: 1.5rem;
-  font-weight: bold;
-  padding: 0.25rem 0.75rem;
-  border-radius: 6px;
-  color: white;
-}
-
-.rating-excellent { background-color: #4CAF50; }
-.rating-good { background-color: #8BC34A; }
-.rating-average { background-color: #FF9800; }
-.rating-poor { background-color: #F44336; }
-
-.rating-label {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.favorites-section {
-  margin-top: 1rem;
-}
-
-.favorites-label {
+/* Aide pour le tri */
+.search-help {
   font-size: 0.85rem;
   color: #666;
-  margin-bottom: 0.5rem;
+  margin-left: 1rem;
+  font-style: italic;
 }
 
-.favorites-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.favorite-tag {
-  background: #e3f2fd;
-  color: #1976d2;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
+/* Section ratings et favorites supprimées - design simplifié */
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -595,27 +518,31 @@ export default {
     font-size: 2rem;
   }
 
-  .books-grid {
-    grid-template-columns: 1fr;
-  }
-
   .filter-controls {
     flex-direction: column;
+    gap: 1rem;
   }
 
-  .search-input, .sort-select {
+  .search-input {
     width: 100%;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .search-help {
+    margin-left: 0;
+    margin-top: 0.5rem;
+    display: block;
   }
-}
 
-@media (max-width: 480px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .books-table th,
+  .books-table td {
+    padding: 0.75rem;
   }
+
+  .table-container {
+    margin: 0 -1rem;
+    border-radius: 0;
+  }
+
 }
 
 /* Styles pour le sélecteur d'épisodes (basés sur EpisodeSelector.vue) */

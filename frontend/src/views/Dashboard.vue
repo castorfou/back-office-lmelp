@@ -58,7 +58,7 @@
           >
             <div class="function-icon">📚</div>
             <h3>Livres et Auteurs</h3>
-            <p>Extraction LLM des informations bibliographiques depuis les avis critiques</p>
+            <p>Extraction des informations bibliographiques depuis les avis critiques</p>
             <div class="function-arrow">→</div>
           </div>
 
