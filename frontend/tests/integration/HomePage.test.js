@@ -233,7 +233,7 @@ describe('EpisodePage - Tests d\'intégration (legacy)', () => {
     expect(wrapper.vm.selectedEpisode.titre).toBe('Deuxième épisode');
   });
 
-  it('affiche les bonnes informations dans le footer', () => {
+  it('n\'affiche plus de footer car ils ont été supprimés', () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
 
     wrapper = mount(EpisodePage, {
@@ -245,9 +245,7 @@ describe('EpisodePage - Tests d\'intégration (legacy)', () => {
     });
 
     const footer = wrapper.find('.page-footer');
-    expect(footer.exists()).toBe(true);
-    expect(footer.text()).toContain('Version 0.1.0');
-    expect(footer.find('a').attributes('href')).toBe('https://github.com/castorfou/lmelp');
+    expect(footer.exists()).toBe(false);
   });
 
   it('utilise des clés uniques pour l\'éditeur lors du changement d\'épisode', async () => {

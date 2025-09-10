@@ -134,46 +134,52 @@ class TestServerShutdown:
 
     def test_server_can_restart_after_clean_shutdown(self):
         """Test qu'on peut redémarrer le serveur après un arrêt propre."""
-        # Utiliser un port dynamique pour éviter les conflits en CI
-        import random
+        # Mock MongoDB pour éviter les connexions réelles pendant le test
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.connect.return_value = True
 
-        port = random.randint(50000, 59999)
+            # Utiliser un port dynamique pour éviter les conflits en CI
+            import random
 
-        # Trouver un port vraiment disponible
-        for _attempt in range(10):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                result = sock.connect_ex(("127.0.0.1", port))
-                if result != 0:  # Port disponible
-                    break
-                port = random.randint(50000, 59999)
-        else:
-            pytest.skip("Impossible de trouver un port disponible")
+            port = random.randint(50000, 59999)
 
-        def start_and_stop_server():
-            """Démarre et arrête le serveur."""
-            config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
-            server = uvicorn.Server(config)
+            # Trouver un port vraiment disponible
+            for _attempt in range(10):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    result = sock.connect_ex(("127.0.0.1", port))
+                    if result != 0:  # Port disponible
+                        break
+                    port = random.randint(50000, 59999)
+            else:
+                pytest.skip("Impossible de trouver un port disponible")
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            def start_and_stop_server():
+                """Démarre et arrête le serveur."""
+                config = uvicorn.Config(
+                    app, host="127.0.0.1", port=port, log_level="error"
+                )
+                server = uvicorn.Server(config)
 
-            async def run():
-                task = asyncio.create_task(server.serve())
-                # Attendre plus longtemps en CI
-                await asyncio.sleep(0.3)
-                server.should_exit = True
-                await task
-                # Attendre plus longtemps pour la fermeture en CI
-                await asyncio.sleep(0.3)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
-            loop.run_until_complete(run())
-            loop.close()
+                async def run():
+                    task = asyncio.create_task(server.serve())
+                    # Attendre plus longtemps en CI
+                    await asyncio.sleep(0.3)
+                    server.should_exit = True
+                    await task
+                    # Attendre plus longtemps pour la fermeture en CI
+                    await asyncio.sleep(0.3)
 
-        # Premier démarrage/arrêt
-        start_and_stop_server()
+                loop.run_until_complete(run())
+                loop.close()
 
-        # Deuxième démarrage/arrêt - ne devrait pas échouer
-        start_and_stop_server()
+            # Premier démarrage/arrêt
+            start_and_stop_server()
+
+            # Deuxième démarrage/arrêt - ne devrait pas échouer
+            start_and_stop_server()
 
     def test_uvicorn_config_has_graceful_shutdown_parameters(self):
         """Test que la configuration uvicorn inclut les paramètres d'arrêt gracieux."""

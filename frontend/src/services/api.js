@@ -7,7 +7,7 @@ import axios from 'axios';
 // Configuration axios
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 30000, // 30 secondes pour permettre le fallback parsing
   headers: {
     'Content-Type': 'application/json',
   },
@@ -46,6 +46,30 @@ export const statisticsService = {
    */
   async getStatistics() {
     const response = await api.get('/statistics');
+    return response.data;
+  },
+};
+
+/**
+ * Service pour la gestion des livres/auteurs extraits des avis critiques
+ */
+export const livresAuteursService = {
+  /**
+   * Récupère la liste des livres/auteurs extraits des avis critiques
+   * @param {Object} params - Paramètres optionnels (limit, episode_oid, etc.)
+   * @returns {Promise<Array>} Liste des livres avec métadonnées
+   */
+  async getLivresAuteurs(params = {}) {
+    const response = await api.get('/livres-auteurs', { params });
+    return response.data;
+  },
+
+  /**
+   * Récupère les épisodes qui ont des avis critiques
+   * @returns {Promise<Array>} Liste des épisodes avec avis critiques
+   */
+  async getEpisodesWithReviews() {
+    const response = await api.get('/episodes-with-reviews');
     return response.data;
   },
 };
@@ -103,5 +127,6 @@ export const episodeService = {
     return response.data;
   },
 };
+
 
 export default api;

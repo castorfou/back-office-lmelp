@@ -125,13 +125,21 @@ Using backend target from discovery file: http://127.0.0.1:54323
 2. **Visualiser/Modifier** titre ou description
 3. **Sauvegarde automatique** après 2 secondes d'inactivité
 
-### Fonctionnalités
+### Fonctionnalités principales
 
+#### Édition des épisodes
 - ✅ **Tri automatique** : Épisodes par date décroissante
 - ✏️ **Édition en temps réel** : Modification libre du texte
-- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`, 'titre_corrige'
+- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`, `titre_corrige`
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
+
+#### Extraction Livres et Auteurs ⭐ **NOUVEAU**
+- 📚 **Extraction automatique** : Parse les tableaux markdown des avis critiques
+- 📋 **Interface tableau** : Colonnes triables (Auteur/Titre/Éditeur)
+- 🔍 **Recherche temps réel** : Filtrage par auteur, titre ou éditeur
+- 📊 **Deux sources** : "Livres discutés au programme" + "Coups de cœur des critiques"
+- 🎯 **Vue par épisode** : Sélection d'épisodes avec avis critiques
 
 ### API disponible
 
@@ -144,6 +152,11 @@ GET /api/episodes/{id}
 
 # Mettre à jour la description corrigée
 PUT /api/episodes/{id}
+
+# Extraction livres et auteurs ⭐ NOUVEAU
+GET /api/livres-auteurs           # Tous les livres extraits
+GET /api/livres-auteurs?episode_oid={id}  # Livres d'un épisode
+GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
@@ -248,10 +261,11 @@ code .
 
 ## 📋 Roadmap
 
-### MVP 0
+### MVP 0 ✅ **TERMINÉ**
 - ✅ Interface de base pour correction des descriptions
 - ✅ Sauvegarde automatique en base MongoDB
-- ✅ Tests complets : 38 tests validés (12 backend + 26 frontend)
+- ✅ **Extraction Livres/Auteurs** : Interface tableau avec parsing markdown
+- ✅ Tests complets : 245 tests validés (161 backend + 84 frontend)
 - ✅ CI/CD pipeline avec validation complète
 - ✅ Architecture full-stack (FastAPI + Vue.js 3)
 - ✅ Documentation MkDocs + GitHub Pages avec Material Design

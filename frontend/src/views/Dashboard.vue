@@ -51,6 +51,17 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-livres-auteurs"
+            @click="navigateToLivresAuteurs"
+          >
+            <div class="function-icon">📚</div>
+            <h3>Livres et Auteurs</h3>
+            <p>Extraction des informations bibliographiques depuis les avis critiques</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <!-- Placeholder pour futures fonctions -->
           <div class="function-card coming-soon">
             <div class="function-icon">🔍</div>
@@ -75,13 +86,6 @@
         </div>
       </section>
     </main>
-
-    <footer class="page-footer">
-      <p>
-        Version 0.1.0 - Back-office pour le projet
-        <a href="https://github.com/castorfou/lmelp" target="_blank">LMELP</a>
-      </p>
-    </footer>
   </div>
 </template>
 
@@ -154,6 +158,10 @@ export default {
 
     navigateToEpisodes() {
       this.$router.push('/episodes');
+    },
+
+    navigateToLivresAuteurs() {
+      this.$router.push('/livres-auteurs');
     }
   }
 };
@@ -314,23 +322,6 @@ export default {
   display: inline-block;
 }
 
-.page-footer {
-  margin-top: 4rem;
-  text-align: center;
-  padding: 2rem 0;
-  color: #666;
-  font-size: 0.9rem;
-  border-top: 1px solid #eee;
-}
-
-.page-footer a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.page-footer a:hover {
-  text-decoration: underline;
-}
 
 /* Responsive Design */
 /* Règle spécifique pour gérer 5 cartes de statistiques */

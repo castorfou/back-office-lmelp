@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.episode import Episode
+from .services.books_extraction_service import books_extraction_service
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
@@ -212,6 +213,84 @@ async def get_statistics() -> dict[str, Any]:
             "criticalReviews": stats_data["critical_reviews_count"],
             "lastUpdateDate": stats_data["last_update_date"],
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
+async def get_livres_auteurs(
+    limit: int | None = None, episode_oid: str | None = None
+) -> list[dict[str, Any]]:
+    """Récupère la liste des livres/auteurs extraits des avis critiques via parsing des tableaux markdown (format simplifié : auteur/titre/éditeur)."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Récupérer les avis critiques selon les paramètres
+        if episode_oid:
+            # Récupérer seulement les avis critiques de cet épisode
+            avis_critiques = mongodb_service.get_critical_reviews_by_episode_oid(
+                episode_oid
+            )
+        else:
+            # Récupérer tous les avis critiques
+            avis_critiques = mongodb_service.get_all_critical_reviews(limit=limit)
+
+        if not avis_critiques:
+            return []
+
+        # Extraire les informations bibliographiques via parsing markdown
+        extracted_books = await books_extraction_service.extract_books_from_reviews(
+            avis_critiques
+        )
+
+        # Formater pour l'affichage simplifié (auteur/titre/éditeur uniquement)
+        formatted_books = books_extraction_service.format_books_for_simplified_display(
+            extracted_books
+        )
+
+        return formatted_books
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/episodes-with-reviews", response_model=list[dict[str, Any]])
+async def get_episodes_with_reviews() -> list[dict[str, Any]]:
+    """Récupère la liste des épisodes qui ont des avis critiques associés."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Récupérer tous les avis critiques pour obtenir les episode_oid uniques
+        avis_critiques = mongodb_service.get_all_critical_reviews()
+
+        # Extraire les episode_oid uniques
+        unique_episode_oids = list(
+            {avis["episode_oid"] for avis in avis_critiques if avis.get("episode_oid")}
+        )
+
+        # Récupérer les détails des épisodes correspondants
+        episodes_with_reviews = []
+        for episode_oid in unique_episode_oids:
+            episode_data = mongodb_service.get_episode_by_id(episode_oid)
+            if episode_data:
+                episode = Episode(episode_data)
+                episodes_with_reviews.append(episode.to_summary_dict())
+
+        # Trier par date décroissante
+        episodes_with_reviews.sort(key=lambda x: x.get("date", ""), reverse=True)
+
+        return episodes_with_reviews
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

@@ -5,6 +5,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Dashboard from '../views/Dashboard.vue';
 import EpisodePage from '../views/EpisodePage.vue';
+import LivresAuteurs from '../views/LivresAuteurs.vue';
 
 const routes = [
   {
@@ -21,6 +22,14 @@ const routes = [
     component: EpisodePage,
     meta: {
       title: 'Gestion des Épisodes - Back-office LMELP'
+    }
+  },
+  {
+    path: '/livres-auteurs',
+    name: 'LivresAuteurs',
+    component: LivresAuteurs,
+    meta: {
+      title: 'Livres et Auteurs - Back-office LMELP'
     }
   }
 ];

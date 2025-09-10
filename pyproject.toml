@@ -183,6 +183,7 @@ module = [
     "python_dotenv.*",
     "dotenv",
     "psutil.*",
+    "openai.*",
 ]
 ignore_missing_imports = true
 
