@@ -17,7 +17,9 @@
       "Bash(mypy:*)",
       "Bash(git checkout:*)",
       "Bash(ruff format:*)",
-      "Bash(mkdir -p /workspaces/back-office-lmelp/docs/claude/memory)"
+      "Bash(mkdir -p /workspaces/back-office-lmelp/docs/claude/memory)",
+      "WebFetch(domain:www.babelio.com)",
+      "WebSearch"
     ]
   },
   "enableAllProjectMcpServers": true,

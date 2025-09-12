@@ -29,6 +29,7 @@ dependencies = [
     "openai>=1.0.0",
     "psutil>=5.9.0",
     "httpx>=0.24.0",
+    "aiohttp>=3.9.0",
 ]
 
 [project.optional-dependencies]
@@ -184,6 +185,7 @@ module = [
     "dotenv",
     "psutil.*",
     "openai.*",
+    "aiohttp.*",
 ]
 ignore_missing_imports = true
 

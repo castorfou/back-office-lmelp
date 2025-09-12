@@ -103,3 +103,11 @@ Avec `ctrl-t` pour voir les taches en cours
 ## voir le detail de claude code
 
 Avec `ctrl-r` pour voir le detail des actions
+
+## mettre à jour l'env python
+
+suite à ajout de lib dans `pyproject.toml`
+
+```bash
+uv pip install -e .
+```
