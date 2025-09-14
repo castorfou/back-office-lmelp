@@ -8,12 +8,23 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .models.episode import Episode
+from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
+
+
+class BabelioVerificationRequest(BaseModel):
+    """Modèle pour les requêtes de vérification Babelio."""
+
+    type: str  # "author", "book", ou "publisher"
+    name: str | None = None  # Pour author ou publisher
+    title: str | None = None  # Pour book
+    author: str | None = None  # Auteur du livre (optionnel pour book)
 
 
 @asynccontextmanager
@@ -291,6 +302,52 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
 
         return episodes_with_reviews
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/verify-babelio", response_model=dict[str, Any])
+async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
+    """Vérifie et corrige l'orthographe via le service Babelio."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if request.type == "author":
+            if not request.name:
+                raise HTTPException(
+                    status_code=400, detail="Le nom de l'auteur est requis"
+                )
+            result = await babelio_service.verify_author(request.name)
+
+        elif request.type == "book":
+            if not request.title:
+                raise HTTPException(
+                    status_code=400, detail="Le titre du livre est requis"
+                )
+            result = await babelio_service.verify_book(request.title, request.author)
+
+        elif request.type == "publisher":
+            if not request.name:
+                raise HTTPException(
+                    status_code=400, detail="Le nom de l'éditeur est requis"
+                )
+            result = await babelio_service.verify_publisher(request.name)
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Type invalide. Doit être 'author', 'book' ou 'publisher'",
+            )
+
+        return result
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

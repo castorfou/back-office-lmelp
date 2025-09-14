@@ -20,7 +20,7 @@ The project is designed to work in VS Code with devcontainers (Docker-based deve
 ### Backend Setup and Commands
 ```bash
 # Install Python dependencies
-uv sync --extra dev
+uv pip install -e .
 
 # Install pre-commit hooks (required for contributors)
 pre-commit install
@@ -40,7 +40,7 @@ ruff format .
 # Type checking
 mypy src/
 
-# Run backend tests (116 tests)
+# Run backend tests
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Run pre-commit hooks manually
@@ -52,7 +52,7 @@ pre-commit run --all-files
 # Install frontend dependencies
 cd frontend && npm ci
 
-# Run frontend tests (31 tests)
+# Run frontend tests
 # IMPORTANT: Always specify full path to avoid directory confusion
 cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
@@ -97,13 +97,13 @@ cd /workspaces/back-office-lmelp/frontend && npm run preview
 
 ### Full Test Suite
 ```bash
-# Run all tests (147 total: 116 backend + 31 frontend)
+# Run all tests (backend + frontend)
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v && cd frontend && npm test -- --run
 ```
 
 ### Development Scripts
 ```bash
-# Start both backend and frontend with unified script
+# Start both backend and frontend with unified script (recommended)
 ./scripts/start-dev.sh
 ```
 
@@ -335,3 +335,14 @@ ruff check path/to/file.py --fix
 - **User documentation**: docs/user/ (guides, troubleshooting)
 - **Developer documentation**: docs/dev/ (architecture, API, security)
 - **Automatic deployment**: GitHub Actions on docs changes
+
+## Project Maintenance Guidelines
+
+### Test Count Management
+**NEVER include specific test counts** in documentation (README.md, CLAUDE.md). These numbers become stale quickly and provide no real value:
+- ❌ "Run backend tests (176 tests)"
+- ✅ "Run backend tests"
+- ❌ "Total: 276 tests validés"
+- ✅ "Tests complets validés"
+
+Rationale: Test counts change frequently and require constant maintenance without adding meaningful information for users or developers.

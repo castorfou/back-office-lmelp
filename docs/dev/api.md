@@ -391,6 +391,138 @@ app.add_middleware(
 4. **Pas de filtrage** : Impossible de filtrer les épisodes
 5. **Pas de validation** : Schema validation basique
 
+### POST /api/verify-babelio
+
+**✨ NOUVEAU** - Vérification orthographique via Babelio.com
+
+Vérifie et corrige l'orthographe des auteurs, livres et éditeurs.
+
+#### Paramètres
+
+**Request Body** (application/json)
+```json
+{
+  "type": "author|book|publisher",
+  "name": "string",      // Pour author ou publisher
+  "title": "string",     // Pour book (requis)
+  "author": "string"     // Pour book (optionnel)
+}
+```
+
+#### Réponses
+
+**200 OK - Auteur vérifié**
+```json
+{
+  "status": "verified",
+  "original": "Michel Houellebecq",
+  "babelio_suggestion": "Michel Houellebecq",
+  "confidence_score": 1.0,
+  "babelio_data": {
+    "id": "2180",
+    "prenoms": "Michel",
+    "nom": "Houellebecq",
+    "ca_oeuvres": "38",
+    "ca_membres": "30453",
+    "type": "auteurs",
+    "url": "/auteur/Michel-Houellebecq/2180"
+  },
+  "babelio_url": "https://www.babelio.com/auteur/Michel-Houellebecq/2180",
+  "error_message": null
+}
+```
+
+**200 OK - Auteur corrigé**
+```json
+{
+  "status": "corrected",
+  "original": "Houllebeck",
+  "babelio_suggestion": "Michel Houellebecq",
+  "confidence_score": 0.85,
+  "babelio_data": {...},
+  "babelio_url": "https://www.babelio.com/auteur/Michel-Houellebecq/2180",
+  "error_message": null
+}
+```
+
+**200 OK - Livre vérifié**
+```json
+{
+  "status": "verified",
+  "original_title": "Le Petit Prince",
+  "babelio_suggestion_title": "Le Petit Prince",
+  "original_author": "Antoine de Saint-Exupéry",
+  "babelio_suggestion_author": "Antoine de Saint-Exupéry",
+  "confidence_score": 1.0,
+  "babelio_data": {
+    "id_oeuvre": "36712",
+    "titre": "Le Petit Prince",
+    "nom": "Saint-Exupéry",
+    "prenoms": "Antoine de",
+    "ca_copies": "210108",
+    "ca_note": "4.32",
+    "type": "livres"
+  },
+  "babelio_url": "https://www.babelio.com/livres/Saint-Exupery-Le-Petit-Prince/36712",
+  "error_message": null
+}
+```
+
+**200 OK - Non trouvé**
+```json
+{
+  "status": "not_found",
+  "original": "Auteur Inexistant",
+  "babelio_suggestion": null,
+  "confidence_score": 0.0,
+  "babelio_data": null,
+  "babelio_url": null,
+  "error_message": null
+}
+```
+
+**400 Bad Request**
+```json
+{
+  "detail": "Type invalide. Doit être 'author', 'book' ou 'publisher'"
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "detail": "Erreur serveur: détails de l'erreur"
+}
+```
+
+#### Exemples d'utilisation
+
+```bash
+# Vérifier un auteur
+http POST localhost:[PORT]/api/verify-babelio \
+  type=author name="Michel Houellebecq"
+
+# Vérifier un livre
+http POST localhost:[PORT]/api/verify-babelio \
+  type=book title="Le Petit Prince" author="Antoine de Saint-Exupéry"
+
+# Vérifier un éditeur
+http POST localhost:[PORT]/api/verify-babelio \
+  type=publisher name="Gallimard"
+
+# Test avec faute d'orthographe
+http POST localhost:[PORT]/api/verify-babelio \
+  type=author name="Houllebeck"
+```
+
+#### Fonctionnalités
+
+- ✅ **Auteurs** : Vérification et correction excellent
+- ✅ **Livres** : Vérification titre + auteur excellent
+- ⚠️ **Éditeurs** : Fonctionnalité limitée (recherche dans auteurs)
+- 🔄 **Rate limiting** : 1 requête/seconde respectueux de Babelio
+- 🔄 **Tolérance aux fautes** : Corrections automatiques intelligentes
+
 ## Roadmap API
 
 - [ ] Authentification JWT
@@ -400,3 +532,4 @@ app.add_middleware(
 - [ ] Rate limiting
 - [ ] Versioning API (v1, v2)
 - [ ] Endpoints de métadonnées (/health, /metrics)
+- [x] **Intégration Babelio** ✅ COMPLETED

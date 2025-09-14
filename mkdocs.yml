@@ -30,11 +30,7 @@ plugins:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:mermaid2.fence_mermaid
+  - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -54,11 +50,13 @@ nav:
   - 👤 Guide utilisateur:
     - Démarrage rapide: user/README.md
     - Gestion des épisodes: user/episodes.md
+    - Vérification Babelio: user/babelio-verification.md
     - Résolution de problèmes: user/troubleshooting.md
   - 👨‍💻 Documentation technique:
     - Vue d'ensemble: dev/README.md
     - Architecture: dev/architecture.md
     - API Reference: dev/api.md
+    - Intégration Babelio: dev/babelio-integration.md
     - Base de données: dev/database.md
     - Développement: dev/development.md
     - Déploiement: dev/deployment.md

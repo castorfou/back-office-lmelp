@@ -141,6 +141,13 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📊 **Deux sources** : "Livres discutés au programme" + "Coups de cœur des critiques"
 - 🎯 **Vue par épisode** : Sélection d'épisodes avec avis critiques
 
+#### Vérification Orthographique Babelio ⭐ **NOUVEAU**
+- ✅ **Auteurs** : Vérification et correction automatique d'orthographe
+- 📚 **Livres** : Validation croisée titre/auteur avec base Babelio
+- 🔗 **Enrichissement** : Liens directs, métadonnées, popularité
+- 🎯 **Interface dédiée** : http://localhost:5174/babelio-test
+- 🤖 **Tolérance aux fautes** : Corrections intelligentes (ex: "Houllebeck" → "Michel Houellebecq")
+
 ### API disponible
 
 ```bash
@@ -157,6 +164,9 @@ PUT /api/episodes/{id}
 GET /api/livres-auteurs           # Tous les livres extraits
 GET /api/livres-auteurs?episode_oid={id}  # Livres d'un épisode
 GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
+
+# Vérification orthographique Babelio ⭐ NOUVEAU
+POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
@@ -265,7 +275,8 @@ code .
 - ✅ Interface de base pour correction des descriptions
 - ✅ Sauvegarde automatique en base MongoDB
 - ✅ **Extraction Livres/Auteurs** : Interface tableau avec parsing markdown
-- ✅ Tests complets : 245 tests validés (161 backend + 84 frontend)
+- ✅ **Vérification Babelio** : Correction orthographique automatique auteurs/livres
+- ✅ Tests complets validés (backend + frontend)
 - ✅ CI/CD pipeline avec validation complète
 - ✅ Architecture full-stack (FastAPI + Vue.js 3)
 - ✅ Documentation MkDocs + GitHub Pages avec Material Design
