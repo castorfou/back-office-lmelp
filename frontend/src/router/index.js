@@ -6,6 +6,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Dashboard from '../views/Dashboard.vue';
 import EpisodePage from '../views/EpisodePage.vue';
 import LivresAuteurs from '../views/LivresAuteurs.vue';
+import BabelioTest from '../views/BabelioTest.vue';
 
 const routes = [
   {
@@ -30,6 +31,14 @@ const routes = [
     component: LivresAuteurs,
     meta: {
       title: 'Livres et Auteurs - Back-office LMELP'
+    }
+  },
+  {
+    path: '/babelio-test',
+    name: 'BabelioTest',
+    component: BabelioTest,
+    meta: {
+      title: 'Test Babelio - Back-office LMELP'
     }
   }
 ];

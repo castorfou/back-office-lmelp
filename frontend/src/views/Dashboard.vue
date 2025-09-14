@@ -62,9 +62,20 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-babelio-test"
+            @click="navigateToBabelioTest"
+          >
+            <div class="function-icon">🔍</div>
+            <h3>Test Babelio</h3>
+            <p>Vérification orthographique des auteurs, livres et éditeurs via Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <!-- Placeholder pour futures fonctions -->
           <div class="function-card coming-soon">
-            <div class="function-icon">🔍</div>
+            <div class="function-icon">🔎</div>
             <h3>Recherche avancée</h3>
             <p>Rechercher des épisodes par critères spécifiques</p>
             <div class="coming-soon-label">Bientôt disponible</div>
@@ -162,6 +173,10 @@ export default {
 
     navigateToLivresAuteurs() {
       this.$router.push('/livres-auteurs');
+    },
+
+    navigateToBabelioTest() {
+      this.$router.push('/babelio-test');
     }
   }
 };
