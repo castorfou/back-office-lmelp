@@ -20,7 +20,7 @@ The project is designed to work in VS Code with devcontainers (Docker-based deve
 ### Backend Setup and Commands
 ```bash
 # Install Python dependencies
-uv sync --extra dev
+uv pip install -e .
 
 # Install pre-commit hooks (required for contributors)
 pre-commit install
