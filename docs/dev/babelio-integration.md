@@ -214,8 +214,26 @@ Les tests utilisent des mocks pour éviter les appels réseau réels lors des te
 - Support des éditeurs si Babelio expose mieux l'API
 - Batch processing optimisé
 
-### Intégration
-Le service est conçu pour s'intégrer facilement dans :
-- L'endpoint `/api/verify-babelio` (à implémenter)
-- L'interface `/livres-auteurs` existante
-- Les workflows d'extraction des avis critiques
+### Problèmes Techniques Résolus
+
+#### Content-Type Incorrect
+**Problème** : Babelio retourne du JSON valide mais avec `Content-Type: text/html; charset=ISO-8859-1` au lieu de `application/json`.
+
+**Solution** : Utilisation de `response.text()` puis `json.loads()` au lieu de `response.json()` pour contourner la validation stricte d'aiohttp.
+
+```python
+# Au lieu de :
+results = await response.json()  # Échoue à cause du Content-Type
+
+# Utiliser :
+text_content = await response.text()
+results = json.loads(text_content)  # Fonctionne correctement
+```
+
+### Intégration Complète
+Le service est maintenant pleinement intégré dans :
+- ✅ **L'endpoint `/api/verify-babelio`** (implémenté)
+- ✅ **L'interface de test `/babelio-test`** (Vue.js)
+- ✅ **Tests automatisés** (7 tests endpoint + 16 tests frontend)
+- 🔄 **L'interface `/livres-auteurs`** (intégration future)
+- 🔄 **Les workflows d'extraction des avis critiques** (intégration future)

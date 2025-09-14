@@ -148,9 +148,22 @@ class BabelioService:
 
                 async with session.post(url, json=payload) as response:
                     if response.status == 200:
-                        results: list[dict[str, Any]] = await response.json()
-                        logger.debug(f"Babelio retourne {len(results)} résultats")
-                        return results
+                        try:
+                            # Babelio retourne du JSON valide mais avec le mauvais Content-Type
+                            # On récupère le texte brut puis on parse le JSON manuellement
+                            text_content = await response.text()
+                            results: list[dict[str, Any]] = json.loads(text_content)
+                            logger.debug(f"Babelio retourne {len(results)} résultats")
+                            return results
+                        except json.JSONDecodeError:
+                            # Si ce n'est vraiment pas du JSON, log pour debugging
+                            content_type = response.headers.get(
+                                "content-type", "unknown"
+                            )
+                            logger.error(f"Babelio réponse non-JSON pour {term}")
+                            logger.error(f"Content-Type: {content_type}")
+                            logger.error(f"Début: {text_content[:200]}...")
+                            return []
                     else:
                         logger.warning(f"Babelio HTTP {response.status} pour: {term}")
                         return []
@@ -160,9 +173,6 @@ class BabelioService:
                 return []
             except aiohttp.ClientError as e:
                 logger.error(f"Erreur réseau Babelio pour {term}: {e}")
-                return []
-            except json.JSONDecodeError as e:
-                logger.error(f"Erreur JSON Babelio pour {term}: {e}")
                 return []
             except Exception as e:
                 logger.error(f"Erreur inattendue Babelio pour {term}: {e}")

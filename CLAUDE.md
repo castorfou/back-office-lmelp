@@ -103,7 +103,7 @@ PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v && cd frontend && 
 
 ### Development Scripts
 ```bash
-# Start both backend and frontend with unified script
+# Start both backend and frontend with unified script (recommended)
 ./scripts/start-dev.sh
 ```
 
