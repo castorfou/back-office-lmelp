@@ -502,25 +502,42 @@ class MongoDBService:
 
             text_lower = text.lower()
 
-            # Chercher le terme dans le texte (insensible à la casse)
+            # D'abord essayer la correspondance exacte
             match = re.search(re.escape(query_lower), text_lower)
+            word_index = -1
+
             if match:
                 start_pos = match.start()
-
-                # Diviser le texte en mots
+                # Trouver l'index du mot
                 words = text.split()
                 text_lower_words = text_lower.split()
-
-                # Trouver l'index du mot contenant le terme recherché
-                word_index = 0
                 char_count = 0
                 for i, word in enumerate(text_lower_words):
                     if char_count <= start_pos < char_count + len(word):
                         word_index = i
                         break
-                    char_count += len(word) + 1  # +1 pour l'espace
+                    char_count += len(word) + 1
+            else:
+                # Recherche floue si pas de correspondance exacte
+                words = text.split()
+                text_lower_words = [w.lower() for w in words]
 
-                # Extraire 10 mots avant et après
+                for i, word_lower in enumerate(text_lower_words):
+                    if (
+                        len(word_lower) >= 3
+                        and len(query_lower) >= 3
+                        and (
+                            word_lower.startswith(query_lower[:3])
+                            or query_lower[:3] in word_lower
+                            or self._fuzzy_match_simple(query_lower, word_lower)
+                        )
+                    ):
+                        word_index = i
+                        break
+
+            # Si un mot a été trouvé, extraire le contexte
+            if word_index >= 0:
+                words = text.split()
                 start_word = max(0, word_index - 10)
                 end_word = min(len(words), word_index + 11)
 
@@ -536,6 +553,26 @@ class MongoDBService:
                 return context
 
         return ""
+
+    def _fuzzy_match_simple(self, query: str, word: str) -> bool:
+        """Correspondance floue simple pour l'extraction de contexte."""
+        if len(query) < 3 or len(word) < 3:
+            return False
+
+        # Compter les caractères communs dans l'ordre
+        query_chars = list(query)
+        word_chars = list(word)
+
+        matches = 0
+        query_idx = 0
+
+        for char in word_chars:
+            if query_idx < len(query_chars) and char == query_chars[query_idx]:
+                matches += 1
+                query_idx += 1
+
+        # Correspondance si au moins 60% des caractères sont trouvés
+        return matches >= len(query) * 0.6
 
 
 # Instance globale du service
