@@ -238,11 +238,59 @@ export default {
       const query = this.lastSearchQuery.trim();
       if (query.length < 3) return text;
 
-      // Créer une regex insensible à la casse pour trouver le terme
-      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      // D'abord essayer la correspondance exacte
+      const exactRegex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      let highlightedText = text.replace(exactRegex, '<strong>$1</strong>');
 
-      // Remplacer le terme trouvé par sa version en gras
-      return text.replace(regex, '<strong>$1</strong>');
+      // Si pas de correspondance exacte, essayer une recherche floue simple
+      if (highlightedText === text) {
+        // Recherche floue : chercher des mots qui commencent par les mêmes lettres
+        const queryLower = query.toLowerCase();
+        const words = text.split(/(\s+)/); // Garder les espaces
+
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i];
+          if (word.trim().length < 3) continue;
+
+          const wordLower = word.toLowerCase();
+
+          // Vérifier plusieurs types de correspondances floues
+          const queryStart = queryLower.substring(0, Math.min(4, queryLower.length));
+
+          if (
+            wordLower.includes(queryStart) ||  // contient le début
+            wordLower.startsWith(queryLower.substring(0, 3)) ||  // commence par 3 lettres
+            this.fuzzyMatch(queryLower, wordLower)  // correspondance floue avancée
+          ) {
+            words[i] = `<strong>${word}</strong>`;
+          }
+        }
+
+        highlightedText = words.join('');
+      }
+
+      return highlightedText;
+    },
+
+    fuzzyMatch(query, word) {
+      // Correspondance floue simple : vérifier si suffisamment de caractères correspondent
+      if (query.length < 3 || word.length < 3) return false;
+
+      const queryChars = query.split('');
+      const wordChars = word.split('');
+
+      let matches = 0;
+      let queryIndex = 0;
+
+      for (let i = 0; i < wordChars.length && queryIndex < queryChars.length; i++) {
+        if (wordChars[i] === queryChars[queryIndex]) {
+          matches++;
+          queryIndex++;
+        }
+      }
+
+      // Correspondance si au moins 60% des caractères de la requête sont trouvés dans l'ordre
+      return matches >= Math.ceil(query.length * 0.6);
     },
 
     createEpisodeTooltip(episode) {
@@ -252,8 +300,10 @@ export default {
         tooltip += `\n\nDescription complète: ${episode.description}`;
       }
 
-      if (episode.search_context) {
+      if (episode.search_context && episode.search_context.trim()) {
         tooltip += `\n\nContexte de recherche: ${episode.search_context}`;
+      } else {
+        tooltip += `\n\nContexte de recherche: Non disponible`;
       }
 
       return tooltip;
