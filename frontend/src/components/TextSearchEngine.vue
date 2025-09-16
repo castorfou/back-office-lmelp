@@ -6,10 +6,19 @@
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="🔍 Rechercher dans le contenu..."
+        placeholder="Rechercher dans le contenu..."
         class="search-input"
         @input="handleSearchInput"
       />
+      <button
+        v-if="searchQuery.length > 0"
+        @click="clearSearch"
+        class="clear-button"
+        type="button"
+        title="Effacer la recherche"
+      >
+        ✕
+      </button>
     </div>
 
     <!-- État de chargement -->
@@ -307,6 +316,20 @@ export default {
       }
 
       return tooltip;
+    },
+
+    clearSearch() {
+      this.searchQuery = '';
+      this.showResults = false;
+      this.error = null;
+      this.loading = false;
+      this.lastSearchQuery = '';
+      this.results = {
+        auteurs: [],
+        livres: [],
+        editeurs: [],
+        episodes: []
+      };
     }
   }
 };
@@ -335,7 +358,7 @@ export default {
 
 .search-input {
   width: 100%;
-  padding: 1rem 1rem 1rem 3rem;
+  padding: 1rem 3rem 1rem 3rem;
   border: 2px solid #ddd;
   border-radius: 12px;
   font-size: 1rem;
@@ -347,6 +370,35 @@ export default {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.clear-button {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.clear-button:hover {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.clear-button:active {
+  background: #e0e0e0;
 }
 
 .loading-state {
