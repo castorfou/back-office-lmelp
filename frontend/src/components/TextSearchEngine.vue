@@ -9,13 +9,14 @@
         placeholder="Rechercher dans le contenu..."
         class="search-input"
         @input="handleSearchInput"
+        @keydown.esc="clearSearch"
       />
       <button
         v-if="searchQuery.length > 0"
         @click="clearSearch"
         class="clear-button"
         type="button"
-        title="Effacer la recherche"
+        title="Effacer la recherche (ou appuyez sur Escape)"
       >
         ✕
       </button>
