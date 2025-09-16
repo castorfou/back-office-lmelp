@@ -282,10 +282,12 @@ class MongoDBService:
                 episode["score"] = score
                 episode["match_type"] = match_type
 
+                # Extraire le contexte de recherche
+                episode["search_context"] = self._extract_search_context(query, episode)
+
                 results.append(episode)
 
-            # Trier par score décroissant
-            results.sort(key=lambda x: x["score"], reverse=True)
+            # Garder le tri par date décroissante (déjà appliqué dans la requête MongoDB)
 
             return results
         except Exception as e:
@@ -479,6 +481,61 @@ class MongoDBService:
         length_bonus = max(0, 1 - length_diff / max(len(query), len(text)))
 
         return ratio * 0.7 + length_bonus * 0.3
+
+    def _extract_search_context(self, query: str, episode: dict[str, Any]) -> str:
+        """Extrait le contexte de recherche avec 10 mots avant et après le terme trouvé."""
+        import re
+
+        query_lower = query.lower()
+        fields_to_search = [
+            "titre",
+            "titre_corrige",
+            "description",
+            "description_corrigee",
+            "transcription",
+        ]
+
+        for field in fields_to_search:
+            text = episode.get(field, "")
+            if not text or not isinstance(text, str):
+                continue
+
+            text_lower = text.lower()
+
+            # Chercher le terme dans le texte (insensible à la casse)
+            match = re.search(re.escape(query_lower), text_lower)
+            if match:
+                start_pos = match.start()
+
+                # Diviser le texte en mots
+                words = text.split()
+                text_lower_words = text_lower.split()
+
+                # Trouver l'index du mot contenant le terme recherché
+                word_index = 0
+                char_count = 0
+                for i, word in enumerate(text_lower_words):
+                    if char_count <= start_pos < char_count + len(word):
+                        word_index = i
+                        break
+                    char_count += len(word) + 1  # +1 pour l'espace
+
+                # Extraire 10 mots avant et après
+                start_word = max(0, word_index - 10)
+                end_word = min(len(words), word_index + 11)
+
+                context_words = words[start_word:end_word]
+                context = " ".join(context_words)
+
+                # Ajouter des ellipses si nécessaire
+                if start_word > 0:
+                    context = "..." + context
+                if end_word < len(words):
+                    context = context + "..."
+
+                return context
+
+        return ""
 
 
 # Instance globale du service

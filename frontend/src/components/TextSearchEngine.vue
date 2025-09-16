@@ -35,8 +35,8 @@
         <div v-if="results.auteurs.length > 0" class="result-category">
           <h4 class="category-title">👤 AUTEURS ({{ results.auteurs.length }})</h4>
           <ul class="result-list">
-            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item">
-              <span class="result-name">{{ auteur.nom }}</span>
+            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item" :title="auteur.nom">
+              <span class="result-name" v-html="highlightSearchTerm(auteur.nom)"></span>
             </li>
           </ul>
         </div>
@@ -45,8 +45,8 @@
         <div v-if="results.livres.length > 0" class="result-category">
           <h4 class="category-title">📚 LIVRES ({{ results.livres.length }})</h4>
           <ul class="result-list">
-            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
-              <span class="result-name">{{ livre.titre }}</span>
+            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item" :title="livre.titre">
+              <span class="result-name" v-html="highlightSearchTerm(livre.titre)"></span>
             </li>
           </ul>
         </div>
@@ -55,8 +55,8 @@
         <div v-if="results.editeurs.length > 0" class="result-category">
           <h4 class="category-title">🏢 ÉDITEURS ({{ results.editeurs.length }})</h4>
           <ul class="result-list">
-            <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item">
-              <span class="result-name">{{ editeur.nom }}</span>
+            <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item" :title="editeur.nom">
+              <span class="result-name" v-html="highlightSearchTerm(editeur.nom)"></span>
             </li>
           </ul>
         </div>
@@ -65,14 +65,13 @@
         <div v-if="results.episodes.length > 0" class="result-category">
           <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }})</h4>
           <ul class="result-list">
-            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
+            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item" :title="createEpisodeTooltip(episode)">
               <div class="episode-content">
                 <div class="episode-main-info">
                   <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                  <span class="episode-title">{{ episode.titre }}</span>
+                  <span class="episode-title" v-html="highlightSearchTerm(episode.titre)"></span>
                 </div>
-                <div v-if="episode.description" class="episode-description">
-                  {{ truncateText(episode.description, 100) }}
+                <div v-if="episode.description" class="episode-description" v-html="highlightSearchTerm(truncateText(episode.description, 100))">
                 </div>
               </div>
             </li>
@@ -231,6 +230,33 @@ export default {
     truncateText(text, maxLength) {
       if (!text || text.length <= maxLength) return text;
       return text.substring(0, maxLength) + '...';
+    },
+
+    highlightSearchTerm(text) {
+      if (!text || !this.lastSearchQuery) return text;
+
+      const query = this.lastSearchQuery.trim();
+      if (query.length < 3) return text;
+
+      // Créer une regex insensible à la casse pour trouver le terme
+      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+
+      // Remplacer le terme trouvé par sa version en gras
+      return text.replace(regex, '<strong>$1</strong>');
+    },
+
+    createEpisodeTooltip(episode) {
+      let tooltip = `Titre complet: ${episode.titre}`;
+
+      if (episode.description) {
+        tooltip += `\n\nDescription complète: ${episode.description}`;
+      }
+
+      if (episode.search_context) {
+        tooltip += `\n\nContexte de recherche: ${episode.search_context}`;
+      }
+
+      return tooltip;
     }
   }
 };
@@ -367,6 +393,7 @@ export default {
 
 .result-item:hover {
   background: #e9ecef;
+  cursor: pointer;
 }
 
 .result-item:last-child {
@@ -377,6 +404,17 @@ export default {
   font-weight: 500;
   color: #333;
   flex-grow: 1;
+}
+
+/* Style pour les termes recherchés mis en évidence */
+.result-name strong,
+.episode-title strong,
+.episode-description strong {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0.1rem 0.2rem;
+  border-radius: 3px;
+  font-weight: 700;
 }
 
 .result-score {
