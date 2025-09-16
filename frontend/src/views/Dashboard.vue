@@ -73,12 +73,12 @@
             <div class="function-arrow">→</div>
           </div>
 
-          <!-- Placeholder pour futures fonctions -->
-          <div class="function-card coming-soon">
+          <!-- Moteur de recherche textuel -->
+          <div class="function-card search-card">
             <div class="function-icon">🔎</div>
-            <h3>Recherche avancée</h3>
-            <p>Rechercher des épisodes par critères spécifiques</p>
-            <div class="coming-soon-label">Bientôt disponible</div>
+            <h3>Recherche textuelle</h3>
+            <p>Rechercher du contenu dans toutes les entités de la base</p>
+            <TextSearchEngine :limit="10" />
           </div>
 
           <div class="function-card coming-soon">
@@ -102,9 +102,14 @@
 
 <script>
 import { statisticsService } from '../services/api.js';
+import TextSearchEngine from '../components/TextSearchEngine.vue';
 
 export default {
   name: 'Dashboard',
+
+  components: {
+    TextSearchEngine,
+  },
 
   data() {
     return {
@@ -335,6 +340,24 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: inline-block;
+}
+
+.search-card {
+  /* Faire en sorte que la carte de recherche prenne plus d'espace */
+  grid-column: span 2;
+}
+
+.search-card .function-icon,
+.search-card h3,
+.search-card p {
+  margin-bottom: 1rem;
+}
+
+/* Si la grille n'a qu'une colonne, reset le span */
+@media (max-width: 768px) {
+  .search-card {
+    grid-column: span 1;
+  }
 }
 
 

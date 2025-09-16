@@ -238,6 +238,248 @@ class MongoDBService:
             print(f"Erreur lors de la récupération des statistiques: {e}")
             raise
 
+    def search_episodes(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Recherche textuelle dans les épisodes."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return []
+
+        try:
+            # Créer un pattern regex pour la recherche floue
+            fuzzy_pattern = self._create_fuzzy_regex_pattern(query)
+
+            # Recherche dans les champs titre, description et transcription
+            search_query = {
+                "$or": [
+                    {"titre": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"titre_corrige": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"description": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {
+                        "description_corrigee": {
+                            "$regex": fuzzy_pattern,
+                            "$options": "i",
+                        }
+                    },
+                    {"transcription": {"$regex": fuzzy_pattern, "$options": "i"}},
+                ]
+            }
+
+            episodes = list(
+                self.episodes_collection.find(search_query)
+                .sort("date", -1)
+                .limit(limit)
+            )
+
+            # Conversion ObjectId et calcul des scores
+            results = []
+            for episode in episodes:
+                episode["_id"] = str(episode["_id"])
+
+                # Calculer le score et le type de match
+                score, match_type = self._calculate_episode_search_score(query, episode)
+                episode["score"] = score
+                episode["match_type"] = match_type
+
+                results.append(episode)
+
+            # Trier par score décroissant
+            results.sort(key=lambda x: x["score"], reverse=True)
+
+            return results
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'épisodes: {e}")
+            return []
+
+    def search_critical_reviews_for_authors_books(
+        self, query: str, limit: int = 10
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Recherche textuelle dans les avis critiques pour auteurs, livres et éditeurs."""
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"auteurs": [], "livres": [], "editeurs": []}
+
+        try:
+            fuzzy_pattern = self._create_fuzzy_regex_pattern(query)
+
+            # Recherche dans les avis critiques
+            search_query = {
+                "$or": [
+                    {"auteur": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"titre_livre": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"editeur": {"$regex": fuzzy_pattern, "$options": "i"}},
+                ]
+            }
+
+            reviews = list(
+                self.avis_critiques_collection.find(search_query).limit(limit * 3)
+            )
+
+            # Séparer par catégories et dédupliquer
+            auteurs_set = set()
+            livres_set = set()
+            editeurs_set = set()
+
+            for review in reviews:
+                review["_id"] = str(review["_id"])
+
+                # Auteurs
+                if review.get("auteur"):
+                    score, match_type = self.calculate_search_score(
+                        query, review["auteur"]
+                    )
+                    if score > 0:
+                        auteurs_set.add((review["auteur"], score, match_type))
+
+                # Livres
+                if review.get("titre_livre"):
+                    score, match_type = self.calculate_search_score(
+                        query, review["titre_livre"]
+                    )
+                    if score > 0:
+                        livres_set.add((review["titre_livre"], score, match_type))
+
+                # Éditeurs
+                if review.get("editeur"):
+                    score, match_type = self.calculate_search_score(
+                        query, review["editeur"]
+                    )
+                    if score > 0:
+                        editeurs_set.add((review["editeur"], score, match_type))
+
+            # Convertir en listes triées par score
+            auteurs = [
+                {"nom": nom, "score": score, "match_type": match_type}
+                for nom, score, match_type in sorted(
+                    auteurs_set, key=lambda x: x[1], reverse=True
+                )[:limit]
+            ]
+
+            livres = [
+                {"titre": titre, "score": score, "match_type": match_type}
+                for titre, score, match_type in sorted(
+                    livres_set, key=lambda x: x[1], reverse=True
+                )[:limit]
+            ]
+
+            editeurs = [
+                {"nom": nom, "score": score, "match_type": match_type}
+                for nom, score, match_type in sorted(
+                    editeurs_set, key=lambda x: x[1], reverse=True
+                )[:limit]
+            ]
+
+            return {
+                "auteurs": auteurs,
+                "livres": livres,
+                "editeurs": editeurs,
+            }
+
+        except Exception as e:
+            print(f"Erreur lors de la recherche dans les avis critiques: {e}")
+            return {"auteurs": [], "livres": [], "editeurs": []}
+
+    def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
+        """Calcule le score de pertinence et le type de match."""
+        query_lower = query.lower().strip()
+        text_lower = text.lower().strip()
+
+        # Match exact (insensible à la casse)
+        if query_lower == text_lower:
+            return 1.0, "exact"
+
+        # Match exact partiel
+        if query_lower in text_lower:
+            # Score basé sur la position et la longueur relative
+            position = text_lower.find(query_lower)
+            length_ratio = len(query_lower) / len(text_lower)
+
+            # Bonus si le match est au début
+            position_bonus = 0.1 if position == 0 else 0
+            score = 0.5 + length_ratio * 0.3 + position_bonus
+
+            return min(score, 0.9), "partial"
+
+        # Recherche floue simple (distance d'édition approximative)
+        fuzzy_score = self._calculate_fuzzy_score(query_lower, text_lower)
+        if fuzzy_score > 0.3:
+            return fuzzy_score, "fuzzy"
+
+        return 0.0, "none"
+
+    def _create_fuzzy_regex_pattern(self, query: str) -> str:
+        """Crée un pattern regex pour la recherche floue."""
+        # Échapper les caractères spéciaux regex
+        import re
+
+        escaped_query = re.escape(query.strip())
+
+        # Permettre des variations de caractères pour la recherche floue
+        # Par exemple: remplacer 'e' par '[eé]', 'a' par '[aà]', etc.
+        variations = {
+            "e": "[eéèê]",
+            "a": "[aàâ]",
+            "i": "[iîï]",
+            "o": "[oôö]",
+            "u": "[uûü]",
+            "c": "[cç]",
+        }
+
+        pattern = escaped_query.lower()
+        for char, variation in variations.items():
+            pattern = pattern.replace(char, variation)
+
+        return pattern
+
+    def _calculate_episode_search_score(
+        self, query: str, episode: dict[str, Any]
+    ) -> tuple[float, str]:
+        """Calcule le score de pertinence pour un épisode."""
+        # Champs à analyser avec leurs poids
+        fields_weights = {
+            "titre": 0.4,
+            "titre_corrige": 0.4,
+            "description": 0.3,
+            "description_corrigee": 0.3,
+            "transcription": 0.2,
+        }
+
+        best_score = 0.0
+        best_match_type = "none"
+
+        for field, weight in fields_weights.items():
+            text = episode.get(field, "")
+            if text:
+                score, match_type = self.calculate_search_score(query, text)
+                weighted_score = score * weight
+
+                if weighted_score > best_score:
+                    best_score = weighted_score
+                    best_match_type = match_type
+
+        return best_score, best_match_type
+
+    def _calculate_fuzzy_score(self, query: str, text: str) -> float:
+        """Calcule un score de correspondance floue simple."""
+        # Implémentation simple basée sur les caractères communs
+        query_chars = set(query.lower())
+        text_chars = set(text.lower())
+
+        if len(query_chars) == 0:
+            return 0.0
+
+        common_chars = query_chars.intersection(text_chars)
+        ratio = len(common_chars) / len(query_chars)
+
+        # Bonus si la longueur est similaire
+        length_diff = abs(len(query) - len(text))
+        length_bonus = max(0, 1 - length_diff / max(len(query), len(text)))
+
+        return ratio * 0.7 + length_bonus * 0.3
+
 
 # Instance globale du service
 mongodb_service = MongoDBService()

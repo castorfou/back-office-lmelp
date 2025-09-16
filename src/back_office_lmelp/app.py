@@ -352,6 +352,66 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/search", response_model=dict[str, Any])
+async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
+    """Recherche textuelle multi-entités avec support de recherche floue."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation des paramètres
+    if len(q.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="La recherche nécessite au moins 3 caractères minimum",
+        )
+
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400, detail="La limite doit être entre 1 et 100"
+        )
+
+    try:
+        # Recherche dans les épisodes
+        episodes_results = mongodb_service.search_episodes(q, limit)
+
+        # Recherche dans les avis critiques (auteurs, livres, éditeurs)
+        critical_reviews_results = (
+            mongodb_service.search_critical_reviews_for_authors_books(q, limit)
+        )
+
+        # Structure de la réponse
+        response = {
+            "query": q,
+            "results": {
+                "auteurs": critical_reviews_results["auteurs"],
+                "livres": critical_reviews_results["livres"],
+                "editeurs": critical_reviews_results["editeurs"],
+                "episodes": [
+                    {
+                        "titre": episode.get("titre_corrige")
+                        or episode.get("titre", ""),
+                        "description": episode.get("description_corrigee")
+                        or episode.get("description", ""),
+                        "date": episode.get("date", ""),
+                        "score": episode.get("score", 0),
+                        "match_type": episode.get("match_type", "none"),
+                        "_id": episode.get("_id", ""),
+                    }
+                    for episode in episodes_results
+                ],
+            },
+        }
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Variables globales pour la gestion propre du serveur
 _server_instance = None
 

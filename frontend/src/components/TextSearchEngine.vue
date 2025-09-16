@@ -1,0 +1,458 @@
+<template>
+  <div class="search-engine">
+    <!-- Zone de recherche -->
+    <div class="search-input-container">
+      <div class="search-icon">🔍</div>
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="🔍 Rechercher dans le contenu..."
+        class="search-input"
+        @input="handleSearchInput"
+      />
+    </div>
+
+    <!-- État de chargement -->
+    <div v-if="loading" class="loading-state">
+      <div class="loading-spinner"></div>
+      <span>Recherche en cours...</span>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div v-if="error" class="error-state">
+      <div class="error-icon">⚠️</div>
+      <span>Erreur lors de la recherche: {{ error }}</span>
+    </div>
+
+    <!-- Résultats de recherche -->
+    <div v-if="showResults && !loading && !error" class="search-results">
+      <div v-if="hasResults" class="results-container">
+        <div class="results-header">
+          <h3>Résultats pour "{{ lastSearchQuery }}" :</h3>
+        </div>
+
+        <!-- Auteurs -->
+        <div v-if="results.auteurs.length > 0" class="result-category">
+          <h4 class="category-title">👤 AUTEURS ({{ results.auteurs.length }})</h4>
+          <ul class="result-list">
+            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item">
+              <span class="result-name">{{ auteur.nom }}</span>
+              <span class="result-score">{{ Math.round(auteur.score * 100) }}%</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Livres -->
+        <div v-if="results.livres.length > 0" class="result-category">
+          <h4 class="category-title">📚 LIVRES ({{ results.livres.length }})</h4>
+          <ul class="result-list">
+            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
+              <span class="result-name">{{ livre.titre }}</span>
+              <span class="result-score">{{ Math.round(livre.score * 100) }}%</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Éditeurs -->
+        <div v-if="results.editeurs.length > 0" class="result-category">
+          <h4 class="category-title">🏢 ÉDITEURS ({{ results.editeurs.length }})</h4>
+          <ul class="result-list">
+            <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item">
+              <span class="result-name">{{ editeur.nom }}</span>
+              <span class="result-score">{{ Math.round(editeur.score * 100) }}%</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Épisodes -->
+        <div v-if="results.episodes.length > 0" class="result-category">
+          <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }})</h4>
+          <ul class="result-list">
+            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
+              <div class="episode-content">
+                <span class="result-name">{{ episode.titre }}</span>
+                <span class="episode-date">{{ formatDate(episode.date) }}</span>
+              </div>
+              <span class="result-score">{{ Math.round(episode.score * 100) }}%</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Catégories vides -->
+        <div v-if="results.auteurs.length === 0" class="result-category empty">
+          <h4 class="category-title">👤 AUTEURS (0)</h4>
+          <p class="empty-message">(aucun auteur contenant "{{ lastSearchQuery }}")</p>
+        </div>
+
+        <div v-if="results.livres.length === 0" class="result-category empty">
+          <h4 class="category-title">📚 LIVRES (0)</h4>
+          <p class="empty-message">(aucun livre contenant "{{ lastSearchQuery }}")</p>
+        </div>
+
+        <div v-if="results.editeurs.length === 0" class="result-category empty">
+          <h4 class="category-title">🏢 ÉDITEURS (0)</h4>
+          <p class="empty-message">(aucun éditeur contenant "{{ lastSearchQuery }}")</p>
+        </div>
+
+        <div v-if="results.episodes.length === 0" class="result-category empty">
+          <h4 class="category-title">🎙️ ÉPISODES (0)</h4>
+          <p class="empty-message">(aucun épisode contenant "{{ lastSearchQuery }}")</p>
+        </div>
+      </div>
+
+      <!-- Aucun résultat -->
+      <div v-else class="no-results">
+        <div class="no-results-icon">🔍</div>
+        <h3>Aucun résultat trouvé</h3>
+        <p>Aucun contenu ne correspond à votre recherche "{{ lastSearchQuery }}"</p>
+        <p class="suggestion">Essayez avec d'autres mots-clés ou vérifiez l'orthographe.</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { searchService } from '../services/api.js';
+
+// Fonction debounce simple pour éviter d'ajouter lodash comme dépendance
+function debounce(func, delay) {
+  let timeoutId;
+  return function (...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+
+export default {
+  name: 'TextSearchEngine',
+
+  props: {
+    limit: {
+      type: Number,
+      default: 10
+    }
+  },
+
+  data() {
+    return {
+      searchQuery: '',
+      lastSearchQuery: '',
+      loading: false,
+      error: null,
+      results: {
+        auteurs: [],
+        livres: [],
+        editeurs: [],
+        episodes: []
+      },
+      showResults: false
+    };
+  },
+
+  computed: {
+    hasResults() {
+      return (
+        this.results.auteurs.length > 0 ||
+        this.results.livres.length > 0 ||
+        this.results.editeurs.length > 0 ||
+        this.results.episodes.length > 0
+      );
+    }
+  },
+
+  created() {
+    // Debounce la fonction de recherche (300ms)
+    this.debouncedSearch = debounce(this.performSearch, 300);
+  },
+
+  methods: {
+    handleSearchInput() {
+      // Cacher les résultats si l'input est vide
+      if (this.searchQuery.trim().length === 0) {
+        this.showResults = false;
+        this.error = null;
+        this.loading = false;
+        return;
+      }
+
+      // Ne pas rechercher si moins de 3 caractères
+      if (this.searchQuery.trim().length < 3) {
+        this.showResults = false;
+        this.error = null;
+        this.loading = false;
+        return;
+      }
+
+      // Déclencher la recherche avec debounce
+      this.debouncedSearch();
+    },
+
+    async performSearch() {
+      const query = this.searchQuery.trim();
+
+      if (query.length < 3) {
+        return;
+      }
+
+      this.loading = true;
+      this.error = null;
+      this.lastSearchQuery = query;
+
+      try {
+        const response = await searchService.search(query, this.limit);
+
+        this.results = response.results;
+        this.showResults = true;
+      } catch (error) {
+        console.error('Erreur lors de la recherche:', error);
+        this.error = error.message || 'Une erreur est survenue';
+        this.showResults = false;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    formatDate(dateString) {
+      if (!dateString) return '';
+
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch (error) {
+        return dateString;
+      }
+    }
+  }
+};
+</script>
+
+<style scoped>
+.search-engine {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.search-input-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  color: #666;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 1rem 1rem 1rem 3rem;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: white;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+}
+
+.search-results {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.results-header {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.results-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.result-category {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.result-category:last-child {
+  border-bottom: none;
+}
+
+.result-category.empty {
+  padding: 1rem 1.5rem;
+  opacity: 0.6;
+}
+
+.category-title {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.result-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.result-item:hover {
+  background: #e9ecef;
+}
+
+.result-item:last-child {
+  margin-bottom: 0;
+}
+
+.result-name {
+  font-weight: 500;
+  color: #333;
+  flex-grow: 1;
+}
+
+.result-score {
+  font-size: 0.9rem;
+  color: #667eea;
+  font-weight: 600;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.episode-item .episode-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 0.25rem;
+}
+
+.episode-date {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.empty-message {
+  margin: 0;
+  color: #666;
+  font-style: italic;
+}
+
+.no-results {
+  padding: 3rem;
+  text-align: center;
+  color: #666;
+}
+
+.no-results-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-results h3 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.no-results p {
+  margin-bottom: 0.5rem;
+}
+
+.suggestion {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .search-engine {
+    margin: 0 -1rem;
+  }
+
+  .search-input {
+    font-size: 16px; /* Évite le zoom sur iOS */
+  }
+
+  .result-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .result-score {
+    align-self: flex-end;
+  }
+
+  .episode-item {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .episode-item .result-score {
+    align-self: center;
+  }
+}
+</style>

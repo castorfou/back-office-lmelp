@@ -128,5 +128,30 @@ export const episodeService = {
   },
 };
 
+/**
+ * Service pour la recherche textuelle multi-entités
+ */
+export const searchService = {
+  /**
+   * Effectue une recherche textuelle dans toutes les entités
+   * @param {string} query - Terme de recherche (minimum 3 caractères)
+   * @param {number} limit - Nombre maximum de résultats par catégorie (optionnel)
+   * @returns {Promise<Object>} Résultats de recherche structurés par catégorie
+   */
+  async search(query, limit = 10) {
+    if (!query || query.trim().length < 3) {
+      throw new Error('La recherche nécessite au moins 3 caractères');
+    }
+
+    const params = { q: query.trim() };
+    if (limit && limit !== 10) {
+      params.limit = limit;
+    }
+
+    const response = await api.get('/search', { params });
+    return response.data;
+  },
+};
+
 
 export default api;
