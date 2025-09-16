@@ -8,6 +8,11 @@
       </p>
     </header>
 
+    <!-- Zone de recherche globale -->
+    <section class="search-section">
+      <TextSearchEngine :limit="10" />
+    </section>
+
     <main class="dashboard-content">
       <!-- Section Statistiques -->
       <section class="statistics-section">
@@ -73,12 +78,12 @@
             <div class="function-arrow">→</div>
           </div>
 
-          <!-- Moteur de recherche textuel -->
-          <div class="function-card search-card">
+          <!-- Placeholder pour futures fonctions -->
+          <div class="function-card coming-soon">
             <div class="function-icon">🔎</div>
-            <h3>Recherche textuelle</h3>
-            <p>Rechercher du contenu dans toutes les entités de la base</p>
-            <TextSearchEngine :limit="10" />
+            <h3>Recherche avancée</h3>
+            <p>Recherche avec filtres et critères spécifiques</p>
+            <div class="coming-soon-label">Bientôt disponible</div>
           </div>
 
           <div class="function-card coming-soon">
@@ -342,21 +347,14 @@ export default {
   display: inline-block;
 }
 
-.search-card {
-  /* Faire en sorte que la carte de recherche prenne plus d'espace */
-  grid-column: span 2;
+.search-section {
+  margin-bottom: 2rem;
+  padding: 0 2rem;
 }
 
-.search-card .function-icon,
-.search-card h3,
-.search-card p {
-  margin-bottom: 1rem;
-}
-
-/* Si la grille n'a qu'une colonne, reset le span */
 @media (max-width: 768px) {
-  .search-card {
-    grid-column: span 1;
+  .search-section {
+    padding: 0 1rem;
   }
 }
 

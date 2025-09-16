@@ -37,7 +37,6 @@
           <ul class="result-list">
             <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item">
               <span class="result-name">{{ auteur.nom }}</span>
-              <span class="result-score">{{ Math.round(auteur.score * 100) }}%</span>
             </li>
           </ul>
         </div>
@@ -48,7 +47,6 @@
           <ul class="result-list">
             <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
               <span class="result-name">{{ livre.titre }}</span>
-              <span class="result-score">{{ Math.round(livre.score * 100) }}%</span>
             </li>
           </ul>
         </div>
@@ -59,7 +57,6 @@
           <ul class="result-list">
             <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item">
               <span class="result-name">{{ editeur.nom }}</span>
-              <span class="result-score">{{ Math.round(editeur.score * 100) }}%</span>
             </li>
           </ul>
         </div>
@@ -70,10 +67,14 @@
           <ul class="result-list">
             <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
               <div class="episode-content">
-                <span class="result-name">{{ episode.titre }}</span>
-                <span class="episode-date">{{ formatDate(episode.date) }}</span>
+                <div class="episode-main-info">
+                  <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
+                  <span class="episode-title">{{ episode.titre }}</span>
+                </div>
+                <div v-if="episode.description" class="episode-description">
+                  {{ truncateText(episode.description, 100) }}
+                </div>
               </div>
-              <span class="result-score">{{ Math.round(episode.score * 100) }}%</span>
             </li>
           </ul>
         </div>
@@ -225,6 +226,11 @@ export default {
       } catch (error) {
         return dateString;
       }
+    },
+
+    truncateText(text, maxLength) {
+      if (!text || text.length <= maxLength) return text;
+      return text.substring(0, maxLength) + '...';
     }
   }
 };
@@ -386,12 +392,37 @@ export default {
   display: flex;
   flex-direction: column;
   flex-grow: 1;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
-.episode-date {
-  font-size: 0.8rem;
+.episode-main-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.episode-date-primary {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.episode-title {
+  font-weight: 600;
+  color: #333;
+  flex-grow: 1;
+}
+
+.episode-description {
+  font-size: 0.85rem;
   color: #666;
+  line-height: 1.4;
+  margin-top: 0.25rem;
 }
 
 .empty-message {
