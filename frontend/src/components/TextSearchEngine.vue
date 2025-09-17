@@ -238,7 +238,7 @@ export default {
       const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(${escapedQuery})`, 'gi');
 
-      const result = text.replace(regex, '<strong style="background: #fff3cd; color: #856404; padding: 0.1rem 0.2rem; border-radius: 3px; font-weight: 700;">$1</strong>');
+      const result = text.replace(regex, '<strong style="background: #fff3cd; color: #856404; border-radius: 3px; font-weight: 700;">$1</strong>');
       console.log('Highlighting result:', result);
 
       return result;
@@ -530,7 +530,6 @@ export default {
 .episode-description strong {
   background: #fff3cd;
   color: #856404;
-  padding: 0.1rem 0.2rem;
   border-radius: 3px;
   font-weight: 700;
 }
