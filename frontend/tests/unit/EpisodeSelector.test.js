@@ -61,14 +61,14 @@ describe('EpisodeSelector', () => {
     {
       id: '1',
       titre: 'Episode Test 1',
-      titre_corrige: null, // Pas de titre corrigé
+      titre_origin: null, // Pas de titre corrigé
       date: '2024-01-15T09:00:00Z',
       type: 'livres'
     },
     {
       id: '2',
-      titre: 'Episode Test 2',
-      titre_corrige: 'Episode Test 2 Corrigé', // Avec titre corrigé
+      titre: 'Episode Test 2 Corrigé', // Version corrigée dans titre
+      titre_origin: 'Episode Test 2', // Version originale dans titre_origin
       date: '2024-01-10T09:00:00Z',
       type: 'cinema'
     }
@@ -164,7 +164,7 @@ describe('EpisodeSelector', () => {
       methods: {
         formatEpisodeOption(episode) {
           const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
-          const titre = episode.titre_corrige || episode.titre;
+          const titre = episode.titre; // Nouvelle logique: titre contient déjà la version corrigée
           return `${date} - ${titre}`;
         },
         formatDateLitteraire(dateStr) {
@@ -245,7 +245,7 @@ describe('EpisodeSelector', () => {
         },
         formatEpisodeOption(episode) {
           const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
-          const titre = episode.titre_corrige || episode.titre;
+          const titre = episode.titre; // Nouvelle logique: titre contient déjà la version corrigée
           return `${date} - ${titre}`;
         },
         formatDateLitteraire(dateStr) {
@@ -347,7 +347,7 @@ describe('EpisodeSelector', () => {
     expect(formatted).toBe('15 janvier 2024 - Episode Test 1');
   });
 
-  it('utilise le titre corrigé quand disponible', () => {
+  it('affiche le titre corrigé avec la nouvelle logique', () => {
     const EpisodeSelectorStub = {
       template: `<div></div>`,
       data() {
@@ -361,7 +361,7 @@ describe('EpisodeSelector', () => {
       methods: {
         formatEpisodeOption(episode) {
           const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
-          const titre = episode.titre_corrige || episode.titre;
+          const titre = episode.titre; // Nouvelle logique: titre contient déjà la version corrigée
           return `${date} - ${titre}`;
         },
         formatDateLitteraire(dateStr) {
@@ -378,8 +378,8 @@ describe('EpisodeSelector', () => {
 
     const episodeAvecTitreCorrige = {
       id: '1',
-      titre: 'Titre original',
-      titre_corrige: 'Titre corrigé par l\'utilisateur',
+      titre: 'Titre corrigé par l\'utilisateur', // Version corrigée dans titre
+      titre_origin: 'Titre original', // Version originale dans titre_origin
       date: '2024-08-24T09:00:00Z',
       type: 'livres'
     };
@@ -389,7 +389,6 @@ describe('EpisodeSelector', () => {
 
     expect(formatted).toContain('24 août 2024');
     expect(formatted).toContain('Titre corrigé par l\'utilisateur');
-    expect(formatted).not.toContain('Titre original');
     expect(formatted).toBe('24 août 2024 - Titre corrigé par l\'utilisateur');
   });
 

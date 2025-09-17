@@ -25,7 +25,7 @@
         <!-- Titre original (conditionnel) -->
         <div v-if="showOriginalTitle" data-testid="original-title" class="original-content">
           <label class="form-label-small">Titre original:</label>
-          <div class="original-text">{{ episode.titre }}</div>
+          <div class="original-text">{{ episode.titre_origin }}</div>
         </div>
 
         <input
@@ -75,7 +75,7 @@
       <div v-if="showOriginalDescription" data-testid="original-description" class="original-content">
         <label class="form-label-small">Description originale:</label>
         <textarea
-          :value="episode.description"
+          :value="episode.description_origin"
           class="form-control original-textarea"
           readonly
           rows="4"
@@ -164,18 +164,16 @@ export default {
   },
 
   computed: {
-    // Détermine si le titre a été modifié par rapport à l'original
+    // Détermine si le titre a été modifié par rapport à l'original (nouvelle logique)
     hasTitleModification() {
-      return this.episode && this.episode.titre_corrige &&
-             this.episode.titre_corrige.trim() !== '' &&
-             this.episode.titre_corrige !== this.episode.titre;
+      return this.episode && this.episode.titre_origin &&
+             this.episode.titre_origin.trim() !== '';
     },
 
-    // Détermine si la description a été modifiée par rapport à l'original
+    // Détermine si la description a été modifiée par rapport à l'original (nouvelle logique)
     hasDescriptionModification() {
-      return this.episode && this.episode.description_corrigee &&
-             this.episode.description_corrigee.trim() !== '' &&
-             this.episode.description_corrigee !== this.episode.description;
+      return this.episode && this.episode.description_origin &&
+             this.episode.description_origin.trim() !== '';
     }
   },
 
@@ -183,8 +181,8 @@ export default {
     episode: {
       handler(newEpisode) {
         if (newEpisode) {
-          this.correctedDescription = newEpisode.description_corrigee || newEpisode.description || '';
-          this.correctedTitle = newEpisode.titre_corrige || newEpisode.titre || '';
+          this.correctedDescription = newEpisode.description || '';
+          this.correctedTitle = newEpisode.titre || '';
           this.originalCorrectedDescription = this.correctedDescription;
           this.originalCorrectedTitle = this.correctedTitle;
           this.hasChanges = false;

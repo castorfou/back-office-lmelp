@@ -19,19 +19,19 @@
         <h2>Informations générales</h2>
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-value">{{ statistics.totalEpisodes || '...' }}</div>
+            <div class="stat-value">{{ statistics.totalEpisodes !== null ? statistics.totalEpisodes : '...' }}</div>
             <div class="stat-label">Épisodes au total</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ statistics.episodesWithCorrectedTitles || '...' }}</div>
+            <div class="stat-value">{{ statistics.episodesWithCorrectedTitles !== null ? statistics.episodesWithCorrectedTitles : '...' }}</div>
             <div class="stat-label">Titres corrigés</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ statistics.episodesWithCorrectedDescriptions || '...' }}</div>
+            <div class="stat-value">{{ statistics.episodesWithCorrectedDescriptions !== null ? statistics.episodesWithCorrectedDescriptions : '...' }}</div>
             <div class="stat-label">Descriptions corrigées</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ statistics.criticalReviews || '...' }}</div>
+            <div class="stat-value">{{ statistics.criticalReviews !== null ? statistics.criticalReviews : '...' }}</div>
             <div class="stat-label">Avis critiques extraits</div>
           </div>
           <div class="stat-card">

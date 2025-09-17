@@ -100,7 +100,7 @@ export default {
      */
     formatEpisodeOption(episode) {
       const date = episode.date ? this.formatDateLitteraire(episode.date) : 'Date inconnue';
-      const titre = episode.titre_corrige || episode.titre;
+      const titre = episode.titre; // Nouvelle logique: titre contient déjà la version corrigée
 
       return `${date} - ${titre}`;
     },

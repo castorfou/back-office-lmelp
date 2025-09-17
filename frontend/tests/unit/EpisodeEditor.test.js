@@ -47,12 +47,12 @@ describe('EpisodeEditor', () => {
 
   const mockEpisode = {
     id: '123',
-    titre: 'Episode Test',
+    titre: 'Titre déjà corrigé', // Version corrigée dans titre
+    titre_origin: 'Episode Test', // Version originale dans titre_origin
     date: '2024-01-15T09:00:00Z',
     type: 'livres',
-    description: 'Description originale',
-    description_corrigee: 'Description déjà corrigée',
-    titre_corrige: 'Titre déjà corrigé'
+    description: 'Description déjà corrigée', // Version corrigée dans description
+    description_origin: 'Description originale' // Version originale dans description_origin
   };
 
   beforeEach(() => {
