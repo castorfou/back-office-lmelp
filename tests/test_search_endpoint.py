@@ -42,7 +42,7 @@ class TestSearchEndpoint:
     ):
         """Test que la recherche retourne une réponse structurée."""
         # Mock des retours
-        mock_search_episodes.return_value = []
+        mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_reviews.return_value = {"auteurs": [], "livres": [], "editeurs": []}
 
         response = self.client.get("/api/search?q=test")
@@ -65,16 +65,17 @@ class TestSearchEndpoint:
     ):
         """Test que l'endpoint accepte le paramètre limit."""
         # Mock des retours avec des données limitées
-        mock_search_episodes.return_value = []
+        mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_reviews.return_value = {"auteurs": [], "livres": [], "editeurs": []}
 
         response = self.client.get("/api/search?q=test&limit=5")
         assert response.status_code == 200
 
         data = response.json()
-        # Vérifier que chaque catégorie respecte la limite
-        for category in data["results"].values():
-            assert len(category) <= 5
+        # Vérifier que chaque catégorie respecte la limite (exclure episodes_total_count)
+        for category_name, category in data["results"].items():
+            if category_name != "episodes_total_count":
+                assert len(category) <= 5
 
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch(
@@ -85,15 +86,18 @@ class TestSearchEndpoint:
     ):
         """Test que chaque résultat inclut score et match_type."""
         # Mock des retours avec des données contenant score et match_type
-        mock_search_episodes.return_value = [
-            {
-                "titre": "Test Episode",
-                "score": 0.8,
-                "match_type": "partial",
-                "_id": "123",
-                "date": "2024-01-01",
-            }
-        ]
+        mock_search_episodes.return_value = {
+            "episodes": [
+                {
+                    "titre": "Test Episode",
+                    "score": 0.8,
+                    "match_type": "partial",
+                    "_id": "123",
+                    "date": "2024-01-01",
+                }
+            ],
+            "total_count": 1,
+        }
         mock_search_reviews.return_value = {
             "auteurs": [{"nom": "Test Author", "score": 0.9, "match_type": "exact"}],
             "livres": [],
@@ -104,12 +108,13 @@ class TestSearchEndpoint:
         assert response.status_code == 200
 
         data = response.json()
-        for category_results in data["results"].values():
-            for result in category_results:
-                assert "score" in result
-                assert "match_type" in result
-                assert isinstance(result["score"], int | float)
-                assert result["match_type"] in ["exact", "partial", "fuzzy"]
+        for category_name, category_results in data["results"].items():
+            if category_name != "episodes_total_count":
+                for result in category_results:
+                    assert "score" in result
+                    assert "match_type" in result
+                    assert isinstance(result["score"], int | float)
+                    assert result["match_type"] in ["exact", "partial", "fuzzy"]
 
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch(
@@ -119,7 +124,7 @@ class TestSearchEndpoint:
         self, mock_search_reviews, mock_search_episodes
     ):
         """Test que la recherche gère les caractères spéciaux."""
-        mock_search_episodes.return_value = []
+        mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_reviews.return_value = {"auteurs": [], "livres": [], "editeurs": []}
 
         response = self.client.get("/api/search?q=camus&")
@@ -131,7 +136,7 @@ class TestSearchEndpoint:
     )
     def test_search_case_insensitive(self, mock_search_reviews, mock_search_episodes):
         """Test que la recherche est insensible à la casse."""
-        mock_search_episodes.return_value = []
+        mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_reviews.return_value = {"auteurs": [], "livres": [], "editeurs": []}
 
         response = self.client.get("/api/search?q=CAMUS")
@@ -139,3 +144,43 @@ class TestSearchEndpoint:
 
         data = response.json()
         assert data["query"] == "CAMUS"
+
+    @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_critical_reviews_for_authors_books"
+    )
+    def test_search_includes_episodes_total_count(
+        self, mock_search_reviews, mock_search_episodes
+    ):
+        """Test que la réponse inclut episodes_total_count."""
+        mock_search_episodes.return_value = {
+            "episodes": [
+                {
+                    "titre": "Episode 1",
+                    "_id": "1",
+                    "date": "2024-01-01",
+                    "score": 1.0,
+                    "match_type": "exact",
+                },
+                {
+                    "titre": "Episode 2",
+                    "_id": "2",
+                    "date": "2024-01-02",
+                    "score": 0.8,
+                    "match_type": "partial",
+                },
+            ],
+            "total_count": 25,  # Plus d'épisodes trouvés que ceux affichés
+        }
+        mock_search_reviews.return_value = {"auteurs": [], "livres": [], "editeurs": []}
+
+        response = self.client.get("/api/search?q=test")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "episodes_total_count" in data["results"]
+        assert data["results"]["episodes_total_count"] == 25
+        assert len(data["results"]["episodes"]) == 2  # Seulement 2 affichés
+        # Vérifier la structure de chaque épisode
+        for episode in data["results"]["episodes"]:
+            assert "search_context" in episode

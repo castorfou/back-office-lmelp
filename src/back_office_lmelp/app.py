@@ -376,7 +376,9 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
 
     try:
         # Recherche dans les épisodes
-        episodes_results = mongodb_service.search_episodes(q, limit)
+        episodes_search_result = mongodb_service.search_episodes(q, limit)
+        episodes_list = episodes_search_result.get("episodes", [])
+        episodes_total_count = episodes_search_result.get("total_count", 0)
 
         # Recherche dans les avis critiques (auteurs, livres, éditeurs)
         critical_reviews_results = (
@@ -399,10 +401,12 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
                         "date": episode.get("date", ""),
                         "score": episode.get("score", 0),
                         "match_type": episode.get("match_type", "none"),
+                        "search_context": episode.get("search_context", ""),
                         "_id": episode.get("_id", ""),
                     }
-                    for episode in episodes_results
+                    for episode in episodes_list
                 ],
+                "episodes_total_count": episodes_total_count,
             },
         }
 

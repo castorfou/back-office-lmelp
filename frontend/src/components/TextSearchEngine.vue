@@ -45,7 +45,7 @@
         <div v-if="results.auteurs.length > 0" class="result-category">
           <h4 class="category-title">👤 AUTEURS ({{ results.auteurs.length }})</h4>
           <ul class="result-list">
-            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item" :title="auteur.nom">
+            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item">
               <span class="result-name" v-html="highlightSearchTerm(auteur.nom)"></span>
             </li>
           </ul>
@@ -55,7 +55,7 @@
         <div v-if="results.livres.length > 0" class="result-category">
           <h4 class="category-title">📚 LIVRES ({{ results.livres.length }})</h4>
           <ul class="result-list">
-            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item" :title="livre.titre">
+            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
               <span class="result-name" v-html="highlightSearchTerm(livre.titre)"></span>
             </li>
           </ul>
@@ -65,7 +65,7 @@
         <div v-if="results.editeurs.length > 0" class="result-category">
           <h4 class="category-title">🏢 ÉDITEURS ({{ results.editeurs.length }})</h4>
           <ul class="result-list">
-            <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item" :title="editeur.nom">
+            <li v-for="editeur in results.editeurs" :key="`editeur-${editeur.nom}`" class="result-item">
               <span class="result-name" v-html="highlightSearchTerm(editeur.nom)"></span>
             </li>
           </ul>
@@ -73,37 +73,20 @@
 
         <!-- Épisodes -->
         <div v-if="results.episodes.length > 0" class="result-category">
-          <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }})</h4>
+          <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }}/{{ results.episodes_total_count || results.episodes.length }})</h4>
           <ul class="result-list">
-            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item" :title="createEpisodeTooltip(episode)">
+            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
               <div class="episode-content">
                 <div class="episode-main-info">
                   <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                  <span class="episode-title" v-html="highlightSearchTerm(episode.titre)"></span>
-                </div>
-                <div v-if="episode.description" class="episode-description" v-html="highlightSearchTerm(truncateText(episode.description, 100))">
+                  <div class="episode-context" v-html="formatSearchContext(episode)"></div>
                 </div>
               </div>
             </li>
           </ul>
         </div>
 
-        <!-- Catégories vides -->
-        <div v-if="results.auteurs.length === 0" class="result-category empty">
-          <h4 class="category-title">👤 AUTEURS (0)</h4>
-          <p class="empty-message">(aucun auteur contenant "{{ lastSearchQuery }}")</p>
-        </div>
-
-        <div v-if="results.livres.length === 0" class="result-category empty">
-          <h4 class="category-title">📚 LIVRES (0)</h4>
-          <p class="empty-message">(aucun livre contenant "{{ lastSearchQuery }}")</p>
-        </div>
-
-        <div v-if="results.editeurs.length === 0" class="result-category empty">
-          <h4 class="category-title">🏢 ÉDITEURS (0)</h4>
-          <p class="empty-message">(aucun éditeur contenant "{{ lastSearchQuery }}")</p>
-        </div>
-
+        <!-- Catégories vides - ne s'affichent plus pour économiser l'espace -->
         <div v-if="results.episodes.length === 0" class="result-category empty">
           <h4 class="category-title">🎙️ ÉPISODES (0)</h4>
           <p class="empty-message">(aucun épisode contenant "{{ lastSearchQuery }}")</p>
@@ -153,7 +136,8 @@ export default {
         auteurs: [],
         livres: [],
         editeurs: [],
-        episodes: []
+        episodes: [],
+        episodes_total_count: 0
       },
       showResults: false
     };
@@ -243,44 +227,23 @@ export default {
     },
 
     highlightSearchTerm(text) {
-      if (!text || !this.lastSearchQuery) return text;
+      if (!text || !this.lastSearchQuery) return text || '';
 
       const query = this.lastSearchQuery.trim();
       if (query.length < 3) return text;
 
-      // D'abord essayer la correspondance exacte
-      const exactRegex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      let highlightedText = text.replace(exactRegex, '<strong>$1</strong>');
+      console.log('Highlighting term:', query, 'in text:', text);
 
-      // Si pas de correspondance exacte, essayer une recherche floue simple
-      if (highlightedText === text) {
-        // Recherche floue : chercher des mots qui commencent par les mêmes lettres
-        const queryLower = query.toLowerCase();
-        const words = text.split(/(\s+)/); // Garder les espaces
+      // Échapper les caractères spéciaux de regex et créer une regex insensible à la casse
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escapedQuery})`, 'gi');
 
-        for (let i = 0; i < words.length; i++) {
-          const word = words[i];
-          if (word.trim().length < 3) continue;
+      const result = text.replace(regex, '<strong style="background: #fff3cd; color: #856404; padding: 0.1rem 0.2rem; border-radius: 3px; font-weight: 700;">$1</strong>');
+      console.log('Highlighting result:', result);
 
-          const wordLower = word.toLowerCase();
-
-          // Vérifier plusieurs types de correspondances floues
-          const queryStart = queryLower.substring(0, Math.min(4, queryLower.length));
-
-          if (
-            wordLower.includes(queryStart) ||  // contient le début
-            wordLower.startsWith(queryLower.substring(0, 3)) ||  // commence par 3 lettres
-            this.fuzzyMatch(queryLower, wordLower)  // correspondance floue avancée
-          ) {
-            words[i] = `<strong>${word}</strong>`;
-          }
-        }
-
-        highlightedText = words.join('');
-      }
-
-      return highlightedText;
+      return result;
     },
+
 
     fuzzyMatch(query, word) {
       // Correspondance floue simple : vérifier si suffisamment de caractères correspondent
@@ -303,20 +266,71 @@ export default {
       return matches >= Math.ceil(query.length * 0.6);
     },
 
-    createEpisodeTooltip(episode) {
-      let tooltip = `Titre complet: ${episode.titre}`;
-
-      if (episode.description) {
-        tooltip += `\n\nDescription complète: ${episode.description}`;
-      }
-
+    formatSearchContext(episode) {
+      // Si on a un contexte de recherche du backend, l'utiliser
       if (episode.search_context && episode.search_context.trim()) {
-        tooltip += `\n\nContexte de recherche: ${episode.search_context}`;
-      } else {
-        tooltip += `\n\nContexte de recherche: Non disponible`;
+        return this.highlightSearchTerm(episode.search_context);
       }
 
-      return tooltip;
+      const query = this.lastSearchQuery.trim().toLowerCase();
+
+      // Chercher dans le titre d'abord
+      if (episode.titre && episode.titre.toLowerCase().includes(query)) {
+        return this.highlightSearchTerm(episode.titre);
+      }
+
+      // Chercher dans la description
+      if (episode.description && episode.description.toLowerCase().includes(query)) {
+        return this.createContextFromText(episode.description, query);
+      }
+
+      // Si le backend a retourné cet épisode avec un score > 0, c'est qu'il correspond
+      if (episode.score && episode.score > 0) {
+        return `Trouvé dans la transcription (recherche: "${this.lastSearchQuery}")`;
+      }
+
+      // Fallback final
+      if (episode.titre) {
+        return episode.titre;
+      }
+
+      return `Aucun contexte disponible`;
+    },
+
+    createContextFromText(text, query) {
+      const textLower = text.toLowerCase();
+      const queryIndex = textLower.indexOf(query);
+
+      if (queryIndex === -1) return this.highlightSearchTerm(text);
+
+      // Extraire environ 10 mots avant et après
+      const words = text.split(' ');
+      const allText = words.join(' ');
+
+      // Trouver l'index du mot contenant la requête
+      let wordIndex = 0;
+      let charCount = 0;
+
+      for (let i = 0; i < words.length; i++) {
+        if (charCount + words[i].length >= queryIndex) {
+          wordIndex = i;
+          break;
+        }
+        charCount += words[i].length + 1; // +1 pour l'espace
+      }
+
+      // Prendre 10 mots avant et après
+      const start = Math.max(0, wordIndex - 10);
+      const end = Math.min(words.length, wordIndex + 11);
+
+      let contextWords = words.slice(start, end);
+      let context = contextWords.join(' ');
+
+      // Ajouter des ellipses si nécessaire
+      if (start > 0) context = '...' + context;
+      if (end < words.length) context = context + '...';
+
+      return this.highlightSearchTerm(context);
     },
 
     clearSearch() {
@@ -329,7 +343,8 @@ export default {
         auteurs: [],
         livres: [],
         editeurs: [],
-        episodes: []
+        episodes: [],
+        episodes_total_count: 0
       };
     }
   }
@@ -559,11 +574,12 @@ export default {
   flex-grow: 1;
 }
 
-.episode-description {
-  font-size: 0.85rem;
-  color: #666;
+.episode-context {
+  font-size: 0.9rem;
+  color: #333;
   line-height: 1.4;
-  margin-top: 0.25rem;
+  flex-grow: 1;
+  margin-left: 1rem;
 }
 
 .empty-message {

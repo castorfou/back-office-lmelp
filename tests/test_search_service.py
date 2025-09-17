@@ -24,13 +24,21 @@ class TestSearchService:
         """Test que la méthode search_episodes existe."""
         assert hasattr(mongodb_service, "search_episodes")
 
-    def test_search_episodes_returns_list(self):
-        """Test que search_episodes retourne une liste."""
+    def test_search_episodes_returns_dict_with_episodes_and_count(self):
+        """Test que search_episodes retourne un dict avec episodes et total_count."""
         # Mock du retour de la collection
-        self.mock_episodes_collection.find.return_value = []
+        mock_cursor = Mock()
+        mock_cursor.sort.return_value.limit.return_value = []
+        self.mock_episodes_collection.find.return_value = mock_cursor
+        self.mock_episodes_collection.count_documents.return_value = 0
 
         result = mongodb_service.search_episodes("test", limit=10)
-        assert isinstance(result, list)
+
+        assert isinstance(result, dict)
+        assert "episodes" in result
+        assert "total_count" in result
+        assert isinstance(result["episodes"], list)
+        assert isinstance(result["total_count"], int)
 
     def test_search_episodes_with_fuzzy_matching(self):
         """Test que search_episodes supporte la recherche floue."""
@@ -43,12 +51,16 @@ class TestSearchService:
                 "description": "Un grand auteur",
             }
         ]
-        self.mock_episodes_collection.find.return_value = mock_episodes
+        mock_cursor = Mock()
+        mock_cursor.sort.return_value.limit.return_value = mock_episodes
+        self.mock_episodes_collection.find.return_value = mock_cursor
+        self.mock_episodes_collection.count_documents.return_value = 1
 
         # Test recherche avec faute d'orthographe
         result = mongodb_service.search_episodes("Camuz", limit=10)
-        # Doit trouver des résultats même avec la faute
-        assert len(result) >= 0
+        # Doit retourner un dict avec episodes et total_count
+        assert isinstance(result, dict)
+        assert len(result["episodes"]) >= 0
 
     def test_search_critical_reviews_for_authors_books(self):
         """Test que search_critical_reviews_for_authors_books existe et fonctionne."""
@@ -101,13 +113,92 @@ class TestSearchService:
     def test_search_handles_empty_query(self):
         """Test que la recherche gère les requêtes vides."""
         result = mongodb_service.search_episodes("", limit=10)
-        assert result == []
+        assert result == {"episodes": [], "total_count": 0}
 
     def test_search_respects_limit(self):
         """Test que la recherche respecte la limite."""
         # Mock de nombreux résultats
         mock_episodes = [{"_id": f"id{i}", "titre": f"Episode {i}"} for i in range(20)]
-        self.mock_episodes_collection.find.return_value = mock_episodes
+        mock_cursor = Mock()
+        mock_cursor.sort.return_value.limit.return_value = mock_episodes[
+            :5
+        ]  # MongoDB limite déjà
+        self.mock_episodes_collection.find.return_value = mock_cursor
+        self.mock_episodes_collection.count_documents.return_value = 20
 
         result = mongodb_service.search_episodes("episode", limit=5)
-        assert len(result) <= 5
+        assert isinstance(result, dict)
+        assert (
+            len(result["episodes"]) <= 5
+        )  # Test que les épisodes respectent la limite
+        assert result["total_count"] == 20  # Mais le count total reste 20
+
+    def test_extract_search_context_from_title(self):
+        """Test que _extract_search_context trouve le contexte dans le titre."""
+        episode = {
+            "titre": "Episode avec le mot maison dans le titre",
+            "description": "Une description",
+            "transcription": "Une transcription",
+        }
+
+        context = mongodb_service._extract_search_context("maison", episode)
+
+        assert "maison" in context.lower()
+        assert "Episode avec le mot maison dans le titre" in context
+
+    def test_extract_search_context_from_description(self):
+        """Test que _extract_search_context trouve le contexte dans la description."""
+        episode = {
+            "titre": "Episode sans le mot",
+            "description": "Une description avec le mot maison au milieu du texte pour tester",
+            "transcription": "Une transcription",
+        }
+
+        context = mongodb_service._extract_search_context("maison", episode)
+
+        assert "maison" in context.lower()
+        assert "description avec le mot maison au milieu" in context
+
+    def test_extract_search_context_from_transcription(self):
+        """Test que _extract_search_context trouve le contexte dans la transcription."""
+        episode = {
+            "titre": "Episode sans le mot",
+            "description": "Description sans le mot",
+            "transcription": "Une longue transcription avec beaucoup de mots et le mot maison apparaît ici pour tester l'extraction",
+        }
+
+        context = mongodb_service._extract_search_context("maison", episode)
+
+        assert "maison" in context.lower()
+        assert "mots et le mot maison apparaît ici" in context
+
+    def test_extract_search_context_with_ellipses(self):
+        """Test que _extract_search_context ajoute des ellipses quand nécessaire."""
+        # Créer un texte long avec le mot recherché au milieu
+        words = ["mot" + str(i) for i in range(50)]
+        words[25] = "maison"  # Mot recherché au milieu
+        long_text = " ".join(words)
+
+        episode = {
+            "titre": "Episode test",
+            "description": long_text,
+            "transcription": "",
+        }
+
+        context = mongodb_service._extract_search_context("maison", episode)
+
+        assert "maison" in context
+        assert context.startswith("...")  # Ellipses au début
+        assert context.endswith("...")  # Ellipses à la fin
+
+    def test_extract_search_context_not_found(self):
+        """Test que _extract_search_context retourne vide quand rien n'est trouvé."""
+        episode = {
+            "titre": "Episode test",
+            "description": "Description test",
+            "transcription": "Transcription test",
+        }
+
+        context = mongodb_service._extract_search_context("inexistant", episode)
+
+        assert context == ""

@@ -59,7 +59,7 @@ class MongoDBService:
             episodes = list(
                 self.episodes_collection.find(
                     {}, {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1}
-                ).sort("date", -1)
+                ).sort([("date", -1)])
             )
 
             # Conversion ObjectId en string pour JSON
@@ -238,61 +238,62 @@ class MongoDBService:
             print(f"Erreur lors de la récupération des statistiques: {e}")
             raise
 
-    def search_episodes(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    def search_episodes(self, query: str, limit: int = 10) -> dict[str, Any]:
         """Recherche textuelle dans les épisodes."""
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
         if not query or len(query.strip()) == 0:
-            return []
+            return {"episodes": [], "total_count": 0}
 
         try:
-            # Créer un pattern regex pour la recherche floue
-            fuzzy_pattern = self._create_fuzzy_regex_pattern(query)
+            # Recherche simple avec regex pour insensibilité à la casse uniquement
+            query_escaped = query.strip()
 
             # Recherche dans les champs titre, description et transcription
             search_query = {
                 "$or": [
-                    {"titre": {"$regex": fuzzy_pattern, "$options": "i"}},
-                    {"titre_corrige": {"$regex": fuzzy_pattern, "$options": "i"}},
-                    {"description": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"titre": {"$regex": query_escaped, "$options": "i"}},
+                    {"titre_corrige": {"$regex": query_escaped, "$options": "i"}},
+                    {"description": {"$regex": query_escaped, "$options": "i"}},
                     {
                         "description_corrigee": {
-                            "$regex": fuzzy_pattern,
+                            "$regex": query_escaped,
                             "$options": "i",
                         }
                     },
-                    {"transcription": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"transcription": {"$regex": query_escaped, "$options": "i"}},
                 ]
             }
 
+            # Compter le nombre total de résultats
+            total_count = self.episodes_collection.count_documents(search_query)
+
+            # Récupérer seulement les premiers (limité pour affichage widget)
             episodes = list(
                 self.episodes_collection.find(search_query)
-                .sort("date", -1)
-                .limit(limit)
+                .sort([("date", -1)])
+                .limit(min(limit, 3))  # Maximum 3 pour le widget
             )
 
-            # Conversion ObjectId et calcul des scores
+            # Conversion ObjectId simple - score minimal pour compatibility frontend
             results = []
             for episode in episodes:
                 episode["_id"] = str(episode["_id"])
 
-                # Calculer le score et le type de match
-                score, match_type = self._calculate_episode_search_score(query, episode)
-                episode["score"] = score
-                episode["match_type"] = match_type
+                # Assigner un score minimal (MongoDB a trouvé l'épisode donc il est pertinent)
+                episode["score"] = 1.0
+                episode["match_type"] = "found"
 
                 # Extraire le contexte de recherche
                 episode["search_context"] = self._extract_search_context(query, episode)
 
                 results.append(episode)
 
-            # Garder le tri par date décroissante (déjà appliqué dans la requête MongoDB)
-
-            return results
+            return {"episodes": results, "total_count": total_count}
         except Exception as e:
             print(f"Erreur lors de la recherche d'épisodes: {e}")
-            return []
+            return {"episodes": [], "total_count": 0}
 
     def search_critical_reviews_for_authors_books(
         self, query: str, limit: int = 10
@@ -305,14 +306,14 @@ class MongoDBService:
             return {"auteurs": [], "livres": [], "editeurs": []}
 
         try:
-            fuzzy_pattern = self._create_fuzzy_regex_pattern(query)
+            query_escaped = query.strip()
 
             # Recherche dans les avis critiques
             search_query = {
                 "$or": [
-                    {"auteur": {"$regex": fuzzy_pattern, "$options": "i"}},
-                    {"titre_livre": {"$regex": fuzzy_pattern, "$options": "i"}},
-                    {"editeur": {"$regex": fuzzy_pattern, "$options": "i"}},
+                    {"auteur": {"$regex": query_escaped, "$options": "i"}},
+                    {"titre_livre": {"$regex": query_escaped, "$options": "i"}},
+                    {"editeur": {"$regex": query_escaped, "$options": "i"}},
                 ]
             }
 
@@ -330,49 +331,20 @@ class MongoDBService:
 
                 # Auteurs
                 if review.get("auteur"):
-                    score, match_type = self.calculate_search_score(
-                        query, review["auteur"]
-                    )
-                    if score > 0:
-                        auteurs_set.add((review["auteur"], score, match_type))
+                    auteurs_set.add(review["auteur"])
 
                 # Livres
                 if review.get("titre_livre"):
-                    score, match_type = self.calculate_search_score(
-                        query, review["titre_livre"]
-                    )
-                    if score > 0:
-                        livres_set.add((review["titre_livre"], score, match_type))
+                    livres_set.add(review["titre_livre"])
 
                 # Éditeurs
                 if review.get("editeur"):
-                    score, match_type = self.calculate_search_score(
-                        query, review["editeur"]
-                    )
-                    if score > 0:
-                        editeurs_set.add((review["editeur"], score, match_type))
+                    editeurs_set.add(review["editeur"])
 
-            # Convertir en listes triées par score
-            auteurs = [
-                {"nom": nom, "score": score, "match_type": match_type}
-                for nom, score, match_type in sorted(
-                    auteurs_set, key=lambda x: x[1], reverse=True
-                )[:limit]
-            ]
-
-            livres = [
-                {"titre": titre, "score": score, "match_type": match_type}
-                for titre, score, match_type in sorted(
-                    livres_set, key=lambda x: x[1], reverse=True
-                )[:limit]
-            ]
-
-            editeurs = [
-                {"nom": nom, "score": score, "match_type": match_type}
-                for nom, score, match_type in sorted(
-                    editeurs_set, key=lambda x: x[1], reverse=True
-                )[:limit]
-            ]
+            # Convertir en listes simples (pas de score)
+            auteurs = [{"nom": nom} for nom in sorted(auteurs_set)][:limit]
+            livres = [{"titre": titre} for titre in sorted(livres_set)][:limit]
+            editeurs = [{"nom": nom} for nom in sorted(editeurs_set)][:limit]
 
             return {
                 "auteurs": auteurs,
@@ -385,7 +357,10 @@ class MongoDBService:
             return {"auteurs": [], "livres": [], "editeurs": []}
 
     def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
-        """Calcule le score de pertinence et le type de match."""
+        """Calcule le score de pertinence et le type de match - STRICT: terme doit être présent."""
+        if not text or not query:
+            return 0.0, "none"
+
         query_lower = query.lower().strip()
         text_lower = text.lower().strip()
 
@@ -393,7 +368,7 @@ class MongoDBService:
         if query_lower == text_lower:
             return 1.0, "exact"
 
-        # Match exact partiel
+        # Match exact partiel - LE TERME DOIT ÊTRE PRÉSENT
         if query_lower in text_lower:
             # Score basé sur la position et la longueur relative
             position = text_lower.find(query_lower)
@@ -405,22 +380,17 @@ class MongoDBService:
 
             return min(score, 0.9), "partial"
 
-        # Recherche floue simple (distance d'édition approximative)
-        fuzzy_score = self._calculate_fuzzy_score(query_lower, text_lower)
-        if fuzzy_score > 0.3:
-            return fuzzy_score, "fuzzy"
-
+        # PAS de recherche floue - si le terme n'est pas présent, score = 0
         return 0.0, "none"
 
     def _create_fuzzy_regex_pattern(self, query: str) -> str:
-        """Crée un pattern regex pour la recherche floue."""
+        """Crée un pattern regex simple : insensible à la casse et aux accents."""
         # Échapper les caractères spéciaux regex
         import re
 
         escaped_query = re.escape(query.strip())
 
-        # Permettre des variations de caractères pour la recherche floue
-        # Par exemple: remplacer 'e' par '[eé]', 'a' par '[aà]', etc.
+        # Permettre des variations d'accents seulement (pas de recherche floue complexe)
         variations = {
             "e": "[eéèê]",
             "a": "[aàâ]",
@@ -465,92 +435,82 @@ class MongoDBService:
         return best_score, best_match_type
 
     def _calculate_fuzzy_score(self, query: str, text: str) -> float:
-        """Calcule un score de correspondance floue simple."""
-        # Implémentation simple basée sur les caractères communs
-        query_chars = set(query.lower())
-        text_chars = set(text.lower())
-
-        if len(query_chars) == 0:
+        """Calcule un score de correspondance stricte (le terme doit être présent)."""
+        if not text or not query:
             return 0.0
 
-        common_chars = query_chars.intersection(text_chars)
-        ratio = len(common_chars) / len(query_chars)
+        query_lower = query.lower()
+        text_lower = text.lower()
 
-        # Bonus si la longueur est similaire
-        length_diff = abs(len(query) - len(text))
-        length_bonus = max(0, 1 - length_diff / max(len(query), len(text)))
+        # Le terme de recherche doit être présent dans le texte (pas juste des caractères similaires)
+        if query_lower in text_lower:
+            # Score basé sur la position et la longueur relative
+            position = text_lower.find(query_lower)
+            text_length = len(text_lower)
 
-        return ratio * 0.7 + length_bonus * 0.3
+            # Bonus si le terme est au début
+            position_bonus = max(0.1, 1.0 - (position / text_length)) * 0.3
+
+            # Bonus selon la proportion du terme dans le texte total
+            coverage = len(query_lower) / text_length
+            coverage_bonus = min(1.0, coverage * 2) * 0.7
+
+            return position_bonus + coverage_bonus
+
+        return 0.0
 
     def _extract_search_context(self, query: str, episode: dict[str, Any]) -> str:
         """Extrait le contexte de recherche avec 10 mots avant et après le terme trouvé."""
-        import re
 
-        query_lower = query.lower()
+        query_lower = query.lower().strip()
+
+        # Chercher dans titre, description, transcription par ordre de priorité
         fields_to_search = [
-            "titre",
-            "titre_corrige",
-            "description",
-            "description_corrigee",
-            "transcription",
+            episode.get("titre", ""),
+            episode.get("description", ""),
+            episode.get("transcription", ""),
         ]
 
-        for field in fields_to_search:
-            text = episode.get(field, "")
+        for text in fields_to_search:
             if not text or not isinstance(text, str):
                 continue
 
             text_lower = text.lower()
 
-            # D'abord essayer la correspondance exacte
-            match = re.search(re.escape(query_lower), text_lower)
-            word_index = -1
+            # Vérifier si le terme est présent
+            if query_lower in text_lower:
+                # Trouver la position du terme
+                pos = text_lower.find(query_lower)
 
-            if match:
-                start_pos = match.start()
-                # Trouver l'index du mot
+                # Diviser en mots
                 words = text.split()
-                text_lower_words = text_lower.split()
+
+                # Trouver l'index du mot contenant le terme
                 char_count = 0
-                for i, word in enumerate(text_lower_words):
-                    if char_count <= start_pos < char_count + len(word):
+                word_index = -1
+
+                for i, word in enumerate(words):
+                    word_end = char_count + len(word)
+                    if char_count <= pos < word_end:
                         word_index = i
                         break
-                    char_count += len(word) + 1
-            else:
-                # Recherche floue si pas de correspondance exacte
-                words = text.split()
-                text_lower_words = [w.lower() for w in words]
+                    char_count += len(word) + 1  # +1 pour l'espace
 
-                for i, word_lower in enumerate(text_lower_words):
-                    if (
-                        len(word_lower) >= 3
-                        and len(query_lower) >= 3
-                        and (
-                            word_lower.startswith(query_lower[:3])
-                            or query_lower[:3] in word_lower
-                            or self._fuzzy_match_simple(query_lower, word_lower)
-                        )
-                    ):
-                        word_index = i
-                        break
+                if word_index >= 0:
+                    # Extraire 10 mots avant et après
+                    start_word = max(0, word_index - 10)
+                    end_word = min(len(words), word_index + 11)
 
-            # Si un mot a été trouvé, extraire le contexte
-            if word_index >= 0:
-                words = text.split()
-                start_word = max(0, word_index - 10)
-                end_word = min(len(words), word_index + 11)
+                    context_words = words[start_word:end_word]
+                    context = " ".join(context_words)
 
-                context_words = words[start_word:end_word]
-                context = " ".join(context_words)
+                    # Ajouter des ellipses si nécessaire
+                    if start_word > 0:
+                        context = "..." + context
+                    if end_word < len(words):
+                        context = context + "..."
 
-                # Ajouter des ellipses si nécessaire
-                if start_word > 0:
-                    context = "..." + context
-                if end_word < len(words):
-                    context = context + "..."
-
-                return context
+                    return context
 
         return ""
 

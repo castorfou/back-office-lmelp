@@ -117,7 +117,8 @@ describe('TextSearchEngine', () => {
         editeurs: [],
         episodes: [
           { titre: 'Épisode sur Camus', score: 0.9, match_type: 'partial', date: '2024-03-15' }
-        ]
+        ],
+        episodes_total_count: 1
       }
     };
 
@@ -134,8 +135,8 @@ describe('TextSearchEngine', () => {
     // Vérifier l'affichage des catégories
     expect(wrapper.text()).toContain('👤 AUTEURS (1)');
     expect(wrapper.text()).toContain('📚 LIVRES (1)');
-    expect(wrapper.text()).toContain('🏢 ÉDITEURS (0)');
-    expect(wrapper.text()).toContain('🎙️ ÉPISODES (1)');
+    // Note: 🏢 ÉDITEURS (0) n'apparaît plus car les catégories vides sont masquées
+    expect(wrapper.text()).toContain('🎙️ ÉPISODES (1/1)'); // Nouveau format avec count total
 
     // Vérifier les résultats
     expect(wrapper.text()).toContain('Albert Camus');
