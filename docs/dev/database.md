@@ -35,10 +35,11 @@ class MongoDBService:
 ```json
 {
   "_id": ObjectId("68a3911df8b628e552fdf11f"),
-  "titre": "Les nouveaux livres de Simon Chevrier, Sylvain Tesson, Gaël Octavia, L...",
+  "titre": "Les nouveaux livres de Simon Chevrier, Sylvain Tesson, Gaël Octavia (corrigé)",
+  "titre_origin": "Les nouveaux livres de Simon Chevrier, Sylvain Tesson, Gaël Octavia, L...",
   "date": ISODate("2025-08-03T10:59:59.000Z"),
-  "description": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre - Un...",
-  "description_corrigee": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre -\n...",
+  "description": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre (description corrigée)",
+  "description_origin": "durée : 00:51:36 - Le Masque et la Plume - par : Laurent Goumarre - Un...",
   "url": "https://proxycast.radiofrance.fr/e7ade132-cccd-4bcc-ba98-f620f9c4a0d0/...",
   "audio_rel_filename": "2025/14007-03.08.2025-ITEMA_2420925-2025F400TS0215-NET_MFI_28633905-6...",
   "transcription": " France Inter Le masque et la plume Un tour du monde sur des stacks, u...",
@@ -52,10 +53,11 @@ class MongoDBService:
 | Champ | Type | Obligatoire | Description |
 |-------|------|------------|-------------|
 | `_id` | ObjectId | Oui | Identifiant unique MongoDB |
-| `titre` | String | Oui | Titre de l'épisode |
+| `titre` | String | Oui | Titre de l'épisode (version corrigée si applicable) |
+| `titre_origin` | String | Non | Titre original avant correction |
 | `date` | Date | Oui | Date de diffusion |
-| `description` | String | Oui | Description originale |
-| `description_corrigee` | String | Non | Description corrigée par l'utilisateur |
+| `description` | String | Oui | Description de l'épisode (version corrigée si applicable) |
+| `description_origin` | String | Non | Description originale avant correction |
 | `url` | String | Oui | URL de l'épisode audio |
 | `audio_rel_filename` | String | Oui | Chemin relatif du fichier audio |
 | `transcription` | String | Oui | Transcription de l'épisode |
@@ -68,9 +70,10 @@ class MongoDBService:
 interface Episode {
   _id: ObjectId;
   titre: string;
+  titre_origin?: string | null;
   date: Date;
   description: string;
-  description_corrigee?: string | null;
+  description_origin?: string | null;
   url: string;
   audio_rel_filename: string;
   transcription: string;
@@ -108,11 +111,45 @@ async def get_episode_by_id(self, episode_id: str) -> Optional[dict]:
 ### Update (Mise à jour)
 
 ```python
-async def update_episode_description(self, episode_id: str, description: str) -> bool:
-    """Met à jour la description corrigée d'un épisode."""
+# Nouvelle logique de correction des titres
+async def update_episode_title_new(self, episode_id: str, titre_corrige: str) -> bool:
+    """Met à jour le titre d'un épisode avec sauvegarde de l'original."""
+    # Récupérer l'épisode existant
+    existing_episode = await self.collection.find_one({"_id": ObjectId(episode_id)})
+    if not existing_episode:
+        return False
+
+    # Préparer les données de mise à jour
+    update_data = {"titre": titre_corrige}
+
+    # Sauvegarder l'original seulement si pas déjà fait
+    if "titre_origin" not in existing_episode or existing_episode["titre_origin"] is None:
+        update_data["titre_origin"] = existing_episode.get("titre")
+
     result = await self.collection.update_one(
         {"_id": ObjectId(episode_id)},
-        {"$set": {"description_corrigee": description}}
+        {"$set": update_data}
+    )
+    return result.modified_count > 0
+
+# Nouvelle logique de correction des descriptions
+async def update_episode_description_new(self, episode_id: str, description_corrigee: str) -> bool:
+    """Met à jour la description d'un épisode avec sauvegarde de l'originale."""
+    # Récupérer l'épisode existant
+    existing_episode = await self.collection.find_one({"_id": ObjectId(episode_id)})
+    if not existing_episode:
+        return False
+
+    # Préparer les données de mise à jour
+    update_data = {"description": description_corrigee}
+
+    # Sauvegarder l'original seulement si pas déjà fait
+    if "description_origin" not in existing_episode or existing_episode["description_origin"] is None:
+        update_data["description_origin"] = existing_episode.get("description")
+
+    result = await self.collection.update_one(
+        {"_id": ObjectId(episode_id)},
+        {"$set": update_data}
     )
     return result.modified_count > 0
 ```
@@ -196,8 +233,11 @@ db.episodes.aggregate([
   { $sort: { count: -1 } }
 ])
 
+// Épisodes avec titre corrigé
+db.episodes.countDocuments({ "titre_origin": { $ne: null, $exists: true } })
+
 // Épisodes avec description corrigée
-db.episodes.countDocuments({ "description_corrigee": { $ne: null } })
+db.episodes.countDocuments({ "description_origin": { $ne: null, $exists: true } })
 ```
 
 ### Recherche et filtrage
@@ -286,6 +326,78 @@ async def get_episode_by_id(self, episode_id: str) -> Optional[dict]:
         print(f"Erreur lecture épisode {episode_id}: {e}")
         raise
 ```
+
+## Logique des corrections (Refactorisée)
+
+### Nouvelle approche de stockage des corrections
+
+Depuis la version refactorisée, le système de corrections utilise une nouvelle logique :
+
+#### Principe
+- **Champs principaux** : `titre` et `description` contiennent toujours les versions à afficher (originales ou corrigées)
+- **Champs de sauvegarde** : `titre_origin` et `description_origin` conservent les versions originales seulement quand une correction est faite
+- **Avantage** : Les autres applications (lmelp, moteur de recherche) utilisent automatiquement les versions corrigées sans modification
+
+#### Comportement lors des corrections
+
+```python
+# Première correction d'un titre
+# Avant : { "titre": "Titre original" }
+# Après : {
+#   "titre": "Titre corrigé",
+#   "titre_origin": "Titre original"
+# }
+
+# Corrections suivantes
+# Avant : { "titre": "Titre corrigé", "titre_origin": "Titre original" }
+# Après : {
+#   "titre": "Nouveau titre corrigé",
+#   "titre_origin": "Titre original"  # <- Préservé
+# }
+```
+
+#### Identification des épisodes corrigés
+
+```javascript
+// Épisodes avec titre corrigé
+db.episodes.find({ "titre_origin": { $exists: true, $ne: null } })
+
+// Épisodes avec description corrigée
+db.episodes.find({ "description_origin": { $exists: true, $ne: null } })
+
+// Statistiques des corrections
+db.episodes.aggregate([
+  {
+    $group: {
+      _id: null,
+      total: { $sum: 1 },
+      titres_corriges: {
+        $sum: {
+          $cond: [
+            { $and: [{ $exists: ["$titre_origin"] }, { $ne: ["$titre_origin", null] }] },
+            1, 0
+          ]
+        }
+      },
+      descriptions_corrigees: {
+        $sum: {
+          $cond: [
+            { $and: [{ $exists: ["$description_origin"] }, { $ne: ["$description_origin", null] }] },
+            1, 0
+          ]
+        }
+      }
+    }
+  }
+])
+```
+
+### Compatibilité ascendante
+
+La nouvelle logique maintient la compatibilité avec les épisodes existants :
+- Les épisodes sans corrections n'ont pas de champs `*_origin`
+- Les anciens champs `titre_corrige` et `description_corrigee` sont dépréciés mais peuvent coexister temporairement
+- Migration progressive possible sans interruption de service
 
 ## Migration des données
 
