@@ -148,6 +148,14 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🎯 **Interface dédiée** : http://localhost:5174/babelio-test
 - 🤖 **Tolérance aux fautes** : Corrections intelligentes (ex: "Houllebeck" → "Michel Houellebecq")
 
+#### Moteur de Recherche Textuelle ⭐ **NOUVEAU**
+- 🔍 **Recherche multi-entités** : Episodes, auteurs, livres, éditeurs
+- ⚡ **Temps réel** : Debouncing 300ms, minimum 3 caractères
+- 🎯 **Extraction de contexte** : 10 mots avant/après le terme trouvé
+- 🖍️ **Surlignage** : Mise en évidence des termes recherchés
+- 📊 **Compteurs intelligents** : Format "🎙️ ÉPISODES (3/155)" (limite 3, total affiché)
+- 🔤 **Recherche exacte** : Insensible à la casse, correspondance exacte dans titre/description/transcription
+
 ### API disponible
 
 ```bash
@@ -167,6 +175,9 @@ GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
 
 # Vérification orthographique Babelio ⭐ NOUVEAU
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
+
+# Recherche textuelle ⭐ NOUVEAU
+GET /api/search?q={query}&limit={n}  # Recherche multi-entités avec limite
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
@@ -276,6 +287,7 @@ code .
 - ✅ Sauvegarde automatique en base MongoDB
 - ✅ **Extraction Livres/Auteurs** : Interface tableau avec parsing markdown
 - ✅ **Vérification Babelio** : Correction orthographique automatique auteurs/livres
+- ✅ **Recherche Textuelle** : Moteur de recherche multi-entités avec extraction de contexte
 - ✅ Tests complets validés (backend + frontend)
 - ✅ CI/CD pipeline avec validation complète
 - ✅ Architecture full-stack (FastAPI + Vue.js 3)
@@ -283,7 +295,7 @@ code .
 
 ### Versions futures
 - 🤖 **IA** : Suggestions de corrections via Azure OpenAI
-- 🔍 **Recherche** : Filtres avancés par date, type, contenu
+- 🔍 **Recherche avancée** : Filtres par date, type, recherche sémantique
 - 📊 **Analytics** : Statistiques de correction et qualité
 - 👥 **Multi-user** : Gestion des utilisateurs et permissions
 - 📤 **Export** : Sauvegarde des données nettoyées

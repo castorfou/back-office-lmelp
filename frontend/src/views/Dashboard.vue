@@ -8,6 +8,11 @@
       </p>
     </header>
 
+    <!-- Zone de recherche globale -->
+    <section class="search-section">
+      <TextSearchEngine :limit="10" />
+    </section>
+
     <main class="dashboard-content">
       <!-- Section Statistiques -->
       <section class="statistics-section">
@@ -77,7 +82,7 @@
           <div class="function-card coming-soon">
             <div class="function-icon">🔎</div>
             <h3>Recherche avancée</h3>
-            <p>Rechercher des épisodes par critères spécifiques</p>
+            <p>Recherche avec filtres et critères spécifiques</p>
             <div class="coming-soon-label">Bientôt disponible</div>
           </div>
 
@@ -102,9 +107,14 @@
 
 <script>
 import { statisticsService } from '../services/api.js';
+import TextSearchEngine from '../components/TextSearchEngine.vue';
 
 export default {
   name: 'Dashboard',
+
+  components: {
+    TextSearchEngine,
+  },
 
   data() {
     return {
@@ -335,6 +345,17 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: inline-block;
+}
+
+.search-section {
+  margin-bottom: 2rem;
+  padding: 0 2rem;
+}
+
+@media (max-width: 768px) {
+  .search-section {
+    padding: 0 1rem;
+  }
 }
 
 
