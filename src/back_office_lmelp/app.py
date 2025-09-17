@@ -18,7 +18,7 @@ from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
 
-class BabelioVerificationRequest(BaseModel):  # type: ignore[misc]
+class BabelioVerificationRequest(BaseModel):
     """Modèle pour les requêtes de vérification Babelio."""
 
     type: str  # "author", "book", ou "publisher"
