@@ -156,8 +156,8 @@ async def update_episode_description(
         if not episode_data:
             raise HTTPException(status_code=404, detail="Épisode non trouvé")
 
-        # Mettre à jour la description
-        success = mongodb_service.update_episode_description(
+        # Mettre à jour la description avec la nouvelle logique
+        success = mongodb_service.update_episode_description_new(
             episode_id, description_corrigee
         )
         if not success:
@@ -189,8 +189,8 @@ async def update_episode_title(episode_id: str, request: Request) -> dict[str, s
         if not episode_data:
             raise HTTPException(status_code=404, detail="Épisode non trouvé")
 
-        # Mettre à jour le titre
-        success = mongodb_service.update_episode_title(episode_id, titre_corrige)
+        # Mettre à jour le titre avec la nouvelle logique
+        success = mongodb_service.update_episode_title_new(episode_id, titre_corrige)
         if not success:
             raise HTTPException(status_code=400, detail="Échec de la mise à jour")
 

@@ -130,7 +130,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 #### Édition des épisodes
 - ✅ **Tri automatique** : Épisodes par date décroissante
 - ✏️ **Édition en temps réel** : Modification libre du texte
-- 💾 **Auto-save** : Sauvegarde transparente dans `description_corrigee`, `titre_corrige`
+- 💾 **Auto-save** : Sauvegarde directe des corrections dans `titre` et `description`
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
 
@@ -250,12 +250,12 @@ code .
 ```javascript
 {
   "_id": ObjectId,
-  "titre": "Titre de l'épisode",
-  "titre_corrige": "Titre du super épisode", // ⭐ Ajouté par le back-office
+  "titre": "Titre corrigé par le back-office", // ⭐ Version corrigée finale
+  "titre_origin": "Titre original de l'épisode", // ⭐ Version originale sauvegardée
   "date": ISODate,
   "type": "livres|cinema|theatre",
-  "description": "Description originale France Inter",
-  "description_corrigee": "Description corrigée manuellement", // ⭐ Ajouté par le back-office
+  "description": "Description corrigée manuellement", // ⭐ Version corrigée finale
+  "description_origin": "Description originale France Inter", // ⭐ Version originale sauvegardée
   "transcription": "Transcription Whisper (avec erreurs possibles)"
 }
 ```

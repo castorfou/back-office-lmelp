@@ -199,7 +199,7 @@ class TestAPIRoutes:
         mock_mongodb_service.get_episode_by_id.return_value = {
             "_id": "507f1f77bcf86cd799439011"
         }
-        mock_mongodb_service.update_episode_description.return_value = False
+        mock_mongodb_service.update_episode_description_new.return_value = False
 
         response = client.put(
             "/api/episodes/507f1f77bcf86cd799439011", content="Updated description"
@@ -240,7 +240,7 @@ class TestAPIRoutes:
         mock_mongodb_service.get_episode_by_id.return_value = {
             "_id": "507f1f77bcf86cd799439011"
         }
-        mock_mongodb_service.update_episode_title.return_value = True
+        mock_mongodb_service.update_episode_title_new.return_value = True
 
         response = client.put(
             "/api/episodes/507f1f77bcf86cd799439011/title", content="Updated title"
@@ -268,7 +268,7 @@ class TestAPIRoutes:
         mock_mongodb_service.get_episode_by_id.return_value = {
             "_id": "507f1f77bcf86cd799439011"
         }
-        mock_mongodb_service.update_episode_title.return_value = False
+        mock_mongodb_service.update_episode_title_new.return_value = False
 
         response = client.put(
             "/api/episodes/507f1f77bcf86cd799439011/title", content="Updated title"

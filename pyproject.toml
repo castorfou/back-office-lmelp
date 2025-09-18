@@ -196,6 +196,11 @@ ignore_missing_imports = true
 module = "notebooks.*"
 ignore_errors = true
 
+# Configuration pour app.py (ignore BaseModel subclassing issue)
+[[tool.mypy.overrides]]
+module = "back_office_lmelp.app"
+disable_error_code = ["misc"]
+
 # Configuration tests
 [[tool.mypy.overrides]]
 module = "tests.*"

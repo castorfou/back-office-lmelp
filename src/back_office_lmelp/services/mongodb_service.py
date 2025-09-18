@@ -192,15 +192,15 @@ class MongoDBService:
             # Total des épisodes
             total_episodes = self.episodes_collection.count_documents({})
 
-            # Épisodes avec titres corrigés
+            # Épisodes avec titres corrigés (maintenant dans titre_origin)
             episodes_with_corrected_titles = self.episodes_collection.count_documents(
-                {"titre_corrige": {"$ne": None, "$exists": True}}
+                {"titre_origin": {"$ne": None, "$exists": True}}
             )
 
-            # Épisodes avec descriptions corrigées
+            # Épisodes avec descriptions corrigées (maintenant dans description_origin)
             episodes_with_corrected_descriptions = (
                 self.episodes_collection.count_documents(
-                    {"description_corrigee": {"$ne": None, "$exists": True}}
+                    {"description_origin": {"$ne": None, "$exists": True}}
                 )
             )
 
@@ -533,6 +533,76 @@ class MongoDBService:
 
         # Correspondance si au moins 60% des caractères sont trouvés
         return matches >= len(query) * 0.6
+
+    def update_episode_title_new(self, episode_id: str, titre_corrige: str) -> bool:
+        """Met à jour le titre avec la nouvelle logique (titre_origin)."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Récupérer l'épisode existant pour sauvegarder l'original
+            existing_episode = self.episodes_collection.find_one(
+                {"_id": ObjectId(episode_id)}
+            )
+
+            if not existing_episode:
+                return False
+
+            # Préparer les données à mettre à jour
+            update_data = {"titre": titre_corrige}
+
+            # Sauvegarder l'original seulement s'il n'existe pas déjà
+            if (
+                "titre_origin" not in existing_episode
+                or existing_episode["titre_origin"] is None
+            ):
+                update_data["titre_origin"] = existing_episode.get("titre")
+
+            # Effectuer la mise à jour
+            result = self.episodes_collection.update_one(
+                {"_id": ObjectId(episode_id)},
+                {"$set": update_data},
+            )
+            return bool(result.modified_count > 0)
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour du titre {episode_id}: {e}")
+            return False
+
+    def update_episode_description_new(
+        self, episode_id: str, description_corrigee: str
+    ) -> bool:
+        """Met à jour la description avec la nouvelle logique (description_origin)."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Récupérer l'épisode existant pour sauvegarder l'original
+            existing_episode = self.episodes_collection.find_one(
+                {"_id": ObjectId(episode_id)}
+            )
+
+            if not existing_episode:
+                return False
+
+            # Préparer les données à mettre à jour
+            update_data = {"description": description_corrigee}
+
+            # Sauvegarder l'original seulement s'il n'existe pas déjà
+            if (
+                "description_origin" not in existing_episode
+                or existing_episode["description_origin"] is None
+            ):
+                update_data["description_origin"] = existing_episode.get("description")
+
+            # Effectuer la mise à jour
+            result = self.episodes_collection.update_one(
+                {"_id": ObjectId(episode_id)},
+                {"$set": update_data},
+            )
+            return bool(result.modified_count > 0)
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour de la description {episode_id}: {e}")
+            return False
 
 
 # Instance globale du service

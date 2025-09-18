@@ -14,30 +14,65 @@ La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. E
 ├── Description automatique générée
 ├── Transcription automatique créée
 ├── Métadonnées extraites
-└── Status: titre_corrige = null, description_corrigee = null
+└── Status: aucun champ *_origin (épisode non modifié)
 ```
 
 ### 2. État en cours de modification
 
 ```
 ✏️ Épisode en édition
-├── Titre original → Titre corrigé (éditable)
-├── Description originale (lecture seule)
-├── Description corrigée (en cours)
+├── Titre: version en cours d'édition
+├── Titre_origin: version originale automatiquement sauvegardée
+├── Description: version en cours d'édition
+├── Description_origin: version originale automatiquement sauvegardée
 ├── Sauvegarde automatique active
-└── Status: titre_corrige = "en cours...", description_corrigee = "en cours..."
+└── Status: présence des champs *_origin indique les modifications
 ```
 
 ### 3. État finalisé
 
 ```
 ✅ Épisode corrigé
-├── Titre original conservé
-├── Titre corrigé finalisé
-├── Description originale conservée
-├── Description corrigée finalisée
+├── Titre: version corrigée finalisée (affichage principal)
+├── Titre_origin: version originale préservée
+├── Description: version corrigée finalisée (affichage principal)
+├── Description_origin: version originale préservée
 ├── Historique des modifications (futur)
-└── Status: titre_corrige = "version finale", description_corrigee = "version finale"
+└── Status: champs *_origin présents, versions corrigées dans champs principaux
+```
+
+## Comment fonctionnent les corrections
+
+### Logique de sauvegarde des modifications
+
+Lorsque vous modifiez un titre ou une description pour la première fois :
+
+1. **Votre version corrigée** remplace directement le contenu affiché
+2. **La version originale** est automatiquement sauvegardée dans un champ de sauvegarde
+3. **Les autres applications** (moteur de recherche, site principal) voient automatiquement votre version corrigée
+
+### Avantages de cette approche
+
+✅ **Automatique** : Vos corrections sont immédiatement visibles partout
+✅ **Sécurisé** : L'original est toujours préservé
+✅ **Simple** : Une seule version à maintenir (la vôtre)
+✅ **Réversible** : Possibilité de revenir à l'original si nécessaire
+
+### Comportement lors des modifications
+
+**Première correction :**
+```
+Avant : titre = "Titre avec fautes"
+Après : titre = "Titre corrigé"
+        titre_origin = "Titre avec fautes" (automatique)
+```
+
+**Corrections suivantes :**
+```
+Avant : titre = "Titre corrigé"
+        titre_origin = "Titre avec fautes"
+Après : titre = "Titre encore mieux corrigé"
+        titre_origin = "Titre avec fautes" (préservé)
 ```
 
 ## Types d'épisodes
