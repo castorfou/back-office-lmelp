@@ -53,6 +53,28 @@
       </div>
     </div>
 
+    <!-- Author verified but book not found -->
+    <div v-else-if="validationResult && validationResult.status === 'author_verified_book_not_found'"
+         class="validation-status partial"
+         data-testid="validation-partial">
+      <span class="status-icon">✅❓</span>
+      <div class="status-content">
+        <span class="status-text">Auteur validé</span>
+        <div class="partial-details">Livre non trouvé</div>
+      </div>
+    </div>
+
+    <!-- Invalid suggestion -->
+    <div v-else-if="validationResult && validationResult.status === 'suggestion_invalid'"
+         class="validation-status invalid"
+         data-testid="validation-invalid">
+      <span class="status-icon">⚠️</span>
+      <div class="status-content">
+        <span class="status-text">Suggestion invalide</span>
+        <div class="invalid-details">{{ validationResult.reason }}</div>
+      </div>
+    </div>
+
     <!-- Not found -->
     <div v-else-if="validationResult && validationResult.status === 'not_found'"
          class="validation-status not-found"
@@ -132,10 +154,19 @@ export default {
         // Respect rate limiting (1 req/sec)
         await this.waitForRateLimit();
 
-        // Try to verify author first
+        // Étape 1: Valider l'auteur
         const authorResult = await this.verifyAuthor();
 
-        if (authorResult) {
+        if (!authorResult) {
+          this.handleVerificationResult('author', { status: 'not_found' });
+          return;
+        }
+
+        // Étape 2: Validation cohérence auteur-livre
+        if (this.title && this.title.trim()) {
+          await this.validateAuthorBookCoherence(authorResult);
+        } else {
+          // Si pas de titre, on garde juste la validation auteur
           this.handleVerificationResult('author', authorResult);
         }
 
@@ -144,6 +175,81 @@ export default {
       } finally {
         this.isLoading = false;
         this.lastValidationTime = Date.now();
+      }
+    },
+
+    async validateAuthorBookCoherence(authorResult) {
+      // Déterminer l'auteur à utiliser pour la vérification livre
+      let authorToVerify = authorResult.original;
+
+      if (authorResult.status === 'corrected') {
+        authorToVerify = authorResult.babelio_suggestion;
+      }
+
+      // Rate limiting pour la deuxième requête
+      await this.waitForRateLimit();
+
+      // Vérifier le couple auteur-livre
+      const bookResult = await this.verifyBook(this.title.trim(), authorToVerify);
+
+      // Analyser la cohérence
+      if (authorResult.status === 'verified') {
+        // Auteur exact trouvé
+        if (bookResult && bookResult.status === 'verified') {
+          // Couple parfait
+          this.handleVerificationResult('book', {
+            status: 'verified',
+            original_author: authorResult.original,
+            original_title: this.title,
+            babelio_suggestion_author: authorResult.babelio_suggestion,
+            babelio_suggestion_title: bookResult.babelio_suggestion_title || this.title,
+            confidence_score: Math.min(authorResult.confidence_score || 1.0, bookResult.confidence_score || 1.0)
+          });
+        } else if (bookResult && bookResult.status === 'corrected') {
+          // Auteur exact mais titre avec suggestion
+          this.handleVerificationResult('book', {
+            status: 'corrected',
+            original_author: authorResult.original,
+            original_title: this.title,
+            babelio_suggestion_author: authorResult.babelio_suggestion,
+            babelio_suggestion_title: bookResult.babelio_suggestion_title,
+            confidence_score: Math.min(authorResult.confidence_score || 1.0, bookResult.confidence_score || 0.8)
+          });
+        } else {
+          // Auteur exact mais livre non trouvé
+          this.handleVerificationResult('mixed', {
+            status: 'author_verified_book_not_found',
+            original_author: authorResult.original,
+            original_title: this.title,
+            babelio_suggestion_author: authorResult.babelio_suggestion,
+            confidence_score: authorResult.confidence_score || 1.0
+          });
+        }
+      } else if (authorResult.status === 'corrected') {
+        // Auteur avec suggestion
+        if (bookResult && (bookResult.status === 'verified' || bookResult.status === 'corrected')) {
+          // Suggestion auteur validée par le livre
+          this.handleVerificationResult('book', {
+            status: 'corrected',
+            original_author: authorResult.original,
+            original_title: this.title,
+            babelio_suggestion_author: authorResult.babelio_suggestion,
+            babelio_suggestion_title: bookResult.babelio_suggestion_title || this.title,
+            confidence_score: Math.min(authorResult.confidence_score || 0.8, bookResult.confidence_score || 0.8)
+          });
+        } else {
+          // Suggestion auteur caduque (livre non trouvé avec auteur suggéré)
+          this.handleVerificationResult('coherence', {
+            status: 'suggestion_invalid',
+            original_author: authorResult.original,
+            original_title: this.title,
+            invalid_suggestion_author: authorResult.babelio_suggestion,
+            reason: 'Suggestion auteur invalidée par absence du livre correspondant'
+          });
+        }
+      } else {
+        // Auteur non trouvé
+        this.handleVerificationResult('author', authorResult);
       }
     },
 
@@ -202,6 +308,11 @@ export default {
     getOriginalText() {
       if (!this.validationResult) return '';
 
+      // Pour les résultats combinés auteur-livre
+      if (this.validationResult.original_author && this.validationResult.original_title) {
+        return `${this.validationResult.original_author} - ${this.validationResult.original_title}`;
+      }
+
       return this.validationResult.original ||
              this.validationResult.original_title ||
              this.validationResult.original_author ||
@@ -210,6 +321,24 @@ export default {
 
     getSuggestedText() {
       if (!this.validationResult) return '';
+
+      // Pour les résultats combinés auteur-livre
+      if (this.validationResult.babelio_suggestion_author && this.validationResult.babelio_suggestion_title) {
+        const suggestedAuthor = this.validationResult.babelio_suggestion_author;
+        const suggestedTitle = this.validationResult.babelio_suggestion_title;
+
+        // Montrer seulement les changements
+        const originalAuthor = this.validationResult.original_author || this.author;
+        const originalTitle = this.validationResult.original_title || this.title;
+
+        if (suggestedAuthor !== originalAuthor && suggestedTitle !== originalTitle) {
+          return `${suggestedAuthor} - ${suggestedTitle}`;
+        } else if (suggestedAuthor !== originalAuthor) {
+          return suggestedAuthor;
+        } else if (suggestedTitle !== originalTitle) {
+          return suggestedTitle;
+        }
+      }
 
       return this.validationResult.babelio_suggestion ||
              this.validationResult.babelio_suggestion_title ||
@@ -335,6 +464,31 @@ export default {
 .validation-status.disabled {
   background-color: #f5f5f5;
   color: #9e9e9e;
+}
+
+/* Partial validation state */
+.validation-status.partial {
+  background-color: #fff8e1;
+  color: #f57f17;
+}
+
+.partial-details {
+  font-size: 0.8rem;
+  color: #e65100;
+  margin-top: 0.25rem;
+}
+
+/* Invalid suggestion state */
+.validation-status.invalid {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.invalid-details {
+  font-size: 0.8rem;
+  color: #b71c1c;
+  margin-top: 0.25rem;
+  line-height: 1.2;
 }
 
 /* Initial state */

@@ -83,24 +83,32 @@ describe('BabelioValidationCell', () => {
   });
 
   describe('Success states', () => {
-    it('should display perfect match indicator for verified author', async () => {
+    it('should display perfect match indicator for verified author and book', async () => {
       const { babelioService } = await import('../../src/services/api.js');
 
-      const mockResponse = {
+      const mockAuthorResponse = {
         status: 'verified',
         original: 'Michel Houellebecq',
         babelio_suggestion: 'Michel Houellebecq',
         confidence_score: 1.0
       };
 
-      babelioService.verifyAuthor.mockResolvedValue(mockResponse);
+      const mockBookResponse = {
+        status: 'verified',
+        original_title: 'Les Particules élémentaires',
+        babelio_suggestion_title: 'Les Particules élémentaires',
+        confidence_score: 1.0
+      };
+
+      babelioService.verifyAuthor.mockResolvedValue(mockAuthorResponse);
+      babelioService.verifyBook.mockResolvedValue(mockBookResponse);
 
       wrapper = mount(BabelioValidationCell, {
         props: defaultProps
       });
 
-      // Wait for validation to complete
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Wait for validation to complete (author + book validation)
+      await new Promise(resolve => setTimeout(resolve, 1100)); // Account for rate limiting
       await wrapper.vm.$nextTick();
 
       expect(wrapper.find('[data-testid="validation-success"]').exists()).toBe(true);
@@ -108,24 +116,32 @@ describe('BabelioValidationCell', () => {
       expect(wrapper.text()).toContain('Validé');
     });
 
-    it('should display suggestion indicator for corrected author', async () => {
+    it('should display suggestion for corrected author validated by book', async () => {
       const { babelioService } = await import('../../src/services/api.js');
 
-      const mockResponse = {
+      const mockAuthorResponse = {
         status: 'corrected',
         original: 'Michel Houellebeck',
         babelio_suggestion: 'Michel Houellebecq',
         confidence_score: 0.9
       };
 
-      babelioService.verifyAuthor.mockResolvedValue(mockResponse);
+      const mockBookResponse = {
+        status: 'verified',
+        original_title: 'Les Particules élémentaires',
+        babelio_suggestion_title: 'Les Particules élémentaires',
+        confidence_score: 1.0
+      };
+
+      babelioService.verifyAuthor.mockResolvedValue(mockAuthorResponse);
+      babelioService.verifyBook.mockResolvedValue(mockBookResponse);
 
       wrapper = mount(BabelioValidationCell, {
         props: defaultProps
       });
 
-      // Wait for validation to complete
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Wait for validation to complete (author + book validation)
+      await new Promise(resolve => setTimeout(resolve, 1100));
       await wrapper.vm.$nextTick();
 
       expect(wrapper.find('[data-testid="validation-suggestion"]').exists()).toBe(true);
@@ -259,6 +275,39 @@ describe('BabelioValidationCell', () => {
     });
   });
 
+  describe('Invalid suggestion handling', () => {
+    it('should display invalid suggestion when author suggestion not validated by book', async () => {
+      const { babelioService } = await import('../../src/services/api.js');
+
+      const mockAuthorResponse = {
+        status: 'corrected',
+        original: 'Agnès Michaud',
+        babelio_suggestion: 'Agnès Ouvrard-Michaud',
+        confidence_score: 0.8
+      };
+
+      const mockBookResponse = {
+        status: 'not_found',
+        original_title: 'Le Titre Inexistant'
+      };
+
+      babelioService.verifyAuthor.mockResolvedValue(mockAuthorResponse);
+      babelioService.verifyBook.mockResolvedValue(mockBookResponse);
+
+      wrapper = mount(BabelioValidationCell, {
+        props: defaultProps
+      });
+
+      // Wait for validation to complete
+      await new Promise(resolve => setTimeout(resolve, 1100));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('[data-testid="validation-invalid"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('⚠️');
+      expect(wrapper.text()).toContain('Suggestion invalide');
+    });
+  });
+
   describe('Props validation', () => {
     it('should handle missing author gracefully', () => {
       wrapper = mount(BabelioValidationCell, {
@@ -293,9 +342,10 @@ describe('BabelioValidationCell', () => {
 
       expect(wrapper.exists()).toBe(true);
 
-      // Should start validation despite missing title
+      // Should start validation despite missing title (author only)
+      await new Promise(resolve => setTimeout(resolve, 50));
       await wrapper.vm.$nextTick();
-      expect(wrapper.find('[data-testid="validation-loading"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="validation-success"]').exists()).toBe(true);
     });
   });
 });
