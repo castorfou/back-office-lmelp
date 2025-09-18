@@ -235,5 +235,27 @@ Le service est maintenant pleinement intégré dans :
 - ✅ **L'endpoint `/api/verify-babelio`** (implémenté)
 - ✅ **L'interface de test `/babelio-test`** (Vue.js)
 - ✅ **Tests automatisés** (7 tests endpoint + 16 tests frontend)
-- 🔄 **L'interface `/livres-auteurs`** (intégration future)
+- ✅ **L'interface `/livres-auteurs`** (validation en temps réel)
 - 🔄 **Les workflows d'extraction des avis critiques** (intégration future)
+
+### Composant BabelioValidationCell
+
+Le composant `BabelioValidationCell.vue` fournit la validation en temps réel dans l'interface :
+
+#### Fonctionnalités
+- **Validation automatique** : Au montage du composant, chaque auteur est vérifié
+- **Rate limiting** : Respect strict de la limite 1 req/sec via `waitForRateLimit()`
+- **États visuels** : Indicateurs clairs (✅ validé, 🔄 suggestion, ❓ non trouvé, ⚠️ erreur)
+- **Retry** : Bouton de nouvelle tentative en cas d'erreur
+- **Suggestions** : Affichage des corrections proposées
+
+#### API Service Frontend
+Service `babelioService` dans `api.js` avec méthodes :
+- `verifyAuthor(name)` : Vérification d'auteur
+- `verifyBook(title, author)` : Vérification de livre
+- `verifyPublisher(name)` : Vérification d'éditeur
+
+#### Tests
+- **11 tests unitaires** pour `BabelioValidationCell.test.js`
+- **Tests d'intégration** dans `LivresAuteurs.test.js`
+- **Couverture complète** : États loading, success, error, retry, rate limiting

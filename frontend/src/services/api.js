@@ -153,5 +153,51 @@ export const searchService = {
   },
 };
 
+/**
+ * Service pour la vérification Babelio
+ */
+export const babelioService = {
+  /**
+   * Vérifie un auteur via l'API Babelio
+   * @param {string} name - Nom de l'auteur
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyAuthor(name) {
+    const response = await api.post('/verify-babelio', {
+      type: 'author',
+      name: name
+    });
+    return response.data;
+  },
+
+  /**
+   * Vérifie un livre via l'API Babelio
+   * @param {string} title - Titre du livre
+   * @param {string} author - Auteur du livre (optionnel)
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyBook(title, author = null) {
+    const response = await api.post('/verify-babelio', {
+      type: 'book',
+      title: title,
+      author: author
+    });
+    return response.data;
+  },
+
+  /**
+   * Vérifie un éditeur via l'API Babelio
+   * @param {string} name - Nom de l'éditeur
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyPublisher(name) {
+    const response = await api.post('/verify-babelio', {
+      type: 'publisher',
+      name: name
+    });
+    return response.data;
+  },
+};
+
 
 export default api;

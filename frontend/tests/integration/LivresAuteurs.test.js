@@ -23,6 +23,11 @@ vi.mock('../../src/services/api.js', () => ({
   },
   statisticsService: {
     getStatistics: vi.fn(),
+  },
+  babelioService: {
+    verifyAuthor: vi.fn(),
+    verifyBook: vi.fn(),
+    verifyPublisher: vi.fn(),
   }
 }));
 
@@ -108,5 +113,48 @@ describe('LivresAuteurs - Tests simplifiés', () => {
 
     // Vérifier que le message d'aide est présent
     expect(wrapper.text()).toContain('Sélectionnez un épisode pour commencer');
+  });
+
+  it('affiche la colonne Validation Babelio dans le tableau', async () => {
+    const mockBooks = [
+      {
+        episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+        auteur: 'Michel Houellebecq',
+        titre: 'Les Particules élémentaires',
+        editeur: 'Flammarion'
+      }
+    ];
+
+    livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+    livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    // Attendre que le chargement se termine
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Sélectionner un épisode
+    wrapper.vm.selectedEpisodeId = '6865f995a1418e3d7c63d076'; // pragma: allowlist secret
+    await wrapper.vm.loadBooksForEpisode();
+    await wrapper.vm.$nextTick();
+
+    // Vérifier que la colonne Validation Babelio est présente
+    expect(wrapper.text()).toContain('Validation Babelio');
+
+    // Vérifier qu'il y a des composants BabelioValidationCell
+    const validationCells = wrapper.findAllComponents({ name: 'BabelioValidationCell' });
+    expect(validationCells.length).toBe(1);
+
+    // Vérifier que le composant reçoit les bonnes props
+    expect(validationCells[0].props()).toEqual({
+      author: 'Michel Houellebecq',
+      title: 'Les Particules élémentaires',
+      publisher: 'Flammarion'
+    });
   });
 });

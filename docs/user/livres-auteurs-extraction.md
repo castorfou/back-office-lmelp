@@ -11,11 +11,12 @@ La fonctionnalité d'extraction permet d'identifier et de cataloguer les livres,
 
 ### Informations affichées
 
-La page présente un tableau simple avec trois colonnes :
+La page présente un tableau avec quatre colonnes :
 
 - **Auteur** : Nom de l'auteur du livre
 - **Titre** : Titre du livre
 - **Éditeur** : Maison d'édition (peut être vide si non mentionné)
+- **Validation Babelio** : Vérification automatique des données via l'API Babelio
 
 ### Statistiques simplifiées
 
@@ -41,6 +42,34 @@ Utilisez la barre de recherche pour filtrer instantanément par :
 - Nom d'éditeur
 
 La recherche est instantanée et insensible à la casse.
+
+## Validation Babelio
+
+### Vue d'ensemble
+Chaque ligne du tableau dispose d'une colonne "Validation Babelio" qui vérifie automatiquement l'orthographe et l'exactitude des informations d'auteur en temps réel via l'API de Babelio.com.
+
+### Indicateurs visuels
+
+La validation affiche différents statuts :
+
+- **✅ Validé** : Les données correspondent parfaitement à la base Babelio
+- **🔄 Suggestion** : Babelio propose une correction (ex: "Michel Houellebeck" → "Michel Houellebecq")
+- **❓ Non trouvé** : Aucune correspondance trouvée sur Babelio
+- **⚠️ Erreur** : Problème technique (possibilité de réessayer avec le bouton ↻)
+- **⏳ Vérification...** : Validation en cours
+
+### Fonctionnement automatique
+
+- **Validation immédiate** : Dès l'affichage du tableau, chaque auteur est vérifié
+- **Rate limiting** : Respect de la limite de 1 requête/seconde vers Babelio
+- **Suggestions** : Affichage des corrections proposées à côté des données originales
+- **Retry** : Possibilité de relancer une vérification en cas d'erreur
+
+### Cas d'usage
+
+- **Détection d'erreurs** : Identifier rapidement les fautes de transcription Whisper
+- **Correction automatique** : Voir les suggestions de correction orthographique
+- **Validation qualité** : S'assurer de la fiabilité des données extraites
 
 ## Source et fiabilité des données
 
@@ -85,7 +114,7 @@ En cas de données manifestement erronées, contactez l'administrateur.
 
 Cette fonctionnalité évoluera avec :
 - **Vue globale** : Affichage de tous les livres de tous les épisodes
-- **Intégration Babelio** : Vérification et correction orthographique via l'API Babelio
+- **Sauvegarde corrections** : Intégration des corrections Babelio dans la base de données MongoDB
 - **Enrichissement** : Ajout d'images de couverture, résumés détaillés, et métadonnées
 - **Export de données** : Possibilité d'exporter les listes en CSV ou autres formats
 - **Interface d'administration** : Correction manuelle et validation des extractions

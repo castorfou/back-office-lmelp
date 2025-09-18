@@ -122,6 +122,9 @@
                   Éditeur
                   <span class="sort-indicator" :class="getSortClass('publisher')">↕</span>
                 </th>
+                <th class="validation-header">
+                  Validation Babelio
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -129,6 +132,13 @@
                 <td class="author-cell">{{ book.auteur }}</td>
                 <td class="title-cell">{{ book.titre }}</td>
                 <td class="publisher-cell">{{ book.editeur || '-' }}</td>
+                <td class="validation-cell">
+                  <BabelioValidationCell
+                    :author="book.auteur"
+                    :title="book.titre"
+                    :publisher="book.editeur || ''"
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
@@ -148,12 +158,14 @@
 <script>
 import { livresAuteursService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
+import BabelioValidationCell from '../components/BabelioValidationCell.vue';
 
 export default {
   name: 'LivresAuteurs',
 
   components: {
     Navigation,
+    BabelioValidationCell,
   },
 
   data() {
@@ -495,6 +507,21 @@ export default {
 
 .publisher-cell {
   color: #666;
+}
+
+.validation-header {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #eee;
+  min-width: 180px;
+}
+
+.validation-cell {
+  padding: 1rem;
+  vertical-align: top;
+  min-width: 180px;
 }
 
 /* Aide pour le tri */
