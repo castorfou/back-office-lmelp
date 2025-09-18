@@ -93,6 +93,8 @@ class TestEpisodeModel:
             "description_corrigee": "Corrected desc",
             "titre_corrige": "Corrected title",
             "transcription": "Full transcription",
+            "titre_origin": None,
+            "description_origin": None,
         }
 
         assert result == expected
@@ -128,6 +130,8 @@ class TestEpisodeModel:
             "description_corrigee": None,
             "titre_corrige": None,
             "transcription": None,
+            "titre_origin": None,
+            "description_origin": None,
         }
 
         assert result == expected
@@ -150,7 +154,6 @@ class TestEpisodeModel:
         expected = {
             "id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
             "titre": "Summary Episode",
-            "titre_corrige": None,
             "date": "2024-02-10T09:15:00",
             "type": "news",
         }
@@ -160,9 +163,8 @@ class TestEpisodeModel:
         assert "description" not in result
         assert "transcription" not in result
         assert "description_corrigee" not in result
-        # titre_corrige should be included even if None for frontend compatibility
-        assert "titre_corrige" in result
-        assert result["titre_corrige"] is None
+        # titre_corrige should no longer be included in summary (new logic)
+        assert "titre_corrige" not in result
 
     def test_episode_to_summary_dict_null_date(self):
         """Test episode to_summary_dict method with null date."""
@@ -178,7 +180,6 @@ class TestEpisodeModel:
         expected = {
             "id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
             "titre": "No Date Summary",
-            "titre_corrige": None,
             "date": None,
             "type": "test",
         }
@@ -195,20 +196,19 @@ class TestEpisodeModel:
         expected = {
             "id": "",
             "titre": "",
-            "titre_corrige": None,
             "date": None,
             "type": "",
         }
 
         assert result == expected
 
-    def test_episode_to_summary_dict_with_titre_corrige(self):
-        """Test episode to_summary_dict method with titre_corrige."""
+    def test_episode_to_summary_dict_with_titre_corrected(self):
+        """Test episode to_summary_dict method with corrected title (new logic)."""
         test_date = datetime(2024, 8, 24, 9, 0)
         data = {
             "_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
-            "titre": "Titre original",
-            "titre_corrige": "Justine Lévy, Antoine Wauters, Alice Ferney",
+            "titre": "Justine Lévy, Antoine Wauters, Alice Ferney",  # Version corrigée dans titre
+            "titre_origin": "Titre original",  # Version originale dans titre_origin
             "date": test_date,
             "type": "livres",
         }
@@ -218,16 +218,16 @@ class TestEpisodeModel:
 
         expected = {
             "id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
-            "titre": "Titre original",
-            "titre_corrige": "Justine Lévy, Antoine Wauters, Alice Ferney",
+            "titre": "Justine Lévy, Antoine Wauters, Alice Ferney",  # Version corrigée affichée
             "date": "2024-08-24T09:00:00",
             "type": "livres",
         }
 
         assert result == expected
-        # Verify titre_corrige is present and correct
-        assert "titre_corrige" in result
-        assert result["titre_corrige"] == "Justine Lévy, Antoine Wauters, Alice Ferney"
+        # Verify the corrected title is in titre field (new logic)
+        assert result["titre"] == "Justine Lévy, Antoine Wauters, Alice Ferney"
+        # titre_corrige should no longer be in summary
+        assert "titre_corrige" not in result
 
     def test_episode_handles_none_values_gracefully(self):
         """Test episode handles None values in data gracefully."""
