@@ -73,7 +73,7 @@ describe('EpisodeEditor', () => {
       props: { episode: mockEpisode }
     });
 
-    expect(wrapper.find('#titre-corrected').element.value).toBe(mockEpisode.titre_corrige);
+    expect(wrapper.find('#titre-corrected').element.value).toBe(mockEpisode.titre);
     expect(wrapper.text()).toContain('15 janvier 2024');
     expect(wrapper.text()).toContain('livres');
   });
@@ -93,20 +93,20 @@ describe('EpisodeEditor', () => {
       props: { episode: mockEpisode }
     });
 
-    expect(wrapper.vm.correctedDescription).toBe(mockEpisode.description_corrigee);
+    expect(wrapper.vm.correctedDescription).toBe(mockEpisode.description);
   });
 
   it('initialise l\'éditeur avec la description originale si pas de correction', () => {
     const episodeWithoutCorrection = {
       ...mockEpisode,
-      description_corrigee: null
+      description_origin: null // Pas d'origine = pas de correction
     };
 
     wrapper = mount(EpisodeEditor, {
       props: { episode: episodeWithoutCorrection }
     });
 
-    expect(wrapper.vm.correctedDescription).toBe(mockEpisode.description);
+    expect(wrapper.vm.correctedDescription).toBe(episodeWithoutCorrection.description);
   });
 
   it('détecte les changements dans la description', async () => {
@@ -243,7 +243,7 @@ describe('EpisodeEditor', () => {
 
     const titleInput = wrapper.find('#titre-corrected');
     expect(titleInput.exists()).toBe(true);
-    expect(titleInput.element.value).toBe(mockEpisode.titre_corrige);
+    expect(titleInput.element.value).toBe(mockEpisode.titre);
   });
 
   it('initialise l\'éditeur de titre avec titre corrigé existant', () => {
@@ -251,20 +251,20 @@ describe('EpisodeEditor', () => {
       props: { episode: mockEpisode }
     });
 
-    expect(wrapper.vm.correctedTitle).toBe(mockEpisode.titre_corrige);
+    expect(wrapper.vm.correctedTitle).toBe(mockEpisode.titre);
   });
 
   it('initialise l\'éditeur de titre avec titre original si pas de correction', () => {
     const episodeWithoutTitleCorrection = {
       ...mockEpisode,
-      titre_corrige: null
+      titre_origin: null // Pas d'origine = pas de correction
     };
 
     wrapper = mount(EpisodeEditor, {
       props: { episode: episodeWithoutTitleCorrection }
     });
 
-    expect(wrapper.vm.correctedTitle).toBe(mockEpisode.titre);
+    expect(wrapper.vm.correctedTitle).toBe(episodeWithoutTitleCorrection.titre);
   });
 
   it('détecte les changements dans le titre', async () => {
@@ -345,8 +345,8 @@ describe('EpisodeEditor', () => {
     it('affiche un indicateur de modification sur le titre quand il est modifié', async () => {
       const episodeWithModifiedTitle = {
         ...mockEpisode,
-        titre: 'Titre original',
-        titre_corrige: 'Titre modifié'
+        titre: 'Titre modifié', // Version corrigée dans titre
+        titre_origin: 'Titre original' // Version originale dans titre_origin
       };
 
       wrapper = mount(EpisodeEditor, {
@@ -363,7 +363,7 @@ describe('EpisodeEditor', () => {
       const episodeWithoutModifiedTitle = {
         ...mockEpisode,
         titre: 'Titre original',
-        titre_corrige: '' // Pas de titre corrigé
+        titre_origin: null // Pas de titre_origin = pas de modification
       };
 
       wrapper = mount(EpisodeEditor, {
@@ -378,8 +378,8 @@ describe('EpisodeEditor', () => {
     it('toggle l\'affichage du titre original au clic sur l\'indicateur', async () => {
       const episodeWithModifiedTitle = {
         ...mockEpisode,
-        titre: 'Titre original',
-        titre_corrige: 'Titre modifié'
+        titre: 'Titre modifié', // Version corrigée dans titre
+        titre_origin: 'Titre original' // Version originale dans titre_origin
       };
 
       wrapper = mount(EpisodeEditor, {
@@ -410,7 +410,7 @@ describe('EpisodeEditor', () => {
         props: { episode: mockEpisode }
       });
 
-      // L'indicateur de modification doit être visible car description_corrigee existe
+      // L'indicateur de modification doit être visible car description_origin existe
       const descriptionIndicator = wrapper.find('[data-testid="description-modification-indicator"]');
       expect(descriptionIndicator.exists()).toBe(true);
       expect(descriptionIndicator.isVisible()).toBe(true);
