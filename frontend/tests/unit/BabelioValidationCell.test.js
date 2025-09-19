@@ -97,7 +97,11 @@ describe('BabelioValidationCell', () => {
         status: 'verified',
         original_title: 'Les Particules élémentaires',
         babelio_suggestion_title: 'Les Particules élémentaires',
-        confidence_score: 1.0
+        confidence_score: 1.0,
+        babelio_data: {
+          prenoms: 'Michel',
+          nom: 'Houellebecq'
+        }
       };
 
       babelioService.verifyAuthor.mockResolvedValue(mockAuthorResponse);
@@ -130,7 +134,11 @@ describe('BabelioValidationCell', () => {
         status: 'verified',
         original_title: 'Les Particules élémentaires',
         babelio_suggestion_title: 'Les Particules élémentaires',
-        confidence_score: 1.0
+        confidence_score: 1.0,
+        babelio_data: {
+          prenoms: 'Michel',
+          nom: 'Houellebecq'
+        }
       };
 
       babelioService.verifyAuthor.mockResolvedValue(mockAuthorResponse);
@@ -275,8 +283,8 @@ describe('BabelioValidationCell', () => {
     });
   });
 
-  describe('Invalid suggestion handling', () => {
-    it('should display invalid suggestion when author suggestion not validated by book', async () => {
+  describe('Author suggestion with no book found', () => {
+    it('should display not found when author suggestion cannot be validated by book', async () => {
       const { babelioService } = await import('../../src/services/api.js');
 
       const mockAuthorResponse = {
@@ -302,9 +310,10 @@ describe('BabelioValidationCell', () => {
       await new Promise(resolve => setTimeout(resolve, 1100));
       await wrapper.vm.$nextTick();
 
-      expect(wrapper.find('[data-testid="validation-invalid"]').exists()).toBe(true);
-      expect(wrapper.text()).toContain('⚠️');
-      expect(wrapper.text()).toContain('Suggestion invalide');
+      // Should now show not found since we can't validate the author suggestion
+      expect(wrapper.find('[data-testid="validation-not-found"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('❓');
+      expect(wrapper.text()).toContain('Non trouvé');
     });
   });
 

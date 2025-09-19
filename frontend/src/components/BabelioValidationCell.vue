@@ -179,41 +179,26 @@ export default {
     },
 
     async validateAuthorBookCoherence(authorResult) {
-      // Déterminer l'auteur à utiliser pour la vérification livre
-      let authorToVerify = authorResult.original;
-
-      if (authorResult.status === 'corrected') {
-        authorToVerify = authorResult.babelio_suggestion;
-      }
+      // Nouvelle approche : chercher le livre indépendamment pour comparer les suggestions
 
       // Rate limiting pour la deuxième requête
       await this.waitForRateLimit();
 
-      // Vérifier le couple auteur-livre
-      const bookResult = await this.verifyBook(this.title.trim(), authorToVerify);
+      // Étape 1 : Vérifier le livre SANS auteur pour voir quel auteur Babelio suggère
+      const bookAloneResult = await this.verifyBookAlone(this.title.trim());
 
-      // Analyser la cohérence
+      // Analyser la cohérence entre suggestion d'auteur et auteur du livre trouvé
       if (authorResult.status === 'verified') {
-        // Auteur exact trouvé
-        if (bookResult && bookResult.status === 'verified') {
-          // Couple parfait
+        // Auteur exact trouvé - logique simple sans validation complexe
+        if (bookAloneResult && (bookAloneResult.status === 'verified' || bookAloneResult.status === 'corrected')) {
+          // Livre trouvé avec auteur exact, couple validé
           this.handleVerificationResult('book', {
-            status: 'verified',
+            status: bookAloneResult.status === 'verified' ? 'verified' : 'corrected',
             original_author: authorResult.original,
             original_title: this.title,
             babelio_suggestion_author: authorResult.babelio_suggestion,
-            babelio_suggestion_title: bookResult.babelio_suggestion_title || this.title,
-            confidence_score: Math.min(authorResult.confidence_score || 1.0, bookResult.confidence_score || 1.0)
-          });
-        } else if (bookResult && bookResult.status === 'corrected') {
-          // Auteur exact mais titre avec suggestion
-          this.handleVerificationResult('book', {
-            status: 'corrected',
-            original_author: authorResult.original,
-            original_title: this.title,
-            babelio_suggestion_author: authorResult.babelio_suggestion,
-            babelio_suggestion_title: bookResult.babelio_suggestion_title,
-            confidence_score: Math.min(authorResult.confidence_score || 1.0, bookResult.confidence_score || 0.8)
+            babelio_suggestion_title: bookAloneResult.babelio_suggestion_title || this.title,
+            confidence_score: Math.min(authorResult.confidence_score || 1.0, bookAloneResult.confidence_score || 1.0)
           });
         } else {
           // Auteur exact mais livre non trouvé
@@ -222,29 +207,87 @@ export default {
             original_author: authorResult.original,
             original_title: this.title,
             babelio_suggestion_author: authorResult.babelio_suggestion,
-            confidence_score: authorResult.confidence_score || 1.0
+            confidence_score: authorResult.confidence_score || 1.0,
+            reason: 'Livre non trouvé'
           });
         }
       } else if (authorResult.status === 'corrected') {
-        // Auteur avec suggestion
-        if (bookResult && (bookResult.status === 'verified' || bookResult.status === 'corrected')) {
-          // Suggestion auteur validée par le livre
-          this.handleVerificationResult('book', {
-            status: 'corrected',
-            original_author: authorResult.original,
-            original_title: this.title,
-            babelio_suggestion_author: authorResult.babelio_suggestion,
-            babelio_suggestion_title: bookResult.babelio_suggestion_title || this.title,
-            confidence_score: Math.min(authorResult.confidence_score || 0.8, bookResult.confidence_score || 0.8)
-          });
+        // Auteur avec suggestion - vérifier la cohérence
+        const suggestedAuthor = authorResult.babelio_suggestion;
+
+        if (bookAloneResult && (bookAloneResult.status === 'verified' || bookAloneResult.status === 'corrected')) {
+          // Livre trouvé - extraire l'auteur du livre
+          const bookAuthor = this.extractAuthorFromBookResult(bookAloneResult);
+
+          if (bookAuthor) {
+            // Rate limiting pour la troisième requête
+            await this.waitForRateLimit();
+
+            // ÉTAPE 3A : D'abord vérifier si l'auteur suggéré + livre fonctionne
+            const suggestedAuthorBookResult = await this.verifyBook(this.title.trim(), suggestedAuthor);
+
+            // Rate limiting pour la quatrième requête
+            await this.waitForRateLimit();
+
+            // ÉTAPE 3B : Vérifier aussi le vrai auteur du livre + le titre pour comparaison
+            const correctAuthorBookResult = await this.verifyBook(this.title.trim(), bookAuthor);
+
+            // Vérifier si l'auteur suggéré + livre fonctionne
+            const isSuggestedAuthorMatch = suggestedAuthorBookResult &&
+              (suggestedAuthorBookResult.status === 'verified' || suggestedAuthorBookResult.status === 'corrected');
+
+            // Vérifier si le vrai auteur + livre fonctionne
+            const isCorrectAuthorMatch = correctAuthorBookResult &&
+              (correctAuthorBookResult.status === 'verified' || correctAuthorBookResult.status === 'corrected');
+
+            if (isSuggestedAuthorMatch) {
+              // L'auteur suggéré + livre fonctionne ! Utiliser cette suggestion
+              this.handleVerificationResult('book', {
+                status: 'corrected',
+                original_author: authorResult.original,
+                original_title: this.title,
+                babelio_suggestion_author: suggestedAuthor,
+                babelio_suggestion_title: suggestedAuthorBookResult.babelio_suggestion_title || this.title,
+                confidence_score: Math.min(authorResult.confidence_score || 0.8, suggestedAuthorBookResult.confidence_score || 0.8)
+              });
+            } else if (isCorrectAuthorMatch) {
+              // Seul l'auteur du livre trouvé + livre fonctionne
+              // La suggestion d'auteur était incorrecte
+              this.handleVerificationResult('book', {
+                status: 'corrected',
+                original_author: authorResult.original,
+                original_title: this.title,
+                babelio_suggestion_author: bookAuthor, // Utiliser l'auteur réel du livre
+                babelio_suggestion_title: correctAuthorBookResult.babelio_suggestion_title || bookAloneResult.babelio_suggestion_title || this.title,
+                confidence_score: Math.max(bookAloneResult.confidence_score || 0.8, correctAuthorBookResult.confidence_score || 0.8)
+              });
+            } else {
+              // Aucun des deux ne fonctionne parfaitement, garder la suggestion d'auteur
+              this.handleVerificationResult('author', {
+                status: 'corrected',
+                original: authorResult.original,
+                babelio_suggestion: authorResult.babelio_suggestion,
+                confidence_score: authorResult.confidence_score
+              });
+            }
+          } else {
+            // Pas d'auteur extrait, garder la suggestion d'auteur
+            this.handleVerificationResult('author', {
+              status: 'corrected',
+              original: authorResult.original,
+              babelio_suggestion: authorResult.babelio_suggestion,
+              confidence_score: authorResult.confidence_score
+            });
+          }
         } else {
-          // Suggestion auteur caduque (livre non trouvé avec auteur suggéré)
-          this.handleVerificationResult('coherence', {
-            status: 'suggestion_invalid',
+          // Livre non trouvé - impossible de valider la suggestion d'auteur
+          // Dans ce cas, on considère que c'est "non trouvé" plutôt qu'une suggestion
+          this.handleVerificationResult('book', {
+            status: 'not_found',
             original_author: authorResult.original,
             original_title: this.title,
-            invalid_suggestion_author: authorResult.babelio_suggestion,
-            reason: 'Suggestion auteur invalidée par absence du livre correspondant'
+            confidence_score: 0,
+            reason: 'Impossible de valider la suggestion auteur sans le livre correspondant'
           });
         }
       } else {
@@ -344,7 +387,58 @@ export default {
              this.validationResult.babelio_suggestion_title ||
              this.validationResult.babelio_suggestion_author ||
              '';
-    }
+    },
+
+    async verifyBookAlone(title) {
+      if (!title || !title.trim()) {
+        return null;
+      }
+
+      // Chercher le livre SANS auteur pour voir quel auteur Babelio suggère
+      return await babelioService.verifyBook(title.trim(), null);
+    },
+
+    extractAuthorFromBookResult(bookResult) {
+      if (!bookResult || !bookResult.babelio_data) {
+        return null;
+      }
+
+      const data = bookResult.babelio_data;
+
+      // Construire le nom complet de l'auteur
+      if (data.prenoms && data.nom) {
+        return `${data.prenoms} ${data.nom}`;
+      } else if (data.nom) {
+        return data.nom;
+      } else if (data.prenoms) {
+        return data.prenoms;
+      }
+
+      return null;
+    },
+
+    authorsMatch(author1, author2) {
+      if (!author1 || !author2) {
+        return false;
+      }
+
+      // Normaliser les noms pour la comparaison
+      const normalize = (name) => {
+        return name.toLowerCase()
+          .replace(/[^\w\s]/g, '') // Supprimer la ponctuation
+          .replace(/\s+/g, ' ')    // Normaliser les espaces
+          .trim();
+      };
+
+      const normalized1 = normalize(author1);
+      const normalized2 = normalize(author2);
+
+      // Vérifier la correspondance exacte ou partielle significative
+      return normalized1 === normalized2 ||
+             (normalized1.length > 5 && normalized2.includes(normalized1)) ||
+             (normalized2.length > 5 && normalized1.includes(normalized2));
+    },
+
   }
 };
 </script>
