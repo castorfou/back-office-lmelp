@@ -238,24 +238,48 @@ Le service est maintenant pleinement intégré dans :
 - ✅ **L'interface `/livres-auteurs`** (validation en temps réel)
 - 🔄 **Les workflows d'extraction des avis critiques** (intégration future)
 
-### Composant BabelioValidationCell
+### Système de Validation Intelligent BiblioValidationService
 
-Le composant `BabelioValidationCell.vue` fournit la validation en temps réel dans l'interface :
+Le service `BiblioValidationService.js` fournit une validation bibliographique intelligente à 4 étapes :
 
-#### Fonctionnalités
-- **Validation automatique** : Au montage du composant, chaque auteur est vérifié
-- **Rate limiting** : Respect strict de la limite 1 req/sec via `waitForRateLimit()`
-- **États visuels** : Indicateurs clairs (✅ validé, 🔄 suggestion, ❓ non trouvé, ⚠️ erreur)
-- **Retry** : Bouton de nouvelle tentative en cas d'erreur
-- **Suggestions** : Affichage des corrections proposées
+#### Architecture Avancée
+- **Service composite** : Combine fuzzy search (ground truth), Babelio, et recherche locale
+- **Validation en cascade** : 4 étapes progressives pour maximiser la précision
+- **Priorisation intelligente** : Ground truth > Babelio > Local search
+- **Gestion des fragments** : Reconstruction d'auteurs à partir de fragments épars
 
-#### API Service Frontend
+#### Algorithme de Validation à 4 Étapes
+
+1. **Étape 1** : Recherche fuzzy dans l'épisode (ground truth)
+2. **Étape 2** : Vérification auteur sur Babelio
+3. **Étape 3** : Vérification livre avec auteur original
+4. **Étape 4** : Vérification livre avec auteur corrigé (si différent)
+
+#### Statuts de Sortie
+- **`validated`** : Données confirmées (ground truth + Babelio)
+- **`suggestion`** : Correction proposée avec haute confiance
+- **`not_found`** : Aucune correspondance fiable trouvée
+
+#### Composant BiblioValidationCell
+
+Le composant `BiblioValidationCell.vue` intègre le service pour la validation en temps réel :
+
+##### Fonctionnalités
+- **Validation automatique** : Service `BiblioValidationService` au montage
+- **Rate limiting** : Respect strict de la limite 1 req/sec
+- **États visuels** : ✅ validé, 🔄 suggestion, ❓ non trouvé, ⚠️ erreur
+- **Retry intelligent** : Bouton de nouvelle tentative en cas d'erreur
+- **Suggestions détaillées** : Affichage des corrections auteur/titre
+
+##### API Service Frontend
 Service `babelioService` dans `api.js` avec méthodes :
 - `verifyAuthor(name)` : Vérification d'auteur
 - `verifyBook(title, author)` : Vérification de livre
 - `verifyPublisher(name)` : Vérification d'éditeur
 
-#### Tests
-- **11 tests unitaires** pour `BabelioValidationCell.test.js`
-- **Tests d'intégration** dans `LivresAuteurs.test.js`
-- **Couverture complète** : États loading, success, error, retry, rate limiting
+##### Tests Complets
+- **37 tests** pour `BiblioValidationService.modular.test.js` (fixtures YAML)
+- **16 tests** pour `BiblioValidationCell.test.js` (composant Vue)
+- **4 tests** d'intégration dans `LivresAuteurs.test.js`
+- **Couverture end-to-end** : Tous les scénarios de validation
+- **Tests de cas réels** : Données issues de /livres-auteurs

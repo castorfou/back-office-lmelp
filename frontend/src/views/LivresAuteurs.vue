@@ -123,7 +123,7 @@
                   <span class="sort-indicator" :class="getSortClass('publisher')">↕</span>
                 </th>
                 <th class="validation-header">
-                  Validation Babelio
+                  Validation Biblio
                 </th>
               </tr>
             </thead>
@@ -133,10 +133,11 @@
                 <td class="title-cell">{{ book.titre }}</td>
                 <td class="publisher-cell">{{ book.editeur || '-' }}</td>
                 <td class="validation-cell">
-                  <BabelioValidationCell
+                  <BiblioValidationCell
                     :author="book.auteur"
                     :title="book.titre"
                     :publisher="book.editeur || ''"
+                    :episode-id="selectedEpisodeId"
                   />
                 </td>
               </tr>
@@ -158,14 +159,14 @@
 <script>
 import { livresAuteursService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
-import BabelioValidationCell from '../components/BabelioValidationCell.vue';
+import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 
 export default {
   name: 'LivresAuteurs',
 
   components: {
     Navigation,
-    BabelioValidationCell,
+    BiblioValidationCell,
   },
 
   data() {

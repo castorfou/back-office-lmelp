@@ -28,6 +28,9 @@ vi.mock('../../src/services/api.js', () => ({
     verifyAuthor: vi.fn(),
     verifyBook: vi.fn(),
     verifyPublisher: vi.fn(),
+  },
+  fuzzySearchService: {
+    searchEpisode: vi.fn()
   }
 }));
 
@@ -115,7 +118,7 @@ describe('LivresAuteurs - Tests simplifiés', () => {
     expect(wrapper.text()).toContain('Sélectionnez un épisode pour commencer');
   });
 
-  it('affiche la colonne Validation Babelio dans le tableau', async () => {
+  it('affiche la colonne Validation Biblio dans le tableau', async () => {
     const mockBooks = [
       {
         episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
@@ -143,18 +146,19 @@ describe('LivresAuteurs - Tests simplifiés', () => {
     await wrapper.vm.loadBooksForEpisode();
     await wrapper.vm.$nextTick();
 
-    // Vérifier que la colonne Validation Babelio est présente
-    expect(wrapper.text()).toContain('Validation Babelio');
+    // Vérifier que la colonne Validation Biblio est présente
+    expect(wrapper.text()).toContain('Validation Biblio');
 
-    // Vérifier qu'il y a des composants BabelioValidationCell
-    const validationCells = wrapper.findAllComponents({ name: 'BabelioValidationCell' });
+    // Vérifier qu'il y a des composants BiblioValidationCell
+    const validationCells = wrapper.findAllComponents({ name: 'BiblioValidationCell' });
     expect(validationCells.length).toBe(1);
 
     // Vérifier que le composant reçoit les bonnes props
     expect(validationCells[0].props()).toEqual({
       author: 'Michel Houellebecq',
       title: 'Les Particules élémentaires',
-      publisher: 'Flammarion'
+      publisher: 'Flammarion',
+      episodeId: '6865f995a1418e3d7c63d076' // pragma: allowlist secret
     });
   });
 });

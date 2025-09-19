@@ -1,0 +1,141 @@
+# Babelio Book Verification Fixtures
+# Format: input (title + author) → output (status + suggestion + confidence)
+
+cases:
+  # Cas Maria Pourchet : données identiques
+  - name: "Tressaillir + Maria Pourchet → VERIFIED"
+    input:
+      title: "Tressaillir"
+      author: "Maria Pourchet"
+    output:
+      status: "verified"
+      original_title: "Tressaillir"
+      original_author: "Maria Pourchet"
+      babelio_suggestion_title: "Tressaillir"
+      babelio_suggestion_author: "Maria Pourchet"
+      confidence_score: 1.0
+
+  # Cas critique : Alain Mabancou vs Mabanckou
+  - name: "Ramsès de Paris + Alain Mabancou (original) → NOT FOUND"
+    input:
+      title: "Ramsès de Paris"
+      author: "Alain Mabancou"
+    output:
+      status: "not_found"
+      original_title: "Ramsès de Paris"
+      original_author: "Alain Mabancou"
+      babelio_suggestion_title: null
+      babelio_suggestion_author: null
+      confidence_score: 0.0
+
+  - name: "Ramsès de Paris + Alain Mabanckou (corrigé) → VERIFIED"
+    input:
+      title: "Ramsès de Paris"
+      author: "Alain Mabanckou"
+    output:
+      status: "verified"
+      original_title: "Ramsès de Paris"
+      original_author: "Alain Mabanckou"
+      babelio_suggestion_title: "Ramsès de Paris"
+      babelio_suggestion_author: "Alain Mabanckou"
+      confidence_score: 1.0
+
+  # Cas Caroline Dussain - cascade de suggestions
+  - name: "Un déni français + Caroline Dawson → Caroline du Saint"
+    input:
+      title: "Un déni français"
+      author: "Caroline Dawson"
+    output:
+      status: "corrected"
+      original_title: "Un déni français"
+      original_author: "Caroline Dawson"
+      babelio_suggestion_title: "Un Déni français - Enquête sur l'élevage industrie..."
+      babelio_suggestion_author: "Caroline du Saint"
+      confidence_score: 0.5496376811594202
+
+  - name: "Un Déni français... + Caroline du Saint → VERIFIED"
+    input:
+      title: "Un Déni français - Enquête sur l'élevage industrie..."
+      author: "Caroline du Saint"
+    output:
+      status: "verified"
+      original_title: "Un Déni français - Enquête sur l'élevage industrie..."
+      original_author: "Caroline du Saint"
+      babelio_suggestion_title: "Un Déni français - Enquête sur l'élevage industrie..."
+      babelio_suggestion_author: "Caroline du Saint"
+      confidence_score: 1.0
+
+  # Cas Christophe Bigot - vraiment non trouvé sur Babelio
+  - name: "Un autre Matin ailleurs + Christophe Bigot → NOT FOUND"
+    input:
+      title: "Un autre Matin ailleurs"
+      author: "Christophe Bigot"
+    output:
+      status: "not_found"
+      original_title: "Un autre Matin ailleurs"
+      original_author: "Christophe Bigot"
+      babelio_suggestion_title: null
+      babelio_suggestion_author: null
+      confidence_score: 0.0
+
+  # Cas Emmanuel Carrère - ground truth prioritaire
+  - name: "Kolkhoze + Emmanuel Carrère → VERIFIED"
+    input:
+      title: "Kolkhoze"
+      author: "Emmanuel Carrère"
+    output:
+      status: "verified"
+      original_title: "Kolkhoze"
+      original_author: "Emmanuel Carrère"
+      babelio_suggestion_title: "Kolkhoze"
+      babelio_suggestion_author: "Emmanuel Carrère"
+      confidence_score: 1.0
+
+  # Cas Agnès Michaud - not found
+  - name: "Huitsemences vivantes + Agnès Michaud → NOT FOUND"
+    input:
+      title: "Huitsemences vivantes"
+      author: "Agnès Michaud"
+    output:
+      status: "not_found"
+      original_title: "Huitsemences vivantes"
+      original_author: "Agnès Michaud"
+      babelio_suggestion_title: null
+      babelio_suggestion_author: null
+      confidence_score: 0.0
+
+  - name: "Au Grand Jamais + Yakuta Ali Kavazovic → NOT FOUND"
+    input:
+      title: "Au Grand Jamais"
+      author: "Yakuta Ali Kavazovic"
+    output:
+      status: "not_found"
+      original_title: "Au Grand Jamais"
+      original_author: "Yakuta Ali Kavazovic"
+      babelio_suggestion_title: null
+      babelio_suggestion_author: null
+      confidence_score: 0.0
+
+  - name: "Au grand jamais + Jakuta Alikavazovic → VERIFIED"
+    input:
+      title: "Au grand jamais"
+      author: "Jakuta Alikavazovic"
+    output:
+      status: "verified"
+      original_title: "Au grand jamais"
+      original_author: "Jakuta Alikavazovic"
+      babelio_suggestion_title: "Au grand jamais"
+      babelio_suggestion_author: "Jakuta Alikavazovic"
+      confidence_score: 1.0
+
+  - name: "Titre quelconque + Agnès Ouvrard-Michaud → NOT FOUND"
+    input:
+      title: "Titre quelconque"
+      author: "Agnès Ouvrard-Michaud"
+    output:
+      status: "not_found"
+      original_title: "Titre quelconque"
+      original_author: "Agnès Ouvrard-Michaud"
+      babelio_suggestion_title: null
+      babelio_suggestion_author: null
+      confidence_score: 0.0

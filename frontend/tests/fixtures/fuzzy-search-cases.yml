@@ -1,0 +1,73 @@
+# Fuzzy Search Fixtures
+# Format: input (episodeId + query) → output (matches + found_suggestions)
+
+cases:
+  - name: "Maria Pourchet - Tressaillir exact match"
+    input:
+      episode_id: "68c707ad6e51b9428ab87e9e"
+      query_author: "Maria Pourchet"
+      query_title: "Tressaillir"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Tressaillir", 100]]
+      author_matches: [["Maria", 90], ["Pourchet", 90]]
+
+  - name: "Alain Mabancou - Ramsès de Paris"
+    input:
+      episode_id: "68c707ad6e51b9428ab87e9e"
+      query_author: "Alain Mabancou"
+      query_title: "Ramsès de Paris"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Ramsès de Paris", 100]]
+      author_matches: [["d'Alain", 86], ["Mabanckou", 85]]
+
+  - name: "Caroline Dussain - Un déni français"
+    input:
+      episode_id: "68c707ad6e51b9428ab87e9e"
+      query_author: "Caroline Dussain"
+      query_title: "Un déni français"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Au grand jamais", 55]]
+      author_matches: []
+
+  - name: "Christophe Bigot - Un autre Matin ailleurs"
+    input:
+      episode_id: "68c707ad6e51b9428ab87e9e"
+      query_author: "Christophe Bigot"
+      query_title: "Un autre Matin ailleurs"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Avale", 54], ["📖 La Maison vide", 51]]
+      author_matches: []
+
+  - name: "Emmanuel Carrère - Colcause"
+    input:
+      episode_id: "68bd9ed3582cf994fb66f1d6"
+      query_author: "Emmanuel Carrère"
+      query_title: "Colcause"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Kolkhoze", 85]]
+      author_matches: [["Emmanuel Carrère", 100]]
+
+  - name: "Yakuta Ali Kavazovic - Au Grand Jamais"
+    input:
+      episode_id: "68c707ad6e51b9428ab87e9e"
+      query_author: "Yakuta Ali Kavazovic"
+      query_title: "Au Grand Jamais"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Au grand jamais", 100]]
+      author_matches: [["Alikavazovic", 82], ["Jakuta", 78]]
+
+  - name: "Agnès Michaud - Huitsemences vivantes"
+    input:
+      episode_id: null
+      query_author: "Agnès Michaud"
+      query_title: "Huitsemences vivantes"
+    output:
+      found_suggestions: false
+      title_matches: []
+      author_matches: []

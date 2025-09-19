@@ -1,0 +1,177 @@
+# Scénarios BiblioValidationService End-to-End
+# Chaque scénario définit la séquence d'appels et le résultat attendu
+
+scenarios:
+  # ✅ VALIDATED CASES
+  - name: "Ground truth confirme données identiques - Maria Pourchet"
+    description: "Ground truth reconstruit exactement les mêmes données que l'original, confirmé par Babelio"
+    input:
+      author: "Maria Pourchet"
+      title: "Tressaillir"
+      publisher: "Stock"
+      episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Maria Pourchet - Tressaillir exact match"
+      - service: "babelioAuthor"
+        ref: "Maria Pourchet - verified"
+      - service: "babelioBook"
+        ref: "Tressaillir + Maria Pourchet → VERIFIED"
+    expected:
+      status: "validated"
+      source: "ground_truth+babelio"
+      confidence_score: 1.0
+
+  - name: "Non trouvé réel - Christophe Bigot"
+    description: "Auteur vérifié mais livre non trouvé sur Babelio (faux positif actuel dans l'interface)"
+    input:
+      author: "Christophe Bigot"
+      title: "Un autre Matin ailleurs"
+      publisher: "Éditeur"
+      episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Christophe Bigot - Un autre Matin ailleurs"
+      - service: "babelioAuthor"
+        ref: "Christophe Bigot - exact match"
+      - service: "babelioBook"
+        ref: "Un autre Matin ailleurs + Christophe Bigot → NOT FOUND"
+    expected:
+      status: "not_found"
+      reason: "no_reliable_match_found"
+      attempts: ["ground_truth", "babelio"]
+
+  # 🔄 SUGGESTION CASES
+  - name: "Correction auteur seulement - Alain Mabancou"
+    description: "Livre n'existe que sous le nom d'auteur corrigé"
+    input:
+      author: "Alain Mabancou"
+      title: "Ramsès de Paris"
+      publisher: "Seuil"
+      episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Alain Mabancou - Ramsès de Paris"
+      - service: "babelioAuthor"
+        ref: "Alain Mabancou → Alain Mabanckou"
+      - service: "babelioBook"
+        ref: "Ramsès de Paris + Alain Mabancou (original) → NOT FOUND"
+      - service: "babelioBook"  # Deuxième appel avec auteur corrigé
+        ref: "Ramsès de Paris + Alain Mabanckou (corrigé) → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Alain Mabanckou"
+      title: "Ramsès de Paris"
+      corrections:
+        author: true
+        title: false
+
+  - name: "Cascade de suggestions - Caroline Dussain"
+    description: "Auteur suggère un autre auteur, puis livre suggère le bon auteur final"
+    input:
+      author: "Caroline Dussain"
+      title: "Un déni français"
+      publisher: "Éditeur"
+      episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Caroline Dussain - Un déni français"
+      - service: "babelioAuthor"
+        ref: "Caroline Dussain → Caroline Dawson"
+      - service: "babelioBook"
+        ref: "Un déni français + Caroline Dawson → Caroline du Saint"
+      - service: "babelioBook"  # Coherence check
+        ref: "Un Déni français... + Caroline du Saint → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Caroline du Saint"
+      title: "Un Déni français - Enquête sur l'élevage industrie..."
+      corrections:
+        author: true
+        title: true
+
+  - name: "Ground truth prioritaire - Emmanuel Carrère Kolkhoze"
+    description: "Ground truth suggère Kolkhoze, confirmé par Babelio"
+    input:
+      author: "Emmanuel Carrère"
+      title: "Colcause"
+      publisher: "POL"
+      episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Emmanuel Carrère - Colcause"
+      - service: "babelioAuthor"
+        ref: "Emmanuel Carrère - exact match"
+      - service: "babelioBook"
+        ref: "Kolkhoze + Emmanuel Carrère → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Emmanuel Carrère"
+      title: "Kolkhoze"
+      corrections:
+        author: false
+        title: true
+      source: "ground_truth+babelio"
+
+  - name: "Ground truth amélioré - Yakuta Ali Kavazovic"
+    description: "Ground truth détecte la correction grâce aux seuils ajustés"
+    input:
+      author: "Yakuta Ali Kavazovic"
+      title: "Au Grand Jamais"
+      publisher: "Gallimard"
+      episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Yakuta Ali Kavazovic - Au Grand Jamais"
+      - service: "babelioAuthor"
+        ref: "Yakuta Ali Kavazovic - not found"
+      - service: "babelioBook"
+        ref: "Au Grand Jamais + Yakuta Ali Kavazovic → NOT FOUND"
+      - service: "babelioBook"  # Test avec suggestion ground truth
+        ref: "Au grand jamais + Jakuta Alikavazovic → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Jakuta Alikavazovic"  # Nom corrigé extrait du ground truth
+      title: "Au grand jamais"      # Titre corrigé extrait du ground truth
+      corrections:
+        author: true
+        title: true
+      source: "ground_truth+babelio"
+
+  # ❓ NOT FOUND CASES
+  - name: "Aucune correspondance - Agnès Michaud"
+    description: "Ni ground truth ni Babelio ne trouvent de correspondance fiable"
+    input:
+      author: "Agnès Michaud"
+      title: "Huitsemences vivantes"
+      publisher: "Éditeur"
+      episodeId: null
+    calls:
+      - service: "fuzzySearch"
+        ref: "Agnès Michaud - Huitsemences vivantes"
+      - service: "babelioAuthor"
+        ref: "Agnès Michaud - not found"
+      - service: "babelioBook"
+        ref: "Huitsemences vivantes + Agnès Michaud → NOT FOUND"
+    expected:
+      status: "not_found"
+      reason: "no_reliable_match_found"
+      attempts: ["babelio"]
+
+  - name: "Suggestion non validée - Fausse suggestion"
+    description: "Babelio suggère un auteur mais le livre ne correspond pas"
+    input:
+      author: "Agnès Michaud"
+      title: "Titre quelconque"
+      publisher: "Éditeur"
+      episodeId: null
+    calls:
+      - service: "fuzzySearch"
+        ref: "Agnès Michaud - Huitsemences vivantes"  # Même fuzzy search
+      - service: "babelioAuthor"
+        ref: "Agnès Michaud → Agnès Ouvrard-Michaud (false positive)"
+      - service: "babelioBook"
+        ref: "Titre quelconque + Agnès Ouvrard-Michaud → NOT FOUND"
+    expected:
+      status: "not_found"
+      reason: "suggestion_validation_failed"

@@ -19,7 +19,9 @@
       "Bash(ruff format:*)",
       "Bash(mkdir -p /workspaces/back-office-lmelp/docs/claude/memory)",
       "WebFetch(domain:www.babelio.com)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__MongoDB__collection-schema",
+      "mcp__MongoDB__list-databases"
     ]
   },
   "enableAllProjectMcpServers": true,

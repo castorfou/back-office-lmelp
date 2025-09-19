@@ -307,6 +307,183 @@ ruff check path/to/file.py --fix
 
 **Never rely solely on user declarations of intent** - always verify the real world state using available tools.
 
+## API Discovery and Testing
+
+### Backend API Discovery Method
+When working with the backend API, use this systematic approach to discover endpoints and avoid trial-and-error:
+
+#### Step 1: Discover Service Ports
+```bash
+# Check if services are running and on which ports
+# TODO: This will be improved with Issue #56 (automatic port discovery)
+# For now, common ports are: 54321, 54322, 8000
+
+# Test if backend is running
+curl -s "http://localhost:54321/" || curl -s "http://localhost:54322/" || curl -s "http://localhost:8000/"
+```
+
+#### Step 2: Get Complete API Schema
+```bash
+# Get the OpenAPI specification (replace PORT with actual port)
+curl "http://localhost:PORT/openapi.json" | jq '.' > api-schema.json
+
+# Quick endpoint discovery
+curl "http://localhost:PORT/openapi.json" | jq -r '.paths | keys[]'
+```
+
+#### Step 3: Find Specific Endpoints
+```bash
+# Search for specific functionality
+curl "http://localhost:PORT/openapi.json" | jq -r '.paths | keys[]' | grep -i KEYWORD
+
+# Examples:
+curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i babelio
+curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i fuzzy
+curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i verify
+```
+
+#### Step 4: Get Endpoint Details
+```bash
+# Get request schema for a specific endpoint
+curl "http://localhost:PORT/openapi.json" | jq '.paths["/api/endpoint"].post.requestBody'
+
+# Get response schema
+curl "http://localhost:PORT/openapi.json" | jq '.paths["/api/endpoint"].post.responses'
+
+# Get component schemas
+curl "http://localhost:PORT/openapi.json" | jq '.components.schemas.SchemaName'
+```
+
+#### Step 5: Test Endpoint with Correct Schema
+```bash
+# Use the discovered schema to make proper requests
+curl -X POST "http://localhost:PORT/api/endpoint" \
+  -H "Content-Type: application/json" \
+  -d '{"field": "value"}'
+```
+
+### Common Backend Endpoints
+Based on current API discovery:
+
+```bash
+# API health check
+GET /
+
+# API documentation
+GET /docs
+GET /openapi.json
+
+# Babelio verification
+POST /api/verify-babelio
+# Required: {"type": "author|book", "name": "...", "title": "...", "author": "..."}
+
+# TODO: Document other endpoints as discovered
+```
+
+### API Testing Best Practices
+- **Always check the API documentation first**: Visit `/docs` for interactive testing
+- **Use jq for JSON parsing**: Makes endpoint discovery much faster
+- **Save common schemas**: Store frequently used request bodies as examples
+- **Verify response format**: Check actual response structure before using in code
+- **Handle different environments**: Port may vary between local/dev/prod
+
+### Troubleshooting API Issues
+- **Connection refused**: Check if backend is running and on correct port
+- **404 Not Found**: Verify endpoint path with OpenAPI schema
+- **422 Validation Error**: Check required fields in request schema
+- **Missing field errors**: Use OpenAPI schema to verify all required fields
+
+**Note**: This methodology will be enhanced with Issue #56 to include automatic port discovery.
+
+## MongoDB Database Operations
+
+### MCP MongoDB Tools Integration
+This project includes MCP (Model Context Protocol) tools for MongoDB operations. These tools provide direct database access capabilities for the `masque_et_la_plume` database.
+
+#### Project Database Structure
+- **Main Database**: `masque_et_la_plume`
+- **Collections**: `livres`, `emissions`, `editeurs`, `episodes`, `avis_critiques`, `logs`, `auteurs`, `critiques`
+
+#### Available MongoDB MCP Tools
+- `mcp__MongoDB__connect`: Connect to MongoDB instance
+- `mcp__MongoDB__list-databases`: List all databases
+- `mcp__MongoDB__list-collections`: List collections in a database
+- `mcp__MongoDB__collection-schema`: Get collection schema structure
+- `mcp__MongoDB__collection-indexes`: View collection indexes
+- `mcp__MongoDB__find`: Query documents with filters, sorting, projection
+- `mcp__MongoDB__aggregate`: Run aggregation pipelines
+- `mcp__MongoDB__count`: Count documents with optional filters
+- `mcp__MongoDB__collection-storage-size`: Get collection storage information
+- `mcp__MongoDB__explain`: Analyze query execution plans
+- `mcp__MongoDB__export`: Export query results in EJSON format
+- `mcp__MongoDB__db-stats`: Database statistics
+- `mcp__MongoDB__mongodb-logs`: View MongoDB server logs
+
+#### Common MongoDB Operations for This Project
+
+**Database Discovery:**
+```bash
+# List all databases
+mcp__MongoDB__list-databases
+
+# List collections in main database
+mcp__MongoDB__list-collections --database "masque_et_la_plume"
+
+# Get schema for specific collections
+mcp__MongoDB__collection-schema --database "masque_et_la_plume" --collection "livres"
+mcp__MongoDB__collection-schema --database "masque_et_la_plume" --collection "auteurs"
+mcp__MongoDB__collection-schema --database "masque_et_la_plume" --collection "episodes"
+```
+
+**Data Querying Examples:**
+```bash
+# Find books
+mcp__MongoDB__find --database "masque_et_la_plume" --collection "livres" --filter '{"status": "active"}' --limit 10
+
+# Find authors
+mcp__MongoDB__find --database "masque_et_la_plume" --collection "auteurs" --limit 5
+
+# Count episodes
+mcp__MongoDB__count --database "masque_et_la_plume" --collection "episodes"
+
+# Find recent episodes
+mcp__MongoDB__find --database "masque_et_la_plume" --collection "episodes" --sort '{"date": -1}' --limit 10
+```
+
+**Aggregation Examples:**
+```bash
+# Books by publisher
+mcp__MongoDB__aggregate --database "masque_et_la_plume" --collection "livres" --pipeline '[{"$group": {"_id": "$editeur", "count": {"$sum": 1}}}]'
+
+# Episodes by emission
+mcp__MongoDB__aggregate --database "masque_et_la_plume" --collection "episodes" --pipeline '[{"$group": {"_id": "$emission_id", "count": {"$sum": 1}}}]'
+```
+
+**Performance Analysis:**
+```bash
+# Explain book queries
+mcp__MongoDB__explain --database "masque_et_la_plume" --collection "livres" --method '[{"name": "find", "arguments": {"filter": {"titre": "some title"}}}]'
+
+# View collection indexes
+mcp__MongoDB__collection-indexes --database "masque_et_la_plume" --collection "livres"
+mcp__MongoDB__collection-indexes --database "masque_et_la_plume" --collection "auteurs"
+
+# Get storage statistics
+mcp__MongoDB__collection-storage-size --database "masque_et_la_plume" --collection "livres"
+```
+
+#### Integration with Backend Development
+- **Schema Validation**: Use `collection-schema` to understand data structures before coding
+- **Query Optimization**: Use `explain` to optimize MongoDB queries in backend services
+- **Data Analysis**: Use `aggregate` for complex data transformations and reporting
+- **Debugging**: Use `mongodb-logs` to troubleshoot database connectivity issues
+
+#### Best Practices for MongoDB MCP Tools
+- Always use `collection-schema` for `livres`, `auteurs`, and `episodes` collections before writing queries
+- Test queries with `find` before implementing them in backend code
+- Use `explain` to optimize query performance for book/author searches
+- Use `aggregate` for complex reporting across collections (books by author, episodes by emission, etc.)
+
 ## Dependencies
 
 ### Backend Dependencies

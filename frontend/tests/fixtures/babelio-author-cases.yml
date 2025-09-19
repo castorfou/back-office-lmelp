@@ -1,0 +1,75 @@
+# Babelio Author Verification Fixtures
+# Format: input (author name) → output (status + suggestion + confidence)
+
+cases:
+  - name: "Maria Pourchet - verified"
+    input:
+      name: "Maria Pourchet"
+    output:
+      status: "verified"
+      original: "Maria Pourchet"
+      babelio_suggestion: "Maria Pourchet"
+      confidence_score: 1.0
+
+  - name: "Alain Mabancou → Alain Mabanckou"
+    input:
+      name: "Alain Mabancou"
+    output:
+      status: "verified"
+      original: "Alain Mabancou"
+      babelio_suggestion: "Alain Mabanckou"
+      confidence_score: 0.9655172413793104
+
+  - name: "Caroline Dussain → Caroline Dawson"
+    input:
+      name: "Caroline Dussain"
+    output:
+      status: "corrected"
+      original: "Caroline Dussain"
+      babelio_suggestion: "Caroline Dawson"
+      confidence_score: 0.7741935483870968
+
+  - name: "Christophe Bigot - exact match"
+    input:
+      name: "Christophe Bigot"
+    output:
+      status: "verified"
+      original: "Christophe Bigot"
+      babelio_suggestion: "Christophe Bigot"
+      confidence_score: 1.0
+
+  - name: "Emmanuel Carrère - exact match"
+    input:
+      name: "Emmanuel Carrère"
+    output:
+      status: "verified"
+      original: "Emmanuel Carrère"
+      babelio_suggestion: "Emmanuel Carrère"
+      confidence_score: 1.0
+
+  - name: "Agnès Michaud - not found"
+    input:
+      name: "Agnès Michaud"
+    output:
+      status: "not_found"
+      original: "Agnès Michaud"
+      babelio_suggestion: null
+      confidence_score: 0
+
+  - name: "Yakuta Ali Kavazovic - not found"
+    input:
+      name: "Yakuta Ali Kavazovic"
+    output:
+      status: "not_found"
+      original: "Yakuta Ali Kavazovic"
+      babelio_suggestion: null
+      confidence_score: 0
+
+  - name: "Agnès Michaud → Agnès Ouvrard-Michaud (false positive)"
+    input:
+      name: "Agnès Michaud"
+    output:
+      status: "corrected"
+      original: "Agnès Michaud"
+      babelio_suggestion: "Agnès Ouvrard-Michaud"
+      confidence_score: 0.8

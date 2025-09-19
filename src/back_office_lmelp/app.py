@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from thefuzz import process  # type: ignore[import-not-found]
 
 from .models.episode import Episode
 from .services.babelio_service import babelio_service
@@ -25,6 +26,14 @@ class BabelioVerificationRequest(BaseModel):
     name: str | None = None  # Pour author ou publisher
     title: str | None = None  # Pour book
     author: str | None = None  # Auteur du livre (optionnel pour book)
+
+
+class FuzzySearchRequest(BaseModel):
+    """Modèle pour les requêtes de recherche fuzzy dans les épisodes."""
+
+    episode_id: str
+    query_title: str
+    query_author: str | None = None
 
 
 @asynccontextmanager
@@ -345,6 +354,103 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
             )
 
         return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/fuzzy-search-episode", response_model=dict[str, Any])
+async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
+    """Recherche fuzzy dans le titre et description d'un épisode."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Récupérer l'épisode
+        episode_data = mongodb_service.get_episode_by_id(request.episode_id)
+        if not episode_data:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        episode = Episode(episode_data)
+
+        # Combiner titre et description pour la recherche
+        full_text = f"{episode.titre} {episode.description}"
+
+        # Nettoyer et diviser le texte en mots/segments
+        import re
+
+        # Extraire segments entre guillemets (priorité haute - titres potentiels)
+        quoted_segments = re.findall(r'"([^"]+)"', full_text)
+
+        # Extraire mots individuels de plus de 3 caractères
+        words = [word for word in full_text.split() if len(word) > 3]
+
+        # Nettoyer les mots (enlever ponctuation)
+        clean_words = [re.sub(r"[^\w\-\'àâäéèêëïîôöùûüÿç]", "", word) for word in words]
+        clean_words = [word for word in clean_words if len(word) > 3]
+
+        # Prioriser les segments entre guillemets, puis les mots longs
+        search_candidates = quoted_segments + clean_words
+
+        # Recherche fuzzy pour le titre
+        # D'abord chercher dans les segments entre guillemets (priorité haute)
+        quoted_matches = (
+            process.extract(request.query_title, quoted_segments, limit=5)
+            if quoted_segments
+            else []
+        )
+
+        # Puis chercher dans tous les candidats
+        all_matches = process.extract(request.query_title, search_candidates, limit=10)
+
+        # Retourner TOUS les segments entre guillemets (potentiels titres) + bons matches généraux
+        title_matches = []
+
+        # Ajouter tous les segments entre guillemets avec marqueur 📖
+        if quoted_matches:
+            title_matches.extend(
+                [("📖 " + match, score) for match, score in quoted_matches]
+            )
+
+        # Ajouter les autres bons matches généraux (seuil plus strict)
+        title_matches.extend(
+            [
+                (match, score)
+                for match, score in all_matches
+                if score >= 60 and match not in [q[0] for q in quoted_matches]
+            ]
+        )
+
+        # Recherche fuzzy pour l'auteur (si fourni)
+        author_matches = []
+        if request.query_author:
+            author_matches_raw = process.extract(
+                request.query_author, search_candidates, limit=10
+            )
+            # Filtrer manuellement par score
+            author_matches = [
+                (match, score) for match, score in author_matches_raw if score >= 75
+            ]
+
+        return {
+            "episode_id": request.episode_id,
+            "episode_title": episode.titre,
+            "query_title": request.query_title,
+            "query_author": request.query_author,
+            "title_matches": title_matches,
+            "author_matches": author_matches,
+            "found_suggestions": len(title_matches) > 0 or len(author_matches) > 0,
+            "debug_candidates": search_candidates[:10],  # Pour debug
+            "debug_quoted_matches": quoted_matches[:3]
+            if quoted_matches
+            else [],  # Pour debug
+        }
 
     except HTTPException:
         raise

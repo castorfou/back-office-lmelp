@@ -110,4 +110,15 @@ suite à ajout de lib dans `pyproject.toml`
 
 ```bash
 uv pip install -e .
+uv lock # pour generer le lockfile
+```
+
+## mettre à jour l'env nodejs
+
+Les packages se declarent dans `frontend/package.json`
+
+et pour l'installation
+
+```bash
+cd /workspaces/back-office-lmelp/frontend && npm install
 ```

@@ -199,5 +199,48 @@ export const babelioService = {
   },
 };
 
+/**
+ * Service de recherche fuzzy pour les épisodes
+ */
+export const fuzzySearchService = {
+  /**
+   * Recherche fuzzy dans un épisode spécifique
+   * @param {string} episodeId - ID de l'épisode
+   * @param {Object} searchTerms - Termes de recherche {author, title}
+   * @returns {Promise<Object>} Résultat de recherche fuzzy
+   */
+  async searchEpisode(episodeId, searchTerms) {
+    if (!episodeId || !searchTerms) {
+      return {
+        found_suggestions: false,
+        titleMatches: [],
+        authorMatches: []
+      };
+    }
+
+    try {
+      const response = await api.post('/fuzzy-search-episode', {
+        episode_id: episodeId,
+        query_title: searchTerms.title || '',
+        query_author: searchTerms.author || ''
+      });
+
+      // Transform API response to expected format
+      const data = response.data;
+      return {
+        found_suggestions: data.found_suggestions || false,
+        titleMatches: data.title_matches || [],
+        authorMatches: data.author_matches || []
+      };
+    } catch (error) {
+      console.warn('Fuzzy search failed:', error.message);
+      return {
+        found_suggestions: false,
+        titleMatches: [],
+        authorMatches: []
+      };
+    }
+  }
+};
 
 export default api;
