@@ -11,7 +11,7 @@ cases:
   output:
     status: "verified"
 
-# Cas suggestion - corrections proposées
+# Cas suggestion - corrections proposées - mais il faut faire évoluer l'algo
 - input:
     author: "Emmanuel Carrère"
     title: "Colcause"
@@ -33,3 +33,26 @@ cases:
     episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
   output:
     status: "not_found"
+
+# Cas not_found 14/09/2025
+- input:
+    author: "Agnès Michaud"
+    title: "Huitsemences vivantes"
+    publisher: "Cherche Midi"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "not_found"
+
+# Cas Alain Mabancou --> Alain Mabanckou 14/09/2025
+- input:
+    author: "Alain Mabancou"
+    title: "Ramsès de Paris"
+    publisher: "Seuil"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Alain Mabanckou"
+    suggested_title: "Ramsès de Paris"
+    corrections:
+      author: true
+      title: false

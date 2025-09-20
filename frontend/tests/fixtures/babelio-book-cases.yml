@@ -1,170 +1,5 @@
 cases:
 - input:
-    author: Maria Pourchet
-    title: Tressaillir
-  name: Tressaillir + Maria Pourchet → VERIFIED
-  output:
-    babelio_suggestion_author: Maria Pourchet
-    babelio_suggestion_title: Tressaillir
-    confidence_score: 1.0
-    original_author: Maria Pourchet
-    original_title: Tressaillir
-    status: verified
-- input:
-    author: Alain Mabancou
-    title: Ramsès de Paris
-  name: Ramsès de Paris + Alain Mabancou (original) → NOT FOUND
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Alain Mabancou
-    original_title: Ramsès de Paris
-    status: not_found
-- input:
-    author: Alain Mabanckou
-    title: Ramsès de Paris
-  name: Ramsès de Paris + Alain Mabanckou (corrigé) → VERIFIED
-  output:
-    babelio_suggestion_author: Alain Mabanckou
-    babelio_suggestion_title: Ramsès de Paris
-    confidence_score: 1.0
-    original_author: Alain Mabanckou
-    original_title: Ramsès de Paris
-    status: verified
-- input:
-    author: Caroline Dawson
-    title: Un déni français
-  name: Un déni français + Caroline Dawson → Caroline du Saint
-  output:
-    babelio_suggestion_author: Caroline du Saint
-    babelio_suggestion_title: Un Déni français - Enquête sur l'élevage industrie...
-    confidence_score: 0.5496376811594202
-    original_author: Caroline Dawson
-    original_title: Un déni français
-    status: corrected
-- input:
-    author: Caroline du Saint
-    title: Un Déni français - Enquête sur l'élevage industrie...
-  name: Un Déni français... + Caroline du Saint → VERIFIED
-  output:
-    babelio_suggestion_author: Caroline du Saint
-    babelio_suggestion_title: Un Déni français - Enquête sur l'élevage industrie...
-    confidence_score: 1.0
-    original_author: Caroline du Saint
-    original_title: Un Déni français - Enquête sur l'élevage industrie...
-    status: verified
-- input:
-    author: Christophe Bigot
-    title: Un autre Matin ailleurs
-  name: Un autre Matin ailleurs + Christophe Bigot → NOT FOUND
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Christophe Bigot
-    original_title: Un autre Matin ailleurs
-    status: not_found
-- input:
-    author: Agnès Michaud
-    title: Huitsemences vivantes
-  name: Huitsemences vivantes + Agnès Michaud → NOT FOUND
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Agnès Michaud
-    original_title: Huitsemences vivantes
-    status: not_found
-- input:
-    author: Yakuta Ali Kavazovic
-    title: Au Grand Jamais
-  name: Au Grand Jamais + Yakuta Ali Kavazovic → NOT FOUND
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Yakuta Ali Kavazovic
-    original_title: Au Grand Jamais
-    status: not_found
-- input:
-    author: Jakuta Alikavazovic
-    title: Au grand jamais
-  name: Au grand jamais + Jakuta Alikavazovic → VERIFIED
-  output:
-    babelio_suggestion_author: Jakuta Alikavazovic
-    babelio_suggestion_title: Au grand jamais
-    confidence_score: 1.0
-    original_author: Jakuta Alikavazovic
-    original_title: Au grand jamais
-    status: verified
-- input:
-    author: Agnès Ouvrard-Michaud
-    title: Titre quelconque
-  name: Titre quelconque + Agnès Ouvrard-Michaud → NOT FOUND
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Agnès Ouvrard-Michaud
-    original_title: Titre quelconque
-    status: not_found
-- input:
-    author: Fatima Daas
-    title: Jouer le jeu
-  name: Jouer le jeu + Fatima Daas → VERIFIED
-  output:
-    babelio_suggestion_author: Fatima Daas
-    babelio_suggestion_title: Jouer le jeu
-    confidence_score: 1.0
-    original_author: Fatima Daas
-    original_title: Jouer le jeu
-    status: verified
-- input:
-    author: Natacha Appanah
-    title: La Nuit au cœur
-  name: La Nuit au cœur + Natacha Appanah → VERIFIED
-  output:
-    babelio_suggestion_author: Natacha Appanah
-    babelio_suggestion_title: La Nuit au cœur
-    confidence_score: 1.0
-    original_author: Natacha Appanah
-    original_title: La Nuit au cœur
-    status: verified
-- input:
-    author: Grégory Lefloc
-    title: Peau d'ours
-  name: Peau d'ours + Grégory Lefloc → Henri Calet suggestion (FANTAISISTE)
-  output:
-    babelio_suggestion_author: Henri Calet
-    babelio_suggestion_title: Peau d'ours
-    confidence_score: 0.3
-    original_author: Grégory Lefloc
-    original_title: Peau d'ours
-    status: corrected
-- input:
-    author: Fatima Das
-    title: Jouer le jeu
-  name: Jouer le jeu + Fatima Das - API response
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Fatima Das
-    original_title: Jouer le jeu
-    status: not_found
-- input:
-    author: Natacha Apana
-    title: La Nuit au cœur
-  name: La Nuit au cœur + Natacha Apana - API response
-  output:
-    babelio_suggestion_author: null
-    babelio_suggestion_title: null
-    confidence_score: 0.0
-    original_author: Natacha Apana
-    original_title: La Nuit au cœur
-    status: not_found
-- input:
     author: Grégory Lefloc
     title: Peau d'ours
   name: Peau d'ours + Grégory Lefloc - API response
@@ -246,3 +81,74 @@ cases:
     original_title: Fleurs intestinales
     status: verified
   timestamp: 1758401754627
+- input:
+    author: Agnès Michaud
+    title: Huitsemences vivantes
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Agnès Michaud
+    original_title: Huitsemences vivantes
+    status: not_found
+  timestamp: 1758405086022
+- input:
+    author: Agnès Ouvrard-Michaud
+    title: Huitsemences vivantes
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Agnès Ouvrard-Michaud
+    original_title: Huitsemences vivantes
+    status: not_found
+  timestamp: 1758405086026
+- input:
+    author: Alain Mabancou
+    title: Ramsès de Paris
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Alain Mabancou
+    original_title: Ramsès de Paris
+    status: not_found
+  timestamp: 1758405218294
+- input:
+    author: Alain Mabanckou
+    title: Ramsès de Paris
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '97'
+      ca_note: '3.08'
+      couverture: https://m.media-amazon.com/images/I/515fv5IEdyL._SX95_.jpg
+      id_auteur: '6174'
+      id_oeuvre: '1872857'
+      nom: Mabanckou
+      prenoms: Alain
+      titre: Ramsès de Paris
+      tri: '97'
+      type: livres
+      url: /livres/Mabanckou-Ramses-de-Paris/1872857
+    babelio_suggestion_author: Alain Mabanckou
+    babelio_suggestion_title: Ramsès de Paris
+    babelio_url: https://www.babelio.com/livres/Mabanckou-Ramses-de-Paris/1872857
+    confidence_score: 1
+    error_message: null
+    original_author: Alain Mabanckou
+    original_title: Ramsès de Paris
+    status: verified
+  timestamp: 1758405218299

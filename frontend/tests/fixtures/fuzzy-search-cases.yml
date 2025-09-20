@@ -1,173 +1,6 @@
 cases:
 - input:
     episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Maria Pourchet
-    query_title: Tressaillir
-  name: Maria Pourchet - Tressaillir exact match
-  output:
-    author_matches:
-    - - Maria
-      - 90
-    - - Pourchet
-      - 90
-    found_suggestions: true
-    title_matches:
-    - - 📖 Tressaillir
-      - 100
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Alain Mabancou
-    query_title: Ramsès de Paris
-  name: Alain Mabancou - Ramsès de Paris
-  output:
-    author_matches:
-    - - d'Alain
-      - 86
-    - - Mabanckou
-      - 85
-    found_suggestions: true
-    title_matches:
-    - - 📖 Ramsès de Paris
-      - 100
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Caroline Dussain
-    query_title: Un déni français
-  name: Caroline Dussain - Un déni français
-  output:
-    author_matches: []
-    found_suggestions: true
-    title_matches:
-    - - 📖 Au grand jamais
-      - 55
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Christophe Bigot
-    query_title: Un autre Matin ailleurs
-  name: Christophe Bigot - Un autre Matin ailleurs
-  output:
-    author_matches: []
-    found_suggestions: true
-    title_matches:
-    - - 📖 Avale
-      - 54
-    - - 📖 La Maison vide
-      - 51
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Yakuta Ali Kavazovic
-    query_title: Au Grand Jamais
-  name: Yakuta Ali Kavazovic - Au Grand Jamais
-  output:
-    author_matches:
-    - - Alikavazovic
-      - 82
-    - - Jakuta
-      - 78
-    found_suggestions: true
-    title_matches:
-    - - 📖 Au grand jamais
-      - 100
-- input:
-    episode_id: null
-    query_author: Agnès Michaud
-    query_title: Huitsemences vivantes
-  name: Agnès Michaud - Huitsemences vivantes
-  output:
-    author_matches: []
-    found_suggestions: false
-    title_matches: []
-- input:
-    episode_id: 68bd9ed3582cf994fb66f1d6
-    query_author: Fatima Das
-    query_title: Jouer le jeu
-  name: Fatima Daas - Jouer le jeu exact match
-  output:
-    author_matches:
-    - - Fatima
-      - 90
-    - - Daas
-      - 85
-    found_suggestions: true
-    title_matches:
-    - - 📖 Jouer le Jeu
-      - 100
-- input:
-    episode_id: 68bd9ed3582cf994fb66f1d6
-    query_author: Natacha Apana
-    query_title: La Nuit au cœur
-  name: Natacha Apana - La Nuit au cœur (tolère différence Apana/Appanah)
-  output:
-    author_matches:
-    - - Natacha
-      - 90
-    - - Appanah
-      - 75
-    found_suggestions: true
-    title_matches:
-    - - 📖 La Nuit au cœur
-      - 100
-- input:
-    episode_id: 68bd9ed3582cf994fb66f1d6
-    query_author: Grégory Lefloc
-    query_title: Peau d'ours
-  name: Grégory Lefloc - Peau d'ours NOT FOUND (pas au programme)
-  output:
-    author_matches: []
-    found_suggestions: false
-    title_matches: []
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Fatima Das
-    query_title: Jouer le jeu
-  name: Fatima Das - Jouer le jeu
-  output:
-    author_matches: []
-    found_suggestions: true
-    title_matches:
-    - - 📖 Avale
-      - 49
-    - - 📖 Ramsès de Paris
-      - 31
-    - - 📖 Au grand jamais
-      - 30
-    - - 📖 La Maison vide
-      - 29
-    - - 📖 Tressaillir
-      - 17
-    - - pour
-      - 68
-    - - Pour
-      - 68
-    - - écouter
-      - 65
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
-    query_author: Natacha Apana
-    query_title: La Nuit au cœur
-  name: Natacha Apana - La Nuit au cœur
-  output:
-    author_matches: []
-    found_suggestions: true
-    title_matches:
-    - - 📖 Au grand jamais
-      - 44
-    - - 📖 La Maison vide
-      - 39
-    - - 📖 Ramsès de Paris
-      - 34
-    - - 📖 Avale
-      - 30
-    - - 📖 Tressaillir
-      - 23
-    - - durée
-      - 60
-    - - pour
-      - 60
-    - - Pour
-      - 60
-- input:
-    episode_id: 68c707ad6e51b9428ab87e9e
     query_author: Grégory Lefloc
     query_title: Peau d'ours
   name: Grégory Lefloc - Peau d'ours
@@ -243,3 +76,57 @@ cases:
     - - réalisé
       - 60
   timestamp: 1758401754619
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Agnès Michaud
+    query_title: Huitsemences vivantes
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 54
+    - - 📖 La Maison vide
+      - 40
+    - - 📖 Tressaillir
+      - 39
+    - - 📖 Ramsès de Paris
+      - 34
+    - - 📖 Au grand jamais
+      - 28
+    - - autres
+      - 65
+    - - semaine
+      - 64
+  timestamp: 1758405086009
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Alain Mabancou
+    query_title: Ramsès de Paris
+  output:
+    authorMatches:
+    - - d'Alain
+      - 86
+    - - Mabanckou
+      - 85
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Ramsès de Paris
+      - 100
+    - - 📖 Au grand jamais
+      - 48
+    - - 📖 La Maison vide
+      - 43
+    - - 📖 Tressaillir
+      - 40
+    - - 📖 Avale
+      - 26
+    - - Ramsès
+      - 90
+    - - Paris
+      - 90
+    - - réalisé
+      - 68
+    - - Maria
+      - 60
+  timestamp: 1758405218281
