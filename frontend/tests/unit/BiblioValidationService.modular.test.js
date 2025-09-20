@@ -87,7 +87,19 @@ describe('BiblioValidationService Tests', () => {
     });
   });
 
-  // Helper functions
+  // Helper functions with fixture error detection
+  function getFixtureResponseOrError(service, input, fixture) {
+    if (fixture) {
+      return fixture.output;
+    }
+
+    // Return special fixture error response
+    return {
+      status: 'fixture_error',
+      error_message: `Missing ${service} fixture for input: ${JSON.stringify(input)}`
+    };
+  }
+
   function findFixtureByAuthor(author) {
     return babelioAuthorCases.cases.find(c =>
       c.input.name === author || c.input.name?.toLowerCase() === author.toLowerCase()
@@ -123,18 +135,14 @@ describe('BiblioValidationService Tests', () => {
           const bookFixture = findFixtureByBook(testCase.input.title, testCase.input.author);
           const fuzzyFixture = findFuzzyFixture(testCase.input.episodeId, testCase.input.author, testCase.input.title);
 
-          // Mock with REAL captured data
-          if (fuzzyFixture) {
-            mockFuzzySearchService.searchEpisode.mockResolvedValueOnce(fuzzyFixture.output);
-          }
+          // Mock with REAL captured data OR fixture error responses
+          const fuzzyResponse = getFixtureResponseOrError('fuzzySearch', { episode_id: testCase.input.episodeId, query_author: testCase.input.author, query_title: testCase.input.title }, fuzzyFixture);
+          const authorResponse = getFixtureResponseOrError('babelioAuthor', { name: testCase.input.author }, authorFixture);
+          const bookResponse = getFixtureResponseOrError('babelioBook', { author: testCase.input.author, title: testCase.input.title }, bookFixture);
 
-          if (authorFixture) {
-            mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorFixture.output);
-          }
-
-          if (bookFixture) {
-            mockBabelioService.verifyBook.mockResolvedValueOnce(bookFixture.output);
-          }
+          mockFuzzySearchService.searchEpisode.mockResolvedValueOnce(fuzzyResponse);
+          mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorResponse);
+          mockBabelioService.verifyBook.mockResolvedValueOnce(bookResponse);
 
           // Execute validation with real mocked data
           const result = await biblioValidationService.validateBiblio(
