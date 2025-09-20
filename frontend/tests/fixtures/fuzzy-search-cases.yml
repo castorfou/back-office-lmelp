@@ -157,3 +157,121 @@ cases:
     - - Maison
       - 60
   timestamp: 1758407507802
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Grégory Lefloc
+    query_title: Peau d'ours
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Par où entre la lumière
+      - 50
+    - - 📖 Jouer le Jeu
+      - 50
+    - - 📖 La Nuit au cœur
+      - 46
+    - - 📖 Nous les Moches
+      - 38
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 28
+    - - d'une
+      - 86
+    - - Nous
+      - 68
+    - - Vous
+      - 68
+    - - Pour
+      - 68
+    - - tous
+      - 68
+    - - Jouer
+      - 60
+    - - autres
+      - 60
+  timestamp: 1758408613718
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Christophe Bigot
+    query_title: Un autre Matin ailleurs
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 54
+    - - 📖 La Maison vide
+      - 51
+    - - 📖 Tressaillir
+      - 49
+    - - 📖 Au grand jamais
+      - 48
+    - - 📖 Ramsès de Paris
+      - 37
+    - - autres
+      - 75
+    - - durée
+      - 68
+    - - semaine
+      - 64
+    - - Maison
+      - 60
+  timestamp: 1758408856645
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Nin Antico
+    query_title: Une Obsession
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 La Maison vide
+      - 35
+    - - 📖 Tressaillir
+      - 33
+    - - 📖 Au grand jamais
+      - 29
+    - - 📖 Avale
+      - 28
+    - - 📖 Ramsès de Paris
+      - 22
+    - - Maison
+      - 60
+  timestamp: 1758408969923
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Yakuta Ali Kavazovic
+    query_title: Au Grand Jamais
+  output:
+    authorMatches:
+    - - Alikavazovic
+      - 82
+    - - Jakuta
+      - 78
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Au grand jamais
+      - 100
+    - - 📖 Ramsès de Paris
+      - 48
+    - - 📖 La Maison vide
+      - 41
+    - - 📖 Avale
+      - 36
+    - - 📖 Tressaillir
+      - 23
+    - - grand
+      - 90
+    - - jamais
+      - 90
+    - - Maison
+      - 72
+    - - Paris
+      - 68
+    - - réalisé
+      - 68
+    - - d'Alain
+      - 64
+    - - Maria
+      - 60
+  timestamp: 1758409133731

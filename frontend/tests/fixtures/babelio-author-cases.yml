@@ -117,3 +117,60 @@ cases:
     original: Caroline Dussain
     status: corrected
   timestamp: 1758407507809
+- input:
+    name: Grégory Lefloc
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Grégory Lefloc
+    status: not_found
+  timestamp: 1758408613725
+- input:
+    name: Christophe Bigot
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '942'
+      ca_oeuvres: '7'
+      first_of_group: first_of_group
+      id: '94718'
+      nom: Bigot
+      prenoms: Christophe
+      type: auteurs
+      url: /auteur/Christophe-Bigot/94718
+      url_photo: /users/avt_fd_94718.jpg
+    babelio_suggestion: Christophe Bigot
+    babelio_url: https://www.babelio.com/auteur/Christophe-Bigot/94718
+    confidence_score: 1
+    error_message: null
+    original: Christophe Bigot
+    status: verified
+  timestamp: 1758408856655
+- input:
+    name: Nin Antico
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Nin Antico
+    status: not_found
+  timestamp: 1758408969941
+- input:
+    name: Yakuta Ali Kavazovic
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Yakuta Ali Kavazovic
+    status: not_found
+  timestamp: 1758409133744

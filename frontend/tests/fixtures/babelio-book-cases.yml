@@ -182,3 +182,78 @@ cases:
     original_title: Un déni français
     status: corrected
   timestamp: 1758407507818
+- input:
+    author: Grégory Lefloc
+    title: Peau d'ours
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '55'
+      ca_nb_citations: '9'
+      ca_nb_critiques: '4'
+      ca_note: '3.69'
+      couverture: https://images-na.ssl-images-amazon.com/images/I/3118KFKRFJL._SX95_.jpg
+      id: '193462'
+      id_auteur: '10444'
+      id_oeuvre: '193462'
+      nb_items_filtres: '10'
+      nom: Calet
+      prenoms: Henri
+      titre: Peau d'ours
+      type: livres
+      url: /livres/Calet-Peau-dours/193462
+      weight: '3'
+    babelio_suggestion_author: Henri Calet
+    babelio_suggestion_title: Peau d'ours
+    babelio_url: https://www.babelio.com/livres/Calet-Peau-dours/193462
+    confidence_score: 0.7959999999999999
+    error_message: null
+    original_author: Grégory Lefloc
+    original_title: Peau d'ours
+    status: corrected
+  timestamp: 1758408613732
+- input:
+    author: Christophe Bigot
+    title: Un autre Matin ailleurs
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Christophe Bigot
+    original_title: Un autre Matin ailleurs
+    status: not_found
+  timestamp: 1758408856660
+- input:
+    author: Nin Antico
+    title: Une Obsession
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Nin Antico
+    original_title: Une Obsession
+    status: not_found
+  timestamp: 1758408969952
+- input:
+    author: Yakuta Ali Kavazovic
+    title: Au Grand Jamais
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Yakuta Ali Kavazovic
+    original_title: Au Grand Jamais
+    status: not_found
+  timestamp: 1758409133754
