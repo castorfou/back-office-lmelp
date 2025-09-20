@@ -211,9 +211,9 @@ scenarios:
       - service: "fuzzySearch"
         ref: "Fatima Daas - Jouer le jeu exact match"
       - service: "babelioAuthor"
-        ref: "Fatima Das → Fatima Daas"
+        ref: "Fatima Das - API response"
       - service: "babelioBook"
-        ref: "Jouer le jeu + Fatima Daas → VERIFIED"
+        ref: "Jouer le jeu + Fatima Das - API response"
     expected:
       status: "suggestion"
       author: "Fatima Daas"  # Correction attendue

@@ -107,12 +107,24 @@ export class BiblioValidationService {
       );
     }
 
-    // Cas 2: Validation directe - auteur ET livre tous deux vérifiés
+    // Cas 2: Ground truth avec matches décents (seuils assouplis) - PRIORITAIRE aussi
+    if (hasGroundTruth && this._hasDecentGroundTruthMatches(groundTruthResult)) {
+      const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult);
+
+      // Vérifier la cohérence avec Babelio
+      return await this._validateGroundTruthSuggestion(
+        original,
+        groundTruthSuggestion,
+        bookValidation
+      );
+    }
+
+    // Cas 3: Validation directe - auteur ET livre tous deux vérifiés
     const isDirectValidation = (
       authorValidation?.status === 'verified' &&
       !this._authorHasSuggestion(authorValidation) && // Auteur exact, pas de suggestion
       bookValidation?.status === 'verified' && // Livre doit être vérifié aussi
-      (!hasGroundTruth || !hasGoodMatches) // Pas de ground truth ou ground truth pas assez bon
+      (!hasGroundTruth || (!hasGoodMatches && !this._hasDecentGroundTruthMatches(groundTruthResult))) // Pas de ground truth ou ground truth pas utilisable
     );
 
     if (isDirectValidation) {
@@ -129,12 +141,28 @@ export class BiblioValidationService {
       };
     }
 
-    // Cas 3: Suggestion Babelio seule
+    // Cas 4: Suggestion Babelio seule
     if (this._hasBabelioSuggestion(authorValidation, bookValidation)) {
+      // Rejeter les suggestions Babelio avec score trop faible (fantaisistes)
+      const bookScore = bookValidation?.confidence_score || 0;
+      const authorScore = authorValidation?.confidence_score || 0;
+      const maxBabelioScore = Math.max(bookScore, authorScore);
+
+      if (maxBabelioScore < 0.5) {
+        return {
+          status: 'not_found',
+          data: {
+            original,
+            reason: 'low_confidence_babelio_suggestion',
+            attempts: episodeId ? ['ground_truth', 'babelio'] : ['babelio']
+          }
+        };
+      }
+
       return await this._validateBabelioSuggestion(original, authorValidation, bookValidation);
     }
 
-    // Cas 4: Conflit entre sources ou aucune suggestion fiable
+    // Cas 5: Conflit entre sources ou aucune suggestion fiable
     if (groundTruthResult && !groundTruthResult.found_suggestions) {
       if (bookValidation.status === 'corrected' && bookValidation.confidence_score < 0.5) {
         return {
@@ -148,7 +176,7 @@ export class BiblioValidationService {
       }
     }
 
-    // Cas 5: Aucune source ne trouve de match fiable
+    // Cas 6: Aucune source ne trouve de match fiable
     return {
       status: 'not_found',
       data: {
@@ -194,6 +222,55 @@ export class BiblioValidationService {
   }
 
   /**
+   * Vérifie si ground truth a des matches décents (seuils assouplis pour cas difficiles)
+   * @private
+   */
+  _hasDecentGroundTruthMatches(groundTruthResult) {
+    // Support des deux formats : API utilise titleMatches, tests utilisent title_matches
+    const titleMatches = groundTruthResult.titleMatches || groundTruthResult.title_matches;
+    const authorMatches = groundTruthResult.authorMatches || groundTruthResult.author_matches;
+
+    const titleMatch = titleMatches?.[0];
+
+    // Format des matches : [["text", score], ...]
+    const titleScore = titleMatch?.[1] || 0;
+
+    // Pour l'auteur, calculer un score basé sur les fragments disponibles
+    let authorScore = 0;
+    if (authorMatches && authorMatches.length > 0) {
+      if (authorMatches.length === 1) {
+        // Un seul fragment d'auteur
+        authorScore = authorMatches[0][1] || 0;
+      } else {
+        // Plusieurs fragments : prendre le score minimum des deux meilleurs
+        // pour s'assurer que les deux fragments sont de qualité décente
+        const sortedMatches = authorMatches
+          .filter(match => match[1] >= 70) // Filtrer les fragments très faibles
+          .sort((a, b) => b[1] - a[1]); // Trier par score décroissant
+
+        if (sortedMatches.length >= 2) {
+          // Score basé sur les deux meilleurs fragments
+          authorScore = Math.min(sortedMatches[0][1], sortedMatches[1][1]);
+        } else if (sortedMatches.length === 1) {
+          // Un seul fragment de qualité
+          authorScore = sortedMatches[0][1];
+        }
+      }
+    }
+
+    // Seuils assouplis pour détecter des cas comme "Colcause" → "Kolkhoze"
+    // Cas spécial : si l'auteur est parfait (90+), accepter des titres plus faibles
+    const authorIsPerfect = authorScore >= 85;
+    const titleThreshold = authorIsPerfect ? 35 : 75; // Seuil titre réduit si auteur parfait
+
+    return (
+      titleScore >= titleThreshold && // Seuil adaptatif selon qualité auteur
+      authorScore >= 75 && // Seuil assoupli pour variantes orthographiques
+      groundTruthResult.found_suggestions === true
+    );
+  }
+
+  /**
    * Extrait la suggestion de ground truth
    * @private
    */
@@ -203,7 +280,8 @@ export class BiblioValidationService {
     const authorMatchesArray = groundTruthResult.authorMatches || groundTruthResult.author_matches;
 
     // Format des matches : [["📖 text", score], ...]
-    const titleMatch = titleMatches[0][0]; // "📖 Kolkhoze"
+    // Logique intelligente : chercher le meilleur livre de l'auteur détecté
+    let titleMatch = titleMatches[0][0]; // Fallback : premier titre
 
     // Pour l'auteur, essayer de reconstruire le nom complet à partir des matches
     const authorMatches = authorMatchesArray || [];

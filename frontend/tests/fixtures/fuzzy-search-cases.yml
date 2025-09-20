@@ -1,114 +1,239 @@
-# Fuzzy Search Fixtures
-# Format: input (episodeId + query) → output (matches + found_suggestions)
-
 cases:
-  - name: "Maria Pourchet - Tressaillir exact match"
-    input:
-      episode_id: "68c707ad6e51b9428ab87e9e"
-      query_author: "Maria Pourchet"
-      query_title: "Tressaillir"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Tressaillir", 100]]
-      author_matches: [["Maria", 90], ["Pourchet", 90]]
-
-  - name: "Alain Mabancou - Ramsès de Paris"
-    input:
-      episode_id: "68c707ad6e51b9428ab87e9e"
-      query_author: "Alain Mabancou"
-      query_title: "Ramsès de Paris"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Ramsès de Paris", 100]]
-      author_matches: [["d'Alain", 86], ["Mabanckou", 85]]
-
-  - name: "Caroline Dussain - Un déni français"
-    input:
-      episode_id: "68c707ad6e51b9428ab87e9e"
-      query_author: "Caroline Dussain"
-      query_title: "Un déni français"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Au grand jamais", 55]]
-      author_matches: []
-
-  - name: "Christophe Bigot - Un autre Matin ailleurs"
-    input:
-      episode_id: "68c707ad6e51b9428ab87e9e"
-      query_author: "Christophe Bigot"
-      query_title: "Un autre Matin ailleurs"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Avale", 54], ["📖 La Maison vide", 51]]
-      author_matches: []
-
-  - name: "Emmanuel Carrère - Colcause"
-    input:
-      episode_id: "68bd9ed3582cf994fb66f1d6"
-      query_author: "Emmanuel Carrère"
-      query_title: "Colcause"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Kolkhoze", 85]]
-      author_matches: [["Emmanuel Carrère", 100]]
-
-  - name: "Yakuta Ali Kavazovic - Au Grand Jamais"
-    input:
-      episode_id: "68c707ad6e51b9428ab87e9e"
-      query_author: "Yakuta Ali Kavazovic"
-      query_title: "Au Grand Jamais"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Au grand jamais", 100]]
-      author_matches: [["Alikavazovic", 82], ["Jakuta", 78]]
-
-  - name: "Agnès Michaud - Huitsemences vivantes"
-    input:
-      episode_id: null
-      query_author: "Agnès Michaud"
-      query_title: "Huitsemences vivantes"
-    output:
-      found_suggestions: false
-      title_matches: []
-      author_matches: []
-
-  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
-  - name: "Emmanuel Carrère - Colcause → Kolkhoze (ground truth)"
-    input:
-      episode_id: "68bd9ed3582cf994fb66f1d6"
-      query_author: "Emmanuel Carrère"
-      query_title: "Colcause"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Kolkhoze", 85]]  # Should find despite transcription error
-      author_matches: [["Emmanuel", 90], ["Carrère", 90]]
-
-  - name: "Fatima Das - Jouer le jeu exact match"
-    input:
-      episode_id: "68bd9ed3582cf994fb66f1d6"
-      query_author: "Fatima Das"
-      query_title: "Jouer le jeu"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 Jouer le Jeu", 100]]
-      author_matches: [["Fatima", 90], ["Daas", 85]]  # Trouve "Daas" malgré input "Das"
-
-  - name: "Natacha Apana - La Nuit au cœur (tolère différence Apana/Appanah)"
-    input:
-      episode_id: "68bd9ed3582cf994fb66f1d6"
-      query_author: "Natacha Apana"
-      query_title: "La Nuit au cœur"
-    output:
-      found_suggestions: true
-      title_matches: [["📖 La Nuit au cœur", 100]]
-      author_matches: [["Natacha", 90], ["Appanah", 75]]  # Tolère différence orthographique
-
-  - name: "Grégory Lefloc - Peau d'ours NOT FOUND (pas au programme)"
-    input:
-      episode_id: "68bd9ed3582cf994fb66f1d6"
-      query_author: "Grégory Lefloc"
-      query_title: "Peau d'ours"
-    output:
-      found_suggestions: false
-      title_matches: []
-      author_matches: []
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Maria Pourchet
+    query_title: Tressaillir
+  name: Maria Pourchet - Tressaillir exact match
+  output:
+    author_matches:
+    - - Maria
+      - 90
+    - - Pourchet
+      - 90
+    found_suggestions: true
+    title_matches:
+    - - 📖 Tressaillir
+      - 100
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Alain Mabancou
+    query_title: Ramsès de Paris
+  name: Alain Mabancou - Ramsès de Paris
+  output:
+    author_matches:
+    - - d'Alain
+      - 86
+    - - Mabanckou
+      - 85
+    found_suggestions: true
+    title_matches:
+    - - 📖 Ramsès de Paris
+      - 100
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Caroline Dussain
+    query_title: Un déni français
+  name: Caroline Dussain - Un déni français
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Au grand jamais
+      - 55
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Christophe Bigot
+    query_title: Un autre Matin ailleurs
+  name: Christophe Bigot - Un autre Matin ailleurs
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Avale
+      - 54
+    - - 📖 La Maison vide
+      - 51
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Emmanuel Carrère
+    query_title: Colcause
+  name: Emmanuel Carrère - Colcause
+  output:
+    author_matches:
+    - - Carrère
+      - 90
+    - - Emmanuel
+      - 90
+    - - Carrère
+      - 90
+    found_suggestions: true
+    title_matches:
+    - - 📖 Nous les Moches
+      - 48
+    - - 📖 Jouer le Jeu
+      - 45
+    - - 📖 La Nuit au cœur
+      - 42
+    - - 📖 Par où entre la lumière
+      - 39
+    - - 📖 Kolkhoze
+      - 38
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Yakuta Ali Kavazovic
+    query_title: Au Grand Jamais
+  name: Yakuta Ali Kavazovic - Au Grand Jamais
+  output:
+    author_matches:
+    - - Alikavazovic
+      - 82
+    - - Jakuta
+      - 78
+    found_suggestions: true
+    title_matches:
+    - - 📖 Au grand jamais
+      - 100
+- input:
+    episode_id: null
+    query_author: Agnès Michaud
+    query_title: Huitsemences vivantes
+  name: Agnès Michaud - Huitsemences vivantes
+  output:
+    author_matches: []
+    found_suggestions: false
+    title_matches: []
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Emmanuel Carrère
+    query_title: Colcause
+  name: Emmanuel Carrère - Colcause → Kolkhoze (ground truth)
+  output:
+    author_matches:
+    - - Emmanuel
+      - 90
+    - - Carrère
+      - 90
+    found_suggestions: true
+    title_matches:
+    - - 📖 Kolkhoze
+      - 85
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Fatima Das
+    query_title: Jouer le jeu
+  name: Fatima Daas - Jouer le jeu exact match
+  output:
+    author_matches:
+    - - Fatima
+      - 90
+    - - Daas
+      - 85
+    found_suggestions: true
+    title_matches:
+    - - 📖 Jouer le Jeu
+      - 100
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Natacha Apana
+    query_title: La Nuit au cœur
+  name: Natacha Apana - La Nuit au cœur (tolère différence Apana/Appanah)
+  output:
+    author_matches:
+    - - Natacha
+      - 90
+    - - Appanah
+      - 75
+    found_suggestions: true
+    title_matches:
+    - - 📖 La Nuit au cœur
+      - 100
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Grégory Lefloc
+    query_title: Peau d'ours
+  name: Grégory Lefloc - Peau d'ours NOT FOUND (pas au programme)
+  output:
+    author_matches: []
+    found_suggestions: false
+    title_matches: []
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Fatima Das
+    query_title: Jouer le jeu
+  name: Fatima Das - Jouer le jeu
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Avale
+      - 49
+    - - 📖 Ramsès de Paris
+      - 31
+    - - 📖 Au grand jamais
+      - 30
+    - - 📖 La Maison vide
+      - 29
+    - - 📖 Tressaillir
+      - 17
+    - - pour
+      - 68
+    - - Pour
+      - 68
+    - - écouter
+      - 65
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Natacha Apana
+    query_title: La Nuit au cœur
+  name: Natacha Apana - La Nuit au cœur
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Au grand jamais
+      - 44
+    - - 📖 La Maison vide
+      - 39
+    - - 📖 Ramsès de Paris
+      - 34
+    - - 📖 Avale
+      - 30
+    - - 📖 Tressaillir
+      - 23
+    - - durée
+      - 60
+    - - pour
+      - 60
+    - - Pour
+      - 60
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Grégory Lefloc
+    query_title: Peau d'ours
+  name: Grégory Lefloc - Peau d'ours
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Ramsès de Paris
+      - 48
+    - - 📖 Au grand jamais
+      - 46
+    - - 📖 La Maison vide
+      - 30
+    - - 📖 Tressaillir
+      - 27
+    - - 📖 Avale
+      - 26
+    - - d'Alain
+      - 86
+    - - pour
+      - 68
+    - - Vous
+      - 68
+    - - Pour
+      - 68
+    - - tous
+      - 68
+    - - autres
+      - 60

@@ -1,103 +1,121 @@
-# Babelio Author Verification Fixtures
-# Format: input (author name) → output (status + suggestion + confidence)
-
 cases:
-  - name: "Maria Pourchet - verified"
-    input:
-      name: "Maria Pourchet"
-    output:
-      status: "verified"
-      original: "Maria Pourchet"
-      babelio_suggestion: "Maria Pourchet"
-      confidence_score: 1.0
-
-  - name: "Alain Mabancou → Alain Mabanckou"
-    input:
-      name: "Alain Mabancou"
-    output:
-      status: "verified"
-      original: "Alain Mabancou"
-      babelio_suggestion: "Alain Mabanckou"
-      confidence_score: 0.9655172413793104
-
-  - name: "Caroline Dussain → Caroline Dawson"
-    input:
-      name: "Caroline Dussain"
-    output:
-      status: "corrected"
-      original: "Caroline Dussain"
-      babelio_suggestion: "Caroline Dawson"
-      confidence_score: 0.7741935483870968
-
-  - name: "Christophe Bigot - exact match"
-    input:
-      name: "Christophe Bigot"
-    output:
-      status: "verified"
-      original: "Christophe Bigot"
-      babelio_suggestion: "Christophe Bigot"
-      confidence_score: 1.0
-
-  - name: "Emmanuel Carrère - exact match"
-    input:
-      name: "Emmanuel Carrère"
-    output:
-      status: "verified"
-      original: "Emmanuel Carrère"
-      babelio_suggestion: "Emmanuel Carrère"
-      confidence_score: 1.0
-
-  - name: "Agnès Michaud - not found"
-    input:
-      name: "Agnès Michaud"
-    output:
-      status: "not_found"
-      original: "Agnès Michaud"
-      babelio_suggestion: null
-      confidence_score: 0
-
-  - name: "Yakuta Ali Kavazovic - not found"
-    input:
-      name: "Yakuta Ali Kavazovic"
-    output:
-      status: "not_found"
-      original: "Yakuta Ali Kavazovic"
-      babelio_suggestion: null
-      confidence_score: 0
-
-  - name: "Agnès Michaud → Agnès Ouvrard-Michaud (false positive)"
-    input:
-      name: "Agnès Michaud"
-    output:
-      status: "corrected"
-      original: "Agnès Michaud"
-      babelio_suggestion: "Agnès Ouvrard-Michaud"
-      confidence_score: 0.8
-
-  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
-  - name: "Fatima Das → Fatima Daas"
-    input:
-      name: "Fatima Das"
-    output:
-      status: "corrected"
-      original: "Fatima Das"
-      babelio_suggestion: "Fatima Daas"
-      confidence_score: 0.95
-
-  - name: "Natacha Apana → Natacha Appanah"
-    input:
-      name: "Natacha Apana"
-    output:
-      status: "corrected"
-      original: "Natacha Apana"
-      babelio_suggestion: "Natacha Appanah"
-      confidence_score: 0.95
-
-  - name: "Grégory Lefloc - not found"
-    input:
-      name: "Grégory Lefloc"
-    output:
-      status: "not_found"
-      original: "Grégory Lefloc"
-      babelio_suggestion: null
-      confidence_score: 0
+- input:
+    name: Maria Pourchet
+  name: Maria Pourchet - verified
+  output:
+    babelio_suggestion: Maria Pourchet
+    confidence_score: 1.0
+    original: Maria Pourchet
+    status: verified
+- input:
+    name: Alain Mabancou
+  name: Alain Mabancou → Alain Mabanckou
+  output:
+    babelio_suggestion: Alain Mabanckou
+    confidence_score: 0.9655172413793104
+    original: Alain Mabancou
+    status: verified
+- input:
+    name: Caroline Dussain
+  name: Caroline Dussain → Caroline Dawson
+  output:
+    babelio_suggestion: Caroline Dawson
+    confidence_score: 0.7741935483870968
+    original: Caroline Dussain
+    status: corrected
+- input:
+    name: Christophe Bigot
+  name: Christophe Bigot - exact match
+  output:
+    babelio_suggestion: Christophe Bigot
+    confidence_score: 1.0
+    original: Christophe Bigot
+    status: verified
+- input:
+    name: Emmanuel Carrère
+  name: Emmanuel Carrère - exact match
+  output:
+    babelio_suggestion: Emmanuel Carrère
+    confidence_score: 1.0
+    original: Emmanuel Carrère
+    status: verified
+- input:
+    name: Agnès Michaud
+  name: Agnès Michaud - not found
+  output:
+    babelio_suggestion: null
+    confidence_score: 0
+    original: Agnès Michaud
+    status: not_found
+- input:
+    name: Yakuta Ali Kavazovic
+  name: Yakuta Ali Kavazovic - not found
+  output:
+    babelio_suggestion: null
+    confidence_score: 0
+    original: Yakuta Ali Kavazovic
+    status: not_found
+- input:
+    name: Agnès Michaud
+  name: Agnès Michaud → Agnès Ouvrard-Michaud (false positive)
+  output:
+    babelio_suggestion: Agnès Ouvrard-Michaud
+    confidence_score: 0.8
+    original: Agnès Michaud
+    status: corrected
+- input:
+    name: Fatima Das
+  name: Fatima Das → Fatima Daas
+  output:
+    babelio_suggestion: Fatima Daas
+    confidence_score: 0.95
+    original: Fatima Das
+    status: corrected
+- input:
+    name: Natacha Apana
+  name: Natacha Apana → Natacha Appanah
+  output:
+    babelio_suggestion: Natacha Appanah
+    confidence_score: 0.95
+    original: Natacha Apana
+    status: corrected
+- input:
+    name: Grégory Lefloc
+  name: Grégory Lefloc - not found
+  output:
+    babelio_suggestion: null
+    confidence_score: 0
+    original: Grégory Lefloc
+    status: not_found
+- input:
+    name: Emmanuel Carrère
+  name: Emmanuel Carrère - API response
+  output:
+    babelio_suggestion: Emmanuel Carrère
+    confidence_score: 1.0
+    original: Emmanuel Carrère
+    status: verified
+- input:
+    name: Fatima Das
+  name: Fatima Das - API response
+  output:
+    babelio_suggestion: Fatima Daas
+    confidence_score: 0.9523809523809523
+    original: Fatima Das
+    status: verified
+- input:
+    name: Natacha Apana
+  name: Natacha Apana - API response
+  output:
+    babelio_suggestion: null
+    confidence_score: 0.0
+    original: Natacha Apana
+    status: not_found
+- input:
+    name: Grégory Lefloc
+  name: Grégory Lefloc - API response
+  output:
+    babelio_suggestion: null
+    confidence_score: 0.0
+    original: Grégory Lefloc
+    status: not_found
