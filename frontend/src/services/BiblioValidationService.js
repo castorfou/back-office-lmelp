@@ -229,25 +229,27 @@ export class BiblioValidationService {
     const hasGoodMatches = hasGroundTruth && this._hasGoodGroundTruthMatches(groundTruthResult);
 
     if (hasGroundTruth && hasGoodMatches) {
-      const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult);
+  const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult, original);
 
       // Vérifier la cohérence avec Babelio
       return await this._validateGroundTruthSuggestion(
         original,
         groundTruthSuggestion,
-        bookValidation
+        bookValidation,
+        groundTruthResult
       );
     }
 
     // Cas 2: Ground truth avec matches décents (seuils assouplis) - PRIORITAIRE aussi
     if (hasGroundTruth && this._hasDecentGroundTruthMatches(groundTruthResult)) {
-      const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult);
+  const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult, original);
 
       // Vérifier la cohérence avec Babelio
       return await this._validateGroundTruthSuggestion(
         original,
         groundTruthSuggestion,
-        bookValidation
+        bookValidation,
+        groundTruthResult
       );
     }
 
@@ -280,7 +282,18 @@ export class BiblioValidationService {
       const authorScore = authorValidation?.confidence_score || 0;
       const maxBabelioScore = Math.max(bookScore, authorScore);
 
-      if (maxBabelioScore < 0.8) {
+      // If we have a book-level correction (status 'corrected' or 'verified'),
+      // prefer that even if the confidence scores are lower than the usual
+      // threshold. Otherwise require a high-confidence suggestion.
+      const isBookCorrected = bookValidation && (bookValidation.status === 'corrected' || bookValidation.status === 'verified');
+
+      // Relax score threshold only when we have BOTH a book-level correction AND
+      // an author validation (either verified or corrected). This avoids
+      // accepting low-confidence book matches when the author is unknown.
+      const hasAuthorInfo = (authorValidation && authorValidation.status && authorValidation.status !== 'not_found');
+      const scoreThreshold = (isBookCorrected && hasAuthorInfo) ? 0.0 : 0.8;
+
+      if (maxBabelioScore < scoreThreshold) {
         return {
           status: 'not_found',
           data: {
@@ -409,14 +422,53 @@ export class BiblioValidationService {
    * Extrait la suggestion de ground truth
    * @private
    */
-  _extractGroundTruthSuggestion(groundTruthResult) {
+  _extractGroundTruthSuggestion(groundTruthResult, original = { title: '' }) {
     // Support des deux formats : API utilise titleMatches, tests utilisent title_matches
     const titleMatches = groundTruthResult.titleMatches || groundTruthResult.title_matches;
     const authorMatchesArray = groundTruthResult.authorMatches || groundTruthResult.author_matches;
 
     // Format des matches : [["📖 text", score], ...]
-    // Logique intelligente : chercher le meilleur livre de l'auteur détecté
-    let titleMatch = titleMatches[0][0]; // Fallback : premier titre
+    // Logique intelligente : choisir le titre avec le meilleur compromis entre
+    // score renvoyé par le fuzzy engine et similarité au titre original.
+    let titleMatch = '';
+    if (Array.isArray(titleMatches) && titleMatches.length > 0) {
+      // Normalizer helper
+      const normalize = s => (s || '').toString().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().toLowerCase();
+
+      const origNorm = normalize(original.title || '');
+
+
+      // Levenshtein distance (normalized) for better similarity measure
+      const levenshtein = (a, b) => {
+        if (!a || !b) return Math.max(a?.length || 0, b?.length || 0) ? 1 : 0;
+        const m = a.length, n = b.length;
+        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++) {
+          for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+          }
+        }
+        const dist = dp[m][n];
+        // normalized similarity: 1 - dist / maxLen
+        return 1 - dist / Math.max(m, n);
+      };
+
+      // Score each candidate by combining similarity with fuzzy score, but
+      // prioritize similarity more (70% similarity, 30% fuzzy score)
+      const scored = titleMatches.map(tm => {
+        const text = (tm[0] || '').replace('📖 ', '').trim();
+        const score = (tm[1] || 0) / 100; // normalized 0-1
+        const candNorm = normalize(text);
+        const sim = origNorm ? levenshtein(origNorm, candNorm) : 0;
+        const combined = sim * 0.7 + score * 0.3;
+        return { text, score: score * 100, combined };
+      }).sort((a, b) => b.combined - a.combined);
+
+      titleMatch = scored[0]?.text || titleMatches[0]?.[0] || '';
+    }
 
     // Pour l'auteur, essayer de reconstruire le nom complet à partir des matches
     const authorMatches = authorMatchesArray || [];
@@ -527,7 +579,7 @@ export class BiblioValidationService {
     }
 
     return {
-      title: titleMatch.replace('📖 ', '').trim(), // Enlever le préfixe et espaces
+      title: (titleMatch || '').replace('📖 ', '').trim(), // Enlever le préfixe et espaces
       author: reconstructedAuthor.trim()
     };
   }
@@ -536,7 +588,7 @@ export class BiblioValidationService {
    * Valide une suggestion de ground truth avec Babelio
    * @private
    */
-  async _validateGroundTruthSuggestion(original, groundTruthSuggestion, initialBookValidation) {
+  async _validateGroundTruthSuggestion(original, groundTruthSuggestion, initialBookValidation, groundTruthResult) {
     try {
       // Si initialBookValidation correspond déjà à la suggestion ground truth, utiliser ce résultat
       if (initialBookValidation?.status === 'verified' &&
@@ -560,6 +612,24 @@ export class BiblioValidationService {
             },
             source: 'ground_truth+babelio',
             confidence_score: initialBookValidation.confidence_score || 1.0
+          }
+        };
+      }
+
+      // Sinon, si ground truth est 'decente' acceptez la suggestion immédiatement
+      // (source: ground_truth) et n'exigez pas toujours la confirmation Babelio.
+      if (this._hasDecentGroundTruthMatches(groundTruthResult)) {
+        return {
+          status: 'suggestion',
+          data: {
+            original,
+            suggested: groundTruthSuggestion,
+            corrections: {
+              title: original.title !== groundTruthSuggestion.title,
+              author: original.author !== groundTruthSuggestion.author
+            },
+            source: 'ground_truth',
+            confidence_score: 0.75
           }
         };
       }
@@ -651,36 +721,36 @@ export class BiblioValidationService {
    * @private
    */
   async _validateBabelioSuggestion(original, authorValidation, bookValidation) {
-    // Si l'auteur a une suggestion (corrected OU verified avec différence), vérifier la cohérence
+    // Prefer book-level suggestions when available: a book-correction contains
+    // both suggested title and suggested author and should generally override
+    // an author-only suggestion coming from verifyAuthor.
+
+    // If we already have a book-level result that suggests a correction, use it.
+    if (bookValidation && (bookValidation.status === 'corrected' || bookValidation.status === 'verified')) {
+      const suggestedAuthor = bookValidation.babelio_suggestion_author || (authorValidation && authorValidation.babelio_suggestion) || original.author;
+      const suggestedTitle = bookValidation.babelio_suggestion_title || original.title;
+
+      return {
+        status: 'suggestion',
+        data: {
+          original,
+          suggested: {
+            title: suggestedTitle,
+            author: suggestedAuthor
+          },
+          corrections: {
+            title: original.title !== suggestedTitle,
+            author: original.author !== suggestedAuthor
+          },
+          source: 'babelio',
+          confidence_score: bookValidation.confidence_score || (authorValidation && authorValidation.confidence_score) || 0
+        }
+      };
+    }
+
+    // If author has a suggestion but we don't have a book-level suggestion, try to
+    // validate the suggestion by checking the book for the suggested author.
     if (this._authorHasSuggestion(authorValidation)) {
-      // Si bookValidation est "verified", on a déjà testé la cohérence dans validateBiblio
-      if (bookValidation?.status === 'verified') {
-
-        const finalAuthor = authorValidation.babelio_suggestion;
-        const finalTitle = bookValidation.babelio_suggestion_title || original.title;
-
-        return {
-          status: 'suggestion',
-          data: {
-            original,
-            suggested: {
-              title: finalTitle,
-              author: finalAuthor
-            },
-            corrections: {
-              title: original.title !== finalTitle,
-              author: original.author !== finalAuthor
-            },
-            source: 'babelio',
-            confidence_score: Math.min(
-              authorValidation.confidence_score,
-              bookValidation.confidence_score || 1.0
-            )
-          }
-        };
-      }
-
-      // Fallback: faire un coherenceCheck si bookValidation n'est pas "verified"
       try {
         const coherenceCheck = await this._verifyBookWithCapture(
           original.title,
@@ -698,7 +768,7 @@ export class BiblioValidationService {
           };
         }
 
-        // Si le coherenceCheck suggère un autre auteur, utiliser cette suggestion finale
+        // If coherenceCheck itself suggests another author/title, prefer that final suggestion.
         const finalAuthor = coherenceCheck.babelio_suggestion_author || authorValidation.babelio_suggestion;
         const finalTitle = coherenceCheck.babelio_suggestion_title || original.title;
 
@@ -716,13 +786,12 @@ export class BiblioValidationService {
             },
             source: 'babelio',
             confidence_score: Math.min(
-              authorValidation.confidence_score,
+              authorValidation.confidence_score || 0,
               coherenceCheck.confidence_score || 1.0
             )
           }
         };
       } catch (error) {
-        // Si la vérification échoue, considérer comme non trouvé
         return {
           status: 'not_found',
           data: {
@@ -734,29 +803,7 @@ export class BiblioValidationService {
       }
     }
 
-    // Suggestion de livre seulement
-    if (bookValidation.status === 'corrected') {
-      const suggested = {
-        title: bookValidation.babelio_suggestion_title,
-        author: bookValidation.babelio_suggestion_author || original.author
-      };
-
-      return {
-        status: 'suggestion',
-        data: {
-          original,
-          suggested,
-          corrections: {
-            title: original.title !== suggested.title,
-            author: original.author !== suggested.author
-          },
-          source: 'babelio',
-          confidence_score: bookValidation.confidence_score
-        }
-      };
-    }
-
-    // Cas fallback - ne devrait pas arriver
+    // Fallback: nothing reliable available
     return {
       status: 'not_found',
       data: {

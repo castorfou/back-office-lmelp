@@ -142,20 +142,28 @@ describe('BiblioValidationService Tests', () => {
 
           mockFuzzySearchService.searchEpisode.mockResolvedValueOnce(fuzzyResponse);
           mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorResponse);
-          mockBabelioService.verifyBook.mockResolvedValueOnce(bookResponse);
 
-          // If authorResponse contains a babelio_suggestion, the service may call
-          // verifyBook a second time with the suggested author. Mock that call too
-          // so both verifyBook invocations are satisfied in order.
-          if (authorResponse && authorResponse.babelio_suggestion) {
-            const suggestedBookFixture = findFixtureByBook(testCase.input.title, authorResponse.babelio_suggestion);
-            const suggestedBookResponse = getFixtureResponseOrError(
-              'babelioBook',
-              { author: authorResponse.babelio_suggestion, title: testCase.input.title },
-              suggestedBookFixture
-            );
-            mockBabelioService.verifyBook.mockResolvedValueOnce(suggestedBookResponse);
-          }
+          // Make verifyBook robust: return the matching fixture output based on
+          // the (title, author) arguments. This avoids desynchronization when
+          // the service calls verifyBook multiple times or in different orders.
+          mockBabelioService.verifyBook.mockImplementation((titleArg, authorArg) => {
+            // Try exact match first
+            const direct = findFixtureByBook(titleArg, authorArg);
+            if (direct) return Promise.resolve(getFixtureResponseOrError('babelioBook', { author: authorArg, title: titleArg }, direct));
+
+            // If not found, try matching with author suggestion from authorResponse
+            const suggestedAuthor = authorResponse && authorResponse.babelio_suggestion;
+            if (suggestedAuthor) {
+              const suggested = findFixtureByBook(titleArg, suggestedAuthor);
+              if (suggested) return Promise.resolve(getFixtureResponseOrError('babelioBook', { author: suggestedAuthor, title: titleArg }, suggested));
+            }
+
+            // Fallback: search any book fixture matching title only (case-insensitive)
+            const titleOnly = babelioBookCases.cases.find(c => c.input.title?.toLowerCase() === (titleArg || '').toLowerCase());
+            if (titleOnly) return Promise.resolve(getFixtureResponseOrError('babelioBook', { author: titleOnly.input.author, title: titleArg }, titleOnly));
+
+            return Promise.resolve({ status: 'not_found' });
+          });
 
           // Execute validation with real mocked data
           const result = await biblioValidationService.validateBiblio(
