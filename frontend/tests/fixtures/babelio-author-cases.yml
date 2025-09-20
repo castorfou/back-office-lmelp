@@ -73,3 +73,31 @@ cases:
       original: "Agnès Michaud"
       babelio_suggestion: "Agnès Ouvrard-Michaud"
       confidence_score: 0.8
+
+  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
+  - name: "Fatima Das → Fatima Daas"
+    input:
+      name: "Fatima Das"
+    output:
+      status: "corrected"
+      original: "Fatima Das"
+      babelio_suggestion: "Fatima Daas"
+      confidence_score: 0.95
+
+  - name: "Natacha Apana → Natacha Appanah"
+    input:
+      name: "Natacha Apana"
+    output:
+      status: "corrected"
+      original: "Natacha Apana"
+      babelio_suggestion: "Natacha Appanah"
+      confidence_score: 0.95
+
+  - name: "Grégory Lefloc - not found"
+    input:
+      name: "Grégory Lefloc"
+    output:
+      status: "not_found"
+      original: "Grégory Lefloc"
+      babelio_suggestion: null
+      confidence_score: 0

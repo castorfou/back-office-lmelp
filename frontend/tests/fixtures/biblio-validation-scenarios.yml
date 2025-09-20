@@ -175,3 +175,92 @@ scenarios:
     expected:
       status: "not_found"
       reason: "suggestion_validation_failed"
+
+  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
+  - name: "Episode 7/9/25 - Emmanuel Carrère Colcause"
+    description: "FAILING: Ground truth devrait trouver Kolkhoze mais erreur de transcription"
+    input:
+      author: "Emmanuel Carrère"
+      title: "Colcause"  # Erreur de transcription pour "Kolkhoze"
+      publisher: "POL"
+      episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Emmanuel Carrère - Colcause → Kolkhoze (ground truth)"
+      - service: "babelioAuthor"
+        ref: "Emmanuel Carrère - exact match"
+      - service: "babelioBook"
+        ref: "Kolkhoze + Emmanuel Carrère → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Emmanuel Carrère"
+      title: "Kolkhoze"
+      corrections:
+        author: false
+        title: true
+      source: "ground_truth+babelio"
+
+  - name: "Episode 7/9/25 - Fatima Das Jouer le jeu"
+    description: "FAILING: Devrait suggérer Fatima Daas (correction orthographique)"
+    input:
+      author: "Fatima Das"  # Input avec erreur
+      title: "Jouer le jeu"
+      publisher: "Éditions de L'Olivier"
+      episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Fatima Daas - Jouer le jeu exact match"
+      - service: "babelioAuthor"
+        ref: "Fatima Das → Fatima Daas"
+      - service: "babelioBook"
+        ref: "Jouer le jeu + Fatima Daas → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Fatima Daas"  # Correction attendue
+      title: "Jouer le jeu"
+      corrections:
+        author: true
+        title: false
+      source: "ground_truth+babelio"
+
+  - name: "Episode 7/9/25 - Natacha Apana La Nuit au cœur"
+    description: "FAILING: Devrait être validé par ground truth"
+    input:
+      author: "Natacha Apana"  # Légère différence avec "Appanah"
+      title: "La Nuit au cœur"
+      publisher: "Gallimard"
+      episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Natacha Apana - La Nuit au cœur (tolère différence Apana/Appanah)"
+      - service: "babelioAuthor"
+        ref: "Natacha Apana → Natacha Appanah"
+      - service: "babelioBook"
+        ref: "La Nuit au cœur + Natacha Appanah → VERIFIED"
+    expected:
+      status: "suggestion"
+      author: "Natacha Appanah"
+      title: "La Nuit au cœur"
+      corrections:
+        author: true
+        title: false
+      source: "ground_truth+babelio"
+
+  - name: "Episode 7/9/25 - Grégory Lefloc Peau d'ours"
+    description: "FAILING: Babelio suggestion fantaisiste au lieu de not_found"
+    input:
+      author: "Grégory Lefloc"
+      title: "Peau d'ours"
+      publisher: "Seuil"
+      episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+    calls:
+      - service: "fuzzySearch"
+        ref: "Grégory Lefloc - Peau d'ours NOT FOUND (pas au programme)"
+      - service: "babelioAuthor"
+        ref: "Grégory Lefloc - not found"
+      - service: "babelioBook"
+        ref: "Peau d'ours + Grégory Lefloc → Henri Calet suggestion (FANTAISISTE)"
+    expected:
+      status: "not_found"
+      reason: "no_reliable_match_found"
+      attempts: ["ground_truth", "babelio"]

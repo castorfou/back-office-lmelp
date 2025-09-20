@@ -139,3 +139,52 @@ cases:
       babelio_suggestion_title: null
       babelio_suggestion_author: null
       confidence_score: 0.0
+
+  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
+  - name: "Kolkhoze + Emmanuel Carrère → VERIFIED"
+    input:
+      title: "Kolkhoze"
+      author: "Emmanuel Carrère"
+    output:
+      status: "verified"
+      original_title: "Kolkhoze"
+      original_author: "Emmanuel Carrère"
+      babelio_suggestion_title: "Kolkhoze"
+      babelio_suggestion_author: "Emmanuel Carrère"
+      confidence_score: 1.0
+
+  - name: "Jouer le jeu + Fatima Daas → VERIFIED"
+    input:
+      title: "Jouer le jeu"
+      author: "Fatima Daas"  # Avec author corrigé
+    output:
+      status: "verified"
+      original_title: "Jouer le jeu"
+      original_author: "Fatima Daas"
+      babelio_suggestion_title: "Jouer le jeu"
+      babelio_suggestion_author: "Fatima Daas"
+      confidence_score: 1.0
+
+  - name: "La Nuit au cœur + Natacha Appanah → VERIFIED"
+    input:
+      title: "La Nuit au cœur"
+      author: "Natacha Appanah"
+    output:
+      status: "verified"
+      original_title: "La Nuit au cœur"
+      original_author: "Natacha Appanah"
+      babelio_suggestion_title: "La Nuit au cœur"
+      babelio_suggestion_author: "Natacha Appanah"
+      confidence_score: 1.0
+
+  - name: "Peau d'ours + Grégory Lefloc → Henri Calet suggestion (FANTAISISTE)"
+    input:
+      title: "Peau d'ours"
+      author: "Grégory Lefloc"
+    output:
+      status: "corrected"  # PROBLÈME: suggestion fantaisiste
+      original_title: "Peau d'ours"
+      original_author: "Grégory Lefloc"
+      babelio_suggestion_title: "Peau d'ours"
+      babelio_suggestion_author: "Henri Calet"  # FANTAISISTE!
+      confidence_score: 0.3  # Score faible mais accepté à tort

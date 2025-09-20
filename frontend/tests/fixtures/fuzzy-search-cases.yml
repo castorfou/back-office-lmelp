@@ -71,3 +71,44 @@ cases:
       found_suggestions: false
       title_matches: []
       author_matches: []
+
+  # 🔴 REAL-WORLD FAILING CASES from Episode 2025-09-07
+  - name: "Emmanuel Carrère - Colcause → Kolkhoze (ground truth)"
+    input:
+      episode_id: "68bd9ed3582cf994fb66f1d6"
+      query_author: "Emmanuel Carrère"
+      query_title: "Colcause"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Kolkhoze", 85]]  # Should find despite transcription error
+      author_matches: [["Emmanuel", 90], ["Carrère", 90]]
+
+  - name: "Fatima Das - Jouer le jeu exact match"
+    input:
+      episode_id: "68bd9ed3582cf994fb66f1d6"
+      query_author: "Fatima Das"
+      query_title: "Jouer le jeu"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 Jouer le Jeu", 100]]
+      author_matches: [["Fatima", 90], ["Daas", 85]]  # Trouve "Daas" malgré input "Das"
+
+  - name: "Natacha Apana - La Nuit au cœur (tolère différence Apana/Appanah)"
+    input:
+      episode_id: "68bd9ed3582cf994fb66f1d6"
+      query_author: "Natacha Apana"
+      query_title: "La Nuit au cœur"
+    output:
+      found_suggestions: true
+      title_matches: [["📖 La Nuit au cœur", 100]]
+      author_matches: [["Natacha", 90], ["Appanah", 75]]  # Tolère différence orthographique
+
+  - name: "Grégory Lefloc - Peau d'ours NOT FOUND (pas au programme)"
+    input:
+      episode_id: "68bd9ed3582cf994fb66f1d6"
+      query_author: "Grégory Lefloc"
+      query_title: "Peau d'ours"
+    output:
+      found_suggestions: false
+      title_matches: []
+      author_matches: []
