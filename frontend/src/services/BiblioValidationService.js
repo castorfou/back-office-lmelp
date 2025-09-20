@@ -98,6 +98,18 @@ export class BiblioValidationService {
       // Étape 2: Validation Babelio de l'auteur
       const authorValidation = await this._verifyAuthorWithCapture(author) || { status: 'not_found' };
 
+      // Vérifier les erreurs de fixture dès la première réponse
+      if (authorValidation.status === 'fixture_error') {
+        return {
+          status: 'fixture_error',
+          data: {
+            original,
+            error: authorValidation.error_message || 'Missing test fixtures',
+            reason: 'fixture_missing'
+          }
+        };
+      }
+
       // Étape 3: Validation Babelio du livre
       let bookValidation;
 
@@ -106,16 +118,52 @@ export class BiblioValidationService {
         // D'abord essayer avec l'auteur original
         bookValidation = await this._verifyBookWithCapture(title, author) || { status: 'not_found' };
 
+        // Vérifier erreur de fixture
+        if (bookValidation.status === 'fixture_error') {
+          return {
+            status: 'fixture_error',
+            data: {
+              original,
+              error: bookValidation.error_message || 'Missing test fixtures',
+              reason: 'fixture_missing'
+            }
+          };
+        }
+
         // Si ça échoue, essayer avec l'auteur suggéré
         if (bookValidation.status === 'not_found') {
           bookValidation = await this._verifyBookWithCapture(
             title,
             authorValidation.babelio_suggestion
           ) || { status: 'not_found' };
+
+          // Vérifier erreur de fixture sur le deuxième essai
+          if (bookValidation.status === 'fixture_error') {
+            return {
+              status: 'fixture_error',
+              data: {
+                original,
+                error: bookValidation.error_message || 'Missing test fixtures',
+                reason: 'fixture_missing'
+              }
+            };
+          }
         }
       } else {
         // Cas 2: Pas de suggestion d'auteur, test avec l'auteur original seulement
         bookValidation = await this._verifyBookWithCapture(title, author) || { status: 'not_found' };
+
+        // Vérifier erreur de fixture
+        if (bookValidation.status === 'fixture_error') {
+          return {
+            status: 'fixture_error',
+            data: {
+              original,
+              error: bookValidation.error_message || 'Missing test fixtures',
+              reason: 'fixture_missing'
+            }
+          };
+        }
       }
 
       // Étape 4: Arbitrage et décision finale
