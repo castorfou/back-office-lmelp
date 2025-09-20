@@ -35,7 +35,9 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
 
 # lancement des test validation biblio
-cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation && cd ..
+# enrichissement des fixtures dans
+# frontend/tests/fixtures/biblio-validation-cases.yml
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
