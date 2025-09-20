@@ -275,3 +275,30 @@ cases:
     - - Maria
       - 60
   timestamp: 1758409133731
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Sephora Pondi
+    query_title: Aval
+  output:
+    authorMatches:
+    - - Pondi
+      - 90
+    - - Séphora
+      - 78
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 89
+    - - 📖 Tressaillir
+      - 45
+    - - 📖 La Maison vide
+      - 45
+    - - 📖 Au grand jamais
+      - 45
+    - - 📖 Ramsès de Paris
+      - 30
+    - - festival
+      - 77
+    - - Alikavazovic
+      - 68
+  timestamp: 1758409474077

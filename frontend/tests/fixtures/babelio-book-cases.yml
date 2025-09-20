@@ -257,3 +257,29 @@ cases:
     original_title: Au Grand Jamais
     status: not_found
   timestamp: 1758409133754
+- input:
+    author: Sephora Pondi
+    title: Aval
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '157'
+      ca_note: '3.08'
+      couverture: /couv/cvt_Avale_3136.jpg
+      id_auteur: '651410'
+      id_oeuvre: '1866783'
+      nom: Pondi
+      prenoms: Séphora
+      titre: Avale
+      tri: '157'
+      type: livres
+      url: /livres/Pondi-Avale/1866783
+    babelio_suggestion_author: Séphora Pondi
+    babelio_suggestion_title: Avale
+    babelio_url: https://www.babelio.com/livres/Pondi-Avale/1866783
+    confidence_score: 0.8991452991452991
+    error_message: null
+    original_author: Sephora Pondi
+    original_title: Aval
+    status: corrected
+  timestamp: 1758409474090

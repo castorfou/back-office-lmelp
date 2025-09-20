@@ -174,3 +174,24 @@ cases:
     original: Yakuta Ali Kavazovic
     status: not_found
   timestamp: 1758409133744
+- input:
+    name: Sephora Pondi
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '157'
+      ca_oeuvres: '1'
+      first_of_group: first_of_group
+      id: '651410'
+      nom: Pondi
+      prenoms: Séphora
+      type: auteurs
+      url: /auteur/Sephora-Pondi/651410
+      url_photo: /users/avt_fd_651410.jpg
+    babelio_suggestion: Séphora Pondi
+    babelio_url: https://www.babelio.com/auteur/Sephora-Pondi/651410
+    confidence_score: 0.9230769230769231
+    error_message: null
+    original: Sephora Pondi
+    status: corrected
+  timestamp: 1758409474086
