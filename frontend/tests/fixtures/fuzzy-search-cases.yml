@@ -130,3 +130,30 @@ cases:
     - - Maria
       - 60
   timestamp: 1758405218281
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Caroline Dussain
+    query_title: Un déni français
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Au grand jamais
+      - 55
+    - - 📖 Ramsès de Paris
+      - 43
+    - - 📖 Avale
+      - 36
+    - - 📖 La Maison vide
+      - 34
+    - - 📖 Tressaillir
+      - 24
+    - - Paris
+      - 68
+    - - réalisé
+      - 68
+    - - jamais
+      - 65
+    - - Maison
+      - 60
+  timestamp: 1758407507802

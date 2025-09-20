@@ -56,3 +56,17 @@ cases:
     corrections:
       author: true
       title: false
+
+# Caroline Dussain --> Caroline Du Saint
+- input:
+    author: "Caroline Dussain"
+    title: "Un déni français"
+    publisher: "Récamier"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Caroline du Saint"
+    suggested_title: "Un Déni français - Enquête sur l'élevage industrie..."
+    corrections:
+      author: true
+      title: true

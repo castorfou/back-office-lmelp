@@ -95,3 +95,25 @@ cases:
     original: Alain Mabancou
     status: verified
   timestamp: 1758405218286
+- input:
+    name: Caroline Dussain
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '1221'
+      ca_oeuvres: '3'
+      id: '565150'
+      id_auteur: '565150'
+      nom: Dawson
+      prenoms: Caroline
+      type: auteurs
+      url: /auteur/Caroline-Dawson/565150
+      url_photo: /users/avt_fd_565150.jpg
+      weight: '2608'
+    babelio_suggestion: Caroline Dawson
+    babelio_url: https://www.babelio.com/auteur/Caroline-Dawson/565150
+    confidence_score: 0.7741935483870968
+    error_message: null
+    original: Caroline Dussain
+    status: corrected
+  timestamp: 1758407507809
