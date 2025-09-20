@@ -523,3 +523,23 @@ mcp__MongoDB__collection-storage-size --database "masque_et_la_plume" --collecti
 - ✅ "Tests complets validés"
 
 Rationale: Test counts change frequently and require constant maintenance without adding meaningful information for users or developers.
+
+### Git Commit Best Practices
+**AVOID using `git commit --amend`** on branches that are already pushed to remote repositories:
+
+- ❌ **Don't amend pushed commits**: `git commit --amend` changes the commit SHA, causing conflicts with remote
+- ✅ **Use separate commits**: Create new commits instead of amending existing ones
+- ⚠️ **Force push complications**: Amended commits require `git push --force-with-lease` which can be risky
+
+**Recommended workflow:**
+```bash
+# Instead of amending
+git add fixes.py
+git commit -m "fix: address code review feedback"
+
+# NOT: git commit --amend (if already pushed)
+```
+
+**Exception:** Only amend commits that have **never been pushed** to any remote repository.
+
+Rationale: Amended commits create history rewriting that complicates collaboration and can lead to lost work or merge conflicts.
