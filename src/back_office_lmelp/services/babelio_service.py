@@ -8,7 +8,7 @@ Architecture :
 - Format : JSON {"term": "search_term", "isMobile": false}
 - Headers : Content-Type: application/json, X-Requested-With: XMLHttpRequest
 - Cookies : disclaimer=1, p=FR (nécessaires pour éviter les blocages)
-- Rate limiting : 1 req/sec maximum (respectueux de Babelio)
+- Rate limiting : 0.8 sec entre requêtes (respectueux de Babelio)
 
 Découverte technique basée sur l'analyse DevTools :
 - Babelio tolère les fautes d'orthographe (Houllebeck -> Houellebecq)
@@ -39,7 +39,7 @@ class BabelioService:
     """Service de vérification orthographique via l'API AJAX de Babelio.
 
     Ce service respecte les bonnes pratiques :
-    - Rate limiting à 1 req/sec maximum
+    - Rate limiting à 0.8 sec entre requêtes
     - Headers et cookies appropriés pour éviter les blocages
     - Gestion d'erreur robuste (timeout, réseau, parsing JSON)
     - Session HTTP réutilisable et fermeture propre
@@ -58,6 +58,9 @@ class BabelioService:
         self.search_endpoint = "/aj_recherche.php"
         self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
+        self.last_request_time = 0  # Timestamp de la dernière requête
+        self.min_interval = 0.8  # Délai minimum de 0.8 secondes entre requêtes
+        self._cache = {}  # Cache simple terme -> résultats (limité en taille)
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Récupère ou crée la session HTTP avec configuration appropriée."""
@@ -135,8 +138,26 @@ class BabelioService:
         if not term or not term.strip():
             return []
 
-        # Respect du rate limiting
+        # Vérifier le cache d'abord
+        cache_key = term.strip().lower()
+        if cache_key in self._cache:
+            logger.debug(f"Cache hit pour: {term}")
+            return self._cache[cache_key]  # type: ignore[no-any-return]
+
+        # Respect du rate limiting avec délai obligatoire
         async with self.rate_limiter:
+            # Calculer le temps d'attente nécessaire
+            import time
+
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+
+            if time_since_last < self.min_interval:
+                wait_time = self.min_interval - time_since_last
+                logger.debug(f"Rate limiting: attente de {wait_time:.1f}s")
+                await asyncio.sleep(wait_time)
+
+            self.last_request_time = time.time()
             session = await self._get_session()
             url = f"{self.base_url}{self.search_endpoint}"
 
@@ -154,6 +175,11 @@ class BabelioService:
                             text_content = await response.text()
                             results: list[dict[str, Any]] = json.loads(text_content)
                             logger.debug(f"Babelio retourne {len(results)} résultats")
+
+                            # Mettre en cache (limiter la taille du cache)
+                            if len(self._cache) < 100:  # Limite à 100 entrées
+                                self._cache[cache_key] = results
+
                             return results
                         except json.JSONDecodeError:
                             # Si ce n'est vraiment pas du JSON, log pour debugging
@@ -164,6 +190,11 @@ class BabelioService:
                             logger.error(f"Content-Type: {content_type}")
                             logger.error(f"Début: {text_content[:200]}...")
                             return []
+                    elif response.status == 503:
+                        logger.warning(
+                            f"Babelio HTTP 503 (Service Unavailable) pour: {term} - rate limited"
+                        )
+                        return []
                     else:
                         logger.warning(f"Babelio HTTP {response.status} pour: {term}")
                         return []

@@ -9,7 +9,7 @@ import path from 'path'
  */
 function getBackendTarget() {
   const portFilePath = path.resolve(process.cwd(), '../.backend-port.json')
-  const defaultTarget = 'http://localhost:54322'
+  const defaultTarget = 'http://localhost:54321'
 
   try {
     if (!fs.existsSync(portFilePath)) {
@@ -20,9 +20,9 @@ function getBackendTarget() {
     const fileContent = fs.readFileSync(portFilePath, 'utf8')
     const portData = JSON.parse(fileContent)
 
-    // Check if file is stale (older than 30 seconds)
+    // Check if file is stale (older than 24 hours)
     const fileAge = Date.now() - (portData.timestamp * 1000)
-    if (fileAge > 30 * 1000) {
+    if (fileAge > 24 * 60 * 60 * 1000) {
       console.warn('Backend port discovery file is stale, using default target:', defaultTarget)
       return defaultTarget
     }
@@ -45,6 +45,11 @@ function getBackendTarget() {
 
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
+  },
   server: {
     host: '0.0.0.0',  // Écouter sur toutes les interfaces pour l'accès réseau mobile
     port: 5173,

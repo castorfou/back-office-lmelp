@@ -153,5 +153,94 @@ export const searchService = {
   },
 };
 
+/**
+ * Service pour la vérification Babelio
+ */
+export const babelioService = {
+  /**
+   * Vérifie un auteur via l'API Babelio
+   * @param {string} name - Nom de l'auteur
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyAuthor(name) {
+    const response = await api.post('/verify-babelio', {
+      type: 'author',
+      name: name
+    });
+    return response.data;
+  },
+
+  /**
+   * Vérifie un livre via l'API Babelio
+   * @param {string} title - Titre du livre
+   * @param {string} author - Auteur du livre (optionnel)
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyBook(title, author = null) {
+    const response = await api.post('/verify-babelio', {
+      type: 'book',
+      title: title,
+      author: author
+    });
+    return response.data;
+  },
+
+  /**
+   * Vérifie un éditeur via l'API Babelio
+   * @param {string} name - Nom de l'éditeur
+   * @returns {Promise<Object>} Résultat de vérification Babelio
+   */
+  async verifyPublisher(name) {
+    const response = await api.post('/verify-babelio', {
+      type: 'publisher',
+      name: name
+    });
+    return response.data;
+  },
+};
+
+/**
+ * Service de recherche fuzzy pour les épisodes
+ */
+export const fuzzySearchService = {
+  /**
+   * Recherche fuzzy dans un épisode spécifique
+   * @param {string} episodeId - ID de l'épisode
+   * @param {Object} searchTerms - Termes de recherche {author, title}
+   * @returns {Promise<Object>} Résultat de recherche fuzzy
+   */
+  async searchEpisode(episodeId, searchTerms) {
+    if (!episodeId || !searchTerms) {
+      return {
+        found_suggestions: false,
+        titleMatches: [],
+        authorMatches: []
+      };
+    }
+
+    try {
+      const response = await api.post('/fuzzy-search-episode', {
+        episode_id: episodeId,
+        query_title: searchTerms.title || '',
+        query_author: searchTerms.author || ''
+      });
+
+      // Transform API response to expected format
+      const data = response.data;
+      return {
+        found_suggestions: data.found_suggestions || false,
+        titleMatches: data.title_matches || [],
+        authorMatches: data.author_matches || []
+      };
+    } catch (error) {
+      console.warn('Fuzzy search failed:', error.message);
+      return {
+        found_suggestions: false,
+        titleMatches: [],
+        authorMatches: []
+      };
+    }
+  }
+};
 
 export default api;

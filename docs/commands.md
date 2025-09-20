@@ -33,6 +33,15 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 # Ou en une commande :
 pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
+
+# lancement de tous les test validation biblio
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation
+# lancement sur un auteur prenommé Alain:
+cd /workspaces/back-office-lmelp/frontend && npx vitest tests/unit/BiblioValidatio
+nService.modular.test.js -t "Alain" --run
+
+# enrichissement des fixtures dans
+# frontend/tests/fixtures/biblio-validation-cases.yml
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
@@ -110,4 +119,15 @@ suite à ajout de lib dans `pyproject.toml`
 
 ```bash
 uv pip install -e .
+uv lock # pour generer le lockfile
+```
+
+## mettre à jour l'env nodejs
+
+Les packages se declarent dans `frontend/package.json`
+
+et pour l'installation
+
+```bash
+cd /workspaces/back-office-lmelp/frontend && npm install
 ```

@@ -1,0 +1,124 @@
+cases:
+# Fixtures pour BiblioValidationService.validateBiblio() - résultats end-to-end
+# Format: input (author, title, publisher, episodeId) -> output (status, suggested_author, suggested_title, corrections)
+
+# Cas verified - données exactes confirmées
+- input:
+    author: "Vamille"
+    title: "Fleurs intestinales"
+    publisher: "Sarbacane"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "verified"
+
+# Cas suggestion - corrections proposées - mais il faut faire évoluer l'algo
+- input:
+    author: "Emmanuel Carrère"
+    title: "Colcause"
+    publisher: "POL"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Emmanuel Carrère"
+    suggested_title: "Kolkhoze"
+    corrections:
+      author: false
+      title: true
+
+# Cas difficile
+- input:
+    author: "Grégory Lefloc"
+    title: "Peau d'ours"
+    publisher: "Seuil"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Grégory Le Floch"
+    suggested_title: "Peau d'ourse"
+    corrections:
+      author: true
+      title: true
+
+# Cas not_found 14/09/2025, hyper dur
+- input:
+    author: "Agnès Michaud"
+    title: "Huitsemences vivantes"
+    publisher: "Cherche Midi"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Agnès Michaux"
+    suggested_title: "Huysmans vivant"
+    corrections:
+      author: true
+      title: true
+
+# Cas Alain Mabancou --> Alain Mabanckou 14/09/2025
+- input:
+    author: "Alain Mabancou"
+    title: "Ramsès de Paris"
+    publisher: "Seuil"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Alain Mabanckou"
+    suggested_title: "Ramsès de Paris"
+    corrections:
+      author: true
+      title: false
+
+# Caroline Dussain --> Caroline Du Saint
+- input:
+    author: "Caroline Dussain"
+    title: "Un déni français"
+    publisher: "Récamier"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Caroline du Saint"
+    suggested_title: "Un Déni français - Enquête sur l'élevage industrie..."
+    corrections:
+      author: true
+      title: true
+
+# Christophe Bigot - 14/09/2025
+- input:
+    author: "Christophe Bigot"
+    title: "Un autre Matin ailleurs"
+    publisher: "Point"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Christophe Bigot"
+    suggested_title: " Un autre m'attend ailleurs"
+    corrections:
+      author: false
+      title: true
+
+# Nine Antico - 14/09/2025
+- input:
+    author: "Nin Antico"
+    title: "Une Obsession"
+    publisher: "Dargaud"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Nine Antico"
+    suggested_title: "Une obsession"
+    corrections:
+      author: true
+      title: true
+
+# Séphora Pondi - 14/09/2025
+- input:
+    author: "Sephora Pondi"
+    title: "Aval"
+    publisher: "Grasset"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Séphora Pondi"
+    suggested_title: "Avale"
+    corrections:
+      author: true
+      title: true

@@ -1,0 +1,304 @@
+cases:
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Grégory Lefloc
+    query_title: Peau d'ours
+  name: Grégory Lefloc - Peau d'ours
+  output:
+    author_matches: []
+    found_suggestions: true
+    title_matches:
+    - - 📖 Ramsès de Paris
+      - 48
+    - - 📖 Au grand jamais
+      - 46
+    - - 📖 La Maison vide
+      - 30
+    - - 📖 Tressaillir
+      - 27
+    - - 📖 Avale
+      - 26
+    - - d'Alain
+      - 86
+    - - pour
+      - 68
+    - - Vous
+      - 68
+    - - Pour
+      - 68
+    - - tous
+      - 68
+    - - autres
+      - 60
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Emmanuel Carrère
+    query_title: Colcause
+  output:
+    authorMatches:
+    - - Carrère
+      - 90
+    - - Emmanuel
+      - 90
+    - - Carrère
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Nous les Moches
+      - 48
+    - - 📖 Jouer le Jeu
+      - 45
+    - - 📖 La Nuit au cœur
+      - 42
+    - - 📖 Par où entre la lumière
+      - 39
+    - - 📖 Kolkhoze
+      - 38
+  timestamp: 1758400676975
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Vamille
+    query_title: Fleurs intestinales
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 47
+    - - 📖 Nous les Moches
+      - 45
+    - - 📖 Par où entre la lumière
+      - 40
+    - - 📖 Jouer le Jeu
+      - 37
+    - - 📖 Kolkhoze
+      - 33
+    - - réalisé
+      - 60
+  timestamp: 1758401754619
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Agnès Michaud
+    query_title: Huitsemences vivantes
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 54
+    - - 📖 La Maison vide
+      - 40
+    - - 📖 Tressaillir
+      - 39
+    - - 📖 Ramsès de Paris
+      - 34
+    - - 📖 Au grand jamais
+      - 28
+    - - autres
+      - 65
+    - - semaine
+      - 64
+  timestamp: 1758405086009
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Alain Mabancou
+    query_title: Ramsès de Paris
+  output:
+    authorMatches:
+    - - d'Alain
+      - 86
+    - - Mabanckou
+      - 85
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Ramsès de Paris
+      - 100
+    - - 📖 Au grand jamais
+      - 48
+    - - 📖 La Maison vide
+      - 43
+    - - 📖 Tressaillir
+      - 40
+    - - 📖 Avale
+      - 26
+    - - Ramsès
+      - 90
+    - - Paris
+      - 90
+    - - réalisé
+      - 68
+    - - Maria
+      - 60
+  timestamp: 1758405218281
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Caroline Dussain
+    query_title: Un déni français
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Au grand jamais
+      - 55
+    - - 📖 Ramsès de Paris
+      - 43
+    - - 📖 Avale
+      - 36
+    - - 📖 La Maison vide
+      - 34
+    - - 📖 Tressaillir
+      - 24
+    - - Paris
+      - 68
+    - - réalisé
+      - 68
+    - - jamais
+      - 65
+    - - Maison
+      - 60
+  timestamp: 1758407507802
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Grégory Lefloc
+    query_title: Peau d'ours
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Par où entre la lumière
+      - 50
+    - - 📖 Jouer le Jeu
+      - 50
+    - - 📖 La Nuit au cœur
+      - 46
+    - - 📖 Nous les Moches
+      - 38
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 28
+    - - d'une
+      - 86
+    - - Nous
+      - 68
+    - - Vous
+      - 68
+    - - Pour
+      - 68
+    - - tous
+      - 68
+    - - Jouer
+      - 60
+    - - autres
+      - 60
+  timestamp: 1758408613718
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Christophe Bigot
+    query_title: Un autre Matin ailleurs
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 54
+    - - 📖 La Maison vide
+      - 51
+    - - 📖 Tressaillir
+      - 49
+    - - 📖 Au grand jamais
+      - 48
+    - - 📖 Ramsès de Paris
+      - 37
+    - - autres
+      - 75
+    - - durée
+      - 68
+    - - semaine
+      - 64
+    - - Maison
+      - 60
+  timestamp: 1758408856645
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Nin Antico
+    query_title: Une Obsession
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 La Maison vide
+      - 35
+    - - 📖 Tressaillir
+      - 33
+    - - 📖 Au grand jamais
+      - 29
+    - - 📖 Avale
+      - 28
+    - - 📖 Ramsès de Paris
+      - 22
+    - - Maison
+      - 60
+  timestamp: 1758408969923
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Yakuta Ali Kavazovic
+    query_title: Au Grand Jamais
+  output:
+    authorMatches:
+    - - Alikavazovic
+      - 82
+    - - Jakuta
+      - 78
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Au grand jamais
+      - 100
+    - - 📖 Ramsès de Paris
+      - 48
+    - - 📖 La Maison vide
+      - 41
+    - - 📖 Avale
+      - 36
+    - - 📖 Tressaillir
+      - 23
+    - - grand
+      - 90
+    - - jamais
+      - 90
+    - - Maison
+      - 72
+    - - Paris
+      - 68
+    - - réalisé
+      - 68
+    - - d'Alain
+      - 64
+    - - Maria
+      - 60
+  timestamp: 1758409133731
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Sephora Pondi
+    query_title: Aval
+  output:
+    authorMatches:
+    - - Pondi
+      - 90
+    - - Séphora
+      - 78
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Avale
+      - 89
+    - - 📖 Tressaillir
+      - 45
+    - - 📖 La Maison vide
+      - 45
+    - - 📖 Au grand jamais
+      - 45
+    - - 📖 Ramsès de Paris
+      - 30
+    - - festival
+      - 77
+    - - Alikavazovic
+      - 68
+  timestamp: 1758409474077

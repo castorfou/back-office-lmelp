@@ -1,0 +1,285 @@
+cases:
+- input:
+    author: Grégory Lefloc
+    title: Peau d'ours
+  name: Peau d'ours + Grégory Lefloc - API response
+  output:
+    babelio_suggestion_author: Henri Calet
+    babelio_suggestion_title: Peau d'ours
+    confidence_score: 0.7959999999999999
+    original_author: Grégory Lefloc
+    original_title: Peau d'ours
+    status: corrected
+- input:
+    author: Emmanuel Carrère
+    title: Colcause
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '9854'
+      ca_nb_citations: '196'
+      ca_nb_critiques: '361'
+      ca_note: '3.95'
+      couverture: /couv/sm_cvt_Ladversaire_1005.jpg
+      id: '234935'
+      id_auteur: '3384'
+      id_oeuvre: '234935'
+      nb_items_filtres: '24'
+      nom: Carrère
+      prenoms: Emmanuel
+      titre: L'Adversaire
+      type: livres
+      url: /livres/Carrere-LAdversaire/234935
+      weight: '2'
+    babelio_suggestion_author: Emmanuel Carrère
+    babelio_suggestion_title: L'Adversaire
+    babelio_url: https://www.babelio.com/livres/Carrere-LAdversaire/234935
+    confidence_score: 0.58
+    error_message: null
+    original_author: Emmanuel Carrère
+    original_title: Colcause
+    status: corrected
+  timestamp: 1758400676985
+- input:
+    author: Emmanuel Carrère
+    title: nous les moches
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Emmanuel Carrère
+    original_title: nous les moches
+    status: not_found
+  timestamp: 1758400676990
+- input:
+    author: Vamille
+    title: Fleurs intestinales
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '51'
+      ca_note: '4.09'
+      couverture: https://m.media-amazon.com/images/I/61NlgCR9t-L._SX95_.jpg
+      id_auteur: '511577'
+      id_oeuvre: '1897691'
+      nom: Vamille
+      prenoms: ''
+      titre: Fleurs intestinales
+      tri: '51'
+      type: livres
+      url: /livres/Vamille-Fleurs-intestinales/1897691
+    babelio_suggestion_author: Vamille
+    babelio_suggestion_title: Fleurs intestinales
+    babelio_url: https://www.babelio.com/livres/Vamille-Fleurs-intestinales/1897691
+    confidence_score: 1
+    error_message: null
+    original_author: Vamille
+    original_title: Fleurs intestinales
+    status: verified
+  timestamp: 1758401754627
+- input:
+    author: Agnès Michaud
+    title: Huitsemences vivantes
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Agnès Michaud
+    original_title: Huitsemences vivantes
+    status: not_found
+  timestamp: 1758405086022
+- input:
+    author: Agnès Ouvrard-Michaud
+    title: Huitsemences vivantes
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Agnès Ouvrard-Michaud
+    original_title: Huitsemences vivantes
+    status: not_found
+  timestamp: 1758405086026
+- input:
+    author: Alain Mabancou
+    title: Ramsès de Paris
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Alain Mabancou
+    original_title: Ramsès de Paris
+    status: not_found
+  timestamp: 1758405218294
+- input:
+    author: Alain Mabanckou
+    title: Ramsès de Paris
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '97'
+      ca_note: '3.08'
+      couverture: https://m.media-amazon.com/images/I/515fv5IEdyL._SX95_.jpg
+      id_auteur: '6174'
+      id_oeuvre: '1872857'
+      nom: Mabanckou
+      prenoms: Alain
+      titre: Ramsès de Paris
+      tri: '97'
+      type: livres
+      url: /livres/Mabanckou-Ramses-de-Paris/1872857
+    babelio_suggestion_author: Alain Mabanckou
+    babelio_suggestion_title: Ramsès de Paris
+    babelio_url: https://www.babelio.com/livres/Mabanckou-Ramses-de-Paris/1872857
+    confidence_score: 1
+    error_message: null
+    original_author: Alain Mabanckou
+    original_title: Ramsès de Paris
+    status: verified
+  timestamp: 1758405218299
+- input:
+    author: Caroline Dussain
+    title: Un déni français
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '2'
+      ca_nb_citations: '0'
+      ca_nb_critiques: '0'
+      ca_note: '0.00'
+      couverture: https://m.media-amazon.com/images/I/41DMiFvsh0L._SX95_.jpg
+      id: '1884464'
+      id_auteur: '789842'
+      id_oeuvre: '1884464'
+      nb_items_filtres: '1'
+      nom: du Saint
+      prenoms: Caroline
+      titre: Un Déni français - Enquête sur l'élevage industrie...
+      type: livres
+      url: /livres/du-Saint-Un-Deni-francais-Enquete-sur-lelevage-industrie/1884464
+      weight: '4'
+    babelio_suggestion_author: Caroline du Saint
+    babelio_suggestion_title: Un Déni français - Enquête sur l'élevage industrie...
+    babelio_url: https://www.babelio.com/livres/du-Saint-Un-Deni-francais-Enquete-sur-lelevage-industrie/1884464
+    confidence_score: 0.597364953886693
+    error_message: null
+    original_author: Caroline Dussain
+    original_title: Un déni français
+    status: corrected
+  timestamp: 1758407507818
+- input:
+    author: Grégory Lefloc
+    title: Peau d'ours
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '55'
+      ca_nb_citations: '9'
+      ca_nb_critiques: '4'
+      ca_note: '3.69'
+      couverture: https://images-na.ssl-images-amazon.com/images/I/3118KFKRFJL._SX95_.jpg
+      id: '193462'
+      id_auteur: '10444'
+      id_oeuvre: '193462'
+      nb_items_filtres: '10'
+      nom: Calet
+      prenoms: Henri
+      titre: Peau d'ours
+      type: livres
+      url: /livres/Calet-Peau-dours/193462
+      weight: '3'
+    babelio_suggestion_author: Henri Calet
+    babelio_suggestion_title: Peau d'ours
+    babelio_url: https://www.babelio.com/livres/Calet-Peau-dours/193462
+    confidence_score: 0.7959999999999999
+    error_message: null
+    original_author: Grégory Lefloc
+    original_title: Peau d'ours
+    status: corrected
+  timestamp: 1758408613732
+- input:
+    author: Christophe Bigot
+    title: Un autre Matin ailleurs
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Christophe Bigot
+    original_title: Un autre Matin ailleurs
+    status: not_found
+  timestamp: 1758408856660
+- input:
+    author: Nin Antico
+    title: Une Obsession
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Nin Antico
+    original_title: Une Obsession
+    status: not_found
+  timestamp: 1758408969952
+- input:
+    author: Yakuta Ali Kavazovic
+    title: Au Grand Jamais
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Yakuta Ali Kavazovic
+    original_title: Au Grand Jamais
+    status: not_found
+  timestamp: 1758409133754
+- input:
+    author: Sephora Pondi
+    title: Aval
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '157'
+      ca_note: '3.08'
+      couverture: /couv/cvt_Avale_3136.jpg
+      id_auteur: '651410'
+      id_oeuvre: '1866783'
+      nom: Pondi
+      prenoms: Séphora
+      titre: Avale
+      tri: '157'
+      type: livres
+      url: /livres/Pondi-Avale/1866783
+    babelio_suggestion_author: Séphora Pondi
+    babelio_suggestion_title: Avale
+    babelio_url: https://www.babelio.com/livres/Pondi-Avale/1866783
+    confidence_score: 0.8991452991452991
+    error_message: null
+    original_author: Sephora Pondi
+    original_title: Aval
+    status: corrected
+  timestamp: 1758409474090

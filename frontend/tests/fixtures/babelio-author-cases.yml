@@ -1,0 +1,197 @@
+cases:
+- input:
+    name: Grégory Lefloc
+  name: Grégory Lefloc - API response
+  output:
+    babelio_suggestion: null
+    confidence_score: 0.0
+    original: Grégory Lefloc
+    status: not_found
+- input:
+    name: Emmanuel Carrère
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '28893'
+      ca_oeuvres: '25'
+      first_of_group: first_of_group
+      id: '3384'
+      nom: Carrère
+      prenoms: Emmanuel
+      type: auteurs
+      url: /auteur/Emmanuel-Carrere/3384
+      url_photo: /users/avt_fd_3384.jpg
+    babelio_suggestion: Emmanuel Carrère
+    babelio_url: https://www.babelio.com/auteur/Emmanuel-Carrere/3384
+    confidence_score: 1
+    error_message: null
+    original: Emmanuel Carrère
+    status: verified
+  timestamp: 1758400676980
+- input:
+    name: Vamille
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '66'
+      ca_oeuvres: '3'
+      first_of_group: first_of_group
+      id: '511577'
+      nom: Vamille
+      prenoms: ''
+      type: auteurs
+      url: /auteur/-Vamille/511577
+      url_photo: /users/avt_fd_511577.jpg
+    babelio_suggestion: Vamille
+    babelio_url: https://www.babelio.com/auteur/-Vamille/511577
+    confidence_score: 1
+    error_message: null
+    original: Vamille
+    status: verified
+  timestamp: 1758401754623
+- input:
+    name: Agnès Michaud
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '1'
+      ca_oeuvres: '7'
+      first_of_group: first_of_group
+      id: '750223'
+      id_auteur: '750223'
+      nom: Ouvrard-Michaud
+      prenoms: Agnès
+      type: auteurs
+      url: /auteur/Agnes-Ouvrard-Michaud/750223
+      url_photo: /images/avatar55x55_stylo.jpg
+      weight: '1621'
+    babelio_suggestion: Agnès Ouvrard-Michaud
+    babelio_url: https://www.babelio.com/auteur/Agnes-Ouvrard-Michaud/750223
+    confidence_score: 0.7647058823529411
+    error_message: null
+    original: Agnès Michaud
+    status: corrected
+  timestamp: 1758405086017
+- input:
+    name: Alain Mabancou
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '5779'
+      ca_oeuvres: '41'
+      first_of_group: first_of_group
+      id: '6174'
+      id_auteur: '6174'
+      nom: Mabanckou
+      prenoms: Alain
+      type: auteurs
+      url: /auteur/Alain-Mabanckou/6174
+      url_photo: /users/avt_fd_6174.jpg
+      weight: '2625'
+    babelio_suggestion: Alain Mabanckou
+    babelio_url: https://www.babelio.com/auteur/Alain-Mabanckou/6174
+    confidence_score: 0.9655172413793104
+    error_message: null
+    original: Alain Mabancou
+    status: verified
+  timestamp: 1758405218286
+- input:
+    name: Caroline Dussain
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '1221'
+      ca_oeuvres: '3'
+      id: '565150'
+      id_auteur: '565150'
+      nom: Dawson
+      prenoms: Caroline
+      type: auteurs
+      url: /auteur/Caroline-Dawson/565150
+      url_photo: /users/avt_fd_565150.jpg
+      weight: '2608'
+    babelio_suggestion: Caroline Dawson
+    babelio_url: https://www.babelio.com/auteur/Caroline-Dawson/565150
+    confidence_score: 0.7741935483870968
+    error_message: null
+    original: Caroline Dussain
+    status: corrected
+  timestamp: 1758407507809
+- input:
+    name: Grégory Lefloc
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Grégory Lefloc
+    status: not_found
+  timestamp: 1758408613725
+- input:
+    name: Christophe Bigot
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '942'
+      ca_oeuvres: '7'
+      first_of_group: first_of_group
+      id: '94718'
+      nom: Bigot
+      prenoms: Christophe
+      type: auteurs
+      url: /auteur/Christophe-Bigot/94718
+      url_photo: /users/avt_fd_94718.jpg
+    babelio_suggestion: Christophe Bigot
+    babelio_url: https://www.babelio.com/auteur/Christophe-Bigot/94718
+    confidence_score: 1
+    error_message: null
+    original: Christophe Bigot
+    status: verified
+  timestamp: 1758408856655
+- input:
+    name: Nin Antico
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Nin Antico
+    status: not_found
+  timestamp: 1758408969941
+- input:
+    name: Yakuta Ali Kavazovic
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Yakuta Ali Kavazovic
+    status: not_found
+  timestamp: 1758409133744
+- input:
+    name: Sephora Pondi
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '157'
+      ca_oeuvres: '1'
+      first_of_group: first_of_group
+      id: '651410'
+      nom: Pondi
+      prenoms: Séphora
+      type: auteurs
+      url: /auteur/Sephora-Pondi/651410
+      url_photo: /users/avt_fd_651410.jpg
+    babelio_suggestion: Séphora Pondi
+    babelio_url: https://www.babelio.com/auteur/Sephora-Pondi/651410
+    confidence_score: 0.9230769230769231
+    error_message: null
+    original: Sephora Pondi
+    status: corrected
+  timestamp: 1758409474086
