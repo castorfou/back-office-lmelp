@@ -125,6 +125,9 @@
                 <th class="validation-header">
                   Validation Biblio
                 </th>
+                <th class="capture-header">
+                  Capture YAML
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -139,6 +142,16 @@
                     :publisher="book.editeur || ''"
                     :episode-id="selectedEpisodeId"
                   />
+                </td>
+                <td class="capture-cell">
+                  <button
+                    @click="captureFixtures(book)"
+                    class="btn-capture-fixtures"
+                    title="Capturer les appels API pour les fixtures"
+                    :data-testid="`capture-button-${book.episode_oid}-${book.auteur}-${book.titre}`"
+                  >
+                    🔄 YAML
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -160,6 +173,8 @@
 import { livresAuteursService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
 import BiblioValidationCell from '../components/BiblioValidationCell.vue';
+import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
+import BiblioValidationService from '../services/BiblioValidationService.js';
 
 export default {
   name: 'LivresAuteurs',
@@ -308,6 +323,38 @@ export default {
         return '';
       }
       return this.sortAscending ? 'sort-asc' : 'sort-desc';
+    },
+
+    /**
+     * Capture les appels API pour génération de fixtures YAML
+     */
+    async captureFixtures(book) {
+      console.log('🎯 Starting fixture capture for:', {
+        author: book.auteur,
+        title: book.titre,
+        publisher: book.editeur,
+        episodeId: this.selectedEpisodeId
+      });
+
+      // Démarrer la capture
+      fixtureCaptureService.startCapture();
+
+      try {
+        // Rejouer la validation BiblioService avec capture activée
+        await BiblioValidationService.validateBiblio(
+          book.auteur,
+          book.titre,
+          book.editeur || '',
+          this.selectedEpisodeId
+        );
+
+        console.log('✅ BiblioValidation completed');
+      } catch (error) {
+        console.error('❌ Error during BiblioValidation:', error);
+      } finally {
+        // Envoyer les appels capturés au backend
+        await fixtureCaptureService.stopCaptureAndSend();
+      }
     }
 
   }
@@ -523,6 +570,45 @@ export default {
   padding: 1rem;
   vertical-align: top;
   min-width: 180px;
+}
+
+.capture-header {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #eee;
+  min-width: 120px;
+}
+
+.capture-cell {
+  padding: 1rem;
+  vertical-align: top;
+  min-width: 120px;
+  text-align: center;
+}
+
+.btn-capture-fixtures {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.btn-capture-fixtures:hover {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+.btn-capture-fixtures:active {
+  transform: translateY(0);
 }
 
 /* Aide pour le tri */

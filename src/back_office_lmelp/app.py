@@ -14,6 +14,7 @@ from thefuzz import process  # type: ignore[import-not-found]
 from .models.episode import Episode
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
+from .services.fixture_updater import FixtureUpdaterService
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
@@ -34,6 +35,22 @@ class FuzzySearchRequest(BaseModel):
     episode_id: str
     query_title: str
     query_author: str | None = None
+
+
+class CapturedCall(BaseModel):
+    """Modèle pour un appel API capturé."""
+
+    service: str  # 'babelioService' | 'fuzzySearchService'
+    method: str  # 'verifyAuthor' | 'verifyBook' | 'searchEpisode'
+    input: dict[str, Any]
+    output: dict[str, Any]
+    timestamp: int
+
+
+class FixtureUpdateRequest(BaseModel):
+    """Modèle pour les requêtes de mise à jour de fixtures."""
+
+    calls: list[CapturedCall]
 
 
 @asynccontextmanager
@@ -518,6 +535,32 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
 
         return response
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/update-fixtures", response_model=dict[str, Any])
+async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
+    """Met à jour les fixtures YAML avec les appels API capturés."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        updater = FixtureUpdaterService()
+        result = updater.update_from_captured_calls(
+            [call.model_dump() for call in request.calls]
+        )
+
+        return {
+            "success": True,
+            "updated_files": result.updated_files,
+            "added_cases": result.added_cases,
+            "updated_cases": result.updated_cases,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

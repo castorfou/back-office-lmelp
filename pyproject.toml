@@ -74,6 +74,7 @@ where = ["src"]
 [tool.uv]
 dev-dependencies = [
     "pytest",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 # Configuration Ruff - Linter et formateur Python moderne

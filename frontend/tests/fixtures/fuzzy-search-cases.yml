@@ -54,31 +54,6 @@ cases:
     - - 📖 La Maison vide
       - 51
 - input:
-    episode_id: 68bd9ed3582cf994fb66f1d6
-    query_author: Emmanuel Carrère
-    query_title: Colcause
-  name: Emmanuel Carrère - Colcause
-  output:
-    author_matches:
-    - - Carrère
-      - 90
-    - - Emmanuel
-      - 90
-    - - Carrère
-      - 90
-    found_suggestions: true
-    title_matches:
-    - - 📖 Nous les Moches
-      - 48
-    - - 📖 Jouer le Jeu
-      - 45
-    - - 📖 La Nuit au cœur
-      - 42
-    - - 📖 Par où entre la lumière
-      - 39
-    - - 📖 Kolkhoze
-      - 38
-- input:
     episode_id: 68c707ad6e51b9428ab87e9e
     query_author: Yakuta Ali Kavazovic
     query_title: Au Grand Jamais
@@ -102,21 +77,6 @@ cases:
     author_matches: []
     found_suggestions: false
     title_matches: []
-- input:
-    episode_id: 68bd9ed3582cf994fb66f1d6
-    query_author: Emmanuel Carrère
-    query_title: Colcause
-  name: Emmanuel Carrère - Colcause → Kolkhoze (ground truth)
-  output:
-    author_matches:
-    - - Emmanuel
-      - 90
-    - - Carrère
-      - 90
-    found_suggestions: true
-    title_matches:
-    - - 📖 Kolkhoze
-      - 85
 - input:
     episode_id: 68bd9ed3582cf994fb66f1d6
     query_author: Fatima Das
@@ -237,3 +197,49 @@ cases:
       - 68
     - - autres
       - 60
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Emmanuel Carrère
+    query_title: Colcause
+  output:
+    authorMatches:
+    - - Carrère
+      - 90
+    - - Emmanuel
+      - 90
+    - - Carrère
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 Nous les Moches
+      - 48
+    - - 📖 Jouer le Jeu
+      - 45
+    - - 📖 La Nuit au cœur
+      - 42
+    - - 📖 Par où entre la lumière
+      - 39
+    - - 📖 Kolkhoze
+      - 38
+  timestamp: 1758400676975
+- input:
+    episode_id: 68bd9ed3582cf994fb66f1d6
+    query_author: Vamille
+    query_title: Fleurs intestinales
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 47
+    - - 📖 Nous les Moches
+      - 45
+    - - 📖 Par où entre la lumière
+      - 40
+    - - 📖 Jouer le Jeu
+      - 37
+    - - 📖 Kolkhoze
+      - 33
+    - - réalisé
+      - 60
+  timestamp: 1758401754619

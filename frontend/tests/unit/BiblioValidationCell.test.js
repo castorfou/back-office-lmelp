@@ -41,7 +41,7 @@ describe('BiblioValidationCell', () => {
       const mockService = {
         validateBiblio: vi.fn().mockImplementation(() =>
           new Promise(resolve => setTimeout(() => resolve({
-            status: 'validated',
+            status: 'verified',
             data: {
               original: { author: 'Michel Houellebecq', title: 'Les Particules élémentaires' },
               source: 'babelio'
@@ -67,7 +67,7 @@ describe('BiblioValidationCell', () => {
 
       const mockService = {
         validateBiblio: vi.fn().mockResolvedValue({
-          status: 'validated',
+          status: 'verified',
           data: {
             original: { author: 'Michel Houellebecq', title: 'Les Particules élémentaires' },
             source: 'babelio'
@@ -100,7 +100,7 @@ describe('BiblioValidationCell', () => {
 
       const mockService = {
         validateBiblio: vi.fn().mockResolvedValue({
-          status: 'validated',
+          status: 'verified',
           data: {
             original: {
               author: 'Michel Houellebecq',
@@ -127,7 +127,7 @@ describe('BiblioValidationCell', () => {
       expect(wrapper.text()).toContain('Validé');
     });
 
-    it('should display suggestion for corrected author validated by book', async () => {
+    it('should display suggestion for corrected author verified by book', async () => {
       const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
 
       const mockService = {
@@ -245,7 +245,7 @@ describe('BiblioValidationCell', () => {
       // Mock successful retry
       mockService.validateBiblio.mockClear();
       mockService.validateBiblio.mockResolvedValue({
-        status: 'validated',
+        status: 'verified',
         data: {
           original: {
             author: 'Michel Houellebecq',
@@ -312,7 +312,7 @@ describe('BiblioValidationCell', () => {
 
       const mockService = {
         validateBiblio: vi.fn().mockResolvedValue({
-          status: 'validated',
+          status: 'verified',
           data: {
             original: {
               author: 'Some Author',
@@ -351,7 +351,7 @@ describe('BiblioValidationCell', () => {
 
         const mockService = {
           validateBiblio: vi.fn().mockResolvedValue({
-            status: 'validated',
+            status: 'verified',
             data: {
               original: {
                 author: 'Christophe Bigot',

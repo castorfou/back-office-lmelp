@@ -66,17 +66,6 @@ cases:
     original_title: Un autre Matin ailleurs
     status: not_found
 - input:
-    author: Emmanuel Carrère
-    title: Kolkhoze
-  name: Kolkhoze + Emmanuel Carrère → VERIFIED
-  output:
-    babelio_suggestion_author: Emmanuel Carrère
-    babelio_suggestion_title: Kolkhoze
-    confidence_score: 1.0
-    original_author: Emmanuel Carrère
-    original_title: Kolkhoze
-    status: verified
-- input:
     author: Agnès Michaud
     title: Huitsemences vivantes
   name: Huitsemences vivantes + Agnès Michaud → NOT FOUND
@@ -121,17 +110,6 @@ cases:
     original_title: Titre quelconque
     status: not_found
 - input:
-    author: Emmanuel Carrère
-    title: Kolkhoze
-  name: Kolkhoze + Emmanuel Carrère → VERIFIED
-  output:
-    babelio_suggestion_author: Emmanuel Carrère
-    babelio_suggestion_title: Kolkhoze
-    confidence_score: 1.0
-    original_author: Emmanuel Carrère
-    original_title: Kolkhoze
-    status: verified
-- input:
     author: Fatima Daas
     title: Jouer le jeu
   name: Jouer le jeu + Fatima Daas → VERIFIED
@@ -163,17 +141,6 @@ cases:
     confidence_score: 0.3
     original_author: Grégory Lefloc
     original_title: Peau d'ours
-    status: corrected
-- input:
-    author: Emmanuel Carrère
-    title: Colcause
-  name: Colcause + Emmanuel Carrère - API response
-  output:
-    babelio_suggestion_author: Emmanuel Carrère
-    babelio_suggestion_title: L'Adversaire
-    confidence_score: 0.58
-    original_author: Emmanuel Carrère
-    original_title: Colcause
     status: corrected
 - input:
     author: Fatima Das
@@ -208,3 +175,74 @@ cases:
     original_author: Grégory Lefloc
     original_title: Peau d'ours
     status: corrected
+- input:
+    author: Emmanuel Carrère
+    title: Colcause
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '9854'
+      ca_nb_citations: '196'
+      ca_nb_critiques: '361'
+      ca_note: '3.95'
+      couverture: /couv/sm_cvt_Ladversaire_1005.jpg
+      id: '234935'
+      id_auteur: '3384'
+      id_oeuvre: '234935'
+      nb_items_filtres: '24'
+      nom: Carrère
+      prenoms: Emmanuel
+      titre: L'Adversaire
+      type: livres
+      url: /livres/Carrere-LAdversaire/234935
+      weight: '2'
+    babelio_suggestion_author: Emmanuel Carrère
+    babelio_suggestion_title: L'Adversaire
+    babelio_url: https://www.babelio.com/livres/Carrere-LAdversaire/234935
+    confidence_score: 0.58
+    error_message: null
+    original_author: Emmanuel Carrère
+    original_title: Colcause
+    status: corrected
+  timestamp: 1758400676985
+- input:
+    author: Emmanuel Carrère
+    title: nous les moches
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Emmanuel Carrère
+    original_title: nous les moches
+    status: not_found
+  timestamp: 1758400676990
+- input:
+    author: Vamille
+    title: Fleurs intestinales
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '51'
+      ca_note: '4.09'
+      couverture: https://m.media-amazon.com/images/I/61NlgCR9t-L._SX95_.jpg
+      id_auteur: '511577'
+      id_oeuvre: '1897691'
+      nom: Vamille
+      prenoms: ''
+      titre: Fleurs intestinales
+      tri: '51'
+      type: livres
+      url: /livres/Vamille-Fleurs-intestinales/1897691
+    babelio_suggestion_author: Vamille
+    babelio_suggestion_title: Fleurs intestinales
+    babelio_url: https://www.babelio.com/livres/Vamille-Fleurs-intestinales/1897691
+    confidence_score: 1
+    error_message: null
+    original_author: Vamille
+    original_title: Fleurs intestinales
+    status: verified
+  timestamp: 1758401754627

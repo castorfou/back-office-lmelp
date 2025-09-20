@@ -32,14 +32,6 @@ cases:
     original: Christophe Bigot
     status: verified
 - input:
-    name: Emmanuel Carrère
-  name: Emmanuel Carrère - exact match
-  output:
-    babelio_suggestion: Emmanuel Carrère
-    confidence_score: 1.0
-    original: Emmanuel Carrère
-    status: verified
-- input:
     name: Agnès Michaud
   name: Agnès Michaud - not found
   output:
@@ -88,14 +80,6 @@ cases:
     original: Grégory Lefloc
     status: not_found
 - input:
-    name: Emmanuel Carrère
-  name: Emmanuel Carrère - API response
-  output:
-    babelio_suggestion: Emmanuel Carrère
-    confidence_score: 1.0
-    original: Emmanuel Carrère
-    status: verified
-- input:
     name: Fatima Das
   name: Fatima Das - API response
   output:
@@ -119,3 +103,45 @@ cases:
     confidence_score: 0.0
     original: Grégory Lefloc
     status: not_found
+- input:
+    name: Emmanuel Carrère
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '28893'
+      ca_oeuvres: '25'
+      first_of_group: first_of_group
+      id: '3384'
+      nom: Carrère
+      prenoms: Emmanuel
+      type: auteurs
+      url: /auteur/Emmanuel-Carrere/3384
+      url_photo: /users/avt_fd_3384.jpg
+    babelio_suggestion: Emmanuel Carrère
+    babelio_url: https://www.babelio.com/auteur/Emmanuel-Carrere/3384
+    confidence_score: 1
+    error_message: null
+    original: Emmanuel Carrère
+    status: verified
+  timestamp: 1758400676980
+- input:
+    name: Vamille
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '66'
+      ca_oeuvres: '3'
+      first_of_group: first_of_group
+      id: '511577'
+      nom: Vamille
+      prenoms: ''
+      type: auteurs
+      url: /auteur/-Vamille/511577
+      url_photo: /users/avt_fd_511577.jpg
+    babelio_suggestion: Vamille
+    babelio_url: https://www.babelio.com/auteur/-Vamille/511577
+    confidence_score: 1
+    error_message: null
+    original: Vamille
+    status: verified
+  timestamp: 1758401754623

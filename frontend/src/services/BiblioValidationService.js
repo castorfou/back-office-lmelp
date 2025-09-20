@@ -3,11 +3,70 @@
  * Orchestration intelligente entre ground truth (fuzzy search) et Babelio
  */
 
+import { fixtureCaptureService } from './FixtureCaptureService.js';
+
 export class BiblioValidationService {
   constructor(dependencies = {}) {
     this.fuzzySearchService = dependencies.fuzzySearchService;
     this.babelioService = dependencies.babelioService;
     this.localAuthorService = dependencies.localAuthorService;
+  }
+
+  /**
+   * Wrapper pour fuzzy search avec capture optionnelle
+   */
+  async _searchEpisodeWithCapture(episodeId, searchTerms) {
+    const result = await this.fuzzySearchService.searchEpisode(episodeId, searchTerms);
+
+    // Capturer l'appel si la capture est active
+    if (fixtureCaptureService.isCapturing) {
+      fixtureCaptureService.logCall(
+        'fuzzySearchService',
+        'searchEpisode',
+        { episode_id: episodeId, query_title: searchTerms.title, query_author: searchTerms.author },
+        result
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Wrapper pour vérification auteur avec capture optionnelle
+   */
+  async _verifyAuthorWithCapture(author) {
+    const result = await this.babelioService.verifyAuthor(author);
+
+    // Capturer l'appel si la capture est active
+    if (fixtureCaptureService.isCapturing) {
+      fixtureCaptureService.logCall(
+        'babelioService',
+        'verifyAuthor',
+        { type: 'author', name: author },
+        result
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Wrapper pour vérification livre avec capture optionnelle
+   */
+  async _verifyBookWithCapture(title, author) {
+    const result = await this.babelioService.verifyBook(title, author);
+
+    // Capturer l'appel si la capture est active
+    if (fixtureCaptureService.isCapturing) {
+      fixtureCaptureService.logCall(
+        'babelioService',
+        'verifyBook',
+        { type: 'book', title: title, author: author },
+        result
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -27,7 +86,7 @@ export class BiblioValidationService {
       let groundTruthResult = null;
       if (episodeId) {
         try {
-          groundTruthResult = await this.fuzzySearchService.searchEpisode(
+          groundTruthResult = await this._searchEpisodeWithCapture(
             episodeId,
             { author, title }
           );
@@ -37,7 +96,7 @@ export class BiblioValidationService {
       }
 
       // Étape 2: Validation Babelio de l'auteur
-      const authorValidation = await this.babelioService.verifyAuthor(author) || { status: 'not_found' };
+      const authorValidation = await this._verifyAuthorWithCapture(author) || { status: 'not_found' };
 
       // Étape 3: Validation Babelio du livre
       let bookValidation;
@@ -45,18 +104,18 @@ export class BiblioValidationService {
       // Cas 1: Auteur avec suggestion (corrected OU verified avec différence)
       if (this._authorHasSuggestion(authorValidation)) {
         // D'abord essayer avec l'auteur original
-        bookValidation = await this.babelioService.verifyBook(title, author) || { status: 'not_found' };
+        bookValidation = await this._verifyBookWithCapture(title, author) || { status: 'not_found' };
 
         // Si ça échoue, essayer avec l'auteur suggéré
         if (bookValidation.status === 'not_found') {
-          bookValidation = await this.babelioService.verifyBook(
+          bookValidation = await this._verifyBookWithCapture(
             title,
             authorValidation.babelio_suggestion
           ) || { status: 'not_found' };
         }
       } else {
         // Cas 2: Pas de suggestion d'auteur, test avec l'auteur original seulement
-        bookValidation = await this.babelioService.verifyBook(title, author) || { status: 'not_found' };
+        bookValidation = await this._verifyBookWithCapture(title, author) || { status: 'not_found' };
       }
 
       // Étape 4: Arbitrage et décision finale
@@ -68,8 +127,20 @@ export class BiblioValidationService {
         episodeId
       });
 
+      // Capturer le résultat final end-to-end si la capture est active
+      if (fixtureCaptureService.isCapturing) {
+        fixtureCaptureService.logCall(
+          'biblioValidationService',
+          'validateBiblio',
+          { author, title, publisher, episodeId },
+          result
+        );
+      }
+
+      return result;
+
     } catch (error) {
-      return {
+      const errorResult = {
         status: 'error',
         data: {
           original: { author, title, publisher },
@@ -77,6 +148,18 @@ export class BiblioValidationService {
           attempts: episodeId ? ['ground_truth', 'babelio'] : ['babelio']
         }
       };
+
+      // Capturer aussi les erreurs si la capture est active
+      if (fixtureCaptureService.isCapturing) {
+        fixtureCaptureService.logCall(
+          'biblioValidationService',
+          'validateBiblio',
+          { author, title, publisher, episodeId },
+          errorResult
+        );
+      }
+
+      return errorResult;
     }
   }
 
@@ -130,7 +213,7 @@ export class BiblioValidationService {
 
     if (isDirectValidation) {
       return {
-        status: 'validated',
+        status: 'verified',
         data: {
           original,
           source: 'babelio',
@@ -419,7 +502,7 @@ export class BiblioValidationService {
         );
 
         return {
-          status: isIdentical ? 'validated' : 'suggestion',
+          status: isIdentical ? 'verified' : 'suggestion',
           data: {
             original,
             suggested: groundTruthSuggestion,
@@ -436,7 +519,7 @@ export class BiblioValidationService {
       // Sinon, vérifier que la suggestion ground truth est validée par Babelio
       // Normaliser la casse du titre pour correspondre aux fixtures
       const normalizedTitle = groundTruthSuggestion.title.toLowerCase();
-      const groundTruthBookValidation = await this.babelioService.verifyBook(
+      const groundTruthBookValidation = await this._verifyBookWithCapture(
         normalizedTitle,
         groundTruthSuggestion.author
       ) || { status: 'not_found' };
@@ -449,7 +532,7 @@ export class BiblioValidationService {
         );
 
         return {
-          status: isIdentical ? 'validated' : 'suggestion',
+          status: isIdentical ? 'verified' : 'suggestion',
           data: {
             original,
             suggested: groundTruthSuggestion,
@@ -551,7 +634,7 @@ export class BiblioValidationService {
 
       // Fallback: faire un coherenceCheck si bookValidation n'est pas "verified"
       try {
-        const coherenceCheck = await this.babelioService.verifyBook(
+        const coherenceCheck = await this._verifyBookWithCapture(
           original.title,
           authorValidation.babelio_suggestion
         ) || { status: 'not_found' };
@@ -652,3 +735,12 @@ export class BiblioValidationService {
     return 'no_reliable_match_found';
   }
 }
+
+// Import des dépendances nécessaires
+import { babelioService, fuzzySearchService } from './api.js';
+
+export default new BiblioValidationService({
+  babelioService,
+  fuzzySearchService,
+  localAuthorService: null // Pas encore implémenté
+});

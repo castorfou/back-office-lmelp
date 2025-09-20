@@ -1,0 +1,35 @@
+cases:
+# Fixtures pour BiblioValidationService.validateBiblio() - résultats end-to-end
+# Format: input (author, title, publisher, episodeId) -> output (status, suggested_author, suggested_title, corrections)
+
+# Cas verified - données exactes confirmées
+- input:
+    author: "Vamille"
+    title: "Fleurs intestinales"
+    publisher: "Sarbacane"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "verified"
+
+# Cas suggestion - corrections proposées
+- input:
+    author: "Emmanuel Carrère"
+    title: "Colcause"
+    publisher: "POL"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Emmanuel Carrère"
+    suggested_title: "Kolkhoze"
+    corrections:
+      author: false
+      title: true
+
+# Cas not_found - aucune correspondance fiable
+- input:
+    author: "Grégory Lefloc"
+    title: "Peau d'ours"
+    publisher: "Seuil"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "not_found"

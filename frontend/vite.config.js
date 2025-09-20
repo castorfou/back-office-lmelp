@@ -45,6 +45,11 @@ function getBackendTarget() {
 
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
+  },
   server: {
     host: '0.0.0.0',  // Écouter sur toutes les interfaces pour l'accès réseau mobile
     port: 5173,
