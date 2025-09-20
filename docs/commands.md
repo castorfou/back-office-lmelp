@@ -34,8 +34,12 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 # Ou en une commande :
 pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
 
-# lancement des test validation biblio
-cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation && cd ..
+# lancement de tous les test validation biblio
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation
+# lancement sur un auteur prenommé Alain:
+cd /workspaces/back-office-lmelp/frontend && npx vitest tests/unit/BiblioValidatio
+nService.modular.test.js -t "Alain" --run
+
 # enrichissement des fixtures dans
 # frontend/tests/fixtures/biblio-validation-cases.yml
 ```
