@@ -144,6 +144,19 @@ describe('BiblioValidationService Tests', () => {
           mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorResponse);
           mockBabelioService.verifyBook.mockResolvedValueOnce(bookResponse);
 
+          // If authorResponse contains a babelio_suggestion, the service may call
+          // verifyBook a second time with the suggested author. Mock that call too
+          // so both verifyBook invocations are satisfied in order.
+          if (authorResponse && authorResponse.babelio_suggestion) {
+            const suggestedBookFixture = findFixtureByBook(testCase.input.title, authorResponse.babelio_suggestion);
+            const suggestedBookResponse = getFixtureResponseOrError(
+              'babelioBook',
+              { author: authorResponse.babelio_suggestion, title: testCase.input.title },
+              suggestedBookFixture
+            );
+            mockBabelioService.verifyBook.mockResolvedValueOnce(suggestedBookResponse);
+          }
+
           // Execute validation with real mocked data
           const result = await biblioValidationService.validateBiblio(
             testCase.input.author,
