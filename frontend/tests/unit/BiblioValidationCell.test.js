@@ -203,12 +203,14 @@ describe('BiblioValidationCell', () => {
 
   describe('Error handling', () => {
     it('should display error indicator when verification fails', async () => {
-      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      // Mock console.error to avoid polluting test logs
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      const mockService = {
+      // Mock the validateBiblio method to reject before mounting
+      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      BiblioValidationService.mockImplementation(() => ({
         validateBiblio: vi.fn().mockRejectedValue(new Error('Network error'))
-      };
-      BiblioValidationService.mockImplementation(() => mockService);
+      }));
 
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
@@ -221,15 +223,24 @@ describe('BiblioValidationCell', () => {
       expect(wrapper.find('[data-testid="validation-error"]').exists()).toBe(true);
       expect(wrapper.text()).toContain('⚠️');
       expect(wrapper.text()).toContain('Erreur');
+
+      // Verify the error was logged (but silently)
+      expect(consoleSpy).toHaveBeenCalledWith('Erreur de vérification Babelio:', expect.any(Error));
+
+      consoleSpy.mockRestore();
     });
 
     it('should provide retry functionality on error', async () => {
-      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      // Mock console.error to avoid polluting test logs
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      const mockService = {
-        validateBiblio: vi.fn().mockRejectedValue(new Error('Network error'))
-      };
-      BiblioValidationService.mockImplementation(() => mockService);
+      // Mock the validateBiblio method to reject initially, then succeed on retry
+      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      const mockValidateBiblio = vi.fn().mockRejectedValue(new Error('Network error'));
+
+      BiblioValidationService.mockImplementation(() => ({
+        validateBiblio: mockValidateBiblio
+      }));
 
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
@@ -243,8 +254,8 @@ describe('BiblioValidationCell', () => {
       expect(retryButton.exists()).toBe(true);
 
       // Mock successful retry
-      mockService.validateBiblio.mockClear();
-      mockService.validateBiblio.mockResolvedValue({
+      mockValidateBiblio.mockClear();
+      mockValidateBiblio.mockResolvedValue({
         status: 'verified',
         data: {
           original: {
@@ -268,6 +279,8 @@ describe('BiblioValidationCell', () => {
 
       // Should now show success state
       expect(wrapper.find('[data-testid="validation-success"]').exists()).toBe(true);
+
+      consoleSpy.mockRestore();
     });
   });
 

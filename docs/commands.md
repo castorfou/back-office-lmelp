@@ -33,6 +33,9 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 # Ou en une commande :
 pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
+
+# lancement des test validation biblio
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
