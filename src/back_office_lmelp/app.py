@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from thefuzz import process  # type: ignore[import-not-found]
+from thefuzz import process
 
 from .models.episode import Episode
 from .services.babelio_service import babelio_service
