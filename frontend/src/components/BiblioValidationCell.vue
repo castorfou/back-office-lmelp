@@ -188,7 +188,7 @@ export default {
     mapServiceStatus(serviceStatus) {
       // Mapper les statuts du service vers les statuts du composant
       switch (serviceStatus) {
-        case 'validated': return 'verified';
+        case 'verified': return 'verified';
         case 'suggestion': return 'corrected';
         case 'not_found': return 'not_found';
         case 'error': return 'error';
