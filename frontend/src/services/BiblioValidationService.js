@@ -236,7 +236,8 @@ export class BiblioValidationService {
         original,
         groundTruthSuggestion,
         bookValidation,
-        groundTruthResult
+        groundTruthResult,
+        authorValidation
       );
     }
 
@@ -249,7 +250,8 @@ export class BiblioValidationService {
         original,
         groundTruthSuggestion,
         bookValidation,
-        groundTruthResult
+        groundTruthResult,
+        authorValidation
       );
     }
 
@@ -516,10 +518,13 @@ export class BiblioValidationService {
         // Heuristiques pour identifier prénom vs nom
         const isFirstNameLike = (str) => {
           const cleaned = cleanAuthorFragment(str);
+          // Unicode-aware detection: commence par une lettre majuscule (accentuée possible)
+          // et contient ensuite des lettres minuscules, éventuellement des apostrophes ou traits d'union.
+          // On limite la longueur pour éviter de confondre noms composés très longs.
           return cleaned.length > 0 &&
-                 cleaned.length < 12 &&
+                 cleaned.length < 20 &&
                  !cleaned.includes(' ') &&
-                 /^[A-Z][a-z]+$/.test(cleaned); // Commence par majuscule, que des lettres
+                 /^[\p{Lu}][\p{Ll}'-]+$/u.test(cleaned);
         };
 
         let firstName, lastName;
@@ -588,7 +593,7 @@ export class BiblioValidationService {
    * Valide une suggestion de ground truth avec Babelio
    * @private
    */
-  async _validateGroundTruthSuggestion(original, groundTruthSuggestion, initialBookValidation, groundTruthResult) {
+  async _validateGroundTruthSuggestion(original, groundTruthSuggestion, initialBookValidation, groundTruthResult, authorValidation) {
     try {
       // Si initialBookValidation correspond déjà à la suggestion ground truth, utiliser ce résultat
       if (initialBookValidation?.status === 'verified' &&
@@ -622,15 +627,19 @@ export class BiblioValidationService {
         return {
           status: 'suggestion',
           data: {
-            original,
-            suggested: groundTruthSuggestion,
-            corrections: {
-              title: original.title !== groundTruthSuggestion.title,
-              author: original.author !== groundTruthSuggestion.author
-            },
-            source: 'ground_truth',
-            confidence_score: 0.75
-          }
+              original,
+              // Prefer Babelio textual suggestion for author when present to keep "Prénoms Nom" ordering
+              suggested: {
+                title: groundTruthSuggestion.title,
+                author: (authorValidation && authorValidation.babelio_suggestion) || (initialBookValidation && initialBookValidation.babelio_suggestion_author) || groundTruthSuggestion.author
+              },
+              corrections: {
+                title: original.title !== groundTruthSuggestion.title,
+                author: original.author !== ((authorValidation && authorValidation.babelio_suggestion) || (initialBookValidation && initialBookValidation.babelio_suggestion_author) || groundTruthSuggestion.author)
+              },
+              source: 'ground_truth',
+              confidence_score: 0.75
+            }
         };
       }
 
@@ -727,8 +736,21 @@ export class BiblioValidationService {
 
     // If we already have a book-level result that suggests a correction, use it.
     if (bookValidation && (bookValidation.status === 'corrected' || bookValidation.status === 'verified')) {
-      const suggestedAuthor = bookValidation.babelio_suggestion_author || (authorValidation && authorValidation.babelio_suggestion) || original.author;
-      const suggestedTitle = bookValidation.babelio_suggestion_title || original.title;
+  // Prefer the human-readable textual suggestion coming from Babelio fixtures
+  // (babelio_suggestion / babelio_suggestion_author) which already have
+  // the correct "Prénoms Nom" ordering. Fall back to reconstructed
+  // fragments if textual suggestion isn't available.
+      // If Babelio provides structured data, prefer prenoms + nom ordering
+      const bookBabelioData = bookValidation && bookValidation.babelio_data;
+      const authorBabelioData = authorValidation && authorValidation.babelio_data;
+      const structuredAuthor = (bookBabelioData && (bookBabelioData.prenoms || bookBabelioData.prenoms === '') && bookBabelioData.nom)
+        ? `${bookBabelioData.prenoms} ${bookBabelioData.nom}`
+        : (authorBabelioData && (authorBabelioData.prenoms || authorBabelioData.prenoms === '') && authorBabelioData.nom)
+          ? `${authorBabelioData.prenoms} ${authorBabelioData.nom}`
+          : null;
+
+      const suggestedAuthor = structuredAuthor || bookValidation.babelio_suggestion_author || (authorValidation && authorValidation.babelio_suggestion) || original.author;
+  const suggestedTitle = bookValidation.babelio_suggestion_title || original.title;
 
       return {
         status: 'suggestion',
@@ -769,8 +791,15 @@ export class BiblioValidationService {
         }
 
         // If coherenceCheck itself suggests another author/title, prefer that final suggestion.
-        const finalAuthor = coherenceCheck.babelio_suggestion_author || authorValidation.babelio_suggestion;
-        const finalTitle = coherenceCheck.babelio_suggestion_title || original.title;
+  // Prefer human-readable textual suggestions when available
+        // Prefer structured babelio_data if available
+        const cohBabelio = coherenceCheck && coherenceCheck.babelio_data;
+        const cohStructured = (cohBabelio && (cohBabelio.prenoms || cohBabelio.prenoms === '') && cohBabelio.nom)
+          ? `${cohBabelio.prenoms} ${cohBabelio.nom}`
+          : null;
+
+        const finalAuthor = cohStructured || coherenceCheck.babelio_suggestion_author || authorValidation.babelio_suggestion || coherenceCheck.original_author || original.author;
+  const finalTitle = coherenceCheck.babelio_suggestion_title || original.title || coherenceCheck.original_title;
 
         return {
           status: 'suggestion',
