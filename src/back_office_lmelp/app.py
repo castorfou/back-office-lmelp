@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from thefuzz import process
 
 from .models.episode import Episode
+from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
 from .services.fixture_updater import FixtureUpdaterService
@@ -61,6 +62,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if not mongodb_service.connect():
             raise Exception("Impossible de se connecter à MongoDB")
         print("Connexion MongoDB établie")
+
+        # Attach a persistent disk cache for Babelio lookups so restarts benefit
+        try:
+            cache_enabled = os.environ.get("BABELIO_CACHE_ENABLED", "1").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+
+            if cache_enabled:
+                cache_dir = os.environ.get(
+                    "BABELIO_CACHE_DIR",
+                    os.path.join(os.getcwd(), "data", "processed", "babelio_cache"),
+                )
+                babelio_service.cache_service = BabelioCacheService(
+                    cache_dir=cache_dir, ttl_hours=24
+                )
+                print(f"Babelio disk cache attached at {cache_dir}")
+            else:
+                print("Babelio disk cache disabled via BABELIO_CACHE_ENABLED")
+        except Exception as e:
+            print(f"Unable to attach Babelio disk cache: {e}")
 
         yield
 
