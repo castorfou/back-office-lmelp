@@ -583,11 +583,11 @@ def signal_handler(signum, frame):
         mongodb_service.disconnect()
         print("🔌 MongoDB déconnecté")
 
-    # Nettoyer le fichier de découverte de port
+    # Nettoyer le fichier de découverte de port unifié
     with suppress(Exception):
-        port_file = PortDiscovery.get_port_file_path()
-        PortDiscovery.cleanup_port_file(port_file)
-        print("🧹 Port discovery file cleaned up")
+        port_file = PortDiscovery.get_unified_port_file_path()
+        PortDiscovery.cleanup_unified_port_file(port_file)
+        print("🧹 Unified port discovery file cleaned up")
 
 
 def find_free_port_or_default() -> int:
@@ -660,10 +660,10 @@ def main():
     print(port_message)
     print("🛡️ Garde-fou mémoire activé")
 
-    # Create port discovery file for frontend
-    port_file = PortDiscovery.get_port_file_path()
-    PortDiscovery.write_port_info(port, port_file, host)
-    print(f"📡 Port discovery file created: {port_file}")
+    # Create unified port discovery file for frontend
+    port_file = PortDiscovery.get_unified_port_file_path()
+    PortDiscovery.write_backend_info_to_unified_file(port_file, port, host)
+    print(f"📡 Unified port discovery file created: {port_file}")
 
     try:
         # Créer la configuration uvicorn avec des paramètres pour un arrêt propre
@@ -696,8 +696,8 @@ def main():
         with suppress(Exception):
             mongodb_service.disconnect()
         with suppress(Exception):
-            port_file = PortDiscovery.get_port_file_path()
-            PortDiscovery.cleanup_port_file(port_file)
+            port_file = PortDiscovery.get_unified_port_file_path()
+            PortDiscovery.cleanup_unified_port_file(port_file)
         print("✅ Arrêt complet")
 
 

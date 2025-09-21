@@ -446,15 +446,15 @@ def create_port_file_on_startup(
     host: str | None = None,
     port_file_path: Path | None = None,
 ) -> Path:
-    """Create port discovery file on application startup.
+    """Create unified port discovery file on application startup.
 
     Args:
         port: Port number (if None, will be read from environment)
         host: Host name (if None, will be read from environment)
-        port_file_path: Custom path for port file (if None, uses default)
+        port_file_path: Custom path for unified port file (if None, uses default)
 
     Returns:
-        Path to the created port file
+        Path to the created unified port file
     """
     import os
 
@@ -464,9 +464,9 @@ def create_port_file_on_startup(
     if host is None:
         host = os.getenv("API_HOST", "localhost")
     if port_file_path is None:
-        port_file_path = PortDiscovery.get_port_file_path()
+        port_file_path = PortDiscovery.get_unified_port_file_path()
 
-    # Write port information
-    PortDiscovery.write_port_info(port, port_file_path, host)
+    # Write backend information to unified file
+    PortDiscovery.write_backend_info_to_unified_file(port_file_path, port, host)
 
     return port_file_path
