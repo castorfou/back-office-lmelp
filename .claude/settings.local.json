@@ -21,7 +21,11 @@
       "WebFetch(domain:www.babelio.com)",
       "WebSearch",
       "mcp__MongoDB__collection-schema",
-      "mcp__MongoDB__list-databases"
+      "mcp__MongoDB__list-databases",
+      "Bash(/workspaces/back-office-lmelp/.claude/get-services-info.sh:*)",
+      "Bash(/workspaces/back-office-lmelp/.claude/get-backend-info.sh:*)",
+      "Bash(/workspaces/back-office-lmelp/.claude/get-frontend-info.sh:*)",
+      "Bash(/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
