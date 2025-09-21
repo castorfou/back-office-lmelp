@@ -1,8 +1,12 @@
-# Découverte automatique de port - Guide développeur
+# Système d'auto-découverte unifié pour Claude Code - Guide développeur
 
 ## Vue d'ensemble
 
-Le système de découverte automatique de port résout le problème des conflits de port en permettant au backend de sélectionner automatiquement un port libre, et au frontend de découvrir ce port dynamiquement.
+Le système d'auto-découverte unifié résout plusieurs problèmes critiques :
+- **Élimination du port guessing** : Plus besoin de deviner les ports pour Claude Code
+- **Unification des fichiers** : Un seul fichier `.dev-ports.json` remplace `.backend-port.json`
+- **Auto-discovery cross-directory** : Fonctionne depuis n'importe quel répertoire du projet
+- **Process validation** : Vérifie que les services sont réellement actifs
 
 ## Architecture technique
 
@@ -338,6 +342,141 @@ def cleanup_port_discovery_file():
 2. **WebSocket notifications** : Push des changements de port
 3. **Health check intégré** : Validation automatique de la connectivité
 4. **Configuration centralisée** : Registry externe (Redis, etcd)
+
+## Détection automatique de redémarrage pour Claude Code
+
+### Problème résolu
+
+Claude Code peut maintenant détecter automatiquement si un backend doit être relancé après des modifications. Ceci résout le problème où tu modifies du code backend et tu dois relancer manuellement le serveur.
+
+### Implémentation de la détection
+
+#### 1. Validation de l'âge du processus
+
+```bash
+# Scripts Claude Code automatiques
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status
+
+# Détecte automatiquement :
+# - Si le processus backend est toujours actif
+# - Depuis combien de temps il a été démarré
+# - Si le fichier de découverte est périmé
+```
+
+#### 2. Workflow automatique pour Claude Code
+
+```bash
+# 1. Vérifier si backend est actif et récent
+BACKEND_STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
+
+if [[ "$BACKEND_STATUS" == "inactive" ]]; then
+    echo "🔄 Backend inactif - redémarrage nécessaire"
+    ./scripts/start-dev.sh &
+    sleep 5  # Attendre le démarrage
+fi
+
+# 2. Récupérer l'URL automatiquement
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# 3. Tester l'API
+curl "$BACKEND_URL/api/episodes" | jq
+```
+
+#### 3. Détection basée sur les timestamps
+
+Le système track automatiquement :
+
+```json
+{
+  "backend": {
+    "port": 54321,
+    "host": "0.0.0.0",
+    "pid": 12345,
+    "started_at": 1640995200.0,  // Timestamp de démarrage
+    "url": "http://0.0.0.0:54321"
+  }
+}
+```
+
+#### 4. API Claude Code pour validation automatique
+
+```bash
+# Vérifier l'âge du backend (pour savoir s'il faut le relancer)
+BACKEND_AGE_SECONDS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --all | python3 -c "
+import json, sys, time
+data = json.load(sys.stdin)
+started = data.get('started_at', 0)
+age = int(time.time() - started)
+print(age)
+")
+
+# Si backend démarré il y a plus de 10 minutes après une modification
+if [[ $BACKEND_AGE_SECONDS -gt 600 ]]; then
+    echo "⚠️ Backend possiblement obsolète (démarré il y a ${BACKEND_AGE_SECONDS}s)"
+    echo "💡 Considérer un redémarrage après modifications récentes"
+fi
+```
+
+### Cas d'usage typiques pour Claude Code
+
+#### Scénario 1 : Test d'API après modification backend
+
+```bash
+# 1. Claude détecte automatiquement l'état du backend
+STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
+
+# 2. Si inactif, suggère le redémarrage
+if [[ "$STATUS" == "inactive" ]]; then
+    echo "🚨 Backend non démarré. Lancez : ./scripts/start-dev.sh"
+    exit 1
+fi
+
+# 3. Si actif, teste directement l'API
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl "$BACKEND_URL/api/verify-babelio" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"type": "author", "name": "Albert Camus"}'
+```
+
+#### Scénario 2 : Détection automatique d'obsolescence
+
+```bash
+#!/bin/bash
+# Script d'aide pour Claude Code
+
+# Vérifier si le backend est "stale" (trop ancien)
+BACKEND_INFO=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --all 2>/dev/null)
+
+if [[ $? -ne 0 ]]; then
+    echo "❌ Aucun backend détecté - Démarrage requis"
+    echo "🔧 Commande : ./scripts/start-dev.sh"
+    exit 1
+fi
+
+# Calculer l'âge
+AGE_SECONDS=$(echo "$BACKEND_INFO" | python3 -c "
+import json, sys, time
+try:
+    data = json.load(sys.stdin)
+    started = data.get('started_at', 0)
+    age = int(time.time() - started)
+    print(age)
+except:
+    print(999999)  # Très ancien si erreur
+")
+
+# Décision automatique
+if [[ $AGE_SECONDS -gt 1800 ]]; then  # 30 minutes
+    echo "⏰ Backend démarré il y a ${AGE_SECONDS}s (>30min)"
+    echo "💡 Redémarrage recommandé pour les dernières modifications"
+    echo "🔧 Commande : pkill -f 'python.*back_office_lmelp' && ./scripts/start-dev.sh"
+elif [[ $AGE_SECONDS -gt 600 ]]; then  # 10 minutes
+    echo "⚠️ Backend démarré il y a ${AGE_SECONDS}s (>10min)"
+    echo "✅ Probablement OK, mais vérifiez si vous avez fait des modifications récentes"
+else
+    echo "✅ Backend récent (${AGE_SECONDS}s) - Probablement à jour"
+fi
+```
 
 ## Intégration CI/CD
 
