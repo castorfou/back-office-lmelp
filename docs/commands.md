@@ -35,7 +35,7 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 pytest -v && cd /workspaces/back-office-lmelp/frontend && npm test -- --run && cd /workspaces/back-office-lmelp
 
 # lancement de tous les test validation biblio
-cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation
+cd /workspaces/back-office-lmelp/frontend && npm test -- --run BiblioValidation --reporter dot
 # lancement sur un auteur prenommé Alain:
 cd /workspaces/back-office-lmelp/frontend && npx vitest tests/unit/BiblioValidatio
 nService.modular.test.js -t "Alain" --run
