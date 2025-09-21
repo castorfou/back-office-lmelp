@@ -165,5 +165,4 @@ yarn.lock
 *.tsbuildinfo
 .next/
 .cache/
-.backend-port.json
 .dev-ports.json
