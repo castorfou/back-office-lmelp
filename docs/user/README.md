@@ -13,10 +13,11 @@ L'application est accessible via le frontend sur le port standard :
 http://localhost:5173
 ```
 
-Le backend utilise maintenant une **sélection automatique de port** pour éviter les conflits :
+Le backend utilise maintenant un **système d'auto-découverte unifié** pour éviter les conflits :
 - **Port par défaut** : 54321 (si disponible)
 - **Ports alternatifs** : 54322-54350 (sélection automatique si 54321 occupé)
 - **Découverte automatique** : Le frontend trouve automatiquement le bon port
+- **Support pour Claude Code** : Scripts d'auto-découverte pour les outils d'IA
 
 ### Démarrage simplifié
 
@@ -92,6 +93,33 @@ Pour accéder à l'application depuis votre téléphone ou tablette, consultez l
 3. Sur votre téléphone, ouvrez `http://[ADRESSE_IP]:5173`
 
 L'interface s'adapte automatiquement aux écrans mobiles pour une utilisation optimale.
+
+## Système d'auto-découverte (Issue #56)
+
+### Pour les utilisateurs
+
+Le système d'auto-découverte garantit que l'application fonctionne sans configuration manuelle :
+
+- **Démarrage simplifié** : Plus besoin de configurer des ports
+- **Résolution automatique des conflits** : Le système trouve automatiquement des ports libres
+- **Reconnexion intelligente** : Le frontend se reconnecte automatiquement au backend
+
+### Bénéfices pour le développement
+
+Lorsque vous travaillez avec des outils d'IA comme Claude Code :
+
+- **Découverte automatique des services** : Les outils trouvent automatiquement les ports
+- **Tests d'API simplifiés** : Plus besoin de deviner les URLs
+- **Détection de redémarrage** : Les outils peuvent détecter si le backend doit être relancé
+
+### Fichiers techniques
+
+Le système utilise un fichier `.dev-ports.json` qui contient :
+- Les ports utilisés par le backend et frontend
+- Les informations de processus pour validation
+- Les timestamps pour détecter les services obsolètes
+
+*Ce système est transparent pour l'utilisateur final mais améliore grandement l'expérience de développement.*
 
 ---
 
