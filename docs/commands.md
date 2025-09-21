@@ -1,3 +1,16 @@
+- [Commands](#commands)
+  - [resinstalle claude (apres rebuild devcontainer)](#resinstalle-claude-apres-rebuild-devcontainer)
+  - [lancement backend - frontend](#lancement-backend---frontend)
+  - [lancement des tests](#lancement-des-tests)
+  - [les infos sur les services frontend - backend](#les-infos-sur-les-services-frontend---backend)
+  - ["Failed to add the ECDSA host key ..." - maj du ssh known\_host](#failed-to-add-the-ecdsa-host-key----maj-du-ssh-known_host)
+  - [reseau port utilise](#reseau-port-utilise)
+  - [voir la todo de claude code](#voir-la-todo-de-claude-code)
+  - [voir le detail de claude code](#voir-le-detail-de-claude-code)
+  - [mettre à jour l'env python](#mettre-à-jour-lenv-python)
+  - [mettre à jour l'env nodejs](#mettre-à-jour-lenv-nodejs)
+
+
 # Commands
 
 Toutes les commandes que je suis amene a lancer souvent dans le cadre de ce projet
