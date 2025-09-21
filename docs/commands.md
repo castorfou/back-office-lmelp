@@ -44,6 +44,14 @@ nService.modular.test.js -t "Alain" --run
 # frontend/tests/fixtures/biblio-validation-cases.yml
 ```
 
+## les infos sur les services frontend - backend
+
+```bash
+/workspaces/back-office-lmelp/.claude/get-services-info.sh
+```
+
+cf dans `CLAUDE.md` tous les usages possibles
+
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
 
 Le devcontainer monte ta config SSH depuis l'hôte en bind-mount. Dans devcontainer.json on a cette ligne :
