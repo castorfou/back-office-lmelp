@@ -108,11 +108,11 @@ Le système de découverte dynamique de port synchronise automatiquement les por
 
 #### Fonctionnement
 
-1. **Backend** : Au démarrage, écrit ses informations de port dans `.backend-port.json`
+1. **Backend** : Au démarrage, écrit ses informations de port dans `.dev-ports.json`
 2. **Frontend** : Vite lit ce fichier au démarrage pour configurer le proxy automatiquement
 3. **Nettoyage** : Le fichier est supprimé à l'arrêt du backend
 
-#### Fichier de découverte (`/.backend-port.json`)
+#### Fichier de découverte (`/.dev-ports.json`)
 
 ```json
 {

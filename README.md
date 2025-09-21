@@ -93,12 +93,12 @@ cd frontend && npm run dev
 
 ### Système de découverte dynamique
 
-Le backend et le frontend se synchronisent automatiquement via un fichier `.backend-port.json` :
+Le backend et le frontend se synchronisent automatiquement via un fichier `.dev-ports.json` :
 
 ```bash
 # Le backend écrit ses informations de port au démarrage
 🚀 Démarrage du serveur sur 127.0.0.1:54323
-📡 Port discovery file created: /workspaces/back-office-lmelp/.backend-port.json
+📡 Port discovery file created: /workspaces/back-office-lmelp/.dev-ports.json
 
 # Le frontend lit automatiquement ces informations
 Using backend target from discovery file: http://127.0.0.1:54323

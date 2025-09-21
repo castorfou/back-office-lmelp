@@ -19,12 +19,14 @@ describe('PortDiscovery - Frontend', () => {
   });
 
   it('should read backend port from discovery file', async () => {
-    // Mock file content
+    // Mock unified file content
     const mockPortData = {
-      port: 54321,
-      host: "localhost",
-      timestamp: Math.floor(Date.now() / 1000), // Current timestamp in seconds
-      url: "http://localhost:54321"
+      backend: {
+        port: 54321,
+        host: "localhost",
+        started_at: Math.floor(Date.now() / 1000), // Current timestamp in seconds
+        url: "http://localhost:54321"
+      }
     };
 
     // Mock fs.readFileSync to return our test data
@@ -71,10 +73,12 @@ describe('PortDiscovery - Frontend', () => {
 
   it('should use correct port discovery file path', async () => {
     const mockPortData = {
-      port: 54321,
-      host: "localhost",
-      timestamp: Math.floor(Date.now() / 1000), // Current timestamp in seconds
-      url: "http://localhost:54321"
+      backend: {
+        port: 54321,
+        host: "localhost",
+        started_at: Math.floor(Date.now() / 1000), // Current timestamp in seconds
+        url: "http://localhost:54321"
+      }
     };
 
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockPortData));
@@ -84,8 +88,8 @@ describe('PortDiscovery - Frontend', () => {
 
     readBackendPort();
 
-    // Verify it's looking in the correct location (project root)
-    const expectedPath = path.resolve(process.cwd(), '../.backend-port.json');
+    // Verify it's looking in the correct location (project root) for unified file
+    const expectedPath = path.resolve(process.cwd(), '../.dev-ports.json');
     expect(fs.existsSync).toHaveBeenCalledWith(expectedPath);
   });
 
@@ -93,10 +97,12 @@ describe('PortDiscovery - Frontend', () => {
     // Mock old timestamp (older than 30 seconds)
     const staleTimestamp = Math.floor((Date.now() - 60000) / 1000); // 60 seconds ago in seconds
     const mockPortData = {
-      port: 54321,
-      host: "localhost",
-      timestamp: staleTimestamp,
-      url: "http://localhost:54321"
+      backend: {
+        port: 54321,
+        host: "localhost",
+        started_at: staleTimestamp,
+        url: "http://localhost:54321"
+      }
     };
 
     vi.mocked(fs.existsSync).mockReturnValue(true);

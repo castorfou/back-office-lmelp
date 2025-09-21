@@ -4,43 +4,44 @@ import fs from 'fs'
 import path from 'path'
 
 /**
- * Read backend port from discovery file
+ * Read backend port from unified discovery file
  * @returns {string} Backend target URL
  */
 function getBackendTarget() {
-  const portFilePath = path.resolve(process.cwd(), '../.backend-port.json')
+  const unifiedPortFilePath = path.resolve(process.cwd(), '../.dev-ports.json')
   const defaultTarget = 'http://localhost:54321'
 
+  // Try unified discovery file
   try {
-    if (!fs.existsSync(portFilePath)) {
-      console.warn('Backend port discovery file not found, using default target:', defaultTarget)
-      return defaultTarget
+    if (fs.existsSync(unifiedPortFilePath)) {
+      const fileContent = fs.readFileSync(unifiedPortFilePath, 'utf8')
+      const portData = JSON.parse(fileContent)
+
+      const backendInfo = portData.backend
+      if (backendInfo) {
+        // Check if file is stale (older than 24 hours)
+        const fileAge = Date.now() - (backendInfo.started_at * 1000)
+        if (fileAge > 24 * 60 * 60 * 1000) {
+          console.warn('Unified port discovery file is stale, using default target:', defaultTarget)
+          return defaultTarget
+        }
+
+        if (backendInfo.url) {
+          console.log('Using backend target from unified discovery file:', backendInfo.url)
+          return backendInfo.url
+        }
+
+        const discoveredTarget = `http://${backendInfo.host}:${backendInfo.port}`
+        console.log('Using backend target from unified discovery file:', discoveredTarget)
+        return discoveredTarget
+      }
     }
-
-    const fileContent = fs.readFileSync(portFilePath, 'utf8')
-    const portData = JSON.parse(fileContent)
-
-    // Check if file is stale (older than 24 hours)
-    const fileAge = Date.now() - (portData.timestamp * 1000)
-    if (fileAge > 24 * 60 * 60 * 1000) {
-      console.warn('Backend port discovery file is stale, using default target:', defaultTarget)
-      return defaultTarget
-    }
-
-    if (portData.url) {
-      console.log('Using backend target from discovery file:', portData.url)
-      return portData.url
-    }
-
-    const discoveredTarget = `http://${portData.host}:${portData.port}`
-    console.log('Using backend target from discovery file:', discoveredTarget)
-    return discoveredTarget
-
   } catch (error) {
-    console.warn('Failed to read backend port discovery file:', error.message)
-    console.warn('Using default target:', defaultTarget)
-    return defaultTarget
+    console.warn('Failed to read unified port discovery file:', error.message)
   }
+
+  console.warn('No unified port discovery file found, using default target:', defaultTarget)
+  return defaultTarget
 }
 
 export default defineConfig({

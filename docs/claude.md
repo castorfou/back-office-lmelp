@@ -25,15 +25,3 @@ je cree le fichier `.mcp.json`
 et je relance claude qui va detecter ce nouveau service au redemarrage.
 
 De facon etrange j'ai du insister pour que claude utilise ce serveur mcp, je crois que je dois explicitement lui dire d'utiliser l'outil mcp MongoDB.
-
-# ajout d'un package
-
-modif dans `pyproject.toml`
-
-puis
-
-```bash
-uv sync
-```
-
-claude sait comment on fait

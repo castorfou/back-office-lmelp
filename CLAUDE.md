@@ -307,77 +307,259 @@ ruff check path/to/file.py --fix
 
 **Never rely solely on user declarations of intent** - always verify the real world state using available tools.
 
+## Claude Code Auto-Discovery System
+
+### Overview
+This project includes a comprehensive auto-discovery system that eliminates the need for Claude Code to guess ports or manually discover running services. Issue #56 has been fully implemented with TDD methodology.
+
+### Key Features
+- **Unified Port Discovery**: Single `.dev-ports.json` file tracks both backend and frontend services
+- **Auto-Discovery Scripts**: Claude Code can instantly find running services from any directory
+- **Process Validation**: Confirms services are actually running (not just port files exist)
+- **Stale File Cleanup**: Automatically handles outdated discovery information
+- **Cross-Directory Support**: Works from project root, frontend/, or any subdirectory
+
+### Available Auto-Discovery Commands
+
+#### Service Overview
+```bash
+# Get comprehensive overview of all running services
+/workspaces/back-office-lmelp/.claude/get-services-info.sh
+
+# JSON output for programmatic use
+/workspaces/back-office-lmelp/.claude/get-services-info.sh --json
+
+# URLs only for quick access
+/workspaces/back-office-lmelp/.claude/get-services-info.sh --urls
+```
+
+#### Backend Service Discovery
+```bash
+# Get backend URL (most common use case)
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url
+
+# Get backend port only
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --port
+
+# Check backend status
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status
+
+# Get all backend information
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --all
+```
+
+#### Frontend Service Discovery
+```bash
+# Get frontend URL
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --url
+
+# Get frontend port only
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --port
+
+# Check frontend status
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --status
+
+# Get all frontend information
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --all
+```
+
+### Usage Examples for Claude Code
+
+#### API Testing Workflow
+```bash
+# 1. Discover backend automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# 2. Test API endpoints directly
+curl "$BACKEND_URL/"                    # Health check
+curl "$BACKEND_URL/docs"                # API documentation
+curl "$BACKEND_URL/openapi.json"        # OpenAPI spec
+
+# 3. Make API calls with discovered URL
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "author", "name": "Albert Camus"}'
+```
+
+#### Service Status Verification
+```bash
+# Check if services are actually running (not just port files exist)
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status    # Returns: active/inactive
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --status   # Returns: active/inactive
+
+# Comprehensive status check
+/workspaces/back-office-lmelp/.claude/get-services-info.sh --summary
+```
+
+### Unified Port Discovery File Format
+The `.dev-ports.json` file contains both backend and frontend information:
+
+```json
+{
+  "backend": {
+    "port": 54321,
+    "host": "0.0.0.0",
+    "pid": 12345,
+    "started_at": 1640995200.0,
+    "url": "http://0.0.0.0:54321"
+  },
+  "frontend": {
+    "port": 5173,
+    "host": "0.0.0.0",
+    "pid": 12346,
+    "started_at": 1640995200.0,
+    "url": "http://0.0.0.0:5173"
+  }
+}
+```
+
+### Benefits for Claude Code
+- **No More Port Guessing**: Eliminates "Connection refused" errors
+- **Instant Service Discovery**: Find running services in milliseconds
+- **Reliable API Testing**: Always use correct URLs for API calls
+- **Cross-Directory Compatibility**: Works from frontend/, root, or any subdirectory
+- **Process Validation**: Confirms services are actually running
+- **Development Efficiency**: Reduces trial-and-error in service discovery
+- **Smart Restart Detection**: Automatically detects when backend should be restarted
+
+### Advanced Claude Code Scripts
+
+#### Backend Freshness Detection
+
+For situations where you've modified backend code and need to determine if a restart is required:
+
+```bash
+# Check if backend needs restart (default: 10 minutes threshold)
+/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh
+
+# Check with custom threshold (5 minutes)
+/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh 5
+```
+
+**Exit codes:**
+- `0`: Backend is fresh and probably up-to-date
+- `1`: No backend detected (needs to be started)
+- `2`: Backend is stale (restart recommended)
+
+**Example workflow:**
+```bash
+# 1. Check backend freshness after making code changes
+FRESHNESS_CHECK=$(/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh 10)
+EXIT_CODE=$?
+
+if [[ $EXIT_CODE -eq 2 ]]; then
+    echo "🔄 Backend is stale, restarting..."
+    pkill -f 'python.*back_office_lmelp'
+    ./scripts/start-dev.sh &
+    sleep 5
+fi
+
+# 2. Get backend URL for API testing
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# 3. Test your modifications
+curl "$BACKEND_URL/api/episodes" | jq
+```
+
+This eliminates the guesswork of "Do I need to restart the backend after my changes?"
+
 ## API Discovery and Testing
 
 ### Backend API Discovery Method
 When working with the backend API, use this systematic approach to discover endpoints and avoid trial-and-error:
 
-#### Step 1: Discover Service Ports
-```bash
-# Check if services are running and on which ports
-# TODO: This will be improved with Issue #56 (automatic port discovery)
-# For now, common ports are: 54321, 54322, 8000
+#### Step 1: Automatic Service Discovery (Issue #56 - ✅ Implemented)
+Claude Code now includes automatic port discovery to eliminate port guessing:
 
-# Test if backend is running
+```bash
+# Use Claude Code auto-discovery scripts (recommended - work from anywhere in project)
+/workspaces/back-office-lmelp/.claude/get-services-info.sh            # Overview of all services
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url       # Get backend URL directly
+/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --url      # Get frontend URL directly
+
+# Manual discovery using unified port file
+cat /workspaces/back-office-lmelp/.dev-ports.json | jq -r '.backend.url'     # Backend URL
+cat /workspaces/back-office-lmelp/.dev-ports.json | jq -r '.frontend.url'    # Frontend URL
+
+# Legacy fallback (if auto-discovery fails)
 curl -s "http://localhost:54321/" || curl -s "http://localhost:54322/" || curl -s "http://localhost:8000/"
 ```
 
 #### Step 2: Get Complete API Schema
 ```bash
-# Get the OpenAPI specification (replace PORT with actual port)
-curl "http://localhost:PORT/openapi.json" | jq '.' > api-schema.json
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# Get the OpenAPI specification using auto-discovered URL
+curl "$BACKEND_URL/openapi.json" | jq '.' > api-schema.json
 
 # Quick endpoint discovery
-curl "http://localhost:PORT/openapi.json" | jq -r '.paths | keys[]'
+curl "$BACKEND_URL/openapi.json" | jq -r '.paths | keys[]'
 ```
 
 #### Step 3: Find Specific Endpoints
 ```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
 # Search for specific functionality
-curl "http://localhost:PORT/openapi.json" | jq -r '.paths | keys[]' | grep -i KEYWORD
+curl "$BACKEND_URL/openapi.json" | jq -r '.paths | keys[]' | grep -i KEYWORD
 
 # Examples:
-curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i babelio
-curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i fuzzy
-curl "http://localhost:54321/openapi.json" | jq -r '.paths | keys[]' | grep -i verify
+curl "$BACKEND_URL/openapi.json" | jq -r '.paths | keys[]' | grep -i babelio
+curl "$BACKEND_URL/openapi.json" | jq -r '.paths | keys[]' | grep -i fuzzy
+curl "$BACKEND_URL/openapi.json" | jq -r '.paths | keys[]' | grep -i verify
 ```
 
 #### Step 4: Get Endpoint Details
 ```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
 # Get request schema for a specific endpoint
-curl "http://localhost:PORT/openapi.json" | jq '.paths["/api/endpoint"].post.requestBody'
+curl "$BACKEND_URL/openapi.json" | jq '.paths["/api/endpoint"].post.requestBody'
 
 # Get response schema
-curl "http://localhost:PORT/openapi.json" | jq '.paths["/api/endpoint"].post.responses'
+curl "$BACKEND_URL/openapi.json" | jq '.paths["/api/endpoint"].post.responses'
 
 # Get component schemas
-curl "http://localhost:PORT/openapi.json" | jq '.components.schemas.SchemaName'
+curl "$BACKEND_URL/openapi.json" | jq '.components.schemas.SchemaName'
 ```
 
 #### Step 5: Test Endpoint with Correct Schema
 ```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
 # Use the discovered schema to make proper requests
-curl -X POST "http://localhost:PORT/api/endpoint" \
+curl -X POST "$BACKEND_URL/api/endpoint" \
   -H "Content-Type: application/json" \
   -d '{"field": "value"}'
 ```
 
 ### Common Backend Endpoints
-Based on current API discovery:
+Using auto-discovery for reliable API testing:
 
 ```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
 # API health check
-GET /
+curl "$BACKEND_URL/"
 
 # API documentation
-GET /docs
-GET /openapi.json
+curl "$BACKEND_URL/docs"                # Interactive API docs
+curl "$BACKEND_URL/openapi.json"        # OpenAPI specification
 
 # Babelio verification
-POST /api/verify-babelio
-# Required: {"type": "author|book", "name": "...", "title": "...", "author": "..."}
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "author", "name": "Albert Camus"}'
 
-# TODO: Document other endpoints as discovered
+# Example with book verification
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "book", "title": "L'\''Étranger", "author": "Albert Camus"}'
 ```
 
 ### API Testing Best Practices
@@ -393,7 +575,7 @@ POST /api/verify-babelio
 - **422 Validation Error**: Check required fields in request schema
 - **Missing field errors**: Use OpenAPI schema to verify all required fields
 
-**Note**: This methodology will be enhanced with Issue #56 to include automatic port discovery.
+**Note**: Issue #56 has been fully implemented - automatic port discovery is now available via the Claude Code Auto-Discovery System (see section above).
 
 ## MongoDB Database Operations
 

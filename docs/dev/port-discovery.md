@@ -1,8 +1,12 @@
-# Découverte automatique de port - Guide développeur
+# Système d'auto-découverte unifié pour Claude Code - Guide développeur
 
 ## Vue d'ensemble
 
-Le système de découverte automatique de port résout le problème des conflits de port en permettant au backend de sélectionner automatiquement un port libre, et au frontend de découvrir ce port dynamiquement.
+Le système d'auto-découverte unifié résout plusieurs problèmes critiques :
+- **Élimination du port guessing** : Plus besoin de deviner les ports pour Claude Code
+- **Unification des fichiers** : Un seul fichier `.dev-ports.json` remplace l'ancien nom legacy
+- **Auto-discovery cross-directory** : Fonctionne depuis n'importe quel répertoire du projet
+- **Process validation** : Vérifie que les services sont réellement actifs
 
 ## Architecture technique
 
@@ -22,7 +26,7 @@ graph TB
     end
 
     subgraph "Filesystem"
-        FILE[.backend-port.json]
+    FILE[.dev-ports.json]
     end
 
     PS --> PF
@@ -76,7 +80,7 @@ def create_port_discovery_file(port: int, host: str = "localhost"):
         "process_id": os.getpid()
     }
 
-    with open('.backend-port.json', 'w') as f:
+    with open('.dev-ports.json', 'w') as f:
         json.dump(port_info, f, indent=2)
 ```
 
@@ -113,7 +117,7 @@ def main():
 const MAX_FILE_AGE = 30 * 1000; // 30 secondes
 
 function readBackendPort() {
-    const portFilePath = '../.backend-port.json';
+    const portFilePath = '../.dev-ports.json';
 
     try {
         if (!fs.existsSync(portFilePath)) {
@@ -233,9 +237,9 @@ def test_port_selection_preferred():
 def test_port_file_creation():
     """Le fichier de découverte est créé correctement"""
     create_port_discovery_file(54321)
-    assert os.path.exists('.backend-port.json')
+    assert os.path.exists('.dev-ports.json')
 
-    with open('.backend-port.json') as f:
+    with open('.dev-ports.json') as f:
         data = json.load(f)
 
     assert data['port'] == 54321
@@ -257,7 +261,7 @@ describe('Port Discovery', () => {
       timestamp: Math.floor(Date.now() / 1000)
     };
 
-    fs.writeFileSync('../.backend-port.json', JSON.stringify(mockData));
+    fs.writeFileSync('../.dev-ports.json', JSON.stringify(mockData));
 
     const config = readBackendPort();
     expect(config.port).toBe(54324);
@@ -278,7 +282,7 @@ describe('Port Discovery', () => {
 # Backend
 logger.info(f"🔍 Recherche de port disponible...")
 logger.info(f"✅ Port {port} sélectionné")
-logger.info(f"📝 Fichier de découverte créé : .backend-port.json")
+logger.info(f"📝 Fichier de découverte créé : .dev-ports.json")
 ```
 
 ```javascript
@@ -292,20 +296,20 @@ console.warn("⚠️ Fichier de découverte obsolète, utilisation config par d�
 
 ```bash
 # Vérifier le port utilisé
-cat .backend-port.json
+cat .dev-ports.json
 
 # Surveiller les changements
-watch -n 1 cat .backend-port.json
+watch -n 1 cat .dev-ports.json
 
 # Tester la connectivité
-curl -f "http://localhost:$(jq -r '.port' .backend-port.json)/api/episodes"
+curl -f "http://localhost:$(jq -r '.backend.port' .dev-ports.json)/api/episodes"
 ```
 
 ## Sécurité
 
 ### Considérations
 
-1. **Fichier temporaire** : `.backend-port.json` contient des informations sensibles
+1. **Fichier temporaire** : `.dev-ports.json` contient des informations sensibles
 2. **Race conditions** : Possible entre création fichier et démarrage serveur
 3. **PID spoofing** : Le process_id peut être falsifié
 
@@ -314,12 +318,12 @@ curl -f "http://localhost:$(jq -r '.port' .backend-port.json)/api/episodes"
 ```python
 # Permissions restrictives
 import stat
-os.chmod('.backend-port.json', stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+os.chmod('.dev-ports.json', stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
 # Nettoyage au shutdown
 def cleanup_port_discovery_file():
     try:
-        os.remove('.backend-port.json')
+        os.remove('.dev-ports.json')
     except FileNotFoundError:
         pass
 ```
@@ -337,7 +341,142 @@ def cleanup_port_discovery_file():
 1. **Support multi-instance** : Fichiers avec PID unique
 2. **WebSocket notifications** : Push des changements de port
 3. **Health check intégré** : Validation automatique de la connectivité
-4. **Configuration centralisée** : Registry externe (Redis, etcd)
+    assert os.path.exists('.dev-ports.json')
+
+## Détection automatique de redémarrage pour Claude Code
+
+### Problème résolu
+
+Claude Code peut maintenant détecter automatiquement si un backend doit être relancé après des modifications. Ceci résout le problème où tu modifies du code backend et tu dois relancer manuellement le serveur.
+
+### Implémentation de la détection
+
+#### 1. Validation de l'âge du processus
+
+```bash
+# Scripts Claude Code automatiques
+/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status
+
+# Détecte automatiquement :
+# - Si le processus backend est toujours actif
+# - Depuis combien de temps il a été démarré
+# - Si le fichier de découverte est périmé
+```
+
+#### 2. Workflow automatique pour Claude Code
+
+```bash
+# 1. Vérifier si backend est actif et récent
+BACKEND_STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
+
+if [[ "$BACKEND_STATUS" == "inactive" ]]; then
+    echo "🔄 Backend inactif - redémarrage nécessaire"
+    ./scripts/start-dev.sh &
+    sleep 5  # Attendre le démarrage
+fi
+
+# 2. Récupérer l'URL automatiquement
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# 3. Tester l'API
+curl "$BACKEND_URL/api/episodes" | jq
+```
+
+#### 3. Détection basée sur les timestamps
+
+Le système track automatiquement :
+
+```json
+{
+  "backend": {
+    "port": 54321,
+    "host": "0.0.0.0",
+    "pid": 12345,
+    "started_at": 1640995200.0,  // Timestamp de démarrage
+    "url": "http://0.0.0.0:54321"
+  }
+}
+```
+
+#### 4. API Claude Code pour validation automatique
+
+```bash
+# Vérifier l'âge du backend (pour savoir s'il faut le relancer)
+BACKEND_AGE_SECONDS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --all | python3 -c "
+import json, sys, time
+data = json.load(sys.stdin)
+started = data.get('started_at', 0)
+age = int(time.time() - started)
+print(age)
+")
+
+# Si backend démarré il y a plus de 10 minutes après une modification
+if [[ $BACKEND_AGE_SECONDS -gt 600 ]]; then
+    echo "⚠️ Backend possiblement obsolète (démarré il y a ${BACKEND_AGE_SECONDS}s)"
+    echo "💡 Considérer un redémarrage après modifications récentes"
+fi
+```
+
+### Cas d'usage typiques pour Claude Code
+
+#### Scénario 1 : Test d'API après modification backend
+
+```bash
+# 1. Claude détecte automatiquement l'état du backend
+STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
+
+# 2. Si inactif, suggère le redémarrage
+if [[ "$STATUS" == "inactive" ]]; then
+    echo "🚨 Backend non démarré. Lancez : ./scripts/start-dev.sh"
+    exit 1
+fi
+
+# 3. Si actif, teste directement l'API
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl "$BACKEND_URL/api/verify-babelio" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"type": "author", "name": "Albert Camus"}'
+```
+
+#### Scénario 2 : Détection automatique d'obsolescence
+
+```bash
+#!/bin/bash
+# Script d'aide pour Claude Code
+
+# Vérifier si le backend est "stale" (trop ancien)
+BACKEND_INFO=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --all 2>/dev/null)
+
+if [[ $? -ne 0 ]]; then
+    echo "❌ Aucun backend détecté - Démarrage requis"
+    echo "🔧 Commande : ./scripts/start-dev.sh"
+    exit 1
+fi
+
+# Calculer l'âge
+AGE_SECONDS=$(echo "$BACKEND_INFO" | python3 -c "
+import json, sys, time
+try:
+    data = json.load(sys.stdin)
+    started = data.get('started_at', 0)
+    age = int(time.time() - started)
+    print(age)
+except:
+    print(999999)  # Très ancien si erreur
+")
+
+# Décision automatique
+if [[ $AGE_SECONDS -gt 1800 ]]; then  # 30 minutes
+    echo "⏰ Backend démarré il y a ${AGE_SECONDS}s (>30min)"
+    echo "💡 Redémarrage recommandé pour les dernières modifications"
+    echo "🔧 Commande : pkill -f 'python.*back_office_lmelp' && ./scripts/start-dev.sh"
+elif [[ $AGE_SECONDS -gt 600 ]]; then  # 10 minutes
+    echo "⚠️ Backend démarré il y a ${AGE_SECONDS}s (>10min)"
+    echo "✅ Probablement OK, mais vérifiez si vous avez fait des modifications récentes"
+else
+    echo "✅ Backend récent (${AGE_SECONDS}s) - Probablement à jour"
+fi
+```
 
 ## Intégration CI/CD
 
@@ -359,7 +498,7 @@ def test_full_port_discovery_workflow():
     backend_process = start_backend()
 
     # 2. Attendre fichier de découverte
-    wait_for_file('.backend-port.json')
+    wait_for_file('.dev-ports.json')
 
     # 3. Lire le port depuis le frontend
     config = readBackendPort()

@@ -44,7 +44,7 @@ graph TB
     SERVICES --> MODELS
     MODELS --> MONGO
 
-    PS -.->|Write| PORT_FILE[.backend-port.json]
+    PS -.->|Write| PORT_FILE[.dev-ports.json]
     PD -.->|Read| PORT_FILE
 
     SIGNALS --> FASTAPI
