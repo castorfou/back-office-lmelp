@@ -110,6 +110,15 @@
           <table class="books-table">
             <thead>
               <tr>
+                <th class="status-header" @click="setSortOrder('status')" data-testid="status-header" role="columnheader" aria-sort="none" aria-label="Programme ou Coup de coeur">
+                  <!-- Petite colonne d'état: programme / coup de coeur -->
+                  <span class="status-header-icon" title="Cliquer pour trier" aria-hidden="true">
+                    <!-- Outlined circle with transparent interior -->
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Statut">
+                      <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none" />
+                    </svg>
+                  </span>
+                </th>
                 <th class="sortable-header" @click="setSortOrder('author')">
                   Auteur
                   <span class="sort-indicator" :class="getSortClass('author')">↕</span>
@@ -131,7 +140,24 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" class="book-row" data-testid="book-item">
+                <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" class="book-row" data-testid="book-item">
+                <td class="status-cell" style="text-align:center" data-testid="status-cell-{{book.episode_oid}}">
+                  <!-- Programme: blue/bold target icon -->
+                  <span v-if="book.programme" class="status-icon programme" title="Au programme" role="img" aria-label="Programme">
+                    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+                      <circle cx="12" cy="12" r="8" fill="#0B5FFF" />
+                      <circle cx="12" cy="12" r="4" fill="#FFFFFF" />
+                    </svg>
+                  </span>
+                  <!-- Coup de coeur: red heart with high contrast -->
+                  <span v-else-if="book.coup_de_coeur" class="status-icon coeur" title="Coup de coeur" role="img" aria-label="Coup de coeur">
+                    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+                      <path d="M12 21s-7.5-4.5-9.3-7.1C-0.4 9.8 3 5 7.4 7.1 9.1 8 10 9.6 12 11.3c2-1.7 2.9-3.3 4.6-4.2C21 5 24.4 9.8 21.3 13.9 19.5 16.5 12 21 12 21z" fill="#D93025" />
+                    </svg>
+                  </span>
+                  <!-- Empty when no flag -->
+                  <span v-else class="status-icon empty" aria-hidden="true"></span>
+                </td>
                 <td class="author-cell">{{ book.auteur }}</td>
                 <td class="title-cell">{{ book.titre }}</td>
                 <td class="publisher-cell">{{ book.editeur || '-' }}</td>
@@ -222,6 +248,12 @@ export default {
         let sortValue = 0;
 
         switch (this.currentSortField) {
+          case 'status':
+            // Prioritize programme (true) then coup_de_coeur then none
+            const scoreA = (a.programme ? 2 : 0) + (a.coup_de_coeur ? 1 : 0);
+            const scoreB = (b.programme ? 2 : 0) + (b.coup_de_coeur ? 1 : 0);
+            sortValue = scoreA - scoreB;
+            break;
           case 'author':
             sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
             break;
@@ -263,6 +295,13 @@ export default {
       } finally {
         this.episodesLoading = false;
       }
+    },
+
+    renderStatusIcon(book) {
+      // Return a small icon for programme or coup_de_coeur
+      if (book.programme) return '🎯';
+      if (book.coup_de_coeur) return '💖';
+      return '';
     },
 
     /**
@@ -380,6 +419,51 @@ export default {
   margin: 0 auto;
   width: 100%;
 }
+
+/* Status column styles */
+.status-header {
+  width: 40px;
+  cursor: pointer; /* indicate clickable */
+  text-align: center;
+}
+.status-header .status-header-icon svg {
+  color: #6b7280; /* gray outline */
+}
+.status-cell .status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.status-cell .status-icon svg {
+  display: block;
+}
+.status-icon.programme svg {
+  /* Blue filled outer, white inner - high contrast */
+  filter: drop-shadow(0 0 0 rgba(0,0,0,0));
+}
+.status-icon.coeur svg {
+  shape-rendering: geometricPrecision;
+}
+.status-header:hover,
+.status-cell .status-icon:hover {
+  transform: translateY(-1px);
+}
+.status-header[title] { position: relative; }
+.status-header[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111827;
+  color: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
 
 /* Statistiques */
 .simple-stats {

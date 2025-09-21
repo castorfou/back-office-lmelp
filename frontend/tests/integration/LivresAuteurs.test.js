@@ -161,4 +161,52 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       episodeId: '6865f995a1418e3d7c63d076' // pragma: allowlist secret
     });
   });
+
+  it("affiche la petite colonne d'état (programme / coup de coeur) et permet de trier", async () => {
+    const mockBooks = [
+      {
+        episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+        auteur: 'Michel Houellebecq',
+        titre: 'Les Particules élémentaires',
+        editeur: 'Flammarion',
+        programme: true,
+        coup_de_coeur: false
+      }
+    ];
+
+    livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+    livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    // Attendre que le chargement se termine
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Sélectionner un épisode
+  wrapper.vm.selectedEpisodeId = '6865f995a1418e3d7c63d076'; // pragma: allowlist secret
+    await wrapper.vm.loadBooksForEpisode();
+    await wrapper.vm.$nextTick();
+
+  // Vérifier que l'en-tête de colonne d'état est présent et accessible
+  const statusHeader = wrapper.find('[data-testid="status-header"]');
+  expect(statusHeader.exists()).toBe(true);
+  expect(statusHeader.attributes('aria-label')).toBe('Programme ou Coup de coeur');
+
+  // Vérifier que la cellule d'état contient une icône (programme -> 🎯)
+  const statusCell = wrapper.find('[data-testid^="status-cell-"]');
+  expect(statusCell.exists()).toBe(true);
+  // The UI now uses SVG icons for status; ensure the programme icon is present
+  const programmeIcon = statusCell.find('.status-icon.programme');
+  const programmeSvg = statusCell.find('svg[aria-label="Programme"]');
+  expect(programmeIcon.exists() || programmeSvg.exists()).toBe(true);
+
+  // Cliquer sur l'en-tête active le tri par 'status'
+  await statusHeader.trigger('click');
+  expect(wrapper.vm.currentSortField).toBe('status');
+  });
 });

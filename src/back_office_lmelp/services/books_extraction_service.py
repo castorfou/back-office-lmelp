@@ -240,6 +240,9 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                             "episode_oid": episode_oid,
                             "episode_title": episode_title,
                             "episode_date": episode_date,
+                            # Indicateur: extrait depuis la section "au programme"
+                            "programme": True,
+                            "coup_de_coeur": False,
                         }
                         books.append(book)
 
@@ -282,6 +285,9 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                             "episode_oid": episode_oid,
                             "episode_title": episode_title,
                             "episode_date": episode_date,
+                            # Indicateur: extrait depuis la section "coups de coeur"
+                            "programme": False,
+                            "coup_de_coeur": True,
                         }
                         books.append(book)
 
@@ -348,6 +354,8 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                 "auteur": book.get("auteur", ""),
                 "titre": book.get("titre", ""),
                 "editeur": book.get("editeur", ""),
+                "programme": bool(book.get("programme", False)),
+                "coup_de_coeur": bool(book.get("coup_de_coeur", False)),
             }
             simplified_books.append(simplified_book)
 
