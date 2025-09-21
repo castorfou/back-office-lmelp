@@ -9,7 +9,9 @@ class TestAppNoLegacyCalls:
 
     def test_app_py_does_not_call_get_port_file_path(self):
         """Test que app.py n'appelle plus get_port_file_path() (legacy)."""
-        app_file = Path("/workspaces/back-office-lmelp/src/back_office_lmelp/app.py")
+        # Resolve app.py path relative to this test file so it works in CI and locally
+        repo_root = Path(__file__).resolve().parents[1]
+        app_file = repo_root / "src" / "back_office_lmelp" / "app.py"
         content = app_file.read_text()
 
         # Ce test échouera tant que app.py contient des appels à get_port_file_path
@@ -20,9 +22,9 @@ class TestAppNoLegacyCalls:
 
     def test_app_py_does_not_call_write_port_info(self):
         """Test que app.py n'appelle plus write_port_info() (legacy)."""
-        app_file = Path("/workspaces/back-office-lmelp/src/back_office_lmelp/app.py")
+        repo_root = Path(__file__).resolve().parents[1]
+        app_file = repo_root / "src" / "back_office_lmelp" / "app.py"
         content = app_file.read_text()
-
         # Ce test échouera tant que app.py contient des appels à write_port_info
         assert "write_port_info" not in content, (
             "app.py ne devrait plus appeler write_port_info() - "
@@ -31,9 +33,9 @@ class TestAppNoLegacyCalls:
 
     def test_app_py_does_not_call_cleanup_port_file(self):
         """Test que app.py n'appelle plus cleanup_port_file() (legacy)."""
-        app_file = Path("/workspaces/back-office-lmelp/src/back_office_lmelp/app.py")
+        repo_root = Path(__file__).resolve().parents[1]
+        app_file = repo_root / "src" / "back_office_lmelp" / "app.py"
         content = app_file.read_text()
-
         # Ce test échouera tant que app.py contient des appels à cleanup_port_file
         assert "cleanup_port_file" not in content, (
             "app.py ne devrait plus appeler cleanup_port_file() - "
@@ -42,9 +44,9 @@ class TestAppNoLegacyCalls:
 
     def test_app_py_uses_unified_methods_only(self):
         """Test que app.py utilise uniquement les méthodes unifiées."""
-        app_file = Path("/workspaces/back-office-lmelp/src/back_office_lmelp/app.py")
+        repo_root = Path(__file__).resolve().parents[1]
+        app_file = repo_root / "src" / "back_office_lmelp" / "app.py"
         content = app_file.read_text()
-
         # Ces méthodes DOIVENT être présentes dans app.py
         required_unified_methods = [
             "get_unified_port_file_path",
@@ -80,9 +82,9 @@ class TestAppNoLegacyCalls:
 
     def test_no_backend_port_json_strings_in_app(self):
         """Test qu'il n'y a plus de références à '.backend-port.json' dans app.py."""
-        app_file = Path("/workspaces/back-office-lmelp/src/back_office_lmelp/app.py")
+        repo_root = Path(__file__).resolve().parents[1]
+        app_file = repo_root / "src" / "back_office_lmelp" / "app.py"
         content = app_file.read_text()
-
         # Ce test échouera s'il reste des références au fichier legacy
         assert ".backend-port.json" not in content, (
             "app.py ne devrait plus référencer '.backend-port.json' - "

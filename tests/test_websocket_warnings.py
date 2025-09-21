@@ -6,6 +6,7 @@ import importlib.util
 import os
 import subprocess
 import warnings
+from pathlib import Path
 
 
 class TestWebSocketWarnings:
@@ -18,9 +19,10 @@ class TestWebSocketWarnings:
         This test captures warnings from pytest execution and ensures no WebSocket
         deprecation warnings appear during server shutdown tests.
         """
-        # Set up environment
+        # Set up environment (use repo-relative path to avoid absolute literals)
         env = os.environ.copy()
-        env["PYTHONPATH"] = "/workspaces/back-office-lmelp/src"
+        project_root = Path(__file__).resolve().parents[1]
+        env["PYTHONPATH"] = str(project_root / "src")
 
         # Run the specific test file that was showing warnings
         result = subprocess.run(
