@@ -174,7 +174,8 @@ class BabelioService:
         cache_service = getattr(self, "cache_service", None)
         if cache_service is not None:
             try:
-                wrapper = cache_service.get_cached(term)
+                # disk IO can block; run in threadpool to avoid blocking event loop
+                wrapper = await asyncio.to_thread(cache_service.get_cached, term)
                 # choose log function based on env control
                 log_fn = (
                     logger.info
@@ -196,7 +197,7 @@ class BabelioService:
                     return list(wrapper or [])
 
                 # try lowercased key too for compatibility
-                wrapper = cache_service.get_cached(cache_key)
+                wrapper = await asyncio.to_thread(cache_service.get_cached, cache_key)
                 if wrapper is not None:
                     items = None
                     if isinstance(wrapper, dict):
@@ -263,8 +264,13 @@ class BabelioService:
                             if cache_service is not None:
                                 try:
                                     # store both original term and normalized key for robustness
-                                    cache_service.set_cached(term, results)
-                                    cache_service.set_cached(cache_key, results)
+                                    # write cache in threadpool to avoid blocking event loop
+                                    await asyncio.to_thread(
+                                        cache_service.set_cached, term, results
+                                    )
+                                    await asyncio.to_thread(
+                                        cache_service.set_cached, cache_key, results
+                                    )
                                     # log write with same verbosity control
                                     log_fn = (
                                         logger.info
@@ -483,27 +489,27 @@ class BabelioService:
         Returns:
             list[dict]: Résultats de vérification dans le même ordre
         """
-        results = []
 
-        for item in items:
+        async def _verify_one(item: dict[str, Any]) -> dict[str, Any]:
             item_type = item.get("type")
 
             if item_type == "author":
-                result = await self.verify_author(item.get("name", ""))
+                return await self.verify_author(item.get("name", ""))
             elif item_type == "book":
-                result = await self.verify_book(
-                    item.get("title", ""), item.get("author")
-                )
+                return await self.verify_book(item.get("title", ""), item.get("author"))
             elif item_type == "publisher":
-                result = await self.verify_publisher(item.get("name", ""))
+                return await self.verify_publisher(item.get("name", ""))
             else:
-                result = self._create_error_result(
+                return self._create_error_result(
                     str(item), f"Type non supporté: {item_type}"
                 )
 
-            results.append(result)
-
-        return results
+        # Dispatch all verifications concurrently; each verification still
+        # respects the internal rate_limiter in search(). Using gather keeps
+        # ordering of results consistent with the input list.
+        tasks = [asyncio.create_task(_verify_one(it)) for it in items]
+        results = await asyncio.gather(*tasks)
+        return list(results)
 
     def _find_best_author_match(
         self, results: list[dict], search_term: str
