@@ -25,7 +25,7 @@ Workflow méthodique suivi intégralement :
    - 5 tests frontend (portDiscovery.js)
    - Scénarios : fichier manquant, JSON corrompu, timestamps obsolètes
 6. ✅ **Implémentation jusqu'à passage tests** :
-   - Backend: PortDiscovery utility avec gestion fichier .backend-port.json
+  - Backend: PortDiscovery utility avec gestion fichier .dev-ports.json
    - Frontend: lecture dynamique pour proxy Vite
 
 ### Phase 3: Validation (Étapes 7-11)
@@ -45,7 +45,7 @@ Workflow méthodique suivi intégralement :
 ```
 Backend (FastAPI)
     ↓ écrit au startup
-.backend-port.json
+.dev-ports.json
     ↓ lu au build
 Frontend (Vite) → proxy dynamique
 ```

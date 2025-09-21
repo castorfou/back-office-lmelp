@@ -4,7 +4,7 @@
 
 **Découverte automatique de port** (depuis Issue #13) :
 
-Le backend utilise maintenant une sélection automatique de port. Consultez les logs de démarrage ou le fichier `.backend-port.json` pour connaître le port utilisé.
+Le backend utilise maintenant une sélection automatique de port. Consultez les logs de démarrage ou le fichier `.dev-ports.json` pour connaître le port utilisé.
 
 ```bash
 # Port découvert automatiquement, exemple :

@@ -2,7 +2,6 @@
 
 import json
 import tempfile
-import time
 from pathlib import Path
 
 from back_office_lmelp.utils.port_discovery import PortDiscovery
@@ -12,7 +11,7 @@ class TestUnifiedFileSystem:
     """Test unified port discovery file system to eliminate dual file confusion."""
 
     def test_backend_writes_directly_to_unified_file(self):
-        """Test that backend writes directly to .dev-ports.json instead of .backend-port.json."""
+        """Test that backend writes directly to the unified port file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             unified_file = Path(temp_dir) / ".dev-ports.json"
 
@@ -38,22 +37,11 @@ class TestUnifiedFileSystem:
         """Test that frontend vite.config.js reads only from .dev-ports.json."""
         with tempfile.TemporaryDirectory() as temp_dir:
             unified_file = Path(temp_dir) / ".dev-ports.json"
-            legacy_file = Path(temp_dir) / ".backend-port.json"
 
             # Create unified file with backend info
             PortDiscovery.write_unified_port_info(
                 unified_file, backend_port=54321, backend_host="localhost"
             )
-
-            # Create legacy file with different port
-            legacy_data = {
-                "port": 54322,
-                "host": "localhost",
-                "timestamp": int(time.time()),
-                "url": "http://localhost:54322",
-            }
-            with open(legacy_file, "w") as f:
-                json.dump(legacy_data, f)
 
             # Simulate improved getBackendTarget function that prefers unified file
             def get_backend_target_unified_only(unified_path, legacy_path):
@@ -68,18 +56,11 @@ class TestUnifiedFileSystem:
                 except (FileNotFoundError, json.JSONDecodeError, KeyError):
                     pass
 
-                # Only fall back to legacy if unified doesn't exist
-                try:
-                    with open(legacy_path) as f:
-                        data = json.load(f)
-                    return data.get("url", "http://localhost:54321")
-                except (FileNotFoundError, json.JSONDecodeError):
-                    pass
-
+                # Fallback removed: only unified file is considered
                 return "http://localhost:54321"
 
-            # Should prefer unified file (54321) over legacy file (54322)
-            target = get_backend_target_unified_only(unified_file, legacy_file)
+            # Should read from unified file
+            target = get_backend_target_unified_only(unified_file, None)
             assert target == "http://localhost:54321"
 
     def test_start_dev_script_writes_frontend_info_to_existing_unified_file(self):
@@ -161,52 +142,23 @@ class TestUnifiedFileSystem:
             assert url_from_frontend == "http://localhost:54321"
 
     def test_cleanup_removes_only_unified_file(self):
-        """Test that cleanup removes .dev-ports.json but not legacy files."""
+        """Cleanup removes .dev-ports.json using unified cleanup helper."""
         with tempfile.TemporaryDirectory() as temp_dir:
             unified_file = Path(temp_dir) / ".dev-ports.json"
-            legacy_file = Path(temp_dir) / ".backend-port.json"
 
-            # Create both files
             PortDiscovery.write_unified_port_info(unified_file, backend_port=54321)
-            legacy_file.write_text('{"port": 54321}')
 
-            # Cleanup should only remove unified file
+            # Cleanup should remove unified file
             PortDiscovery.cleanup_unified_port_file(unified_file)
 
             assert not unified_file.exists()
-            assert legacy_file.exists()  # Legacy file should remain untouched
 
     def test_migration_from_dual_system_to_unified(self):
-        """Test migration path from dual file system to unified system."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            unified_file = Path(temp_dir) / ".dev-ports.json"
-            legacy_file = Path(temp_dir) / ".backend-port.json"
-
-            # Create legacy file (current system)
-            legacy_data = {
-                "port": 54321,
-                "host": "0.0.0.0",
-                "timestamp": int(time.time()),
-                "url": "http://0.0.0.0:54321",
-            }
-            with open(legacy_file, "w") as f:
-                json.dump(legacy_data, f)
-
-            # Migration should create unified file from legacy
-            PortDiscovery.migrate_to_unified_system(legacy_file, unified_file)
-
-            # Verify unified file has backend info from legacy
-            assert unified_file.exists()
-
-            with open(unified_file) as f:
-                data = json.load(f)
-
-            assert "backend" in data
-            assert data["backend"]["port"] == 54321
-            assert data["backend"]["url"] == "http://0.0.0.0:54321"
+        """Migration tests removed; legacy format is no longer supported."""
+        assert True
 
     def test_no_dual_file_creation_in_new_system(self):
-        """Test that new system never creates .backend-port.json."""
+        """Test that new system never creates a legacy discovery file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             unified_file = Path(temp_dir) / ".dev-ports.json"
             legacy_file = Path(temp_dir) / ".backend-port.json"

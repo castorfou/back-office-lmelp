@@ -20,7 +20,7 @@ class TestPortDiscovery:
     def test_write_port_info_to_file(self):
         """Test that port information is written to a discoverable file."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
             # Test writing port info
             PortDiscovery.write_port_info(54321, port_file)
@@ -31,43 +31,53 @@ class TestPortDiscovery:
             with open(port_file) as f:
                 port_data = json.load(f)
 
-            assert port_data["port"] == 54321
-            assert "timestamp" in port_data
-            assert "host" in port_data
+            # write_port_info now writes unified format via write_backend_info_to_unified_file
+            assert isinstance(port_data, dict)
+            assert "backend" in port_data
+            assert port_data["backend"].get("port") == 54321
+            assert "host" in port_data["backend"]
 
     def test_read_port_info_from_file(self):
         """Test that port information can be read from file."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
-            # Create test port file
-            port_data = {"port": 54321, "host": "localhost", "timestamp": 1706720000}
+            # Create test unified port file
+            port_data = {
+                "backend": {
+                    "port": 54321,
+                    "host": "localhost",
+                    "started_at": 1706720000,
+                }
+            }
 
             with open(port_file, "w") as f:
                 json.dump(port_data, f)
 
-            # Test reading port info
+            # Test reading port info (deprecated helper still returns raw dict)
             read_data = PortDiscovery.read_port_info(port_file)
+            assert read_data is not None
 
-            assert read_data["port"] == 54321
-            assert read_data["host"] == "localhost"
+            assert "backend" in read_data
+            assert read_data["backend"]["port"] == 54321
+            assert read_data["backend"]["host"] == "localhost"
 
     def test_get_port_file_path(self):
         """Test that port file path is correctly generated."""
-        # Test default path
-        default_path = PortDiscovery.get_port_file_path()
-        expected_path = Path.cwd() / ".backend-port.json"
-        assert default_path == expected_path
 
-        # Test custom path
-        custom_path = PortDiscovery.get_port_file_path("/custom/path")
-        expected_custom = Path("/custom/path") / ".backend-port.json"
-        assert custom_path == expected_custom
+    # get_port_file_path kept for API compatibility but should now point to unified path
+    default_path = PortDiscovery.get_port_file_path()
+    expected_unified = Path.cwd() / ".dev-ports.json"
+    assert default_path == expected_unified
+
+    # Test unified file path helper
+    unified_default = PortDiscovery.get_unified_port_file_path()
+    assert unified_default == expected_unified
 
     def test_cleanup_port_file(self):
         """Test that port file can be cleaned up."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
             # Create a port file
             PortDiscovery.write_port_info(54321, port_file)
@@ -80,7 +90,7 @@ class TestPortDiscovery:
     def test_port_discovery_integration_with_app_startup(self):
         """Test that port discovery is integrated with app startup."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
             # Mock environment variables for testing
             with patch.dict(os.environ, {"API_PORT": "54322"}):
@@ -92,49 +102,59 @@ class TestPortDiscovery:
 
                 create_port_file_on_startup(port_file_path=port_file)
 
-                # Verify file was created with correct port
+                # Verify file was created with unified format only
                 assert port_file.exists()
 
                 with open(port_file) as f:
                     port_data = json.load(f)
 
-                assert port_data["port"] == 54322
+                # Unified format: {'backend': {'port': ...}}
+                assert isinstance(port_data, dict)
+                assert "backend" in port_data
+                assert isinstance(port_data["backend"], dict)
+                assert port_data["backend"].get("port") == 54322
 
     def test_port_file_contains_required_fields(self):
         """Test that port file contains all required fields for frontend."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
-            PortDiscovery.write_port_info(54321, port_file, host="0.0.0.0")
+            # Use the unified writer for required fields
+            PortDiscovery.write_backend_info_to_unified_file(
+                port_file, port=54321, host="0.0.0.0"
+            )
 
             with open(port_file) as f:
                 port_data = json.load(f)
 
-            # Required fields for frontend proxy configuration
-            assert "port" in port_data
-            assert "host" in port_data
-            assert "timestamp" in port_data
-            assert "url" in port_data  # Full URL for easy frontend consumption
+            # Required fields for frontend proxy configuration in unified file
+            assert "backend" in port_data
+            assert "port" in port_data["backend"]
+            assert "host" in port_data["backend"]
+            assert "started_at" in port_data["backend"]
+            assert "url" in port_data["backend"]
 
             # Verify URL format
             expected_url = "http://0.0.0.0:54321"
-            assert port_data["url"] == expected_url
+            assert port_data["backend"]["url"] == expected_url
 
     def test_port_discovery_with_dynamic_port_selection(self):
         """Test port discovery when backend selects port dynamically."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            port_file = Path(temp_dir) / ".backend-port.json"
+            port_file = Path(temp_dir) / ".dev-ports.json"
 
             # Test with port 0 (OS selects available port)
             # This would be used when API_PORT=0 for dynamic selection
             selected_port = PortDiscovery.find_available_port()
 
-            # Write the selected port info
-            PortDiscovery.write_port_info(selected_port, port_file)
+            # Write the selected port info into unified format
+            PortDiscovery.write_unified_port_info(port_file, backend_port=selected_port)
 
             # Verify a valid port was selected and written
             with open(port_file) as f:
                 port_data = json.load(f)
 
-            assert port_data["port"] > 1024  # Not a privileged port
-            assert port_data["port"] < 65536  # Valid port range
+            # Unified format stores backend.port
+            assert isinstance(port_data.get("backend"), dict)
+            assert port_data["backend"]["port"] > 1024
+            assert port_data["backend"]["port"] < 65536

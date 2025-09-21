@@ -1,4 +1,4 @@
-"""Tests TDD pour s'assurer que app.py utilise uniquement le système unifié (pas .backend-port.json)."""
+"""Tests TDD pour s'assurer que app.py utilise uniquement le système unifié (legacy filename removed)."""
 
 import tempfile
 from pathlib import Path
@@ -11,7 +11,7 @@ class TestAppUnifiedSystemOnly:
     """Test que app.py n'utilise que le système unifié, pas les fichiers legacy."""
 
     def test_app_startup_creates_only_unified_file(self):
-        """Test que le démarrage de l'app crée uniquement .dev-ports.json, pas .backend-port.json."""
+        """Test que le démarrage de l'app crée uniquement le fichier unifié de découverte."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             unified_file = temp_path / ".dev-ports.json"
@@ -134,6 +134,7 @@ class TestAppUnifiedSystemOnly:
             # 3. Vérifications
             assert unified_file.exists()
             backend_info = PortDiscovery.get_backend_info(unified_file)
+            assert backend_info is not None
             assert backend_info["port"] == port
             assert backend_info["url"] == f"http://{host}:{port}"
 

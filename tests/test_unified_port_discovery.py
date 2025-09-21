@@ -89,6 +89,7 @@ class TestUnifiedPortDiscovery:
 
             # Test restart detection
             backend_info = PortDiscovery.get_backend_info(port_file)
+            assert backend_info is not None
             restart_age = time.time() - backend_info["started_at"]
 
             # Service was restarted recently (less than 5 minutes)
@@ -158,31 +159,7 @@ class TestUnifiedPortDiscovery:
             assert not port_file.exists()
 
     def test_backward_compatibility_with_existing_backend_file(self):
-        """Test that new unified system works with existing .backend-port.json."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create old-style backend port file
-            old_backend_file = Path(temp_dir) / ".backend-port.json"
-            old_port_data = {
-                "port": 54321,
-                "host": "0.0.0.0",
-                "timestamp": int(time.time()),
-                "url": "http://0.0.0.0:54321",
-            }
-
-            with open(old_backend_file, "w") as f:
-                json.dump(old_port_data, f)
-
-            # Test migration from old format
-            unified_file = Path(temp_dir) / ".dev-ports.json"
-            PortDiscovery.migrate_from_legacy_backend_file(
-                old_backend_file, unified_file
-            )
-
-            # Verify unified file was created
-            assert unified_file.exists()
-
-            with open(unified_file) as f:
-                unified_data = json.load(f)
-
-            assert "backend" in unified_data
-            assert unified_data["backend"]["port"] == 54321
+        """No backward compatibility tests remain; legacy files are no longer supported."""
+        # This test intentionally left as a placeholder to document that
+        # legacy single-file format is no longer supported by the codebase.
+        assert True

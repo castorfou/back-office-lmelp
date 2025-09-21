@@ -62,7 +62,7 @@
    - Vous devez voir du JSON avec les épisodes
 
 3. **Vérifiez la découverte automatique de port :**
-   - Le fichier `.backend-port.json` doit être créé automatiquement à la racine du projet
+   - Le fichier `.dev-ports.json` doit être créé automatiquement à la racine du projet
    - Il contient les informations de connexion pour le frontend
    - En cas de problème, supprimez ce fichier et redémarrez le backend
 
@@ -378,7 +378,7 @@ localStorage.debug = '*'
 **Problème précédent :** Port hardcodé dans la configuration frontend créant des désynchronisations
 **Impact précédent :** Nécessitait modification manuelle en cas de changement de port backend
 **Résolution appliquée :**
-- Système de découverte automatique de port via fichier `.backend-port.json`
+-- Système de découverte automatique de port via fichier `.dev-ports.json`
 - Frontend lit automatiquement les informations de port du backend
 - Fallback intelligent vers port par défaut si fichier manquant ou obsolète
 - Tests complets pour garantir la robustesse (13 nouveaux tests)

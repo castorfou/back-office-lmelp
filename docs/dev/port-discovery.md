@@ -4,7 +4,7 @@
 
 Le système d'auto-découverte unifié résout plusieurs problèmes critiques :
 - **Élimination du port guessing** : Plus besoin de deviner les ports pour Claude Code
-- **Unification des fichiers** : Un seul fichier `.dev-ports.json` remplace `.backend-port.json`
+- **Unification des fichiers** : Un seul fichier `.dev-ports.json` remplace l'ancien nom legacy
 - **Auto-discovery cross-directory** : Fonctionne depuis n'importe quel répertoire du projet
 - **Process validation** : Vérifie que les services sont réellement actifs
 
@@ -26,7 +26,7 @@ graph TB
     end
 
     subgraph "Filesystem"
-        FILE[.backend-port.json]
+    FILE[.dev-ports.json]
     end
 
     PS --> PF
@@ -80,7 +80,7 @@ def create_port_discovery_file(port: int, host: str = "localhost"):
         "process_id": os.getpid()
     }
 
-    with open('.backend-port.json', 'w') as f:
+    with open('.dev-ports.json', 'w') as f:
         json.dump(port_info, f, indent=2)
 ```
 
@@ -117,7 +117,7 @@ def main():
 const MAX_FILE_AGE = 30 * 1000; // 30 secondes
 
 function readBackendPort() {
-    const portFilePath = '../.backend-port.json';
+    const portFilePath = '../.dev-ports.json';
 
     try {
         if (!fs.existsSync(portFilePath)) {
@@ -237,9 +237,9 @@ def test_port_selection_preferred():
 def test_port_file_creation():
     """Le fichier de découverte est créé correctement"""
     create_port_discovery_file(54321)
-    assert os.path.exists('.backend-port.json')
+    assert os.path.exists('.dev-ports.json')
 
-    with open('.backend-port.json') as f:
+    with open('.dev-ports.json') as f:
         data = json.load(f)
 
     assert data['port'] == 54321
@@ -261,7 +261,7 @@ describe('Port Discovery', () => {
       timestamp: Math.floor(Date.now() / 1000)
     };
 
-    fs.writeFileSync('../.backend-port.json', JSON.stringify(mockData));
+    fs.writeFileSync('../.dev-ports.json', JSON.stringify(mockData));
 
     const config = readBackendPort();
     expect(config.port).toBe(54324);
@@ -282,7 +282,7 @@ describe('Port Discovery', () => {
 # Backend
 logger.info(f"🔍 Recherche de port disponible...")
 logger.info(f"✅ Port {port} sélectionné")
-logger.info(f"📝 Fichier de découverte créé : .backend-port.json")
+logger.info(f"📝 Fichier de découverte créé : .dev-ports.json")
 ```
 
 ```javascript
@@ -296,20 +296,20 @@ console.warn("⚠️ Fichier de découverte obsolète, utilisation config par d�
 
 ```bash
 # Vérifier le port utilisé
-cat .backend-port.json
+cat .dev-ports.json
 
 # Surveiller les changements
-watch -n 1 cat .backend-port.json
+watch -n 1 cat .dev-ports.json
 
 # Tester la connectivité
-curl -f "http://localhost:$(jq -r '.port' .backend-port.json)/api/episodes"
+curl -f "http://localhost:$(jq -r '.backend.port' .dev-ports.json)/api/episodes"
 ```
 
 ## Sécurité
 
 ### Considérations
 
-1. **Fichier temporaire** : `.backend-port.json` contient des informations sensibles
+1. **Fichier temporaire** : `.dev-ports.json` contient des informations sensibles
 2. **Race conditions** : Possible entre création fichier et démarrage serveur
 3. **PID spoofing** : Le process_id peut être falsifié
 
@@ -318,12 +318,12 @@ curl -f "http://localhost:$(jq -r '.port' .backend-port.json)/api/episodes"
 ```python
 # Permissions restrictives
 import stat
-os.chmod('.backend-port.json', stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+os.chmod('.dev-ports.json', stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
 # Nettoyage au shutdown
 def cleanup_port_discovery_file():
     try:
-        os.remove('.backend-port.json')
+        os.remove('.dev-ports.json')
     except FileNotFoundError:
         pass
 ```
@@ -341,7 +341,7 @@ def cleanup_port_discovery_file():
 1. **Support multi-instance** : Fichiers avec PID unique
 2. **WebSocket notifications** : Push des changements de port
 3. **Health check intégré** : Validation automatique de la connectivité
-4. **Configuration centralisée** : Registry externe (Redis, etcd)
+    assert os.path.exists('.dev-ports.json')
 
 ## Détection automatique de redémarrage pour Claude Code
 
@@ -498,7 +498,7 @@ def test_full_port_discovery_workflow():
     backend_process = start_backend()
 
     # 2. Attendre fichier de découverte
-    wait_for_file('.backend-port.json')
+    wait_for_file('.dev-ports.json')
 
     # 3. Lire le port depuis le frontend
     config = readBackendPort()

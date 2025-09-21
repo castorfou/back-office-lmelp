@@ -7,7 +7,7 @@ set -e
 
 PROJECT_ROOT="/workspaces/back-office-lmelp"
 UNIFIED_FILE="$PROJECT_ROOT/.dev-ports.json"
-LEGACY_FILE="$PROJECT_ROOT/.backend-port.json"
+LEGACY_FILE="$PROJECT_ROOT/.dev-ports.json"
 
 # Function to check if a service is active
 check_service_status() {

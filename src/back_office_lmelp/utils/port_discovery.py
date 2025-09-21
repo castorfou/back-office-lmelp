@@ -20,18 +20,11 @@ class PortDiscovery:
             port_file: Path to the port discovery file
             host: The host the backend is running on (default: localhost)
         """
-        port_data = {
-            "port": port,
-            "host": host,
-            "timestamp": int(time.time()),
-            "url": f"http://{host}:{port}",
-        }
-
-        # Ensure parent directory exists
-        port_file.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(port_file, "w") as f:
-            json.dump(port_data, f, indent=2)
+        # Deprecated: single-file legacy format is removed. Use
+        # write_backend_info_to_unified_file instead.
+        PortDiscovery.write_backend_info_to_unified_file(
+            port_file, port=port, host=host
+        )
 
     @staticmethod
     def read_port_info(port_file: Path) -> dict[str, Any] | None:
@@ -43,13 +36,14 @@ class PortDiscovery:
         Returns:
             Dictionary with port information or None if file doesn't exist/invalid
         """
+        # Deprecated: reading legacy single-file format. Prefer get_backend_info
+        # on the unified .dev-ports.json file.
         if not port_file.exists():
             return None
 
         try:
             with open(port_file) as f:
                 data = json.load(f)
-                # Type assertion for MyPy
                 return data if isinstance(data, dict) else None
         except (OSError, json.JSONDecodeError):
             return None
@@ -64,9 +58,8 @@ class PortDiscovery:
         Returns:
             Path to the port discovery file
         """
-        if base_path:
-            return Path(base_path) / ".backend-port.json"
-        return Path.cwd() / ".backend-port.json"
+        # Kept for API compatibility but now returns the unified file path.
+        return PortDiscovery.get_unified_port_file_path(base_path)
 
     @staticmethod
     def cleanup_port_file(port_file: Path) -> None:
@@ -75,11 +68,11 @@ class PortDiscovery:
         Args:
             port_file: Path to the port discovery file to remove
         """
+        # Deprecated cleanup for legacy file; prefer cleanup_unified_port_file
         try:
             if port_file.exists():
                 port_file.unlink()
         except OSError:
-            # Ignore cleanup errors
             pass
 
     @staticmethod
@@ -325,20 +318,8 @@ class PortDiscovery:
             legacy_file: Path to legacy .backend-port.json file
             unified_file: Path to unified .dev-ports.json file
         """
-        try:
-            with open(legacy_file) as f:
-                legacy_data = json.load(f)
-
-            # Convert legacy format to unified format
-            PortDiscovery.write_unified_port_info(
-                unified_file,
-                backend_port=legacy_data.get("port"),
-                backend_host=legacy_data.get("host", "localhost"),
-                started_at=legacy_data.get("timestamp"),
-            )
-
-        except (OSError, json.JSONDecodeError, FileNotFoundError):
-            pass
+        # Migration helper removed: project no longer supports legacy files.
+        return
 
     @staticmethod
     def get_unified_port_file_path(base_path: str | None = None) -> Path:
@@ -425,20 +406,8 @@ class PortDiscovery:
             legacy_file: Path to legacy .backend-port.json file
             unified_file: Path to unified .dev-ports.json file
         """
-        try:
-            with open(legacy_file) as f:
-                legacy_data = json.load(f)
-
-            # Convert legacy format to unified format
-            PortDiscovery.write_unified_port_info(
-                unified_file,
-                backend_port=legacy_data.get("port"),
-                backend_host=legacy_data.get("host", "localhost"),
-                started_at=legacy_data.get("timestamp"),
-            )
-
-        except (OSError, json.JSONDecodeError, FileNotFoundError):
-            pass
+        # Migration helper removed: legacy support dropped.
+        return
 
 
 def create_port_file_on_startup(
@@ -466,7 +435,9 @@ def create_port_file_on_startup(
     if port_file_path is None:
         port_file_path = PortDiscovery.get_unified_port_file_path()
 
-    # Write backend information to unified file
+    # Write backend information to the unified .dev-ports.json file. We no
+    # longer support the legacy single-file format; the codebase now uses
+    # the unified format exclusively.
     PortDiscovery.write_backend_info_to_unified_file(port_file_path, port, host)
 
     return port_file_path
