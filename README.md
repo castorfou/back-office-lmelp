@@ -148,6 +148,33 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🎯 **Interface dédiée** : http://localhost:5174/babelio-test
 - 🤖 **Tolérance aux fautes** : Corrections intelligentes (ex: "Houllebeck" → "Michel Houellebecq")
 
+##### Cache disque Babelio (diagnostic)
+
+Pour améliorer les performances et réduire les requêtes vers Babelio, le backend utilise un cache disque optionnel (format fichier JSON par clé) avec TTL par défaut 24h.
+
+  - Exportez la variable d'environnement `BABELIO_CACHE_LOG=1` avant de lancer `./scripts/start-dev.sh` pour activer des logs détaillés (INFO) montrant les hits/misses/écritures du cache.
+  - Exemple :
+
+```bash
+export BABELIO_CACHE_LOG=1
+./scripts/start-dev.sh
+```
+
+  - Le cache stocke les réponses Babelio pour le terme recherché et pour une clé normalisée (lowercase). Les clés sont conservatrices : les résultats de Babelio peuvent changer entre exécutions, donc le cache est principalement destiné à améliorer des charges de travail répétées en développement.
+  - Les logs affichent des lignes comme :
+    - `[BabelioCache] HIT (orig) key='...' items=... ts=...`
+    - `[BabelioCache] MISS keys=(orig='...', norm='...')`
+    - `[BabelioCache] WROTE keys=(orig='...', norm='...') items=...`
+
+  - Les résultats externes (Babelio) évoluent : une entrée cache peut devenir obsolète. Ne pas considérer les réponses cacheées comme la vérité absolue.
+  - Pour un comportement reproductible en test, videz le dossier `data/processed/babelio_cache` si nécessaire.
+ Pour améliorer les performances et réduire les requêtes vers Babelio, le backend utilise un cache disque (format fichier JSON par clé) avec TTL par défaut 24h. Le cache est activé par défaut en développement.
+
+ - Désactiver le cache :
+   - Pour désactiver le cache au démarrage, exportez `BABELIO_CACHE_ENABLED=0` avant de lancer `./scripts/start-dev.sh`.
+
+
+
 #### Moteur de Recherche Textuelle ⭐ **NOUVEAU**
 - 🔍 **Recherche multi-entités** : Episodes, auteurs, livres, éditeurs
 - ⚡ **Temps réel** : Debouncing 300ms, minimum 3 caractères

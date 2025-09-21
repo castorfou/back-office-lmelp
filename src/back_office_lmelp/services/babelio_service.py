@@ -26,6 +26,7 @@ Usage :
 import asyncio
 import json
 import logging
+import os
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -61,6 +62,34 @@ class BabelioService:
         self.last_request_time = 0  # Timestamp de la dernière requête
         self.min_interval = 0.8  # Délai minimum de 0.8 secondes entre requêtes
         self._cache = {}  # Cache simple terme -> résultats (limité en taille)
+        # Optional disk-backed cache service injected at app startup
+        self.cache_service: Any | None = None
+        # Contrôle des logs temporaires pour le cache disque (utile en dev)
+        # Si la variable d'environnement BABELIO_CACHE_LOG est '1' ou 'true',
+        # on exposera des logs plus verbeux (info) pour hit/miss et écriture.
+        self._cache_log_enabled = os.getenv("BABELIO_CACHE_LOG", "1").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        # If verbose cache logging is enabled, make sure our module logger
+        # will emit INFO messages to stdout (useful when running under uvicorn)
+        if self._cache_log_enabled:
+            try:
+                logger.setLevel(logging.INFO)
+                # add a stdout handler only if no handlers are configured for this logger
+                if not logger.handlers:
+                    handler = logging.StreamHandler()
+                    handler.setLevel(logging.INFO)
+                    handler.setFormatter(
+                        logging.Formatter(
+                            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+                        )
+                    )
+                    logger.addHandler(handler)
+            except Exception:
+                # Don't fail startup if logging setup has issues
+                pass
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Récupère ou crée la session HTTP avec configuration appropriée."""
@@ -138,10 +167,60 @@ class BabelioService:
         if not term or not term.strip():
             return []
 
-        # Vérifier le cache d'abord
+        # Vérifier le cache disque/in-memory d'abord
         cache_key = term.strip().lower()
+
+        # Support pour un service de cache disque injecté (BabelioCacheService)
+        cache_service = getattr(self, "cache_service", None)
+        if cache_service is not None:
+            try:
+                # disk IO can block; run in threadpool to avoid blocking event loop
+                wrapper = await asyncio.to_thread(cache_service.get_cached, term)
+                # choose log function based on env control
+                log_fn = (
+                    logger.info
+                    if getattr(self, "_cache_log_enabled", False)
+                    else logger.debug
+                )
+
+                if wrapper is not None:
+                    # original-term hit
+                    items = None
+                    if isinstance(wrapper, dict):
+                        items = len(wrapper.get("data") or [])
+                    log_fn(
+                        f"[BabelioCache] HIT (orig) key='{term}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
+                    )
+                    # Ensure we always return a list (function annotated -> list[dict])
+                    if isinstance(wrapper, dict):
+                        return list(wrapper.get("data") or [])
+                    return list(wrapper or [])
+
+                # try lowercased key too for compatibility
+                wrapper = await asyncio.to_thread(cache_service.get_cached, cache_key)
+                if wrapper is not None:
+                    items = None
+                    if isinstance(wrapper, dict):
+                        items = len(wrapper.get("data") or [])
+                    log_fn(
+                        f"[BabelioCache] HIT (norm) key='{cache_key}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
+                    )
+                    # Ensure we always return a list (function annotated -> list[dict])
+                    if isinstance(wrapper, dict):
+                        return list(wrapper.get("data") or [])
+                    return list(wrapper or [])
+
+                # both misses
+                log_fn(f"[BabelioCache] MISS keys=(orig='{term}', norm='{cache_key}')")
+            except Exception:
+                # on any cache error, treat as cache miss and continue
+                logger.exception(
+                    "Erreur lors de l'accès au cache disque; fallback réseau"
+                )
+
+        # Backwards-compatible in-memory cache
         if cache_key in self._cache:
-            logger.debug(f"Cache hit pour: {term}")
+            logger.debug(f"Cache mémoire hit pour: {term}")
             return self._cache[cache_key]  # type: ignore[no-any-return]
 
         # Respect du rate limiting avec délai obligatoire
@@ -176,9 +255,35 @@ class BabelioService:
                             results: list[dict[str, Any]] = json.loads(text_content)
                             logger.debug(f"Babelio retourne {len(results)} résultats")
 
-                            # Mettre en cache (limiter la taille du cache)
+                            # Mettre en cache mémoire (limiter la taille du cache)
                             if len(self._cache) < 100:  # Limite à 100 entrées
                                 self._cache[cache_key] = results
+
+                            # Écrire dans le cache disque si disponible
+                            cache_service = getattr(self, "cache_service", None)
+                            if cache_service is not None:
+                                try:
+                                    # store both original term and normalized key for robustness
+                                    # write cache in threadpool to avoid blocking event loop
+                                    await asyncio.to_thread(
+                                        cache_service.set_cached, term, results
+                                    )
+                                    await asyncio.to_thread(
+                                        cache_service.set_cached, cache_key, results
+                                    )
+                                    # log write with same verbosity control
+                                    log_fn = (
+                                        logger.info
+                                        if getattr(self, "_cache_log_enabled", False)
+                                        else logger.debug
+                                    )
+                                    log_fn(
+                                        f"[BabelioCache] WROTE keys=(orig='{term}', norm='{cache_key}') items={len(results)}"
+                                    )
+                                except Exception:
+                                    logger.exception(
+                                        "Impossible d'écrire dans le cache disque (ignored)"
+                                    )
 
                             return results
                         except json.JSONDecodeError:
@@ -384,27 +489,27 @@ class BabelioService:
         Returns:
             list[dict]: Résultats de vérification dans le même ordre
         """
-        results = []
 
-        for item in items:
+        async def _verify_one(item: dict[str, Any]) -> dict[str, Any]:
             item_type = item.get("type")
 
             if item_type == "author":
-                result = await self.verify_author(item.get("name", ""))
+                return await self.verify_author(item.get("name", ""))
             elif item_type == "book":
-                result = await self.verify_book(
-                    item.get("title", ""), item.get("author")
-                )
+                return await self.verify_book(item.get("title", ""), item.get("author"))
             elif item_type == "publisher":
-                result = await self.verify_publisher(item.get("name", ""))
+                return await self.verify_publisher(item.get("name", ""))
             else:
-                result = self._create_error_result(
+                return self._create_error_result(
                     str(item), f"Type non supporté: {item_type}"
                 )
 
-            results.append(result)
-
-        return results
+        # Dispatch all verifications concurrently; each verification still
+        # respects the internal rate_limiter in search(). Using gather keeps
+        # ordering of results consistent with the input list.
+        tasks = [asyncio.create_task(_verify_one(it)) for it in items]
+        results = await asyncio.gather(*tasks)
+        return list(results)
 
     def _find_best_author_match(
         self, results: list[dict], search_term: str

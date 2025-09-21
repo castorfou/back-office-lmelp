@@ -150,6 +150,12 @@ fi
 
 log "Démarrage du backend et du frontend..."
 
+# If BABELIO_CACHE_LOG is set, inform the user that verbose cache logging is enabled
+if [[ -n "$BABELIO_CACHE_LOG" ]]; then
+    log "Note: BABELIO_CACHE_LOG is set -> Babelio disk cache logging enabled (INFO)."
+    warn "Les résultats stockés en cache peuvent varier d'une exécution à l'autre; utilisez avec prudence."
+fi
+
 # Start backend in background
 log "Lancement du backend FastAPI..."
 cd "$PROJECT_ROOT"
