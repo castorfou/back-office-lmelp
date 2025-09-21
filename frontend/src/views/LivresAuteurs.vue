@@ -70,6 +70,133 @@
         </div>
       </div>
 
+      <!-- ========== DASHBOARD COLLECTIONS MANAGEMENT (ISSUE #66) ========== -->
+
+      <!-- Dashboard statistiques collections - toujours affiché -->
+      <section class="collections-dashboard">
+        <div class="collections-stats card">
+          <h3>📊 Gestion des Collections Auteurs/Livres</h3>
+
+          <!-- État de chargement des statistiques -->
+          <div v-if="statisticsLoading" class="loading">
+            Chargement des statistiques...
+          </div>
+
+          <!-- Affichage des statistiques -->
+          <div v-if="collectionsStatistics && !statisticsLoading" class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">Épisodes non traités : </span>
+              <span class="stat-value">{{ collectionsStatistics.episodes_non_traites }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Couples en base : </span>
+              <span class="stat-value">{{ collectionsStatistics.couples_en_base }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Verified pas en base : </span>
+              <span class="stat-value">{{ collectionsStatistics.couples_verified_pas_en_base }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Suggested pas en base : </span>
+              <span class="stat-value">{{ collectionsStatistics.couples_suggested_pas_en_base }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Not found pas en base : </span>
+              <span class="stat-value">{{ collectionsStatistics.couples_not_found_pas_en_base }}</span>
+            </div>
+          </div>
+
+          <!-- Actions de gestion - toujours affichées -->
+          <div class="collections-actions">
+            <!-- Bouton traitement automatique -->
+            <button
+              @click="autoProcessVerified"
+              :disabled="autoProcessLoading"
+              data-testid="auto-process-button"
+              class="btn btn-primary"
+            >
+              {{ autoProcessLoading ? 'Traitement en cours...' : 'Traitement automatique' }}
+            </button>
+
+            <!-- Bouton charger statistiques -->
+            <button
+              @click="loadCollectionsStatistics"
+              :disabled="statisticsLoading"
+              class="btn btn-secondary"
+            >
+              {{ statisticsLoading ? 'Chargement...' : 'Actualiser statistiques' }}
+            </button>
+          </div>
+
+          <!-- Résultats du traitement automatique -->
+          <div v-if="autoProcessResult" class="process-results">
+            <h4>✅ Traitement automatique terminé :</h4>
+            <ul>
+              <li>{{ autoProcessResult.processed_count }} livres traités</li>
+              <li>{{ autoProcessResult.created_authors }} auteurs créés</li>
+              <li>{{ autoProcessResult.created_books }} livres créés</li>
+              <li>{{ autoProcessResult.updated_references }} références mises à jour</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Section validation manuelle (livres suggested) -->
+        <div v-if="suggestedBooks.length > 0" class="manual-validation card">
+          <h4>🔍 Validation manuelle (Livres suggested)</h4>
+          <div v-for="book in suggestedBooks" :key="book.id" class="validation-item">
+            <div class="book-info">
+              <span class="original">{{ book.auteur }} - {{ book.titre }}</span>
+              <span class="suggestion">Suggestion : {{ book.suggested_author }} - {{ book.suggested_title }}</span>
+            </div>
+            <button
+              @click="validateSuggestion({ id: book.id, user_validated_author: book.suggested_author, user_validated_title: book.suggested_title })"
+              data-testid="validate-suggestion-button"
+              class="btn btn-success"
+            >
+              Valider suggestion
+            </button>
+          </div>
+        </div>
+
+        <!-- Section ajout manuel (livres not_found) -->
+        <div v-if="notFoundBooks.length > 0" class="manual-add card">
+          <h4>➕ Ajout manuel (Livres not found)</h4>
+          <div v-for="book in notFoundBooks" :key="book.id" class="add-item">
+            <div class="book-info">
+              <span class="not-found">{{ book.auteur }} - {{ book.titre }}</span>
+            </div>
+            <button
+              @click="addManualBook({ id: book.id, user_entered_author: book.auteur, user_entered_title: book.titre, user_entered_publisher: 'Éditeur inconnu' })"
+              data-testid="add-manual-book-button"
+              class="btn btn-warning"
+            >
+              Ajouter manuellement
+            </button>
+          </div>
+        </div>
+
+        <!-- Section gestion des collections créées -->
+        <div v-if="allAuthors.length > 0 || allBooks.length > 0" class="collections-management card">
+          <h4>📚 Collections créées</h4>
+
+          <!-- Auteurs -->
+          <div v-if="allAuthors.length > 0" class="authors-list">
+            <h5>Auteurs ({{ allAuthors.length }})</h5>
+            <div v-for="author in allAuthors" :key="author.id" class="author-item">
+              {{ author.nom }} ({{ author.livres.length }} livres)
+            </div>
+          </div>
+
+          <!-- Livres -->
+          <div v-if="allBooks.length > 0" class="books-list">
+            <h5>Livres ({{ allBooks.length }})</h5>
+            <div v-for="book in allBooks" :key="book.id" class="book-item">
+              {{ book.titre }} - {{ book.editeur }}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Filtre de recherche -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="filter-section">
         <div class="filter-controls">
@@ -224,7 +351,36 @@ export default {
       error: null,
       searchFilter: '',
       currentSortField: 'author',
-      sortAscending: true
+      sortAscending: true,
+
+      // ========== NOUVELLES DONNÉES POUR ISSUE #66 ==========
+
+      // Statistiques des collections
+      collectionsStatistics: null,
+      statisticsLoading: false,
+      statisticsError: null,
+
+      // Traitement automatique
+      autoProcessLoading: false,
+      autoProcessResult: null,
+
+      // Gestion des livres suggested
+      suggestedBooks: [],
+      suggestedBooksLoading: false,
+
+      // Gestion des livres not_found
+      notFoundBooks: [],
+      notFoundBooksLoading: false,
+
+      // Collections management
+      allAuthors: [],
+      allBooks: [],
+      collectionsLoading: false,
+
+      // Interface states
+      showCollectionsManager: false,
+      showManualValidation: false,
+      showManualAdd: false
     };
   },
 
@@ -393,6 +549,128 @@ export default {
       } finally {
         // Envoyer les appels capturés au backend
         await fixtureCaptureService.stopCaptureAndSend();
+      }
+    },
+
+    // ========== NOUVELLES MÉTHODES POUR ISSUE #66 ==========
+
+    /**
+     * Charge les statistiques des collections
+     */
+    async loadCollectionsStatistics() {
+      try {
+        this.statisticsLoading = true;
+        this.statisticsError = null;
+        this.collectionsStatistics = await livresAuteursService.getCollectionsStatistics();
+      } catch (error) {
+        this.statisticsError = error.message;
+        console.error('Erreur lors du chargement des statistiques:', error);
+      } finally {
+        this.statisticsLoading = false;
+      }
+    },
+
+    /**
+     * Lance le traitement automatique des livres verified
+     */
+    async autoProcessVerified() {
+      try {
+        this.autoProcessLoading = true;
+        this.autoProcessResult = await livresAuteursService.autoProcessVerifiedBooks();
+        // Recharger les statistiques après traitement
+        await this.loadCollectionsStatistics();
+      } catch (error) {
+        console.error('Erreur lors du traitement automatique:', error);
+      } finally {
+        this.autoProcessLoading = false;
+      }
+    },
+
+    /**
+     * Charge les livres avec statut 'suggested'
+     */
+    async loadSuggestedBooks() {
+      try {
+        this.suggestedBooksLoading = true;
+        this.suggestedBooks = await livresAuteursService.getBooksByValidationStatus('suggested');
+      } catch (error) {
+        console.error('Erreur lors du chargement des livres suggested:', error);
+      } finally {
+        this.suggestedBooksLoading = false;
+      }
+    },
+
+    /**
+     * Valide manuellement une suggestion
+     */
+    async validateSuggestion(bookData) {
+      try {
+        const result = await livresAuteursService.validateSuggestion(bookData);
+        // Recharger les données après validation
+        await this.loadSuggestedBooks();
+        await this.loadCollectionsStatistics();
+        return result;
+      } catch (error) {
+        console.error('Erreur lors de la validation:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Charge les livres avec statut 'not_found'
+     */
+    async loadNotFoundBooks() {
+      try {
+        this.notFoundBooksLoading = true;
+        this.notFoundBooks = await livresAuteursService.getBooksByValidationStatus('not_found');
+      } catch (error) {
+        console.error('Erreur lors du chargement des livres not_found:', error);
+      } finally {
+        this.notFoundBooksLoading = false;
+      }
+    },
+
+    /**
+     * Ajoute manuellement un livre not_found
+     */
+    async addManualBook(bookData) {
+      try {
+        const result = await livresAuteursService.addManualBook(bookData);
+        // Recharger les données après ajout
+        await this.loadNotFoundBooks();
+        await this.loadCollectionsStatistics();
+        return result;
+      } catch (error) {
+        console.error('Erreur lors de l\'ajout manuel:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Charge tous les auteurs de la collection
+     */
+    async loadAllAuthors() {
+      try {
+        this.collectionsLoading = true;
+        this.allAuthors = await livresAuteursService.getAllAuthors();
+      } catch (error) {
+        console.error('Erreur lors du chargement des auteurs:', error);
+      } finally {
+        this.collectionsLoading = false;
+      }
+    },
+
+    /**
+     * Charge tous les livres de la collection
+     */
+    async loadAllBooks() {
+      try {
+        this.collectionsLoading = true;
+        this.allBooks = await livresAuteursService.getAllBooks();
+      } catch (error) {
+        console.error('Erreur lors du chargement des livres:', error);
+      } finally {
+        this.collectionsLoading = false;
       }
     }
 
@@ -858,5 +1136,236 @@ export default {
   padding: 0.5rem 0;
   font-size: 1rem;
   color: #555;
+}
+
+/* ========== STYLES POUR COLLECTIONS MANAGEMENT (ISSUE #66) ========== */
+
+.collections-dashboard {
+  margin-bottom: 2rem;
+}
+
+.collections-stats.card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 1.5rem;
+}
+
+.collections-stats h3 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: 1.4rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.stat-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.stat-value {
+  font-weight: bold;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.collections-actions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.process-results {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.process-results h4 {
+  margin-bottom: 0.5rem;
+  color: #155724;
+}
+
+.process-results ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.process-results li {
+  color: #155724;
+  margin-bottom: 0.25rem;
+}
+
+.manual-validation.card,
+.manual-add.card,
+.collections-management.card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 1.5rem;
+}
+
+.validation-item,
+.add-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.book-info {
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.original {
+  display: block;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.suggestion {
+  display: block;
+  color: #667eea;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.not-found {
+  display: block;
+  font-weight: 500;
+  color: #dc3545;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.3s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: #667eea;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #5a67d8;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.authors-list,
+.books-list {
+  margin-bottom: 1.5rem;
+}
+
+.authors-list h5,
+.books-list h5 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.author-item,
+.book-item {
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  color: #555;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collections-actions {
+    flex-direction: column;
+  }
+
+  .validation-item,
+  .add-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .book-info {
+    margin-right: 0;
+    margin-bottom: 1rem;
+  }
+
+  .btn {
+    width: 100%;
+  }
 }
 </style>

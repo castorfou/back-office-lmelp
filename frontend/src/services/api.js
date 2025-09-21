@@ -72,6 +72,74 @@ export const livresAuteursService = {
     const response = await api.get('/episodes-with-reviews');
     return response.data;
   },
+
+  // ========== NOUVEAUX ENDPOINTS POUR ISSUE #66 ==========
+
+  /**
+   * Récupère les statistiques pour la gestion des collections
+   * @returns {Promise<Object>} Statistiques des collections
+   */
+  async getCollectionsStatistics() {
+    const response = await api.get('/livres-auteurs/statistics');
+    return response.data;
+  },
+
+  /**
+   * Lance le traitement automatique des livres verified
+   * @returns {Promise<Object>} Résultats du traitement automatique
+   */
+  async autoProcessVerifiedBooks() {
+    const response = await api.post('/livres-auteurs/auto-process-verified');
+    return response.data;
+  },
+
+  /**
+   * Récupère les livres par statut de validation
+   * @param {string} status - Statut de validation (verified, suggested, not_found)
+   * @returns {Promise<Array>} Liste des livres avec le statut demandé
+   */
+  async getBooksByValidationStatus(status) {
+    const response = await api.get(`/livres-auteurs/books/${status}`);
+    return response.data;
+  },
+
+  /**
+   * Valide manuellement une suggestion d'auteur/livre
+   * @param {Object} bookData - Données du livre avec corrections utilisateur
+   * @returns {Promise<Object>} Résultat de la validation
+   */
+  async validateSuggestion(bookData) {
+    const response = await api.post('/livres-auteurs/validate-suggestion', bookData);
+    return response.data;
+  },
+
+  /**
+   * Ajoute manuellement un livre not_found
+   * @param {Object} bookData - Données du livre saisies par l'utilisateur
+   * @returns {Promise<Object>} Résultat de l'ajout
+   */
+  async addManualBook(bookData) {
+    const response = await api.post('/livres-auteurs/add-manual-book', bookData);
+    return response.data;
+  },
+
+  /**
+   * Récupère tous les auteurs de la collection
+   * @returns {Promise<Array>} Liste de tous les auteurs
+   */
+  async getAllAuthors() {
+    const response = await api.get('/authors');
+    return response.data;
+  },
+
+  /**
+   * Récupère tous les livres de la collection
+   * @returns {Promise<Array>} Liste de tous les livres
+   */
+  async getAllBooks() {
+    const response = await api.get('/books');
+    return response.data;
+  },
 };
 
 /**
