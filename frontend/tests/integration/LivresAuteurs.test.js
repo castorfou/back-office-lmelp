@@ -161,4 +161,46 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       episodeId: '6865f995a1418e3d7c63d076' // pragma: allowlist secret
     });
   });
+
+  it("affiche la petite colonne d'état (programme / coup de coeur) et permet de trier", async () => {
+    const mockBooks = [
+      {
+        episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+        auteur: 'Michel Houellebecq',
+        titre: 'Les Particules élémentaires',
+        editeur: 'Flammarion',
+        programme: true,
+        coup_de_coeur: false
+      }
+    ];
+
+    livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+    livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    // Attendre que le chargement se termine
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Sélectionner un épisode
+  wrapper.vm.selectedEpisodeId = '6865f995a1418e3d7c63d076'; // pragma: allowlist secret
+    await wrapper.vm.loadBooksForEpisode();
+    await wrapper.vm.$nextTick();
+
+    // Vérifier que l'en-tête de colonne d'état est présent
+    const statusHeader = wrapper.find('th.status-header');
+    expect(statusHeader.exists()).toBe(true);
+
+    // Vérifier que la cellule d'état contient une icône (programme -> 🎯)
+    expect(wrapper.text()).toContain('🎯');
+
+    // Cliquer sur l'en-tête active le tri par 'status'
+    await statusHeader.trigger('click');
+    expect(wrapper.vm.currentSortField).toBe('status');
+  });
 });

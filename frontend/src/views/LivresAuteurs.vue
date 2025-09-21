@@ -110,6 +110,10 @@
           <table class="books-table">
             <thead>
               <tr>
+                <th class="status-header" @click="setSortOrder('status')">
+                  <!-- Petite colonne d'état: programme / coup de coeur -->
+                  <span title="Programme / Coup de coeur">●</span>
+                </th>
                 <th class="sortable-header" @click="setSortOrder('author')">
                   Auteur
                   <span class="sort-indicator" :class="getSortClass('author')">↕</span>
@@ -131,7 +135,8 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" class="book-row" data-testid="book-item">
+                <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" class="book-row" data-testid="book-item">
+                <td class="status-cell" style="text-align:center">{{ renderStatusIcon(book) }}</td>
                 <td class="author-cell">{{ book.auteur }}</td>
                 <td class="title-cell">{{ book.titre }}</td>
                 <td class="publisher-cell">{{ book.editeur || '-' }}</td>
@@ -222,6 +227,12 @@ export default {
         let sortValue = 0;
 
         switch (this.currentSortField) {
+          case 'status':
+            // Prioritize programme (true) then coup_de_coeur then none
+            const scoreA = (a.programme ? 2 : 0) + (a.coup_de_coeur ? 1 : 0);
+            const scoreB = (b.programme ? 2 : 0) + (b.coup_de_coeur ? 1 : 0);
+            sortValue = scoreA - scoreB;
+            break;
           case 'author':
             sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
             break;
@@ -263,6 +274,13 @@ export default {
       } finally {
         this.episodesLoading = false;
       }
+    },
+
+    renderStatusIcon(book) {
+      // Return a small icon for programme or coup_de_coeur
+      if (book.programme) return '🎯';
+      if (book.coup_de_coeur) return '💖';
+      return '';
     },
 
     /**

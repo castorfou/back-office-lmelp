@@ -1,0 +1,12 @@
+{
+	"chat.tools.terminal.autoApprove": {
+		"gh run view 17893165641 --repo castorfou/back-office-lmelp --log --repo castorfou/back-office-lmelp": {
+			"approve": true,
+			"matchCommandLine": true
+		},
+		"gh issue view 59 --repo castorfou/back-office-lmelp --comments": {
+			"approve": true,
+			"matchCommandLine": true
+		}
+    }
+}
