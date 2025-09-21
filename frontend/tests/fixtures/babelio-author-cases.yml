@@ -195,3 +195,14 @@ cases:
     original: Sephora Pondi
     status: corrected
   timestamp: 1758409474086
+- input:
+    name: Emmanuel Carrère
+  output:
+    original: Emmanuel Carrère
+    status: verified
+  timestamp: 1234567890
+- input:
+    name: Test Author
+  output:
+    status: verified
+  timestamp: 1234567890
