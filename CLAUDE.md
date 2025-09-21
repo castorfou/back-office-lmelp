@@ -420,6 +420,48 @@ The `.dev-ports.json` file contains both backend and frontend information:
 - **Cross-Directory Compatibility**: Works from frontend/, root, or any subdirectory
 - **Process Validation**: Confirms services are actually running
 - **Development Efficiency**: Reduces trial-and-error in service discovery
+- **Smart Restart Detection**: Automatically detects when backend should be restarted
+
+### Advanced Claude Code Scripts
+
+#### Backend Freshness Detection
+
+For situations where you've modified backend code and need to determine if a restart is required:
+
+```bash
+# Check if backend needs restart (default: 10 minutes threshold)
+/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh
+
+# Check with custom threshold (5 minutes)
+/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh 5
+```
+
+**Exit codes:**
+- `0`: Backend is fresh and probably up-to-date
+- `1`: No backend detected (needs to be started)
+- `2`: Backend is stale (restart recommended)
+
+**Example workflow:**
+```bash
+# 1. Check backend freshness after making code changes
+FRESHNESS_CHECK=$(/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh 10)
+EXIT_CODE=$?
+
+if [[ $EXIT_CODE -eq 2 ]]; then
+    echo "🔄 Backend is stale, restarting..."
+    pkill -f 'python.*back_office_lmelp'
+    ./scripts/start-dev.sh &
+    sleep 5
+fi
+
+# 2. Get backend URL for API testing
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# 3. Test your modifications
+curl "$BACKEND_URL/api/episodes" | jq
+```
+
+This eliminates the guesswork of "Do I need to restart the backend after my changes?"
 
 ## API Discovery and Testing
 
