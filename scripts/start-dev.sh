@@ -38,14 +38,16 @@ capture_port_from_output() {
     sleep 3
 
     # Try to extract port from process output/logs
-    # For backend, check if a port discovery file was created
-    if [[ "$service_name" == "BACKEND" ]] && [[ -f "$PROJECT_ROOT/.backend-port.json" ]]; then
-        local backend_port=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.backend-port.json')); print(data['port'])")
-        local backend_host=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.backend-port.json')); print(data['host'])")
-        eval "${port_var}=$backend_port"
-        eval "${host_var}=$backend_host"
-        log "Detected $service_name on $backend_host:$backend_port"
-        return 0
+    # For backend, check if unified port discovery file was created
+    if [[ "$service_name" == "BACKEND" ]] && [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
+        local backend_port=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('port', ''))")
+        local backend_host=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('host', ''))")
+        if [[ -n "$backend_port" && -n "$backend_host" ]]; then
+            eval "${port_var}=$backend_port"
+            eval "${host_var}=$backend_host"
+            log "Detected $service_name on $backend_host:$backend_port"
+            return 0
+        fi
     fi
 
     # For frontend, try to detect from common ports or process
@@ -120,15 +122,10 @@ cleanup() {
         wait $FRONTEND_PID 2>/dev/null || true
     fi
 
-    # Clean up discovery files
+    # Clean up unified discovery file
     if [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
         rm -f "$PROJECT_ROOT/.dev-ports.json"
-        log "🧹 Port discovery file cleaned up"
-    fi
-
-    if [[ -f "$PROJECT_ROOT/.backend-port.json" ]]; then
-        rm -f "$PROJECT_ROOT/.backend-port.json"
-        log "🧹 Legacy backend port file cleaned up"
+        log "🧹 Unified port discovery file cleaned up"
     fi
 
     log "Processus arrêtés proprement"
