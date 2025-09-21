@@ -78,6 +78,8 @@ class TestLivresAuteursEndpoint:
                 "auteur": "Test Auteur",
                 "titre": "Test Livre",
                 "editeur": "Test Éditeur",
+                "programme": True,
+                "coup_de_coeur": False,
             },
             {
                 "episode_oid": "6865f995a1418e3d7c63d077",  # pragma: allowlist secret
@@ -86,6 +88,8 @@ class TestLivresAuteursEndpoint:
                 "auteur": "Autre Auteur",
                 "titre": "Autre Livre",
                 "editeur": "Autre Éditeur",
+                "programme": False,
+                "coup_de_coeur": True,
             },
         ]
 
@@ -108,10 +112,13 @@ class TestLivresAuteursEndpoint:
         assert book1["auteur"] == "Test Auteur"
         assert book1["titre"] == "Test Livre"
         assert book1["editeur"] == "Test Éditeur"
+
         # Les champs superflus ne doivent plus être présents (format simplifié)
         assert "note_moyenne" not in book1
         assert "nb_critiques" not in book1
-        assert "coups_de_coeur" not in book1
+        # Les indicateurs programme / coup_de_coeur doivent être présents
+        assert "programme" in book1
+        assert "coup_de_coeur" in book1
 
         # Vérifier le deuxième livre
         book2 = data[1]
@@ -124,10 +131,13 @@ class TestLivresAuteursEndpoint:
         assert book2["auteur"] == "Autre Auteur"
         assert book2["titre"] == "Autre Livre"
         assert book2["editeur"] == "Autre Éditeur"
+
         # Les champs superflus ne doivent plus être présents
         assert "note_moyenne" not in book2
         assert "nb_critiques" not in book2
-        assert "coups_de_coeur" not in book2
+        # Les indicateurs programme / coup_de_coeur doivent être présents
+        assert "programme" in book2
+        assert "coup_de_coeur" in book2
 
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
@@ -194,6 +204,8 @@ class TestLivresAuteursEndpoint:
                 "auteur": "Test Auteur",
                 "titre": "Test Livre",
                 "editeur": "Test Éditeur",
+                "programme": True,
+                "coup_de_coeur": False,
             },
             {
                 "episode_oid": "6865f995a1418e3d7c63d077",  # pragma: allowlist secret
@@ -202,6 +214,8 @@ class TestLivresAuteursEndpoint:
                 "auteur": "Autre Auteur",
                 "titre": "Autre Livre",
                 "editeur": "Autre Éditeur",
+                "programme": False,
+                "coup_de_coeur": True,
             },
         ]
 
@@ -249,6 +263,9 @@ class TestLivresAuteursEndpoint:
             "auteur": "Test Auteur",
             "titre": "Test Livre",
             "editeur": "Test Éditeur",
+            # Indicateurs ajoutés dans le format simplifié
+            "programme": True,
+            "coup_de_coeur": False,
         }
 
         mock_mongodb_service.get_all_critical_reviews.return_value = [
@@ -284,9 +301,12 @@ class TestLivresAuteursEndpoint:
             assert field in book, f"Champ manquant: {field}"
 
         # Vérifier l'absence des champs superflus
-        forbidden_fields = ["note_moyenne", "nb_critiques", "coups_de_coeur"]
+        forbidden_fields = ["note_moyenne", "nb_critiques"]
         for field in forbidden_fields:
             assert field not in book, f"Champ superflu présent: {field}"
+        # Vérifier que les indicateurs de section sont présents
+        assert "programme" in book
+        assert "coup_de_coeur" in book
 
         # Vérifier les types des champs simplifiés
         assert isinstance(book["episode_oid"], str)

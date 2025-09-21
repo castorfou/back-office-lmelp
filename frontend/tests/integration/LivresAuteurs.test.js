@@ -192,15 +192,21 @@ describe('LivresAuteurs - Tests simplifiés', () => {
     await wrapper.vm.loadBooksForEpisode();
     await wrapper.vm.$nextTick();
 
-    // Vérifier que l'en-tête de colonne d'état est présent
-    const statusHeader = wrapper.find('th.status-header');
-    expect(statusHeader.exists()).toBe(true);
+  // Vérifier que l'en-tête de colonne d'état est présent et accessible
+  const statusHeader = wrapper.find('[data-testid="status-header"]');
+  expect(statusHeader.exists()).toBe(true);
+  expect(statusHeader.attributes('aria-label')).toBe('Programme ou Coup de coeur');
 
-    // Vérifier que la cellule d'état contient une icône (programme -> 🎯)
-    expect(wrapper.text()).toContain('🎯');
+  // Vérifier que la cellule d'état contient une icône (programme -> 🎯)
+  const statusCell = wrapper.find('[data-testid^="status-cell-"]');
+  expect(statusCell.exists()).toBe(true);
+  // The UI now uses SVG icons for status; ensure the programme icon is present
+  const programmeIcon = statusCell.find('.status-icon.programme');
+  const programmeSvg = statusCell.find('svg[aria-label="Programme"]');
+  expect(programmeIcon.exists() || programmeSvg.exists()).toBe(true);
 
-    // Cliquer sur l'en-tête active le tri par 'status'
-    await statusHeader.trigger('click');
-    expect(wrapper.vm.currentSortField).toBe('status');
+  // Cliquer sur l'en-tête active le tri par 'status'
+  await statusHeader.trigger('click');
+  expect(wrapper.vm.currentSortField).toBe('status');
   });
 });
