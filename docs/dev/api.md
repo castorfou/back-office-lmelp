@@ -523,6 +523,238 @@ http POST localhost:[PORT]/api/verify-babelio \
 - 🔄 **Rate limiting** : 1 requête/seconde respectueux de Babelio
 - 🔄 **Tolérance aux fautes** : Corrections automatiques intelligentes
 
+---
+
+## Collections Management API (Issue #66)
+
+**✨ NOUVEAU** - Gestion automatisée des collections auteurs/livres MongoDB
+
+### GET /api/livres-auteurs/statistics
+
+Récupère les statistiques pour la page de gestion des collections.
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "episodes_non_traites": 5,
+  "couples_en_base": 42,
+  "couples_verified_pas_en_base": 18,
+  "couples_suggested_pas_en_base": 12,
+  "couples_not_found_pas_en_base": 8
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "detail": "Erreur serveur: message d'erreur"
+}
+```
+
+---
+
+### POST /api/livres-auteurs/auto-process-verified
+
+Traite automatiquement tous les livres avec statut "verified" (validés par Babelio).
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "processed_count": 15,
+  "created_authors": 8,
+  "created_books": 15,
+  "updated_references": 25
+}
+```
+
+#### Fonctionnalité
+
+- Crée automatiquement les auteurs et livres validés par Babelio
+- Évite les doublons en vérifiant l'existence avant création
+- Maintient les références croisées entre collections
+
+---
+
+### GET /api/livres-auteurs/books/{status}
+
+Récupère les livres par statut de validation.
+
+#### Paramètres
+
+- `status` (string, required) : Statut de validation (`verified`, `suggested`, `not_found`)
+
+#### Réponse
+
+**200 OK**
+```json
+[
+  {
+    "id": "64f1234567890abcdef12345",  // pragma: allowlist secret // pragma: allowlist secret
+    "auteur": "Michel Houellebecq",
+    "titre": "Les Particules élémentaires",
+    "validation_status": "verified",
+    "editeur": "Flammarion",
+    "episode_id": "64f1234567890abcdef54321"
+  }
+]
+```
+
+---
+
+### POST /api/livres-auteurs/validate-suggestion
+
+Valide manuellement une suggestion d'auteur/livre avec corrections utilisateur.
+
+#### Request Body
+
+```json
+{
+  "id": "64f1234567890abcdef12345",  // pragma: allowlist secret  // pragma: allowlist secret
+  "auteur": "Michel Houllebeck",
+  "titre": "Les Particules élémentaires",
+  "user_validated_author": "Michel Houellebecq",
+  "user_validated_title": "Les Particules élémentaires",
+  "editeur": "Flammarion"
+}
+```
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "success": true,
+  "author_id": "64f1234567890abcdef11111", // pragma: allowlist secret
+  "book_id": "64f1234567890abcdef22222" // pragma: allowlist secret
+}
+```
+
+---
+
+### POST /api/livres-auteurs/add-manual-book
+
+Ajoute manuellement un livre marqué comme "not_found" avec saisie utilisateur.
+
+#### Request Body
+
+```json
+{
+  "id": "64f1234567890abcdef12345",  // pragma: allowlist secret
+  "user_entered_author": "Auteur Inconnu",
+  "user_entered_title": "Livre Introuvable",
+  "user_entered_publisher": "Éditeur Inconnu"
+}
+```
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "success": true,
+  "author_id": "64f1234567890abcdef11111", // pragma: allowlist secret
+  "book_id": "64f1234567890abcdef22222" // pragma: allowlist secret
+}
+```
+
+---
+
+### GET /api/authors
+
+Récupère tous les auteurs de la collection.
+
+#### Réponse
+
+**200 OK**
+```json
+[
+  {
+    "id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+    "nom": "Michel Houellebecq",
+    "livres": ["64f1234567890abcdef22222"],  // pragma: allowlist secret
+    "created_at": "2024-01-01T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z"
+  }
+]
+```
+
+---
+
+### GET /api/books
+
+Récupère tous les livres de la collection.
+
+#### Réponse
+
+**200 OK**
+```json
+[
+  {
+    "id": "64f1234567890abcdef22222",  // pragma: allowlist secret
+    "titre": "Les Particules élémentaires",
+    "auteur_id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+    "editeur": "Flammarion",
+    "episodes": ["64f1234567890abcdef33333"],  // pragma: allowlist secret
+    "avis_critiques": [],
+    "created_at": "2024-01-01T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z"
+  }
+]
+```
+
+## Modèles de données Collections
+
+### Author
+
+```python
+class Author:
+    id: str
+    nom: str
+    livres: list[str]  # ObjectId references
+    created_at: datetime
+    updated_at: datetime
+```
+
+### Book
+
+```python
+class Book:
+    id: str
+    titre: str
+    auteur_id: str  # ObjectId reference
+    editeur: str
+    episodes: list[str]  # ObjectId references
+    avis_critiques: list[str]  # ObjectId references
+    created_at: datetime
+    updated_at: datetime
+```
+
+### Request Models
+
+#### ValidateSuggestionRequest
+```python
+class ValidateSuggestionRequest:
+    id: str
+    auteur: str
+    titre: str
+    user_validated_author: Optional[str]
+    user_validated_title: Optional[str]
+    editeur: Optional[str]
+```
+
+#### AddManualBookRequest
+```python
+class AddManualBookRequest:
+    id: str
+    user_entered_author: str
+    user_entered_title: str
+    user_entered_publisher: Optional[str]
+```
+
 ## Roadmap API
 
 - [ ] Authentification JWT
@@ -533,3 +765,4 @@ http POST localhost:[PORT]/api/verify-babelio \
 - [ ] Versioning API (v1, v2)
 - [ ] Endpoints de métadonnées (/health, /metrics)
 - [x] **Intégration Babelio** ✅ COMPLETED
+- [x] **Gestion Collections Auteurs/Livres** ✅ COMPLETED (Issue #66)

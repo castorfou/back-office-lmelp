@@ -15,6 +15,7 @@ from .models.episode import Episode
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
+from .services.collections_management_service import collections_management_service
 from .services.fixture_updater import FixtureUpdaterService
 from .services.mongodb_service import mongodb_service
 from .utils.memory_guard import memory_guard
@@ -52,6 +53,27 @@ class FixtureUpdateRequest(BaseModel):
     """Modèle pour les requêtes de mise à jour de fixtures."""
 
     calls: list[CapturedCall]
+
+
+# Nouveaux modèles pour l'Issue #66 - Gestion des collections auteurs/livres
+class ValidateSuggestionRequest(BaseModel):
+    """Modèle pour la validation d'une suggestion."""
+
+    id: str
+    auteur: str
+    titre: str
+    user_validated_author: str
+    user_validated_title: str
+    editeur: str | None = None
+
+
+class AddManualBookRequest(BaseModel):
+    """Modèle pour l'ajout manuel d'un livre."""
+
+    id: str
+    user_entered_author: str
+    user_entered_title: str
+    user_entered_publisher: str | None = None
 
 
 @asynccontextmanager
@@ -584,6 +606,132 @@ async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
             "added_cases": result.added_cases,
             "updated_cases": result.updated_cases,
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+# Nouveaux endpoints pour l'Issue #66 - Gestion des collections auteurs/livres
+
+
+@app.get("/api/livres-auteurs/statistics", response_model=dict[str, Any])
+async def get_livres_auteurs_statistics() -> dict[str, Any]:
+    """Récupère les statistiques pour la page livres-auteurs."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        stats = collections_management_service.get_statistics()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/livres-auteurs/auto-process-verified", response_model=dict[str, Any])
+async def auto_process_verified_books() -> dict[str, Any]:
+    """Traite automatiquement les livres avec statut 'verified'."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        result = collections_management_service.auto_process_verified_books()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/livres-auteurs/books/{status}", response_model=list[dict[str, Any]])
+async def get_books_by_validation_status(status: str) -> list[dict[str, Any]]:
+    """Récupère les livres par statut de validation."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        books = collections_management_service.get_books_by_validation_status(status)
+        return books
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/livres-auteurs/validate-suggestion", response_model=dict[str, Any])
+async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, Any]:
+    """Valide manuellement une suggestion d'auteur/livre."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        result = collections_management_service.manually_validate_suggestion(
+            request.model_dump()
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/livres-auteurs/add-manual-book", response_model=dict[str, Any])
+async def add_manual_book(request: AddManualBookRequest) -> dict[str, Any]:
+    """Ajoute manuellement un livre marqué comme 'not_found'."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        result = collections_management_service.manually_add_not_found_book(
+            request.model_dump()
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/authors", response_model=list[dict[str, Any]])
+async def get_all_authors() -> list[dict[str, Any]]:
+    """Récupère tous les auteurs de la collection."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        authors = collections_management_service.get_all_authors()
+        return authors
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/books", response_model=list[dict[str, Any]])
+async def get_all_books() -> list[dict[str, Any]]:
+    """Récupère tous les livres de la collection."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        books = collections_management_service.get_all_books()
+        return books
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

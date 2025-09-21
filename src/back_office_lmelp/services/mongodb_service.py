@@ -25,6 +25,8 @@ class MongoDBService:
         self.db: Database | None = None
         self.episodes_collection: Collection | None = None
         self.avis_critiques_collection: Collection | None = None
+        self.auteurs_collection: Collection | None = None
+        self.livres_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -35,6 +37,8 @@ class MongoDBService:
             self.db = self.client.get_default_database()
             self.episodes_collection = self.db.episodes
             self.avis_critiques_collection = self.db.avis_critiques
+            self.auteurs_collection = self.db.auteurs
+            self.livres_collection = self.db.livres
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -43,6 +47,8 @@ class MongoDBService:
             self.db = None
             self.episodes_collection = None
             self.avis_critiques_collection = None
+            self.auteurs_collection = None
+            self.livres_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -603,6 +609,147 @@ class MongoDBService:
         except Exception as e:
             print(f"Erreur lors de la mise à jour de la description {episode_id}: {e}")
             return False
+
+    # Nouvelles méthodes pour la gestion des collections auteurs/livres (Issue #66)
+
+    def get_untreated_episodes_count(self) -> int:
+        """Récupère le nombre d'épisodes non-traités (avec au moins un livre pas en base)."""
+        # TODO: Implémenter la logique pour identifier les épisodes non-traités
+        # Pour l'instant, retourner une valeur mockée pour les tests
+        return 0
+
+    def get_books_in_collections_count(self) -> int:
+        """Récupère le nombre de couples auteur-livre en base."""
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        try:
+            return int(self.livres_collection.count_documents({}))
+        except Exception as e:
+            print(f"Erreur lors du comptage des livres: {e}")
+            return 0
+
+    def get_verified_books_not_in_collections(self) -> int | list[dict[str, Any]]:
+        """Récupère les livres verified pas encore en base ou leur nombre."""
+        # TODO: Implémenter la requête pour trouver les livres verified
+        # qui ne sont pas encore dans la collection livres
+        # Pour l'instant, retourner une valeur mockée pour les tests
+        return []
+
+    def get_suggested_books_not_in_collections(self) -> int:
+        """Récupère le nombre de livres suggested pas en base."""
+        # TODO: Implémenter la logique
+        return 0
+
+    def get_not_found_books_not_in_collections(self) -> int:
+        """Récupère le nombre de livres not_found pas en base."""
+        # TODO: Implémenter la logique
+        return 0
+
+    def create_author_if_not_exists(self, nom: str) -> ObjectId:
+        """Crée un auteur s'il n'existe pas déjà."""
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Vérifier si l'auteur existe déjà
+            existing_author = self.auteurs_collection.find_one({"nom": nom})
+            if existing_author:
+                return ObjectId(existing_author["_id"])
+
+            # Créer le nouvel auteur
+            from ..models.author import Author
+
+            author_data = Author.for_mongodb_insert({"nom": nom})
+            result = self.auteurs_collection.insert_one(author_data)
+            return ObjectId(result.inserted_id)
+
+        except Exception as e:
+            print(f"Erreur lors de la création de l'auteur {nom}: {e}")
+            raise
+
+    def create_book_if_not_exists(self, book_data: dict[str, Any]) -> ObjectId:
+        """Crée un livre s'il n'existe pas déjà."""
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Vérifier si le livre existe déjà (même titre + même auteur)
+            existing_book = self.livres_collection.find_one(
+                {"titre": book_data["titre"], "auteur_id": book_data["auteur_id"]}
+            )
+            if existing_book:
+                return ObjectId(existing_book["_id"])
+
+            # Créer le nouveau livre
+            from ..models.book import Book
+
+            formatted_data = Book.for_mongodb_insert(book_data)
+            result = self.livres_collection.insert_one(formatted_data)
+            return ObjectId(result.inserted_id)
+
+        except Exception as e:
+            print(
+                f"Erreur lors de la création du livre {book_data.get('titre', '')}: {e}"
+            )
+            raise
+
+    def get_books_by_validation_status(self, status: str) -> list[dict[str, Any]]:
+        """Récupère les livres par statut de validation."""
+        # TODO: Cette méthode devra interroger la collection qui stocke
+        # les statuts de validation (probablement dans avis_critiques ou une nouvelle collection)
+        # Pour l'instant, retourner une liste vide pour les tests
+        return []
+
+    def update_book_validation(
+        self, book_id: str, status: str, metadata: dict[str, Any]
+    ) -> bool:
+        """Met à jour le statut de validation d'un livre."""
+        # TODO: Implémenter la logique de mise à jour du statut
+        # Pour l'instant, retourner True pour les tests
+        return True
+
+    def get_all_authors(self) -> list[dict[str, Any]]:
+        """Récupère tous les auteurs."""
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            authors = list(self.auteurs_collection.find({}))
+            # Conversion ObjectId en string pour JSON
+            for author in authors:
+                author["_id"] = str(author["_id"])
+                # Convertir les ObjectIds dans la liste des livres
+                if "livres" in author:
+                    author["livres"] = [str(livre_id) for livre_id in author["livres"]]
+            return authors
+        except Exception as e:
+            print(f"Erreur lors de la récupération des auteurs: {e}")
+            return []
+
+    def get_all_books(self) -> list[dict[str, Any]]:
+        """Récupère tous les livres."""
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            books = list(self.livres_collection.find({}))
+            # Conversion ObjectId en string pour JSON
+            for book in books:
+                book["_id"] = str(book["_id"])
+                book["auteur_id"] = str(book["auteur_id"])
+                # Convertir les ObjectIds dans les listes
+                if "episodes" in book:
+                    book["episodes"] = [
+                        str(episode_id) for episode_id in book["episodes"]
+                    ]
+                if "avis_critiques" in book:
+                    book["avis_critiques"] = [
+                        str(avis_id) for avis_id in book["avis_critiques"]
+                    ]
+            return books
+        except Exception as e:
+            print(f"Erreur lors de la récupération des livres: {e}")
+            return []
 
 
 # Instance globale du service

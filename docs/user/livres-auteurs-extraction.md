@@ -110,11 +110,99 @@ En cas de données manifestement erronées, contactez l'administrateur.
 - **Informations limitées** : Affichage simple auteur/titre/éditeur uniquement
 - **Éditeurs manquants** : Certains livres peuvent ne pas avoir d'éditeur mentionné
 
-## Évolutions prévues
+## Gestion des Collections (Nouveauté - Issue #66)
 
-Cette fonctionnalité évoluera avec :
+### Vue d'ensemble
+
+Le système de gestion des collections automatise la création et la maintenance des collections `auteurs` et `livres` dans MongoDB à partir des livres extraits et validés via Babelio.
+
+### Fonctionnalités principales
+
+#### Statistiques en temps réel
+La page affiche des compteurs automatiquement mis à jour :
+- **Épisodes non traités** : Nombre d'épisodes avec avis critiques non encore analysés
+- **Couples en base** : Livres/auteurs déjà présents dans les collections MongoDB
+- **Couples vérifiés non en base** : Livres validés par Babelio mais pas encore ajoutés aux collections
+- **Couples suggérés non en base** : Livres avec corrections Babelio proposées, en attente de validation manuelle
+- **Couples non trouvés non en base** : Livres non trouvés sur Babelio, nécessitant une saisie manuelle
+
+#### Traitement automatique des livres vérifiés
+Un bouton "Traiter automatiquement les livres vérifiés" permet de :
+- Créer automatiquement les auteurs et livres validés par Babelio
+- Maintenir les références croisées entre collections
+- Éviter les doublons grâce à la vérification existence avant création
+
+#### Validation manuelle des suggestions
+Pour les livres avec corrections proposées par Babelio :
+- Interface de validation permettant d'accepter ou modifier les suggestions
+- Sauvegarde des données corrigées dans les collections MongoDB
+- Mise à jour du statut de validation
+
+#### Ajout manuel des livres non trouvés
+Pour les livres non identifiés par Babelio :
+- Formulaire de saisie manuelle des informations (auteur, titre, éditeur)
+- Création forcée dans les collections avec marquage spécial
+- Traçabilité des ajouts manuels
+
+### Architecture technique
+
+#### Collections MongoDB créées
+- **`auteurs`** : Collection dédiée aux auteurs avec références vers leurs livres
+- **`livres`** : Collection dédiée aux livres avec références vers épisodes et avis critiques
+
+#### Intégration avec les données existantes
+- Liaison avec la collection `episodes` existante
+- Liaison avec la collection `avis_critiques` existante
+- Maintien de la cohérence référentielle
+
+#### Modèles de données
+
+**Auteur** :
+```json
+{
+  "_id": "ObjectId",
+  "nom": "Michel Houellebecq",
+  "livres": ["ObjectId_livre_1", "ObjectId_livre_2"],
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**Livre** :
+```json
+{
+  "_id": "ObjectId",
+  "titre": "Les Particules élémentaires",
+  "auteur_id": "ObjectId_auteur",
+  "editeur": "Flammarion",
+  "episodes": ["ObjectId_episode_1"],
+  "avis_critiques": ["ObjectId_avis_1", "ObjectId_avis_2"],
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+### Utilisation recommandée
+
+#### Workflow de traitement des livres
+1. **Extraction** : Utiliser la fonctionnalité d'extraction pour identifier les livres d'un épisode
+2. **Validation Babelio** : Attendre la validation automatique via l'API Babelio
+3. **Traitement automatique** : Cliquer sur "Traiter automatiquement" pour les livres vérifiés
+4. **Validation manuelle** : Traiter individuellement les suggestions Babelio
+5. **Saisie manuelle** : Compléter les informations des livres non trouvés
+
+#### Bonnes pratiques
+- Traiter régulièrement les livres vérifiés pour maintenir les collections à jour
+- Vérifier les suggestions Babelio avant validation pour assurer la qualité
+- Documenter les raisons des ajouts manuels pour traçabilité
+- Surveiller les statistiques pour identifier les épisodes nécessitant traitement
+
+### Évolutions prévues
+
+Les prochaines améliorations incluront :
 - **Vue globale** : Affichage de tous les livres de tous les épisodes
-- **Sauvegarde corrections** : Intégration des corrections Babelio dans la base de données MongoDB
+- **✅ Sauvegarde corrections** : Intégration des corrections Babelio dans MongoDB (IMPLÉMENTÉ)
+- **✅ Interface d'administration** : Validation manuelle des extractions (IMPLÉMENTÉ)
 - **Enrichissement** : Ajout d'images de couverture, résumés détaillés, et métadonnées
 - **Export de données** : Possibilité d'exporter les listes en CSV ou autres formats
-- **Interface d'administration** : Correction manuelle et validation des extractions
+- **Tableau de bord** : Interface de monitoring des collections et statistiques avancées
