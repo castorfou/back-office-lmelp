@@ -434,6 +434,7 @@ export default {
 
   async mounted() {
     await this.loadEpisodesWithReviews();
+    await this.loadCollectionsStatistics();
   },
 
   methods: {
