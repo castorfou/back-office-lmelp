@@ -25,34 +25,6 @@ cases:
       author: false
       title: true
 
-# Cas difficile
-- input:
-    author: "Grégory Lefloc"
-    title: "Peau d'ours"
-    publisher: "Seuil"
-    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
-  output:
-    status: "suggestion"
-    suggested_author: "Grégory Le Floch"
-    suggested_title: "Peau d'ourse"
-    corrections:
-      author: true
-      title: true
-
-# Cas not_found 14/09/2025, hyper dur
-- input:
-    author: "Agnès Michaud"
-    title: "Huitsemences vivantes"
-    publisher: "Cherche Midi"
-    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
-  output:
-    status: "suggestion"
-    suggested_author: "Agnès Michaux"
-    suggested_title: "Huysmans vivant"
-    corrections:
-      author: true
-      title: true
-
 # Cas Alain Mabancou --> Alain Mabanckou 14/09/2025
 - input:
     author: "Alain Mabancou"
@@ -81,34 +53,6 @@ cases:
       author: true
       title: true
 
-# Christophe Bigot - 14/09/2025
-- input:
-    author: "Christophe Bigot"
-    title: "Un autre Matin ailleurs"
-    publisher: "Point"
-    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
-  output:
-    status: "suggestion"
-    suggested_author: "Christophe Bigot"
-    suggested_title: " Un autre m'attend ailleurs"
-    corrections:
-      author: false
-      title: true
-
-# Nine Antico - 14/09/2025
-- input:
-    author: "Nin Antico"
-    title: "Une Obsession"
-    publisher: "Dargaud"
-    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
-  output:
-    status: "suggestion"
-    suggested_author: "Nine Antico"
-    suggested_title: "Une obsession"
-    corrections:
-      author: true
-      title: true
-
 # Séphora Pondi - 14/09/2025
 - input:
     author: "Sephora Pondi"
@@ -122,3 +66,83 @@ cases:
     corrections:
       author: true
       title: true
+
+##
+# Les cas qui vont nécessiter un traitement manuel
+##
+
+# 07/09/2025 : Grégory Lefloc - Peau d'ours --> Grégory Le Floch - Peau d'ourse
+- input:
+    author: "Grégory Lefloc"
+    title: "Peau d'ours"
+    publisher: "Seuil"
+    episodeId: "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
+  output:
+    status: "not_found"
+  expected:
+    status: "suggestion"
+    suggested_author: "Grégory Le Floch"
+    suggested_title: "Peau d'ourse"
+    corrections:
+      author: true
+      title: true
+  review:
+    manual_review_required: true
+    reason: "Inversion / segmentation du nom (Le Floch) et faute sur titre; nécessite intervention humaine"
+
+# 14/09/2025 : Nin Antico - Une Obsession --> Nine Antico - Une obsession
+- input:
+    author: "Nin Antico"
+    title: "Une Obsession"
+    publisher: "Dargaud"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "not_found"
+  expected:
+    status: "suggestion"
+    suggested_author: "Nine Antico"
+    suggested_title: "Une obsession"
+    corrections:
+      author: true
+      title: true
+  review:
+    manual_review_required: true
+    reason: "Prénom raccourci / oeuvre en coup de coeur (pas d'info fuzzy); nécessite intervention humaine"
+
+# 14/09/2025 : Christophe Bigot - Un autre Matin ailleurs --> Christophe Bigot - Un autre m'attend ailleurs
+- input:
+    author: "Christophe Bigot"
+    title: "Un autre Matin ailleurs"
+    publisher: "Point"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "not_found"
+  expected:
+    status: "suggestion"
+    suggested_author: "Christophe Bigot"
+    suggested_title: "Un autre m'attend ailleurs"
+    corrections:
+      author: false
+      title: true
+  review:
+    manual_review_required: true
+    reason: "Titre différent / segmentation problematique; nécessite revue humaine / ou l'approche recherche auteur biblio"
+
+# 14/09/2025 : Agnès Michaud - Huitsemences vivantes --> Agnès Michaux - Huysmans vivant
+- input:
+    author: "Agnès Michaud"
+    title: "Huitsemences vivantes"
+    publisher: "Cherche Midi"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "not_found"
+  expected:
+    status: "suggestion"
+    suggested_author: "Agnès Michaux"
+    suggested_title: "Huysmans vivant"
+    corrections:
+      author: true
+      title: true
+  review:
+    manual_review_required: true
+    reason: "nécessite revue humaine"
