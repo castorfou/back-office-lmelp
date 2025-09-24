@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import LivresAuteurs from '../../src/views/LivresAuteurs.vue';
-import { livresAuteursService } from '../../src/services/api.js';
+import { livresAuteursService, episodeService } from '../../src/services/api.js';
 
 // Mock du service API
 vi.mock('../../src/services/api.js', () => ({
@@ -17,6 +17,7 @@ vi.mock('../../src/services/api.js', () => ({
     // Nouveaux endpoints pour Issue #66
     getCollectionsStatistics: vi.fn(),
     autoProcessVerifiedBooks: vi.fn(),
+    autoProcessVerified: vi.fn(),
     getBooksByValidationStatus: vi.fn(),
     validateSuggestion: vi.fn(),
     addManualBook: vi.fn(),
@@ -46,12 +47,80 @@ describe('LivresAuteurs - Tests simplifiés', () => {
   let wrapper;
   let router;
 
+  // TDD: Test pour auto-processing automatique au chargement des livres
+  describe('Auto-processing automatique', () => {
+    it('should automatically process verified books in background after loading books for episode', async () => {
+      const mockBooks = [
+        {
+          episode_oid: 'test-episode-id',
+          auteur: 'Maria Pourchet',
+          titre: 'Tressaillir',
+          editeur: 'Stock',
+          babelio_verification_status: 'verified',
+          programme: true
+        }
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+      livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue({
+        success: true,
+        processed_count: 1,
+        created_authors: 1,
+        created_books: 1
+      });
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [{ path: '/', component: LivresAuteurs }]
+      });
+
+      const wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      // Simuler la sélection d'un épisode
+      wrapper.vm.selectedEpisodeId = 'test-episode-id';
+
+      // Appeler loadBooksForEpisode
+      await wrapper.vm.loadBooksForEpisode();
+
+      // L'auto-processing se lance en arrière-plan, attendre qu'il s'exécute
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Vérifier que autoProcessVerifiedBooks a été appelé automatiquement en arrière-plan
+      expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalled();
+    });
+  });
+
   const mockEpisodesWithReviews = [
     {
       _id: { $oid: '6865f995a1418e3d7c63d076' }, // pragma: allowlist secret
       titre: 'Les critiques littéraires du Masque & la Plume depuis le festival "Quai du Polar" à Lyon',
       date: '29 juin 2025',
       review_count: 4
+    }
+  ];
+
+  const mockEpisode = {
+    id: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+    titre: 'Les critiques littéraires du Masque & la Plume depuis le festival "Quai du Polar" à Lyon',
+    date: '29 juin 2025',
+    review_count: 4
+  };
+
+  const mockBooks = [
+    {
+      episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+      auteur: 'Auteur Test',
+      titre: 'Livre Test',
+      editeur: 'Éditeur Test',
+      validation_status: null,
+      suggested_author: null,
+      suggested_title: null,
+      programme: false,
+      coup_de_coeur: false
     }
   ];
 
@@ -221,17 +290,8 @@ describe('LivresAuteurs - Tests simplifiés', () => {
   // ========== NOUVEAUX TESTS TDD POUR ISSUE #66 ==========
 
   describe('Collections Management Dashboard (Issue #66)', () => {
-    it('affiche le dashboard des statistiques collections', async () => {
-      const mockStatistics = {
-        episodes_non_traites: 25,
-        couples_en_base: 142,
-        couples_verified_pas_en_base: 18,
-        couples_suggested_pas_en_base: 12,
-        couples_not_found_pas_en_base: 8
-      };
-
+    it('ne doit PAS afficher le dashboard global des statistiques collections', async () => {
       livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
-      livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockStatistics);
 
       wrapper = mount(LivresAuteurs, {
         global: {
@@ -240,18 +300,17 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       });
 
       await wrapper.vm.$nextTick();
-      await wrapper.vm.loadCollectionsStatistics();
-      await wrapper.vm.$nextTick();
 
-      // Vérifier que les statistiques sont affichées
-      expect(wrapper.text()).toContain('Épisodes non traités : 25');
-      expect(wrapper.text()).toContain('Couples en base : 142');
-      expect(wrapper.text()).toContain('Verified pas en base : 18');
-      expect(wrapper.text()).toContain('Suggested pas en base : 12');
-      expect(wrapper.text()).toContain('Not found pas en base : 8');
+      // Vérifier que le dashboard global n'est PAS affiché
+      // Note: Les statistiques doivent être sur la page Dashboard principale
+      expect(wrapper.text()).not.toContain('Épisodes non traités :');
+      expect(wrapper.text()).not.toContain('Couples en base :');
+      expect(wrapper.text()).not.toContain('Verified pas en base :');
+      expect(wrapper.text()).not.toContain('Suggested pas en base :');
+      expect(wrapper.text()).not.toContain('Not found pas en base :');
     });
 
-    it('affiche le bouton de traitement automatique', async () => {
+    it('ne doit PAS afficher le bouton de traitement automatique global', async () => {
       livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
 
       wrapper = mount(LivresAuteurs, {
@@ -262,22 +321,14 @@ describe('LivresAuteurs - Tests simplifiés', () => {
 
       await wrapper.vm.$nextTick();
 
-      // Vérifier que le bouton de traitement automatique est présent
+      // Vérifier que le bouton de traitement automatique global n'est PAS présent
+      // Note: Le traitement doit être fait ligne par ligne selon le statut de validation
       const autoProcessButton = wrapper.find('[data-testid="auto-process-button"]');
-      expect(autoProcessButton.exists()).toBe(true);
-      expect(autoProcessButton.text()).toContain('Traitement automatique');
+      expect(autoProcessButton.exists()).toBe(false);
     });
 
-    it('traite automatiquement les livres verified', async () => {
-      const mockProcessResult = {
-        processed_count: 15,
-        created_authors: 8,
-        created_books: 15,
-        updated_references: 25
-      };
-
+    it('ne doit PAS permettre le traitement automatique global', async () => {
       livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
-      livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue(mockProcessResult);
 
       wrapper = mount(LivresAuteurs, {
         global: {
@@ -287,35 +338,41 @@ describe('LivresAuteurs - Tests simplifiés', () => {
 
       await wrapper.vm.$nextTick();
 
-      // Cliquer sur le bouton de traitement automatique
+      // Vérifier qu'il n'y a pas de bouton de traitement automatique global
       const autoProcessButton = wrapper.find('[data-testid="auto-process-button"]');
-      await autoProcessButton.trigger('click');
-      await wrapper.vm.$nextTick();
+      expect(autoProcessButton.exists()).toBe(false);
 
-      // Vérifier que le service a été appelé
-      expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalled();
-
-      // Vérifier que les résultats sont affichés
-      expect(wrapper.text()).toContain('15 livres traités');
-      expect(wrapper.text()).toContain('8 auteurs créés');
+      // Vérifier qu'il n'y a pas de résultats de traitement global affichés
+      expect(wrapper.text()).not.toContain('livres traités');
+      expect(wrapper.text()).not.toContain('auteurs créés');
     });
   });
 
-  describe('Manual Validation Interface (Issue #66)', () => {
-    it('affiche les livres suggested avec interface de validation', async () => {
-      const mockSuggestedBooks = [
+  // Note: Les tests pour validation manuelle, ajout manuel et gestion des collections
+  // sont supprimés car ces fonctionnalités doivent être implémentées ligne par ligne
+  // dans le tableau des livres, et non pas comme un dashboard global séparé.
+
+  // ========== NOUVEAUX TESTS TDD POUR TÂCHE 2: BOUTONS PAR LIGNE ==========
+
+  describe('Per-Line Action Buttons (Tâche 2)', () => {
+    it('affiche un bouton "Traiter automatiquement" pour les livres verified', async () => {
+      const mockBooksWithVerified = [
         {
-          id: '64f1234567890abcdef12345', // pragma: allowlist secret
-          auteur: 'Michel Houllebeck',
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Michel Houellebecq',
           titre: 'Les Particules élémentaires',
-          validation_status: 'suggested',
+          editeur: 'Flammarion',
+          validation_status: 'verified',
           suggested_author: 'Michel Houellebecq',
-          suggested_title: 'Les Particules élémentaires'
+          suggested_title: 'Les Particules élémentaires',
+          programme: false,
+          coup_de_coeur: false
         }
       ];
 
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
       livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
-      livresAuteursService.getBooksByValidationStatus.mockResolvedValue(mockSuggestedBooks);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithVerified);
 
       wrapper = mount(LivresAuteurs, {
         global: {
@@ -324,25 +381,558 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       });
 
       await wrapper.vm.$nextTick();
-      await wrapper.vm.loadSuggestedBooks();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
       await wrapper.vm.$nextTick();
 
-      // Vérifier que les livres suggested sont affichés
-      expect(wrapper.text()).toContain('Michel Houllebeck');
-      expect(wrapper.text()).toContain('Suggestion : Michel Houellebecq');
-
-      // Vérifier que le bouton de validation est présent
-      const validateButton = wrapper.find('[data-testid="validate-suggestion-button"]');
-      expect(validateButton.exists()).toBe(true);
+      // Vérifier qu'un bouton "Traiter automatiquement" est affiché pour le livre verified
+      const autoProcessButton = wrapper.find('[data-testid="auto-process-verified-btn"]');
+      expect(autoProcessButton.exists()).toBe(true);
+      expect(autoProcessButton.text()).toContain('Traiter automatiquement');
     });
 
-    it('valide manuellement une suggestion', async () => {
+    it('affiche un bouton "Valider suggestion" pour les livres suggested', async () => {
+      const mockBooksWithSuggested = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Michel Houllebeck',
+          titre: 'Les Particules élémentaires',
+          editeur: 'Flammarion',
+          validation_status: 'suggested',
+          suggested_author: 'Michel Houellebecq',
+          suggested_title: 'Les Particules élémentaires',
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithSuggested);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'un bouton "Valider suggestion" est affiché pour le livre suggested
+      const validateButton = wrapper.find('[data-testid="validate-suggestion-btn"]');
+      expect(validateButton.exists()).toBe(true);
+      expect(validateButton.text()).toContain('Valider suggestion');
+    });
+
+    it('affiche un bouton "Ajouter manuellement" pour les livres not_found', async () => {
+      const mockBooksWithNotFound = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Auteur Inconnu',
+          titre: 'Livre Introuvable',
+          editeur: 'Éditeur Inconnu',
+          validation_status: 'not_found',
+          suggested_author: null,
+          suggested_title: null,
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithNotFound);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'un bouton "Ajouter manuellement" est affiché pour le livre not_found
+      const addManualButton = wrapper.find('[data-testid="add-manual-btn"]');
+      expect(addManualButton.exists()).toBe(true);
+      expect(addManualButton.text()).toContain('Ajouter manuellement');
+    });
+
+    it('n\'affiche aucun bouton pour les livres sans validation_status', async () => {
+      const mockBooksWithoutStatus = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Auteur Normal',
+          titre: 'Livre Normal',
+          editeur: 'Éditeur Normal',
+          validation_status: null,
+          suggested_author: null,
+          suggested_title: null,
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithoutStatus);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'aucun bouton d'action n'est affiché pour les livres sans statut
+      expect(wrapper.find('[data-testid="auto-process-verified-btn"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="validate-suggestion-btn"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="add-manual-btn"]').exists()).toBe(false);
+    });
+
+    it('ajoute une colonne "Actions" dans l\'en-tête du tableau', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'une colonne "Actions" est présente dans l'en-tête
+      const actionsHeader = wrapper.find('[data-testid="actions-header"]');
+      expect(actionsHeader.exists()).toBe(true);
+      expect(actionsHeader.text()).toContain('Actions');
+    });
+  });
+
+  // ========== TESTS TDD POUR LA COMMUNICATION AVEC BIBLIOVALIADATIONCELL ==========
+
+  describe('BiblioValidationCell Communication (Tâche 4)', () => {
+    const mockEpisode = {
+      _id: '64f1234567890abcdef12345',
+      titre: 'Test Episode'
+    };
+
+    const mockBooksWithValidation = [
+      {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Maria Pourchet',
+        titre: 'Feu',
+        editeur: 'Gallimard',
+        programme: false,
+        coup_de_coeur: false
+      },
+      {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Michel Houllebeck',
+        titre: 'Les Particules élémentaires',
+        editeur: 'Flammarion',
+        programme: false,
+        coup_de_coeur: false
+      },
+      {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Auteur Inconnu',
+        titre: 'Livre Introuvable',
+        editeur: 'Éditeur Inconnu',
+        programme: false,
+        coup_de_coeur: false
+      }
+    ];
+
+    it('affiche le bouton de traitement automatique pour les livres verified', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // Simuler un statut "verified" depuis BiblioValidationCell pour le livre réel dans les données
+      wrapper.vm.handleValidationStatusChange({
+        bookKey: '64f1234567890abcdef12345-Maria Pourchet-Feu',
+        status: 'verified',
+        suggestion: {
+          author: 'Maria Pourchet',
+          title: 'Feu',
+          publisher: 'Gallimard'
+        },
+        validationResult: { status: 'verified' }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      const autoProcessBtn = wrapper.find('[data-testid="auto-process-verified-btn"]');
+      expect(autoProcessBtn.exists()).toBe(true);
+      expect(autoProcessBtn.text()).toContain('Traiter automatiquement');
+    });
+
+    it('affiche le bouton de validation pour les livres corrected/suggestion', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // Simuler un statut "corrected" depuis BiblioValidationCell
+      wrapper.vm.handleValidationStatusChange({
+        bookKey: '64f1234567890abcdef12345-Michel Houllebeck-Les Particules élémentaires',
+        status: 'corrected',
+        suggestion: {
+          author: 'Michel Houellebecq',
+          title: 'Les Particules élémentaires',
+          publisher: 'Flammarion'
+        },
+        validationResult: { status: 'corrected' }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      const validateBtn = wrapper.find('[data-testid="validate-suggestion-btn"]');
+      expect(validateBtn.exists()).toBe(true);
+      expect(validateBtn.text()).toContain('Valider');
+    });
+
+    it('affiche le bouton d\'ajout manuel pour les livres not_found', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // Simuler un statut "not_found" depuis BiblioValidationCell
+      wrapper.vm.handleValidationStatusChange({
+        bookKey: '64f1234567890abcdef12345-Auteur Inconnu-Livre Introuvable',
+        status: 'not_found',
+        suggestion: null,
+        validationResult: { status: 'not_found' }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      const manualAddBtn = wrapper.find('[data-testid="manual-add-btn"]');
+      expect(manualAddBtn.exists()).toBe(true);
+      expect(manualAddBtn.text()).toContain('Ajouter manuellement');
+    });
+
+    it('traite automatiquement les livres verified', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+      livresAuteursService.autoProcessVerified.mockResolvedValue({
+        success: true,
+        author_id: '64f1234567890abcdef11111',
+        book_id: '64f1234567890abcdef22222'
+      });
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // Simuler un statut "verified" et cliquer sur traitement automatique
+      wrapper.vm.handleValidationStatusChange({
+        bookKey: '64f1234567890abcdef12345-Maria Pourchet-Feu',
+        status: 'verified',
+        suggestion: {
+          author: 'Maria Pourchet',
+          title: 'Feu',
+          publisher: 'Gallimard'
+        },
+        validationResult: { status: 'verified' }
+      });
+
+      await wrapper.vm.$nextTick();
+
+      const autoProcessBtn = wrapper.find('[data-testid="auto-process-verified-btn"]');
+      await autoProcessBtn.trigger('click');
+
+      // L'endpoint auto-process ne prend aucun paramètre
+      expect(livresAuteursService.autoProcessVerified).toHaveBeenCalledWith();
+    });
+  });
+
+  // ========== NOUVEAUX TESTS TDD POUR CORRECTION API FORMATS ==========
+
+  describe('API Format Corrections (TDD)', () => {
+    it('envoie les données au bon format pour validateSuggestion', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      const wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Simuler un livre avec suggestion
+      const book = {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Alain Mabancou',
+        titre: 'Ramsés de Paris',
+        editeur: 'Seuil'
+      };
+
+      // Stocker les données de suggestion
+      const bookKey = '64f1234567890abcdef12345-Alain Mabancou-Ramsés de Paris';
+      wrapper.vm.validationSuggestions.set(bookKey, {
+        author: 'Alain Mabanckou',
+        title: 'Ramsés de Paris',
+        publisher: 'Seuil'
+      });
+
+      wrapper.vm.currentBookToValidate = book;
+
+      // Appeler la validation
+      await wrapper.vm.confirmValidation();
+
+      // Vérifier le bon format API
+      expect(livresAuteursService.validateSuggestion).toHaveBeenCalledWith({
+        id: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Alain Mabancou',
+        titre: 'Ramsés de Paris',
+        editeur: 'Seuil',
+        user_validated_author: 'Alain Mabanckou',
+        user_validated_title: 'Ramsés de Paris'
+      });
+    });
+
+    it('envoie les données au bon format pour addManualBook', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      const wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Simuler un livre à ajouter manuellement
+      const book = {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Nine Antico',
+        titre: 'Une obsession'
+      };
+
+      wrapper.vm.currentBookToAdd = book;
+      wrapper.vm.manualBookForm = {
+        author: 'Nine Antico',
+        title: 'Une obsession',
+        publisher: 'Dargaud'
+      };
+
+      // Appeler l'ajout manuel
+      await wrapper.vm.submitManualAdd();
+
+      // Vérifier le bon format API
+      expect(livresAuteursService.addManualBook).toHaveBeenCalledWith({
+        id: '64f1234567890abcdef12345', // pragma: allowlist secret
+        user_entered_author: 'Nine Antico',
+        user_entered_title: 'Une obsession',
+        user_entered_publisher: 'Dargaud'
+      });
+    });
+
+    it('affiche correctement les suggestions dans le modal', async () => {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithValidation);
+
+      const wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Simuler un livre avec suggestion
+      const book = {
+        episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+        auteur: 'Alain Mabancou',
+        titre: 'Ramsés de Paris',
+        editeur: 'Seuil'
+      };
+
+      // Stocker les données de suggestion
+      const bookKey = '64f1234567890abcdef12345-Alain Mabancou-Ramsés de Paris';
+      wrapper.vm.validationSuggestions.set(bookKey, {
+        author: 'Alain Mabanckou',
+        title: 'Ramsés de Paris',
+        publisher: 'Seuil'
+      });
+
+      wrapper.vm.currentBookToValidate = book;
+      wrapper.vm.showValidationModal = true;
+      await wrapper.vm.$nextTick();
+
+      // Vérifier que les suggestions sont affichées
+      const modal = wrapper.find('[data-testid="validation-modal"]');
+      expect(modal.exists()).toBe(true);
+      expect(modal.text()).toContain('Alain Mabanckou'); // Suggestion author
+      expect(modal.text()).toContain('Ramsés de Paris'); // Suggestion title
+    });
+  });
+
+// ========== NOUVEAUX TESTS TDD POUR TÂCHE 3: FORMULAIRES MODAUX ==========
+
+  describe('Modal Forms (Tâche 3)', () => {
+    it('ouvre un modal de validation pour les livres suggested', async () => {
+      const mockBooksWithSuggested = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Michel Houllebeck',
+          titre: 'Les Particules élémentaires',
+          editeur: 'Flammarion',
+          validation_status: 'suggested',
+          suggested_author: 'Michel Houellebecq',
+          suggested_title: 'Les Particules élémentaires',
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithSuggested);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Cliquer sur le bouton de validation
+      const validateButton = wrapper.find('[data-testid="validate-suggestion-btn"]');
+      await validateButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'un modal s'ouvre pour la validation
+      const modal = wrapper.find('[data-testid="validation-modal"]');
+      expect(modal.exists()).toBe(true);
+      expect(modal.isVisible()).toBe(true);
+
+      // Vérifier que le modal contient les informations du livre
+      expect(modal.text()).toContain('Michel Houllebeck');
+      expect(modal.text()).toContain('Les Particules élémentaires');
+      expect(modal.text()).toContain('Michel Houellebecq');
+    });
+
+    it('ouvre un modal d\'ajout manuel pour les livres not_found', async () => {
+      const mockBooksWithNotFound = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Auteur Inconnu',
+          titre: 'Livre Introuvable',
+          editeur: 'Éditeur Inconnu',
+          validation_status: 'not_found',
+          suggested_author: null,
+          suggested_title: null,
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithNotFound);
+
+      wrapper = mount(LivresAuteurs, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+
+      // Cliquer sur le bouton d'ajout manuel
+      const addButton = wrapper.find('[data-testid="add-manual-btn"]');
+      await addButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      // Vérifier qu'un modal s'ouvre pour l'ajout manuel
+      const modal = wrapper.find('[data-testid="manual-add-modal"]');
+      expect(modal.exists()).toBe(true);
+      expect(modal.isVisible()).toBe(true);
+
+      // Vérifier que le modal contient des champs de saisie
+      expect(modal.find('[data-testid="author-input"]').exists()).toBe(true);
+      expect(modal.find('[data-testid="title-input"]').exists()).toBe(true);
+      expect(modal.find('[data-testid="publisher-input"]').exists()).toBe(true);
+    });
+
+    it('permet de valider une suggestion via le modal', async () => {
+      const mockBooksWithSuggested = [
+        {
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Michel Houllebeck',
+          titre: 'Les Particules élémentaires',
+          editeur: 'Flammarion',
+          validation_status: 'suggested',
+          suggested_author: 'Michel Houellebecq',
+          suggested_title: 'Les Particules élémentaires',
+          programme: false,
+          coup_de_coeur: false
+        }
+      ];
+
       const mockValidationResult = {
         success: true,
         author_id: '64f1234567890abcdef11111', // pragma: allowlist secret
         book_id: '64f1234567890abcdef22222' // pragma: allowlist secret
       };
 
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithSuggested);
       livresAuteursService.validateSuggestion.mockResolvedValue(mockValidationResult);
 
       wrapper = mount(LivresAuteurs, {
@@ -352,60 +942,52 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       });
 
       await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
 
-      const bookData = {
-        id: '64f1234567890abcdef12345', // pragma: allowlist secret
-        user_validated_author: 'Michel Houellebecq',
-        user_validated_title: 'Les Particules élémentaires'
-      };
+      // Ouvrir le modal
+      const validateButton = wrapper.find('[data-testid="validate-suggestion-btn"]');
+      await validateButton.trigger('click');
+      await wrapper.vm.$nextTick();
 
-      await wrapper.vm.validateSuggestion(bookData);
+      // Confirmer la validation dans le modal
+      const confirmButton = wrapper.find('[data-testid="confirm-validation-btn"]');
+      await confirmButton.trigger('click');
+      await wrapper.vm.$nextTick();
 
-      // Vérifier que le service a été appelé avec les bonnes données
-      expect(livresAuteursService.validateSuggestion).toHaveBeenCalledWith(bookData);
+      // Vérifier que le service a été appelé
+      expect(livresAuteursService.validateSuggestion).toHaveBeenCalled();
+
+      // Vérifier que le modal se ferme
+      const modal = wrapper.find('[data-testid="validation-modal"]');
+      expect(modal.exists()).toBe(false);
     });
-  });
 
-  describe('Manual Add Interface (Issue #66)', () => {
-    it('affiche les livres not_found avec interface d\'ajout manuel', async () => {
-      const mockNotFoundBooks = [
+    it('permet d\'ajouter manuellement un livre via le modal', async () => {
+      const mockBooksWithNotFound = [
         {
-          id: '64f1234567890abcdef12345', // pragma: allowlist secret
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
           auteur: 'Auteur Inconnu',
           titre: 'Livre Introuvable',
-          validation_status: 'not_found'
+          editeur: 'Éditeur Inconnu',
+          validation_status: 'not_found',
+          suggested_author: null,
+          suggested_title: null,
+          programme: false,
+          coup_de_coeur: false
         }
       ];
 
-      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
-      livresAuteursService.getBooksByValidationStatus.mockResolvedValue(mockNotFoundBooks);
-
-      wrapper = mount(LivresAuteurs, {
-        global: {
-          plugins: [router]
-        }
-      });
-
-      await wrapper.vm.$nextTick();
-      await wrapper.vm.loadNotFoundBooks();
-      await wrapper.vm.$nextTick();
-
-      // Vérifier que les livres not_found sont affichés
-      expect(wrapper.text()).toContain('Auteur Inconnu');
-      expect(wrapper.text()).toContain('Livre Introuvable');
-
-      // Vérifier que le bouton d'ajout manuel est présent
-      const addManualButton = wrapper.find('[data-testid="add-manual-book-button"]');
-      expect(addManualButton.exists()).toBe(true);
-    });
-
-    it('ajoute manuellement un livre not_found', async () => {
       const mockAddResult = {
         success: true,
         author_id: '64f1234567890abcdef11111', // pragma: allowlist secret
         book_id: '64f1234567890abcdef22222' // pragma: allowlist secret
       };
 
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithNotFound);
       livresAuteursService.addManualBook.mockResolvedValue(mockAddResult);
 
       wrapper = mount(LivresAuteurs, {
@@ -415,60 +997,61 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       });
 
       await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
 
-      const bookData = {
-        id: '64f1234567890abcdef12345', // pragma: allowlist secret
-        user_entered_author: 'Nouvel Auteur',
-        user_entered_title: 'Nouveau Titre',
-        user_entered_publisher: 'Nouvel Éditeur'
-      };
+      // Ouvrir le modal
+      const addButton = wrapper.find('[data-testid="add-manual-btn"]');
+      await addButton.trigger('click');
+      await wrapper.vm.$nextTick();
 
-      await wrapper.vm.addManualBook(bookData);
+      // Remplir les champs
+      const authorInput = wrapper.find('[data-testid="author-input"]');
+      const titleInput = wrapper.find('[data-testid="title-input"]');
+      const publisherInput = wrapper.find('[data-testid="publisher-input"]');
+
+      await authorInput.setValue('Nouvel Auteur');
+      await titleInput.setValue('Nouveau Titre');
+      await publisherInput.setValue('Nouvel Éditeur');
+
+      // Soumettre le formulaire
+      const submitButton = wrapper.find('[data-testid="submit-manual-add-btn"]');
+      await submitButton.trigger('click');
+      await wrapper.vm.$nextTick();
 
       // Vérifier que le service a été appelé avec les bonnes données
-      expect(livresAuteursService.addManualBook).toHaveBeenCalledWith(bookData);
-    });
-  });
+      expect(livresAuteursService.addManualBook).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_entered_author: 'Nouvel Auteur',
+          user_entered_title: 'Nouveau Titre',
+          user_entered_publisher: 'Nouvel Éditeur'
+        })
+      );
 
-  describe('Collections Management (Issue #66)', () => {
-    it('affiche la liste des auteurs créés', async () => {
-      const mockAuthors = [
-        {
-          id: '64f1234567890abcdef11111', // pragma: allowlist secret
-          nom: 'Michel Houellebecq',
-          livres: ['64f1234567890abcdef22222'], // pragma: allowlist secret
-          created_at: '2024-01-01T10:00:00Z'
-        }
-      ];
-
-      livresAuteursService.getAllAuthors.mockResolvedValue(mockAuthors);
-
-      wrapper = mount(LivresAuteurs, {
-        global: {
-          plugins: [router]
-        }
-      });
-
-      await wrapper.vm.$nextTick();
-      await wrapper.vm.loadAllAuthors();
-      await wrapper.vm.$nextTick();
-
-      // Vérifier que les auteurs sont affichés
-      expect(wrapper.text()).toContain('Michel Houellebecq');
+      // Vérifier que le modal se ferme
+      const modal = wrapper.find('[data-testid="manual-add-modal"]');
+      expect(modal.exists()).toBe(false);
     });
 
-    it('affiche la liste des livres créés', async () => {
-      const mockBooks = [
+    it('permet de fermer les modaux avec le bouton Annuler', async () => {
+      const mockBooksWithSuggested = [
         {
-          id: '64f1234567890abcdef22222', // pragma: allowlist secret
+          episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret // pragma: allowlist secret
+          auteur: 'Michel Houllebeck',
           titre: 'Les Particules élémentaires',
-          auteur_id: '64f1234567890abcdef11111', // pragma: allowlist secret
           editeur: 'Flammarion',
-          created_at: '2024-01-01T10:00:00Z'
+          validation_status: 'suggested',
+          suggested_author: 'Michel Houellebecq',
+          suggested_title: 'Les Particules élémentaires',
+          programme: false,
+          coup_de_coeur: false
         }
       ];
 
-      livresAuteursService.getAllBooks.mockResolvedValue(mockBooks);
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooksWithSuggested);
 
       wrapper = mount(LivresAuteurs, {
         global: {
@@ -477,12 +1060,27 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       });
 
       await wrapper.vm.$nextTick();
-      await wrapper.vm.loadAllBooks();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
       await wrapper.vm.$nextTick();
 
-      // Vérifier que les livres sont affichés
-      expect(wrapper.text()).toContain('Les Particules élémentaires');
-      expect(wrapper.text()).toContain('Flammarion');
+      // Ouvrir le modal
+      const validateButton = wrapper.find('[data-testid="validate-suggestion-btn"]');
+      await validateButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      // Vérifier que le modal est ouvert
+      let modal = wrapper.find('[data-testid="validation-modal"]');
+      expect(modal.exists()).toBe(true);
+
+      // Cliquer sur Annuler
+      const cancelButton = wrapper.find('[data-testid="cancel-modal-btn"]');
+      await cancelButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      // Vérifier que le modal se ferme
+      modal = wrapper.find('[data-testid="validation-modal"]');
+      expect(modal.exists()).toBe(false);
     });
   });
 });

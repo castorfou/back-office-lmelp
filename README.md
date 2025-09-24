@@ -141,6 +141,14 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📊 **Deux sources** : "Livres discutés au programme" + "Coups de cœur des critiques"
 - 🎯 **Vue par épisode** : Sélection d'épisodes avec avis critiques
 
+#### Gestion des Collections ⭐ **NOUVEAU**
+- 📊 **Dashboard statistiques** : Vue globale des collections (épisodes traités, couples en base)
+- 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés dans les collections MongoDB
+- ✅ **Validation manuelle** : Interface pour corriger et valider les suggestions d'auteurs/livres
+- ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées
+- 🔗 **Gestion des références** : Liaison automatique entre épisodes, avis critiques, auteurs et livres
+- 📚 **Collections MongoDB** : Création et gestion des collections `auteurs` et `livres`
+
 #### Vérification Orthographique Babelio ⭐ **NOUVEAU**
 - ✅ **Auteurs** : Vérification et correction automatique d'orthographe
 - 📚 **Livres** : Validation croisée titre/auteur avec base Babelio
@@ -199,6 +207,15 @@ PUT /api/episodes/{id}
 GET /api/livres-auteurs           # Tous les livres extraits
 GET /api/livres-auteurs?episode_oid={id}  # Livres d'un épisode
 GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
+
+# Gestion des collections ⭐ NOUVEAU
+GET /api/livres-auteurs/statistics           # Statistiques des collections
+POST /api/livres-auteurs/auto-process-verified  # Traitement automatique des livres vérifiés
+GET /api/livres-auteurs/books/{status}       # Livres par statut (verified/suggested/not_found)
+POST /api/livres-auteurs/validate-suggestion # Validation manuelle d'une suggestion
+POST /api/livres-auteurs/add-manual-book     # Ajout manuel d'un livre not_found
+GET /api/authors                             # Tous les auteurs de la collection
+GET /api/books                               # Tous les livres de la collection
 
 # Vérification orthographique Babelio ⭐ NOUVEAU
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
@@ -313,6 +330,7 @@ code .
 - ✅ Interface de base pour correction des descriptions
 - ✅ Sauvegarde automatique en base MongoDB
 - ✅ **Extraction Livres/Auteurs** : Interface tableau avec parsing markdown
+- ✅ **Gestion des Collections** : Dashboard statistiques, traitement automatique, validation manuelle, ajout manuel
 - ✅ **Vérification Babelio** : Correction orthographique automatique auteurs/livres
 - ✅ **Recherche Textuelle** : Moteur de recherche multi-entités avec extraction de contexte
 - ✅ Tests complets validés (backend + frontend)

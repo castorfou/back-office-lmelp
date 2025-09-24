@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import Dashboard from '../../src/views/Dashboard.vue';
-import { episodeService, statisticsService } from '../../src/services/api.js';
+import { episodeService, statisticsService, livresAuteursService } from '../../src/services/api.js';
 
 // Mock du service API
 vi.mock('../../src/services/api.js', () => ({
@@ -18,6 +18,9 @@ vi.mock('../../src/services/api.js', () => ({
   },
   statisticsService: {
     getStatistics: vi.fn(),
+  },
+  livresAuteursService: {
+    getCollectionsStatistics: vi.fn(),
   }
 }));
 
@@ -43,8 +46,20 @@ describe('Dashboard - Tests d\'intégration', () => {
     lastUpdateDate: '2025-09-06T10:30:00Z'
   };
 
+  const mockCollectionsStatistics = {
+    episodes_non_traites: 5,
+    couples_en_base: 42,
+    couples_verified_pas_en_base: 18,
+    couples_suggested_pas_en_base: 12,
+    couples_not_found_pas_en_base: 8
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Setup default mocks
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
 
     // Créer un router de test
     router = createRouter({
@@ -233,5 +248,112 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     // Vérifier que les données sont maintenant affichées
     expect(wrapper.text()).toContain('142');
+  });
+
+  // ========== TESTS TDD POUR LES STATISTIQUES DES COLLECTIONS ==========
+
+  it('appelle getCollectionsStatistics au montage du composant', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    // Attendre que les appels asynchrones se terminent
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(livresAuteursService.getCollectionsStatistics).toHaveBeenCalledTimes(1);
+  });
+
+  it('affiche les statistiques des collections dans les cartes existantes', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Vérifier que les valeurs des collections sont affichées
+    expect(wrapper.text()).toContain('42'); // couples_en_base
+    expect(wrapper.text()).toContain('18'); // couples_verified_pas_en_base
+    expect(wrapper.text()).toContain('12'); // couples_suggested_pas_en_base
+    expect(wrapper.text()).toContain('8');  // couples_not_found_pas_en_base
+  });
+
+  it('affiche les libellés des statistiques des collections', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Vérifier que les libellés des collections sont présents
+    expect(wrapper.text()).toMatch(/livres.*base/i);
+    expect(wrapper.text()).toMatch(/livres.*vérifiés/i);
+    expect(wrapper.text()).toMatch(/livres.*suggérés/i);
+    expect(wrapper.text()).toMatch(/livres.*non.*trouvés/i);
+  });
+
+  it('gère les erreurs de chargement des statistiques des collections', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockRejectedValue(new Error('Erreur réseau'));
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Les statistiques principales doivent toujours s'afficher même si les collections échouent
+    expect(wrapper.text()).toContain('142');
+    // Les statistiques des collections doivent afficher des valeurs par défaut
+    expect(wrapper.text()).toContain('--');
+  });
+
+  it('affiche des indicateurs de chargement pour les statistiques des collections', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+
+    let resolveCollectionsStats;
+    const collectionsStatsPromise = new Promise(resolve => {
+      resolveCollectionsStats = resolve;
+    });
+    livresAuteursService.getCollectionsStatistics.mockReturnValue(collectionsStatsPromise);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    // Vérifier qu'un état de chargement est affiché pour les collections
+    expect(wrapper.text()).toContain('...'); // Loading indicator
+
+    // Résoudre les statistiques des collections
+    resolveCollectionsStats(mockCollectionsStatistics);
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Vérifier que les données sont maintenant affichées
+    expect(wrapper.text()).toContain('42');
   });
 });

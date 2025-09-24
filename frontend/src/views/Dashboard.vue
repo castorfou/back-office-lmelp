@@ -38,6 +38,22 @@
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...' }}</div>
+            <div class="stat-label">Livres en base</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_verified_pas_en_base !== null) ? collectionsStatistics.couples_verified_pas_en_base : '...' }}</div>
+            <div class="stat-label">Livres vérifiés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_suggested_pas_en_base !== null) ? collectionsStatistics.couples_suggested_pas_en_base : '...' }}</div>
+            <div class="stat-label">Livres suggérés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== null) ? collectionsStatistics.couples_not_found_pas_en_base : '...' }}</div>
+            <div class="stat-label">Livres non trouvés</div>
+          </div>
         </div>
       </section>
 
@@ -106,7 +122,7 @@
 </template>
 
 <script>
-import { statisticsService } from '../services/api.js';
+import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 
 export default {
@@ -124,6 +140,13 @@ export default {
         episodesWithCorrectedDescriptions: null,
         criticalReviews: null,
         lastUpdateDate: null
+      },
+      collectionsStatistics: {
+        episodes_non_traites: null,
+        couples_en_base: null,
+        couples_verified_pas_en_base: null,
+        couples_suggested_pas_en_base: null,
+        couples_not_found_pas_en_base: null
       },
       loading: true,
       error: null
@@ -152,6 +175,7 @@ export default {
 
   async mounted() {
     await this.loadStatistics();
+    await this.loadCollectionsStatistics();
   },
 
   methods: {
@@ -174,6 +198,23 @@ export default {
         };
       } finally {
         this.loading = false;
+      }
+    },
+
+    async loadCollectionsStatistics() {
+      try {
+        const stats = await livresAuteursService.getCollectionsStatistics();
+        this.collectionsStatistics = stats;
+      } catch (error) {
+        console.error('Erreur lors du chargement des statistiques des collections:', error);
+        // Garder les valeurs null en cas d'erreur pour afficher '...'
+        this.collectionsStatistics = {
+          episodes_non_traites: '--',
+          couples_en_base: '--',
+          couples_verified_pas_en_base: '--',
+          couples_suggested_pas_en_base: '--',
+          couples_not_found_pas_en_base: '--'
+        };
       }
     },
 

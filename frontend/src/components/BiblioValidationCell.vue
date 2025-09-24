@@ -94,8 +94,14 @@ export default {
     episodeId: {
       type: String,
       default: null
+    },
+    bookKey: {
+      type: String,
+      required: false
     }
   },
+
+  emits: ['validation-status-change'],
 
   data() {
     return {
@@ -183,6 +189,9 @@ export default {
         attempts: serviceResult.data.attempts,
         error: serviceResult.data.error
       };
+
+      // Émettre l'événement de changement de statut vers le parent
+      this.emitValidationStatusChange();
     },
 
     mapServiceStatus(serviceStatus) {
@@ -238,6 +247,45 @@ export default {
       }
 
       return parts.join(' - ');
+    },
+
+    /**
+     * Génère une clé unique pour ce livre
+     */
+    generateBookKey() {
+      // Utiliser la prop bookKey si fournie, sinon générer à partir des données
+      if (this.bookKey) {
+        return this.bookKey;
+      }
+      return `${this.episodeId || 'unknown'}-${this.author}-${this.title}`;
+    },
+
+    /**
+     * Émet l'événement de changement de statut vers le parent
+     */
+    emitValidationStatusChange() {
+      if (!this.validationResult) return;
+
+      const bookKey = this.generateBookKey();
+      const status = this.validationResult.status;
+
+      // Préparer les données de suggestion si disponibles
+      let suggestion = null;
+      if (this.validationResult.suggested) {
+        suggestion = {
+          author: this.validationResult.suggested.author,
+          title: this.validationResult.suggested.title,
+          publisher: this.validationResult.suggested.publisher || this.publisher
+        };
+      }
+
+      // Émettre l'événement
+      this.$emit('validation-status-change', {
+        bookKey,
+        status,
+        suggestion,
+        validationResult: this.validationResult
+      });
     }
   }
 };

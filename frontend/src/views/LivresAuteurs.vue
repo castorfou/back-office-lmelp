@@ -70,132 +70,6 @@
         </div>
       </div>
 
-      <!-- ========== DASHBOARD COLLECTIONS MANAGEMENT (ISSUE #66) ========== -->
-
-      <!-- Dashboard statistiques collections - toujours affiché -->
-      <section class="collections-dashboard">
-        <div class="collections-stats card">
-          <h3>📊 Gestion des Collections Auteurs/Livres</h3>
-
-          <!-- État de chargement des statistiques -->
-          <div v-if="statisticsLoading" class="loading">
-            Chargement des statistiques...
-          </div>
-
-          <!-- Affichage des statistiques -->
-          <div v-if="collectionsStatistics && !statisticsLoading" class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">Épisodes non traités : </span>
-              <span class="stat-value">{{ collectionsStatistics.episodes_non_traites }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Couples en base : </span>
-              <span class="stat-value">{{ collectionsStatistics.couples_en_base }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Verified pas en base : </span>
-              <span class="stat-value">{{ collectionsStatistics.couples_verified_pas_en_base }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Suggested pas en base : </span>
-              <span class="stat-value">{{ collectionsStatistics.couples_suggested_pas_en_base }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Not found pas en base : </span>
-              <span class="stat-value">{{ collectionsStatistics.couples_not_found_pas_en_base }}</span>
-            </div>
-          </div>
-
-          <!-- Actions de gestion - toujours affichées -->
-          <div class="collections-actions">
-            <!-- Bouton traitement automatique -->
-            <button
-              @click="autoProcessVerified"
-              :disabled="autoProcessLoading"
-              data-testid="auto-process-button"
-              class="btn btn-primary"
-            >
-              {{ autoProcessLoading ? 'Traitement en cours...' : 'Traitement automatique' }}
-            </button>
-
-            <!-- Bouton charger statistiques -->
-            <button
-              @click="loadCollectionsStatistics"
-              :disabled="statisticsLoading"
-              class="btn btn-secondary"
-            >
-              {{ statisticsLoading ? 'Chargement...' : 'Actualiser statistiques' }}
-            </button>
-          </div>
-
-          <!-- Résultats du traitement automatique -->
-          <div v-if="autoProcessResult" class="process-results">
-            <h4>✅ Traitement automatique terminé :</h4>
-            <ul>
-              <li>{{ autoProcessResult.processed_count }} livres traités</li>
-              <li>{{ autoProcessResult.created_authors }} auteurs créés</li>
-              <li>{{ autoProcessResult.created_books }} livres créés</li>
-              <li>{{ autoProcessResult.updated_references }} références mises à jour</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Section validation manuelle (livres suggested) -->
-        <div v-if="suggestedBooks.length > 0" class="manual-validation card">
-          <h4>🔍 Validation manuelle (Livres suggested)</h4>
-          <div v-for="book in suggestedBooks" :key="book.id" class="validation-item">
-            <div class="book-info">
-              <span class="original">{{ book.auteur }} - {{ book.titre }}</span>
-              <span class="suggestion">Suggestion : {{ book.suggested_author }} - {{ book.suggested_title }}</span>
-            </div>
-            <button
-              @click="validateSuggestion({ id: book.id, user_validated_author: book.suggested_author, user_validated_title: book.suggested_title })"
-              data-testid="validate-suggestion-button"
-              class="btn btn-success"
-            >
-              Valider suggestion
-            </button>
-          </div>
-        </div>
-
-        <!-- Section ajout manuel (livres not_found) -->
-        <div v-if="notFoundBooks.length > 0" class="manual-add card">
-          <h4>➕ Ajout manuel (Livres not found)</h4>
-          <div v-for="book in notFoundBooks" :key="book.id" class="add-item">
-            <div class="book-info">
-              <span class="not-found">{{ book.auteur }} - {{ book.titre }}</span>
-            </div>
-            <button
-              @click="addManualBook({ id: book.id, user_entered_author: book.auteur, user_entered_title: book.titre, user_entered_publisher: 'Éditeur inconnu' })"
-              data-testid="add-manual-book-button"
-              class="btn btn-warning"
-            >
-              Ajouter manuellement
-            </button>
-          </div>
-        </div>
-
-        <!-- Section gestion des collections créées -->
-        <div v-if="allAuthors.length > 0 || allBooks.length > 0" class="collections-management card">
-          <h4>📚 Collections créées</h4>
-
-          <!-- Auteurs -->
-          <div v-if="allAuthors.length > 0" class="authors-list">
-            <h5>Auteurs ({{ allAuthors.length }})</h5>
-            <div v-for="author in allAuthors" :key="author.id" class="author-item">
-              {{ author.nom }} ({{ author.livres.length }} livres)
-            </div>
-          </div>
-
-          <!-- Livres -->
-          <div v-if="allBooks.length > 0" class="books-list">
-            <h5>Livres ({{ allBooks.length }})</h5>
-            <div v-for="book in allBooks" :key="book.id" class="book-item">
-              {{ book.titre }} - {{ book.editeur }}
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- Filtre de recherche -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="filter-section">
@@ -264,6 +138,9 @@
                 <th class="capture-header">
                   Capture YAML
                 </th>
+                <th class="actions-header" data-testid="actions-header">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -294,6 +171,8 @@
                     :title="book.titre"
                     :publisher="book.editeur || ''"
                     :episode-id="selectedEpisodeId"
+                    :book-key="getBookKey(book)"
+                    @validation-status-change="handleValidationStatusChange"
                   />
                 </td>
                 <td class="capture-cell">
@@ -304,6 +183,38 @@
                     :data-testid="`capture-button-${book.episode_oid}-${book.auteur}-${book.titre}`"
                   >
                     🔄 YAML
+                  </button>
+                </td>
+                <td class="actions-cell">
+                  <!-- Action buttons based on validation status -->
+                  <button
+                    v-if="getValidationStatus(book) === 'verified'"
+                    @click="autoProcessVerified(book)"
+                    class="btn btn-success btn-sm"
+                    data-testid="auto-process-verified-btn"
+                    title="Traiter automatiquement ce livre vérifié"
+                  >
+                    ✅ Traiter automatiquement
+                  </button>
+
+                  <button
+                    v-if="getValidationStatus(book) === 'corrected'"
+                    @click="validateSuggestion(book)"
+                    class="btn btn-warning btn-sm"
+                    data-testid="validate-suggestion-btn"
+                    title="Valider cette suggestion"
+                  >
+                    🔍 Valider suggestion
+                  </button>
+
+                  <button
+                    v-if="getValidationStatus(book) === 'not_found'"
+                    @click="addManualBook(book)"
+                    class="btn btn-danger btn-sm"
+                    data-testid="manual-add-btn"
+                    title="Ajouter manuellement ce livre"
+                  >
+                    ➕ Ajouter manuellement
                   </button>
                 </td>
               </tr>
@@ -319,6 +230,120 @@
         <p>Aucun livre ne correspond aux critères de recherche "{{ searchFilter }}"</p>
       </div>
     </main>
+
+    <!-- ========== MODAUX POUR TÂCHE 3 ========== -->
+
+    <!-- Modal de validation des suggestions -->
+    <div
+      v-if="showValidationModal"
+      class="modal-overlay"
+      data-testid="validation-modal"
+      @click="closeValidationModal"
+    >
+      <div class="modal-content" @click.stop>
+        <h3>Valider la suggestion</h3>
+
+        <div v-if="currentBookToValidate" class="book-validation-info">
+          <div class="original-info">
+            <h4>Données originales :</h4>
+            <p><strong>Auteur :</strong> {{ currentBookToValidate.auteur }}</p>
+            <p><strong>Titre :</strong> {{ currentBookToValidate.titre }}</p>
+          </div>
+
+          <div class="suggested-info">
+            <h4>Suggestions Babelio :</h4>
+            <p><strong>Auteur :</strong> {{ getSuggestionForCurrentBook()?.author || 'N/A' }}</p>
+            <p><strong>Titre :</strong> {{ getSuggestionForCurrentBook()?.title || 'N/A' }}</p>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            @click="confirmValidation"
+            class="btn btn-success"
+            data-testid="confirm-validation-btn"
+          >
+            ✅ Confirmer la validation
+          </button>
+          <button
+            @click="closeValidationModal"
+            class="btn btn-secondary"
+            data-testid="cancel-modal-btn"
+          >
+            ❌ Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal d'ajout manuel -->
+    <div
+      v-if="showManualAddModal"
+      class="modal-overlay"
+      data-testid="manual-add-modal"
+      @click="closeManualAddModal"
+    >
+      <div class="modal-content" @click.stop>
+        <h3>Ajouter manuellement un livre</h3>
+
+        <div class="manual-add-form">
+          <div class="form-group">
+            <label for="author-input">Auteur :</label>
+            <input
+              id="author-input"
+              v-model="manualBookForm.author"
+              type="text"
+              class="form-control"
+              data-testid="author-input"
+              placeholder="Nom de l'auteur"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="title-input">Titre :</label>
+            <input
+              id="title-input"
+              v-model="manualBookForm.title"
+              type="text"
+              class="form-control"
+              data-testid="title-input"
+              placeholder="Titre du livre"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="publisher-input">Éditeur :</label>
+            <input
+              id="publisher-input"
+              v-model="manualBookForm.publisher"
+              type="text"
+              class="form-control"
+              data-testid="publisher-input"
+              placeholder="Nom de l'éditeur"
+            />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            @click="submitManualAdd"
+            class="btn btn-primary"
+            data-testid="submit-manual-add-btn"
+            :disabled="!manualBookForm.author || !manualBookForm.title"
+          >
+            ➕ Ajouter le livre
+          </button>
+          <button
+            @click="closeManualAddModal"
+            class="btn btn-secondary"
+            data-testid="cancel-modal-btn"
+          >
+            ❌ Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -353,34 +378,28 @@ export default {
       currentSortField: 'author',
       sortAscending: true,
 
-      // ========== NOUVELLES DONNÉES POUR ISSUE #66 ==========
+      // ========== DONNÉES POUR TÂCHE 4: COMMUNICATION BIBLIOVALIADATIONCELL ==========
+      // Map des statuts de validation par livre (clé: episode_oid-auteur-titre)
+      validationStatuses: new Map(),
+      validationSuggestions: new Map(),
+      // Protection contre le traitement automatique en boucle
+      alreadyProcessedBooks: new Set(),
 
-      // Statistiques des collections
-      collectionsStatistics: null,
-      statisticsLoading: false,
-      statisticsError: null,
+      // ========== DONNÉES POUR TÂCHE 3: MODAUX ==========
 
-      // Traitement automatique
-      autoProcessLoading: false,
-      autoProcessResult: null,
+      // Modal de validation pour livres suggested
+      showValidationModal: false,
+      currentBookToValidate: null,
 
-      // Gestion des livres suggested
-      suggestedBooks: [],
-      suggestedBooksLoading: false,
+      // Modal d'ajout manuel pour livres not_found
+      showManualAddModal: false,
+      currentBookToAdd: null,
+      manualBookForm: {
+        author: '',
+        title: '',
+        publisher: ''
+      }
 
-      // Gestion des livres not_found
-      notFoundBooks: [],
-      notFoundBooksLoading: false,
-
-      // Collections management
-      allAuthors: [],
-      allBooks: [],
-      collectionsLoading: false,
-
-      // Interface states
-      showCollectionsManager: false,
-      showManualValidation: false,
-      showManualAdd: false
     };
   },
 
@@ -434,10 +453,102 @@ export default {
 
   async mounted() {
     await this.loadEpisodesWithReviews();
-    await this.loadCollectionsStatistics();
   },
 
   methods: {
+    // ========== MÉTHODES POUR TÂCHE 4: COMMUNICATION BIBLIOVALIADATIONCELL ==========
+
+    /**
+     * Génère une clé unique pour identifier un livre
+     */
+    getBookKey(book) {
+      return `${book.episode_oid}-${book.auteur}-${book.titre}`;
+    },
+
+    /**
+     * Récupère le statut de validation pour un livre
+     */
+    getValidationStatus(book) {
+      return this.validationStatuses.get(this.getBookKey(book)) || null;
+    },
+
+    /**
+     * Handler appelé par BiblioValidationCell quand le statut change
+     */
+    handleValidationStatusChange(eventData) {
+      const { bookKey, status, suggestion, validationResult } = eventData;
+
+      // Stocker le statut de validation
+      this.validationStatuses.set(bookKey, status);
+
+      // Stocker les suggestions si disponibles
+      if (suggestion) {
+        this.validationSuggestions.set(bookKey, suggestion);
+      }
+
+      // Log pour debug
+      console.log(`Validation status changed for ${bookKey}: ${status}`, {
+        suggestion,
+        validationResult
+      });
+
+      // Traitement automatique pour les livres verified
+      if (status === 'verified') {
+        this.triggerAutoProcessIfPossible(bookKey);
+      }
+    },
+
+    /**
+     * Déclenche le traitement automatique si possible pour un livre verified
+     */
+    async triggerAutoProcessIfPossible(bookKey) {
+      // Vérifier si le livre a déjà été traité pour éviter la boucle infinie
+      if (this.alreadyProcessedBooks.has(bookKey)) {
+        return;
+      }
+
+      // Marquer ce livre comme étant en cours de traitement
+      this.alreadyProcessedBooks.add(bookKey);
+
+      // Trouver le livre correspondant à la clé
+      const book = this.books.find(b => this.getBookKey(b) === bookKey);
+      if (book) {
+        try {
+          // Attendre un peu pour laisser l'UI se mettre à jour
+          await this.$nextTick();
+          // Déclencher le traitement automatique
+          await this.autoProcessVerified(book);
+        } catch (error) {
+          console.error('Erreur lors du traitement automatique:', error);
+          // En cas d'erreur, retirer le livre du Set pour permettre une nouvelle tentative
+          this.alreadyProcessedBooks.delete(bookKey);
+        }
+      }
+    },
+
+    /**
+     * Traite automatiquement un livre vérifié
+     */
+    async autoProcessVerified(book) {
+      try {
+        console.log('Processing verified book:', book);
+
+        // L'endpoint auto-process ne prend aucun paramètre (traite tous les livres verified)
+        const result = await livresAuteursService.autoProcessVerifiedBooks();
+
+        console.log('Auto-process result:', result);
+
+        if (result.success) {
+          // Actualiser les données après traitement
+          await this.loadBooksForEpisode();
+        }
+      } catch (error) {
+        console.error('Erreur lors du traitement automatique:', error);
+      }
+    },
+
+    // ========== MÉTHODES EXISTANTES ==========
+
     /**
      * Charge la liste des épisodes avec avis critiques
      */
@@ -476,6 +587,16 @@ export default {
 
         // Récupérer SEULEMENT les livres de cet épisode (efficace !)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
+
+        // Auto-processing automatique des livres verified en arrière-plan (non-bloquant)
+        Promise.resolve().then(async () => {
+          try {
+            await livresAuteursService.autoProcessVerifiedBooks();
+            console.log('Auto-processing completed in background');
+          } catch (error) {
+            console.warn('Auto-processing failed in background:', error.message);
+          }
+        });
       } catch (error) {
         this.error = error.message;
         console.error('Erreur lors du chargement des livres/auteurs:', error);
@@ -553,126 +674,117 @@ export default {
       }
     },
 
-    // ========== NOUVELLES MÉTHODES POUR ISSUE #66 ==========
+    // ========== NOUVELLES MÉTHODES POUR TÂCHE 2: BOUTONS PAR LIGNE ==========
 
     /**
-     * Charge les statistiques des collections
+     * Ouvre le modal de validation pour une suggestion (validation_status: 'suggested')
      */
-    async loadCollectionsStatistics() {
-      try {
-        this.statisticsLoading = true;
-        this.statisticsError = null;
-        this.collectionsStatistics = await livresAuteursService.getCollectionsStatistics();
-      } catch (error) {
-        this.statisticsError = error.message;
-        console.error('Erreur lors du chargement des statistiques:', error);
-      } finally {
-        this.statisticsLoading = false;
-      }
+    validateSuggestion(book) {
+      console.log('Validating suggestion for book:', book);
+      this.currentBookToValidate = book;
+      this.showValidationModal = true;
     },
 
     /**
-     * Lance le traitement automatique des livres verified
+     * Ouvre le modal d'ajout manuel pour un livre non trouvé (validation_status: 'not_found')
      */
-    async autoProcessVerified() {
-      try {
-        this.autoProcessLoading = true;
-        this.autoProcessResult = await livresAuteursService.autoProcessVerifiedBooks();
-        // Recharger les statistiques après traitement
-        await this.loadCollectionsStatistics();
-      } catch (error) {
-        console.error('Erreur lors du traitement automatique:', error);
-      } finally {
-        this.autoProcessLoading = false;
-      }
+    addManualBook(book) {
+      console.log('Adding manual book:', book);
+      this.currentBookToAdd = book;
+      // Pré-remplir le formulaire avec les données existantes
+      this.manualBookForm = {
+        author: book.auteur,
+        title: book.titre,
+        publisher: book.editeur || ''
+      };
+      this.showManualAddModal = true;
     },
 
-    /**
-     * Charge les livres avec statut 'suggested'
-     */
-    async loadSuggestedBooks() {
-      try {
-        this.suggestedBooksLoading = true;
-        this.suggestedBooks = await livresAuteursService.getBooksByValidationStatus('suggested');
-      } catch (error) {
-        console.error('Erreur lors du chargement des livres suggested:', error);
-      } finally {
-        this.suggestedBooksLoading = false;
-      }
-    },
+    // ========== NOUVELLES MÉTHODES POUR LES MODAUX ==========
 
     /**
-     * Valide manuellement une suggestion
+     * Confirme la validation d'une suggestion
      */
-    async validateSuggestion(bookData) {
+    async confirmValidation() {
       try {
-        const result = await livresAuteursService.validateSuggestion(bookData);
-        // Recharger les données après validation
-        await this.loadSuggestedBooks();
-        await this.loadCollectionsStatistics();
-        return result;
+        const book = this.currentBookToValidate;
+
+        // Récupérer les données de suggestion stockées
+        const bookKey = this.getBookKey(book);
+        const suggestion = this.validationSuggestions.get(bookKey);
+
+        const validationData = {
+          id: book.episode_oid,
+          auteur: book.auteur,
+          titre: book.titre,
+          editeur: book.editeur,
+          user_validated_author: suggestion?.author || book.auteur,
+          user_validated_title: suggestion?.title || book.titre
+        };
+
+        const result = await livresAuteursService.validateSuggestion(validationData);
+        console.log('Validation result:', result);
+
+        // Fermer le modal et recharger les données
+        this.closeValidationModal();
+        await this.loadBooksForEpisode();
       } catch (error) {
         console.error('Erreur lors de la validation:', error);
-        throw error;
       }
     },
 
     /**
-     * Charge les livres avec statut 'not_found'
+     * Soumet l'ajout manuel d'un livre
      */
-    async loadNotFoundBooks() {
+    async submitManualAdd() {
       try {
-        this.notFoundBooksLoading = true;
-        this.notFoundBooks = await livresAuteursService.getBooksByValidationStatus('not_found');
-      } catch (error) {
-        console.error('Erreur lors du chargement des livres not_found:', error);
-      } finally {
-        this.notFoundBooksLoading = false;
-      }
-    },
+        const book = this.currentBookToAdd;
+        const bookData = {
+          id: book.episode_oid,
+          user_entered_author: this.manualBookForm.author,
+          user_entered_title: this.manualBookForm.title,
+          user_entered_publisher: this.manualBookForm.publisher || 'Éditeur inconnu'
+        };
 
-    /**
-     * Ajoute manuellement un livre not_found
-     */
-    async addManualBook(bookData) {
-      try {
         const result = await livresAuteursService.addManualBook(bookData);
-        // Recharger les données après ajout
-        await this.loadNotFoundBooks();
-        await this.loadCollectionsStatistics();
-        return result;
+        console.log('Manual addition result:', result);
+
+        // Fermer le modal et recharger les données
+        this.closeManualAddModal();
+        await this.loadBooksForEpisode();
       } catch (error) {
         console.error('Erreur lors de l\'ajout manuel:', error);
-        throw error;
       }
     },
 
     /**
-     * Charge tous les auteurs de la collection
+     * Récupère les suggestions pour le livre actuellement en cours de validation
      */
-    async loadAllAuthors() {
-      try {
-        this.collectionsLoading = true;
-        this.allAuthors = await livresAuteursService.getAllAuthors();
-      } catch (error) {
-        console.error('Erreur lors du chargement des auteurs:', error);
-      } finally {
-        this.collectionsLoading = false;
-      }
+    getSuggestionForCurrentBook() {
+      if (!this.currentBookToValidate) return null;
+      const bookKey = this.getBookKey(this.currentBookToValidate);
+      return this.validationSuggestions.get(bookKey);
     },
 
     /**
-     * Charge tous les livres de la collection
+     * Ferme le modal de validation
      */
-    async loadAllBooks() {
-      try {
-        this.collectionsLoading = true;
-        this.allBooks = await livresAuteursService.getAllBooks();
-      } catch (error) {
-        console.error('Erreur lors du chargement des livres:', error);
-      } finally {
-        this.collectionsLoading = false;
-      }
+    closeValidationModal() {
+      this.showValidationModal = false;
+      this.currentBookToValidate = null;
+    },
+
+    /**
+     * Ferme le modal d'ajout manuel
+     */
+    closeManualAddModal() {
+      this.showManualAddModal = false;
+      this.currentBookToAdd = null;
+      this.manualBookForm = {
+        author: '',
+        title: '',
+        publisher: ''
+      };
     }
 
   }
@@ -1366,6 +1478,147 @@ export default {
   }
 
   .btn {
+    width: 100%;
+  }
+}
+
+/* ========== STYLES POUR LES MODAUX (TÂCHE 3) ========== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content h3 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  text-align: center;
+}
+
+.book-validation-info {
+  margin-bottom: 2rem;
+}
+
+.original-info, .suggested-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.original-info h4 {
+  color: #dc3545;
+  margin-bottom: 0.5rem;
+}
+
+.suggested-info h4 {
+  color: #28a745;
+  margin-bottom: 0.5rem;
+}
+
+.manual-add-form {
+  margin-bottom: 2rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.modal-actions .btn {
+  min-width: 120px;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.actions-cell {
+  text-align: center;
+  min-width: 150px;
+}
+
+.actions-header {
+  text-align: center;
+  min-width: 150px;
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    padding: 1rem;
+    width: 95%;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions .btn {
     width: 100%;
   }
 }

@@ -22,10 +22,21 @@ class CollectionsManagementService:
             Dictionnaire contenant les statistiques des collections
         """
         try:
+            # Récupérer les livres verified pas en base
+            verified_books_not_in_collections = (
+                self.mongodb_service.get_verified_books_not_in_collections()
+            )
+
+            # Convertir en nombre si c'est une liste
+            if isinstance(verified_books_not_in_collections, list):
+                verified_count = len(verified_books_not_in_collections)
+            else:
+                verified_count = verified_books_not_in_collections
+
             stats = {
                 "episodes_non_traites": self.mongodb_service.get_untreated_episodes_count(),
                 "couples_en_base": self.mongodb_service.get_books_in_collections_count(),
-                "couples_verified_pas_en_base": self.mongodb_service.get_verified_books_not_in_collections(),
+                "couples_verified_pas_en_base": verified_count,
                 "couples_suggested_pas_en_base": self.mongodb_service.get_suggested_books_not_in_collections(),
                 "couples_not_found_pas_en_base": self.mongodb_service.get_not_found_books_not_in_collections(),
             }
@@ -60,13 +71,23 @@ class CollectionsManagementService:
                 if author_id:
                     created_authors += 1
 
+                # Récupérer l'avis critique correspondant à l'épisode
+                critical_review = (
+                    self.mongodb_service.get_critical_review_by_episode_oid(
+                        book["episode_oid"]
+                    )
+                )
+                avis_critiques_ids = []
+                if critical_review:
+                    avis_critiques_ids = [critical_review["_id"]]
+
                 # Créer le livre si il n'existe pas
                 book_data = {
                     "titre": book["titre"],
                     "auteur_id": author_id,
                     "editeur": book.get("editeur", ""),
-                    "episodes": [ObjectId(book["episode_id"])],
-                    "avis_critiques": [],
+                    "episodes": [ObjectId(book["episode_oid"])],
+                    "avis_critiques": avis_critiques_ids,
                 }
                 book_id = self.mongodb_service.create_book_if_not_exists(book_data)
                 if book_id:
