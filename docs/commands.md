@@ -63,6 +63,12 @@ nService.modular.test.js -t "Alain" --run
 /workspaces/back-office-lmelp/.claude/get-services-info.sh
 ```
 
+les stats
+```bash
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl "$BACKEND_URL/api/stats" | jq
+```
+
 cf dans `CLAUDE.md` tous les usages possibles
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host

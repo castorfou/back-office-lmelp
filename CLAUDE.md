@@ -562,6 +562,18 @@ curl -X POST "$BACKEND_URL/api/verify-babelio" \
   -d '{"type": "book", "title": "L'\''Étranger", "author": "Albert Camus"}'
 ```
 
+### Stats
+
+to autonomously get stats data (Informations Generales blocks)
+
+```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# stats
+curl "$BACKEND_URL/api/stats" | jq
+```
+
 ### API Testing Best Practices
 - **Always check the API documentation first**: Visit `/docs` for interactive testing
 - **Use jq for JSON parsing**: Makes endpoint discovery much faster
