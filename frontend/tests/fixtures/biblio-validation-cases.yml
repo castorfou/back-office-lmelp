@@ -53,6 +53,20 @@ cases:
       author: true
       title: true
 
+# Laurent Mauvignier - 14/09/2025 - Correction de casse sur titre
+- input:
+    author: "Laurent Mauvignier"
+    title: "La Maison Vide"
+    publisher: "Éditions de Minuit"
+    episodeId: "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+  output:
+    status: "suggestion"
+    suggested_author: "Laurent Mauvignier"
+    suggested_title: "La Maison vide"
+    corrections:
+      author: false
+      title: true
+
 # Séphora Pondi - 14/09/2025
 - input:
     author: "Sephora Pondi"

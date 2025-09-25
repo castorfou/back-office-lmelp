@@ -283,3 +283,29 @@ cases:
     original_title: Aval
     status: corrected
   timestamp: 1758409474090
+- input:
+    author: Laurent Mauvignier
+    title: La Maison Vide
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '2241'
+      ca_note: '4.44'
+      couverture: /couv/cvt_La-maison-vide_2615.jpg
+      id_auteur: '3013'
+      id_oeuvre: '1868350'
+      nom: Mauvignier
+      prenoms: Laurent
+      titre: La maison vide
+      tri: '2241'
+      type: livres
+      url: /livres/Mauvignier-La-maison-vide/1868350
+    babelio_suggestion_author: Laurent Mauvignier
+    babelio_suggestion_title: La maison vide
+    babelio_url: https://www.babelio.com/livres/Mauvignier-La-maison-vide/1868350
+    confidence_score: 1
+    error_message: null
+    original_author: Laurent Mauvignier
+    original_title: La Maison Vide
+    status: verified
+  timestamp: 1758830481143
