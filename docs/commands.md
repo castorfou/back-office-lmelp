@@ -41,6 +41,9 @@ cd frontend && npm run dev
 # Tests backend uniquement
 pytest -v
 
+# en mode très quiet
+pytest -qq --tb=no --disable-warnings
+
 # Tests frontend uniquement
 cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
