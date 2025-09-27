@@ -72,10 +72,13 @@ BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
 curl "$BACKEND_URL/api/stats" | jq
 ```
 
-le contenu du cache livresauteurs_cache
+la liste de tous les services
 ```bash
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
-curl "$BACKEND_URL/api/stats/validation" | jq
+curl -s "$BACKEND_URL/openapi.json" | jq
+
+# en version reduite
+curl -s "$BACKEND_URL/openapi_reduced.json" | jq
 ```
 
 
