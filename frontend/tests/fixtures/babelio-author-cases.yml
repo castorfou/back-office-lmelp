@@ -227,3 +227,24 @@ cases:
     original: Laurent Mauvignier
     status: verified
   timestamp: 1758830481002
+- input:
+    name: Alice Ferney
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '10809'
+      ca_oeuvres: '18'
+      first_of_group: first_of_group
+      id: '7842'
+      nom: Ferney
+      prenoms: Alice
+      type: auteurs
+      url: /auteur/Alice-Ferney/7842
+      url_photo: /users/avt_fd_7842.jpg
+    babelio_suggestion: Alice Ferney
+    babelio_url: https://www.babelio.com/auteur/Alice-Ferney/7842
+    confidence_score: 1
+    error_message: null
+    original: Alice Ferney
+    status: verified
+  timestamp: 1759055213102

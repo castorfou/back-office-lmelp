@@ -160,3 +160,12 @@ cases:
   review:
     manual_review_required: true
     reason: "nécessite revue humaine"
+
+# 24/08/2025 : Alice Ferney	Comme en amour -- devrait etre en verified
+- input:
+    author: "Alice Ferney"
+    title: "Comme en amour"
+    publisher: "Actes Sud"
+    episodeId: "68ab04b92dc760119d18f8ef"  # pragma: allowlist secret
+  output:
+    status: "verified"

@@ -333,3 +333,30 @@ cases:
     - - durée
       - 60
   timestamp: 1758830480907
+- input:
+    episode_id: 68ab04b92dc760119d18f8ef
+    query_author: Alice Ferney
+    query_title: Comme en amour
+  output:
+    authorMatches:
+    - - Alice
+      - 90
+    - - Ferney
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 45
+    - - Pour
+      - 77
+    - - lourd
+      - 68
+    - - durée
+      - 60
+    - - mère
+      - 60
+    - - mêle
+      - 60
+    - - écouter
+      - 60
+  timestamp: 1759055212959

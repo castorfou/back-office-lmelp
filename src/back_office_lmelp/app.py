@@ -504,9 +504,22 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
         print(f"⚠️ {memory_check}")
 
     try:
+        print(
+            f"🚀 [DEBUG] Reçu set-validation-results: episode_oid={request.episode_oid}, nb_books={len(request.books)}"
+        )
         books_processed = 0
 
         for book_result in request.books:
+            print(
+                f"📖 [DEBUG] Processing: {book_result.auteur} - {book_result.titre} (status: {book_result.validation_status})"
+            )
+            if (
+                hasattr(book_result, "suggested_author")
+                and book_result.suggested_author
+            ):
+                print(
+                    f"   💡 [DEBUG] Suggested: {book_result.suggested_author} - {getattr(book_result, 'suggested_title', 'N/A')}"
+                )
             # Convertir le statut de validation frontend vers statut cache unifié
             if book_result.validation_status == "verified":
                 cache_status = "verified"
@@ -532,12 +545,14 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                 book_data["suggested_title"] = book_result.suggested_title
 
             # Créer l'entrée cache
+            print(f"💾 [DEBUG] book_data pour cache: {book_data}")
             from bson import ObjectId
 
             avis_critique_id = ObjectId(request.avis_critique_id)
             cache_entry_id = livres_auteurs_cache_service.create_cache_entry(
                 avis_critique_id, book_data
             )
+            print(f"✅ [DEBUG] Cache entry créée avec ID: {cache_entry_id}")
 
             # Auto-processing pour les livres verified
             if cache_status == "verified":
