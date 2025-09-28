@@ -141,13 +141,15 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📊 **Deux sources** : "Livres discutés au programme" + "Coups de cœur des critiques"
 - 🎯 **Vue par épisode** : Sélection d'épisodes avec avis critiques
 
-#### Gestion des Collections ⭐ **NOUVEAU**
-- 📊 **Dashboard statistiques** : Vue globale des collections (épisodes traités, couples en base)
-- 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés dans les collections MongoDB
-- ✅ **Validation manuelle** : Interface pour corriger et valider les suggestions d'auteurs/livres
-- ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées
+#### Gestion des Collections ⭐ **NOUVEAU** (Issue #66)
+- 🏗️ **Architecture cache-first** : Collection `livresauteurs_cache` avec `LivresAuteursCacheService` TDD complet
+- 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
+- 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
+- ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
+- ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées complètes
 - 🔗 **Gestion des références** : Liaison automatique entre épisodes, avis critiques, auteurs et livres
-- 📚 **Collections MongoDB** : Création et gestion des collections `auteurs` et `livres`
+- 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées
+- 🎯 **Workflow complet** : De l'extraction des avis critiques jusqu'aux collections finales structurées
 
 #### Vérification Orthographique Babelio ⭐ **NOUVEAU**
 - ✅ **Auteurs** : Vérification et correction automatique d'orthographe
