@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createRouter, createWebHistory } from 'vue-router'
 import LivresAuteurs from '@/views/LivresAuteurs.vue'
 import { fixtureCaptureService } from '@/services/FixtureCaptureService.js'
 import BiblioValidationService from '@/services/BiblioValidationService.js'
@@ -8,7 +9,9 @@ import BiblioValidationService from '@/services/BiblioValidationService.js'
 vi.mock('@/services/api.js', () => ({
   livresAuteursService: {
     getEpisodesWithReviews: vi.fn(),
-    getLivresAuteurs: vi.fn()
+    getLivresAuteurs: vi.fn(),
+    setValidationResults: vi.fn(),
+    autoProcessVerifiedBooks: vi.fn()
   }
 }))
 
@@ -48,6 +51,15 @@ vi.mock('@/components/Navigation.vue', () => ({
 
 describe('Capture Button Integration', () => {
   let wrapper
+
+  // Configuration du routeur pour les tests
+  const router = createRouter({
+    history: createWebHistory(),
+    routes: [
+      { path: '/livres-auteurs', component: LivresAuteurs },
+      { path: '/', component: { template: '<div>Home</div>' } }
+    ]
+  })
   const mockEpisodes = [
     {
       id: 'episode-1',
@@ -61,13 +73,19 @@ describe('Capture Button Integration', () => {
       episode_oid: 'episode-1',
       auteur: 'Emmanuel Carrère',
       titre: 'Colcause',
-      editeur: 'POL'
+      editeur: 'POL',
+      status: 'verified',
+      programme: true,
+      coup_de_coeur: false
     },
     {
       episode_oid: 'episode-1',
       auteur: 'Fatima Das',
       titre: 'Jouer le jeu',
-      editeur: 'Flammarion'
+      editeur: 'Flammarion',
+      status: 'suggested',
+      programme: false,
+      coup_de_coeur: true
     }
   ]
 
@@ -78,6 +96,8 @@ describe('Capture Button Integration', () => {
     const { livresAuteursService } = vi.mocked(await import('@/services/api.js'))
     livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodes)
     livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks)
+    livresAuteursService.setValidationResults.mockResolvedValue({ success: true })
+    livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue({ success: true, processed_count: 0 })
 
     // Mock du service de validation
     vi.mocked(BiblioValidationService.validateBiblio).mockResolvedValue({
@@ -89,7 +109,11 @@ describe('Capture Button Integration', () => {
   })
 
   test('should display capture button on each row', async () => {
-    wrapper = mount(LivresAuteurs)
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    })
 
     // Attendre que les épisodes soient chargés
     await wrapper.vm.$nextTick()
@@ -99,6 +123,14 @@ describe('Capture Button Integration', () => {
     wrapper.vm.selectedEpisodeId = 'episode-1'
     await wrapper.vm.loadBooksForEpisode()
     await wrapper.vm.$nextTick()
+
+    // Activer la colonne YAML pour afficher les boutons de capture
+    wrapper.vm.showYamlColumn = true
+    await wrapper.vm.$nextTick()
+
+    // Vérifier que le tableau s'affiche maintenant
+    const table = wrapper.find('.books-table')
+    expect(table.exists()).toBe(true)
 
     // Vérifier que les boutons de capture sont présents
     const captureButtons = wrapper.findAll('.btn-capture-fixtures')
@@ -112,11 +144,19 @@ describe('Capture Button Integration', () => {
   })
 
   test('should trigger capture when button clicked', async () => {
-    wrapper = mount(LivresAuteurs)
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    })
 
     await wrapper.vm.$nextTick()
     wrapper.vm.selectedEpisodeId = 'episode-1'
     await wrapper.vm.loadBooksForEpisode()
+    await wrapper.vm.$nextTick()
+
+    // Activer la colonne YAML pour afficher les boutons de capture
+    wrapper.vm.showYamlColumn = true
     await wrapper.vm.$nextTick()
 
     // Cliquer sur le premier bouton de capture
@@ -146,11 +186,19 @@ describe('Capture Button Integration', () => {
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    wrapper = mount(LivresAuteurs)
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    })
 
     await wrapper.vm.$nextTick()
     wrapper.vm.selectedEpisodeId = 'episode-1'
     await wrapper.vm.loadBooksForEpisode()
+    await wrapper.vm.$nextTick()
+
+    // Activer la colonne YAML pour afficher les boutons de capture
+    wrapper.vm.showYamlColumn = true
     await wrapper.vm.$nextTick()
 
     // Cliquer sur le bouton de capture
@@ -173,11 +221,19 @@ describe('Capture Button Integration', () => {
   })
 
   test('should call captureFixtures with correct book data', async () => {
-    wrapper = mount(LivresAuteurs)
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    })
 
     await wrapper.vm.$nextTick()
     wrapper.vm.selectedEpisodeId = 'episode-1'
     await wrapper.vm.loadBooksForEpisode()
+    await wrapper.vm.$nextTick()
+
+    // Activer la colonne YAML pour afficher les boutons de capture
+    wrapper.vm.showYamlColumn = true
     await wrapper.vm.$nextTick()
 
     // Spy sur la méthode captureFixtures
@@ -192,11 +248,19 @@ describe('Capture Button Integration', () => {
   })
 
   test('should have proper test ids for capture buttons', async () => {
-    wrapper = mount(LivresAuteurs)
+    wrapper = mount(LivresAuteurs, {
+      global: {
+        plugins: [router]
+      }
+    })
 
     await wrapper.vm.$nextTick()
     wrapper.vm.selectedEpisodeId = 'episode-1'
     await wrapper.vm.loadBooksForEpisode()
+    await wrapper.vm.$nextTick()
+
+    // Activer la colonne YAML pour afficher les boutons de capture
+    wrapper.vm.showYamlColumn = true
     await wrapper.vm.$nextTick()
 
     // Vérifier les test ids

@@ -113,15 +113,6 @@ export const livresAuteursService = {
     return response.data;
   },
 
-  /**
-   * Ajoute manuellement un livre not_found
-   * @param {Object} bookData - Données du livre saisies par l'utilisateur
-   * @returns {Promise<Object>} Résultat de l'ajout
-   */
-  async addManualBook(bookData) {
-    const response = await api.post('/livres-auteurs/add-manual-book', bookData);
-    return response.data;
-  },
 
   /**
    * Récupère tous les auteurs de la collection
@@ -138,6 +129,16 @@ export const livresAuteursService = {
    */
   async getAllBooks() {
     const response = await api.get('/books');
+    return response.data;
+  },
+
+  /**
+   * Envoie les résultats de validation biblio du frontend au backend
+   * @param {Object} validationData - Données de validation des livres
+   * @returns {Promise<Object>} Résultat de l'opération
+   */
+  async setValidationResults(validationData) {
+    const response = await api.post('/set-validation-results', validationData);
     return response.data;
   },
 };
