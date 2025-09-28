@@ -86,26 +86,27 @@ class StatsService:
         stats = self.get_cache_statistics()
 
         total_en_attente = (
-            stats["couples_verified_pas_en_base"]
-            + stats["couples_suggested_pas_en_base"]
-            + stats["couples_not_found_pas_en_base"]
-            + stats["couples_pending"]
+            stats.get("couples_suggested_pas_en_base", 0)
+            + stats.get("couples_not_found_pas_en_base", 0)
+            + stats.get("couples_pending", 0)
         )
 
         total_traites = (
-            stats["couples_en_base"] + total_en_attente + stats["couples_rejected"]
+            stats.get("couples_en_base", 0)
+            + total_en_attente
+            + stats.get("couples_rejected", 0)
         )
 
         summary = f"""📊 STATISTIQUES CACHE LIVRES/AUTEURS
 
-🚀 Auto-traités (en base) : {stats["couples_en_base"]}
+🚀 Auto-traités (en base) : {stats.get("couples_en_base", 0)}
 ⏳ En attente validation  : {total_en_attente}
-   ├─ ✅ Vérifiés         : {stats["couples_verified_pas_en_base"]}
-   ├─ 💡 Suggestions      : {stats["couples_suggested_pas_en_base"]}
-   ├─ ❌ Non trouvés      : {stats["couples_not_found_pas_en_base"]}
-   └─ ⏸️  Pending         : {stats["couples_pending"]}
-🗑️  Rejetés             : {stats["couples_rejected"]}
-📝 Épisodes non traités : {stats["episodes_non_traites"]}
+   ├─ 💡 Suggestions      : {stats.get("couples_suggested_pas_en_base", 0)}
+   ├─ ❌ Non trouvés      : {stats.get("couples_not_found_pas_en_base", 0)}
+   └─ ⏸️  Pending         : {stats.get("couples_pending", 0)}
+🗑️  Rejetés             : {stats.get("couples_rejected", 0)}
+📺 Avis critiques analysés : {stats.get("avis_critiques_analyses", 0)}
+📝 Épisodes non traités : {stats.get("episodes_non_traites", 0)}
 
 Total livres traités : {total_traites}"""
 

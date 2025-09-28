@@ -49,7 +49,7 @@ describe('Dashboard - Tests d\'intégration', () => {
   const mockCollectionsStatistics = {
     episodes_non_traites: 5,
     couples_en_base: 42,
-    couples_verified_pas_en_base: 18,
+    avis_critiques_analyses: 27,
     couples_suggested_pas_en_base: 12,
     couples_not_found_pas_en_base: 8
   };
@@ -284,7 +284,7 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     // Vérifier que les valeurs des collections sont affichées
     expect(wrapper.text()).toContain('42'); // couples_en_base
-    expect(wrapper.text()).toContain('18'); // couples_verified_pas_en_base
+    expect(wrapper.text()).toContain('27'); // avis_critiques_analyses
     expect(wrapper.text()).toContain('12'); // couples_suggested_pas_en_base
     expect(wrapper.text()).toContain('8');  // couples_not_found_pas_en_base
   });
@@ -304,7 +304,7 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     // Vérifier que les libellés des collections sont présents
     expect(wrapper.text()).toMatch(/livres.*base/i);
-    expect(wrapper.text()).toMatch(/livres.*vérifiés/i);
+    expect(wrapper.text()).toMatch(/avis.*critiques.*analysés/i);
     expect(wrapper.text()).toMatch(/livres.*suggérés/i);
     expect(wrapper.text()).toMatch(/livres.*non.*trouvés/i);
   });
@@ -355,5 +355,85 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     // Vérifier que les données sont maintenant affichées
     expect(wrapper.text()).toContain('42');
+  });
+
+  // ========== TESTS TDD POUR LA NOUVELLE STATISTIQUE "AVIS CRITIQUES ANALYSÉS" ==========
+
+  it('affiche "Avis critiques analysés" au lieu de "Livres vérifiés"', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Test TDD: "Avis critiques analysés" doit être présent
+    expect(wrapper.text()).toMatch(/avis.*critiques.*analysés/i);
+
+    // Test TDD: "Livres vérifiés" NE DOIT PAS être présent
+    expect(wrapper.text()).not.toMatch(/livres.*vérifiés/i);
+  });
+
+  it('affiche la valeur de avis_critiques_analyses depuis l\'API', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Test TDD: La valeur 27 de avis_critiques_analyses doit être affichée
+    expect(wrapper.text()).toContain('27');
+
+    // Test TDD: La valeur 18 de couples_verified_pas_en_base NE DOIT PAS être affichée (ancienne stat supprimée)
+    expect(wrapper.text()).not.toContain('18');
+  });
+
+  it('gère l\'absence de avis_critiques_analyses dans la réponse API', async () => {
+    const incompleteStats = {
+      episodes_non_traites: 5,
+      couples_en_base: 42,
+      couples_suggested_pas_en_base: 12,
+      couples_not_found_pas_en_base: 8
+      // avis_critiques_analyses manquant volontairement
+    };
+
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(incompleteStats);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Test TDD: Doit afficher '...' quand avis_critiques_analyses est absent
+    const text = wrapper.text();
+    expect(text).toMatch(/avis.*critiques.*analysés/i);
+
+    // Rechercher spécifiquement la carte "Avis critiques analysés" et vérifier qu'elle affiche '...'
+    const statCards = wrapper.findAll('.stat-card');
+    let foundAnalysedCritiquesCard = false;
+    for (let card of statCards) {
+      if (card.text().includes('Avis critiques analysés')) {
+        expect(card.text()).toContain('...');
+        foundAnalysedCritiquesCard = true;
+        break;
+      }
+    }
+    expect(foundAnalysedCritiquesCard).toBe(true);
   });
 });

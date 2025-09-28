@@ -115,9 +115,10 @@ class TestCorrectStatusValues:
 
             # Vérifier que 'mongo' est compté comme couples_en_base
             assert stats["couples_en_base"] == 5  # Statut 'mongo'
-            assert stats["couples_verified_pas_en_base"] == 3
+            # Note: couples_verified_pas_en_base a été supprimé (toujours à 0)
             assert stats["couples_suggested_pas_en_base"] == 2
             assert stats["couples_not_found_pas_en_base"] == 1
+            assert "couples_verified_pas_en_base" not in stats  # Plus présent
 
     def test_update_validation_status_should_accept_mongo(self):
         """Test TDD: update_validation_status doit accepter le statut 'mongo'."""
@@ -138,3 +139,65 @@ class TestCorrectStatusValues:
             update_call = mock_mongodb.get_collection.return_value.update_one.call_args
             update_fields = update_call[0][1]["$set"]
             assert update_fields["status"] == "mongo"
+
+    def test_statistics_should_NOT_include_couples_verified_pas_en_base(self):
+        """Test TDD: Les statistiques NE DOIVENT PAS inclure 'couples_verified_pas_en_base' (toujours 0)."""
+        with patch(
+            "back_office_lmelp.services.livres_auteurs_cache_service.mongodb_service"
+        ) as mock_mongodb:
+            # Mock des données de cache (sans verified pour simuler notre situation actuelle)
+            mock_mongodb.get_collection.return_value.aggregate.return_value = [
+                {"_id": "mongo", "count": 128},
+                {"_id": "suggested", "count": 86},
+                {"_id": "not_found", "count": 52},
+            ]
+
+            # Mock pour avis critiques analysés (nouvelle stat)
+            mock_mongodb.get_collection.return_value.distinct.side_effect = [
+                ["id1", "id2", "id38"],  # 38 avis_critique_id distincts
+                ["analyzed1", "analyzed2"],  # pour untreated count
+            ]
+            mock_mongodb.get_collection.return_value.count_documents.return_value = 100
+
+            service = LivresAuteursCacheService()
+            stats = service.get_statistics_from_cache()
+
+            # Assert: couples_verified_pas_en_base ne doit PAS être dans les stats
+            assert "couples_verified_pas_en_base" not in stats
+
+            # Assert: autres stats doivent être présentes
+            assert stats["couples_en_base"] == 128
+            assert stats["couples_suggested_pas_en_base"] == 86
+            assert stats["couples_not_found_pas_en_base"] == 52
+
+    def test_statistics_should_include_avis_critiques_analyses(self):
+        """Test TDD: Les statistiques DOIVENT inclure 'avis_critiques_analyses' (avis_critique_id distincts)."""
+        with patch(
+            "back_office_lmelp.services.livres_auteurs_cache_service.mongodb_service"
+        ) as mock_mongodb:
+            # Mock des données de cache
+            mock_mongodb.get_collection.return_value.aggregate.return_value = [
+                {"_id": "mongo", "count": 128},
+                {"_id": "suggested", "count": 86},
+                {"_id": "not_found", "count": 52},
+            ]
+
+            # Mock pour avis critiques analysés : distinct retourne les avis_critique_id uniques
+            mock_mongodb.get_collection.return_value.distinct.side_effect = [
+                [ObjectId() for _ in range(42)],  # 42 avis_critique_id distincts
+                ["analyzed1", "analyzed2"],  # pour untreated count
+            ]
+            mock_mongodb.get_collection.return_value.count_documents.return_value = 100
+
+            service = LivresAuteursCacheService()
+            stats = service.get_statistics_from_cache()
+
+            # Assert: avis_critiques_analyses doit être présent et correct
+            assert "avis_critiques_analyses" in stats
+            assert stats["avis_critiques_analyses"] == 42
+            assert isinstance(stats["avis_critiques_analyses"], int)
+
+            # Vérifier que distinct a été appelé sur 'avis_critique_id'
+            mock_mongodb.get_collection.return_value.distinct.assert_any_call(
+                "avis_critique_id"
+            )

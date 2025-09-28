@@ -81,24 +81,24 @@ class TestStatsService:
             "couples_en_base": 3,
             "couples_pending": 5,
             "couples_rejected": 1,
-            "couples_verified_pas_en_base": 2,
             "couples_suggested_pas_en_base": 4,
             "couples_not_found_pas_en_base": 1,
+            "avis_critiques_analyses": 38,
             "episodes_non_traites": 10,
         }
 
         expected_summary = """📊 STATISTIQUES CACHE LIVRES/AUTEURS
 
 🚀 Auto-traités (en base) : 3
-⏳ En attente validation  : 12
-   ├─ ✅ Vérifiés         : 2
+⏳ En attente validation  : 10
    ├─ 💡 Suggestions      : 4
    ├─ ❌ Non trouvés      : 1
    └─ ⏸️  Pending         : 5
 🗑️  Rejetés             : 1
+📺 Avis critiques analysés : 38
 📝 Épisodes non traités : 10
 
-Total livres traités : 16"""
+Total livres traités : 14"""
 
         with patch.object(
             StatsService, "get_cache_statistics", return_value=mock_stats
@@ -235,3 +235,99 @@ Total livres traités : 16"""
         assert hasattr(stats_service, "get_cache_statistics")
         assert hasattr(stats_service, "get_human_readable_summary")
         assert hasattr(stats_service, "display_console_stats")
+
+    def test_stats_service_should_NOT_include_couples_verified_pas_en_base(self):
+        """Test TDD: Les stats NE DOIVENT PAS inclure 'couples_verified_pas_en_base' (toujours 0)."""
+        # Arrange
+        mock_cache_stats = {
+            "couples_en_base": 128,
+            "couples_suggested_pas_en_base": 86,
+            "couples_not_found_pas_en_base": 52,
+            "avis_critiques_analyses": 38,  # Nouvelle stat
+            "episodes_non_traites": 11,
+        }
+
+        with patch(
+            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+        ) as mock_cache:
+            mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service.get_cache_statistics()
+
+            # Assert
+            assert "couples_verified_pas_en_base" not in result
+            assert "avis_critiques_analyses" in result
+            assert result["avis_critiques_analyses"] == 38
+
+    def test_stats_service_should_include_avis_critiques_analyses(self):
+        """Test TDD: Les stats DOIVENT inclure 'avis_critiques_analyses' (avis_critique_id distincts)."""
+        # Arrange
+        mock_cache_stats = {
+            "couples_en_base": 128,
+            "couples_suggested_pas_en_base": 86,
+            "couples_not_found_pas_en_base": 52,
+            "avis_critiques_analyses": 42,  # Nouvelle stat
+            "episodes_non_traites": 11,
+        }
+
+        with patch(
+            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+        ) as mock_cache:
+            mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service.get_cache_statistics()
+
+            # Assert
+            assert "avis_critiques_analyses" in result
+            assert result["avis_critiques_analyses"] == 42
+            assert isinstance(result["avis_critiques_analyses"], int)
+
+    def test_human_readable_summary_should_NOT_mention_livres_verifies(self):
+        """Test TDD: Le résumé NE DOIT PAS mentionner 'Vérifiés' (section supprimée)."""
+        # Arrange
+        mock_stats = {
+            "couples_en_base": 128,
+            "couples_suggested_pas_en_base": 86,
+            "couples_not_found_pas_en_base": 52,
+            "avis_critiques_analyses": 38,
+            "episodes_non_traites": 11,
+        }
+
+        with patch.object(
+            StatsService, "get_cache_statistics", return_value=mock_stats
+        ):
+            # Act
+            stats_service = StatsService()
+            result = stats_service.get_human_readable_summary()
+
+            # Assert
+            assert "✅ Vérifiés" not in result
+            assert "couples_verified_pas_en_base" not in result
+            # Mais les autres sections doivent être présentes
+            assert "💡 Suggestions" in result
+            assert "❌ Non trouvés" in result
+
+    def test_human_readable_summary_should_include_avis_critiques_analyses(self):
+        """Test TDD: Le résumé DOIT inclure 'Avis critiques analysés'."""
+        # Arrange
+        mock_stats = {
+            "couples_en_base": 128,
+            "couples_suggested_pas_en_base": 86,
+            "couples_not_found_pas_en_base": 52,
+            "avis_critiques_analyses": 38,
+            "episodes_non_traites": 11,
+        }
+
+        with patch.object(
+            StatsService, "get_cache_statistics", return_value=mock_stats
+        ):
+            # Act
+            stats_service = StatsService()
+            result = stats_service.get_human_readable_summary()
+
+            # Assert
+            assert "📺 Avis critiques analysés : 38" in result

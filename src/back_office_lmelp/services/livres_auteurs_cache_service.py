@@ -249,7 +249,6 @@ class LivresAuteursCacheService:
         # Construire les statistiques finales (nouveau système simplifié)
         stats = {
             "couples_en_base": 0,
-            "couples_verified_pas_en_base": 0,
             "couples_suggested_pas_en_base": 0,
             "couples_not_found_pas_en_base": 0,
         }
@@ -261,15 +260,19 @@ class LivresAuteursCacheService:
 
             if status == "mongo":
                 stats["couples_en_base"] = count
-            elif status == "verified":
-                stats["couples_verified_pas_en_base"] = count
             elif status == "suggested":
                 stats["couples_suggested_pas_en_base"] = count
             elif status == "not_found":
                 stats["couples_not_found_pas_en_base"] = count
 
-        # Ajouter les épisodes non traités
-        stats["episodes_non_traites"] = self.get_untreated_avis_critiques_count()
+        # Compter les avis critiques analysés (nombre d'avis_critique_id distincts dans le cache)
+        treated_avis_ids = cache_collection.distinct("avis_critique_id")
+        stats["avis_critiques_analyses"] = len(treated_avis_ids)
+
+        # Ajouter les épisodes non traités (réutilise le calcul ci-dessus)
+        stats["episodes_non_traites"] = self._get_untreated_count_with_treated_ids(
+            treated_avis_ids
+        )
 
         return stats
 
@@ -287,6 +290,25 @@ class LivresAuteursCacheService:
         # Compter les avis critiques distincts dans le cache
         cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
         treated_avis_ids = cache_collection.distinct("avis_critique_id")
+        treated_count = len(treated_avis_ids)
+
+        return int(total_avis - treated_count)
+
+    def _get_untreated_count_with_treated_ids(self, treated_avis_ids: list) -> int:
+        """
+        Compte les avis critiques non encore traités (optimisé avec IDs déjà calculés).
+
+        Args:
+            treated_avis_ids: Liste des avis_critique_id déjà traités
+
+        Returns:
+            Nombre d'avis critiques non traités
+        """
+        # Compter le total d'avis critiques
+        avis_collection = self.mongodb_service.get_collection("avis_critiques")
+        total_avis = avis_collection.count_documents({})
+
+        # Utiliser la liste déjà calculée
         treated_count = len(treated_avis_ids)
 
         return int(total_avis - treated_count)
