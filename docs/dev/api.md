@@ -538,11 +538,11 @@ Récupère les statistiques pour la page de gestion des collections.
 **200 OK**
 ```json
 {
-  "episodes_non_traites": 5,
-  "couples_en_base": 42,
-  "couples_verified_pas_en_base": 18,
-  "couples_suggested_pas_en_base": 12,
-  "couples_not_found_pas_en_base": 8
+  "episodes_non_traites": 11,
+  "couples_en_base": 128,
+  "avis_critiques_analyses": 27,
+  "couples_suggested_pas_en_base": 86,
+  "couples_not_found_pas_en_base": 52
 }
 ```
 

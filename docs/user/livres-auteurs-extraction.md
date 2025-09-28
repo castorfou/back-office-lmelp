@@ -122,15 +122,16 @@ Le système de gestion des collections automatise la création et la maintenance
 La page affiche des compteurs automatiquement mis à jour :
 - **Épisodes non traités** : Nombre d'épisodes avec avis critiques non encore analysés
 - **Couples en base** : Livres/auteurs déjà présents dans les collections MongoDB
-- **Couples vérifiés non en base** : Livres validés par Babelio mais pas encore ajoutés aux collections
+- **Avis critiques analysés** : Nombre d'avis critiques distincts ayant été traités et analysés
 - **Couples suggérés non en base** : Livres avec corrections Babelio proposées, en attente de validation manuelle
 - **Couples non trouvés non en base** : Livres non trouvés sur Babelio, nécessitant une saisie manuelle
 
-#### Traitement automatique des livres vérifiés
-Un bouton "Traiter automatiquement les livres vérifiés" permet de :
-- Créer automatiquement les auteurs et livres validés par Babelio
+#### Traitement automatique des livres validés
+Un bouton "Traiter automatiquement les livres validés" permet de :
+- Créer automatiquement les auteurs et livres validés par Babelio dans les collections MongoDB
 - Maintenir les références croisées entre collections
 - Éviter les doublons grâce à la vérification existence avant création
+- Marquer automatiquement les livres traités avec le statut "mongo" (en base)
 
 #### Validation manuelle des suggestions
 Pour les livres avec corrections proposées par Babelio :
