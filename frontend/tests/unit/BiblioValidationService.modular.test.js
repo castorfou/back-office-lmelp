@@ -216,7 +216,7 @@ describe('BiblioValidationService Tests', () => {
       const extractedAuthor = 'Alice Ferney';
       const extractedTitle = 'Comme en amour';
       const inputAuthor = 'Alice Ferney';  // User typed this
-      const inputTitle = 'Pour';           // User typed this (incorrect)
+      const inputTitle = 'Comme en amour'; // User typed this (correct match)
 
       // Mock: Babelio finds the extracted book directly
       mockBabelioService.verifyBook.mockResolvedValueOnce({
@@ -249,6 +249,43 @@ describe('BiblioValidationService Tests', () => {
 
       // Verify: Fuzzy search should NOT be called (phase 0 succeeded)
       expect(mockFuzzySearchService.searchEpisode).not.toHaveBeenCalled();
+    });
+
+    it('should NOT trigger phase 0 when user input does not match extracted book exactly', async () => {
+      // Setup: User types "Pour" but extracted book is "Comme en amour"
+      const inputAuthor = 'Alice Ferney';
+      const inputTitle = 'Pour';  // User typed this (incorrect, no exact match)
+
+      // Mock: Fuzzy search should be called (normal workflow)
+      mockFuzzySearchService.searchEpisode.mockResolvedValueOnce({
+        found_suggestions: true,
+        titleMatches: [['Pour', 77]],
+        authorMatches: [['Alice', 90], ['Ferney', 90]]
+      });
+
+      // Mock: Author validation
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'verified',
+        babelio_suggestion: 'Alice Ferney',
+        confidence_score: 1.0
+      });
+
+      // Mock: Book validation for user input
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found'
+      });
+
+      // When: Validate with input that doesn't match extracted book
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        '68ab04b92dc760119d18f8ef' // pragma: allowlist secret
+      );
+
+      // Then: Phase 0 should NOT be triggered, fallback to normal workflow
+      expect(mockFuzzySearchService.searchEpisode).toHaveBeenCalled();
+      expect(result.status).toBe('suggestion'); // Since fuzzy search found decent matches
     });
 
     it('should fallback to normal workflow when phase 0 fails', async () => {
