@@ -7,10 +7,10 @@ Utilise une todo list pour garder la trace complète de ce travail, et être sû
 6. Itere entre code et execution des tests jusqu'a une resolution complete des problemes
 7. Vérifie que tout passe (tests, lint, typecheck)
 8. Cree les modifications necessaires dans la doc utilisateur et la doc developpeur
-9.  Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
-10. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
-11. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 11) jusqu'à satisfaction
-12. Met à jour README.md et CLAUDE.md si necessaire
+9. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 9) jusqu'à satisfaction
+10. Met à jour README.md et CLAUDE.md si necessaire
+11.  Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
+12. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
 13. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
 14. Clos la todo list si elle est bien vide
 15. Repasse sur la branche main locale, et recupere les dernieres modifications

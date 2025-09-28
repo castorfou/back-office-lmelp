@@ -50,17 +50,26 @@ def mock_extracted_books():
 class TestLivresAuteursEndpoint:
     """Tests de l'endpoint /api/livres-auteurs."""
 
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_success(
-        self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
+        self,
+        mock_llm_service,
+        mock_mongodb_service,
+        mock_cache_service,
+        client,
+        mock_extracted_books,
     ):
         """Test de récupération réussie des livres/auteurs."""
-        # Configuration des mocks
-        mock_mongodb_service.get_all_critical_reviews.return_value = [
+        # Configuration des mocks - cache miss global
+        mock_cache_service.get_books_by_episode_oid.return_value = []
+
+        # Configuration des mocks - utiliser get_critical_reviews_by_episode_oid au lieu de get_all_critical_reviews
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.return_value = [
             {
                 "_id": "test_id",
-                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret  # pragma: allowlist secret
                 "episode_title": "Test Episode",
                 "episode_date": "01 jan. 2025",
                 "summary": "Test summary",
@@ -72,7 +81,7 @@ class TestLivresAuteursEndpoint:
         )
         mock_llm_service.format_books_for_simplified_display.return_value = [
             {
-                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret  # pragma: allowlist secret
                 "episode_title": "Test Episode",
                 "episode_date": "01 jan. 2025",
                 "auteur": "Test Auteur",
@@ -93,8 +102,10 @@ class TestLivresAuteursEndpoint:
             },
         ]
 
-        # Test de l'endpoint
-        response = client.get("/api/livres-auteurs")
+        # Test de l'endpoint avec episode_oid obligatoire
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -139,16 +150,20 @@ class TestLivresAuteursEndpoint:
         assert "programme" in book2
         assert "coup_de_coeur" in book2
 
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_no_reviews(
-        self, mock_llm_service, mock_mongodb_service, client
+        self, mock_llm_service, mock_mongodb_service, mock_cache_service, client
     ):
         """Test quand aucun avis critique n'est trouvé."""
-        mock_mongodb_service.get_all_critical_reviews.return_value = []
+        mock_cache_service.get_books_by_episode_oid.return_value = []
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.return_value = []
         mock_llm_service.extract_books_from_reviews = AsyncMock(return_value=[])
 
-        response = client.get("/api/livres-auteurs")
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -161,7 +176,9 @@ class TestLivresAuteursEndpoint:
             "MongoDB Error"
         )
 
-        response = client.get("/api/livres-auteurs")
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+        )
 
         assert response.status_code == 500
         assert "Erreur serveur" in response.json()["detail"]
@@ -172,33 +189,52 @@ class TestLivresAuteursEndpoint:
         self, mock_llm_service, mock_mongodb_service, client
     ):
         """Test de gestion d'erreur du service LLM."""
-        mock_mongodb_service.get_all_critical_reviews.return_value = [
-            {"_id": "test_id", "episode_oid": "test_oid", "summary": "test"}
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.return_value = [
+            {
+                "_id": "test_id",
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "summary": "test",
+            }
         ]
         mock_llm_service.extract_books_from_reviews = AsyncMock(
             side_effect=Exception("LLM API Error")
         )
 
-        response = client.get("/api/livres-auteurs")
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+        )
 
         assert response.status_code == 500
         assert "Erreur serveur" in response.json()["detail"]
 
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_with_limit_parameter(
-        self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
+        self,
+        mock_llm_service,
+        mock_mongodb_service,
+        mock_cache_service,
+        client,
+        mock_extracted_books,
     ):
         """Test de l'endpoint avec paramètre de limite."""
-        mock_mongodb_service.get_all_critical_reviews.return_value = [
-            {"_id": "test_id", "episode_oid": "test_oid", "summary": "test"}
+        # Mock cache miss to trigger extraction
+        mock_cache_service.get_books_by_episode_oid.return_value = []
+
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.return_value = [
+            {
+                "_id": "test_id",
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "summary": "test",
+            }
         ]
         mock_llm_service.extract_books_from_reviews = AsyncMock(
             return_value=mock_extracted_books
         )
         mock_llm_service.format_books_for_simplified_display.return_value = [
             {
-                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret  # pragma: allowlist secret
                 "episode_title": "Test Episode",
                 "episode_date": "01 jan. 2025",
                 "auteur": "Test Auteur",
@@ -219,7 +255,9 @@ class TestLivresAuteursEndpoint:
             },
         ]
 
-        response = client.get("/api/livres-auteurs?limit=1")
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076&limit=1"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -228,12 +266,18 @@ class TestLivresAuteursEndpoint:
         assert len(data) <= 1 or len(data) == 2  # Depending on implementation
 
         # Vérifier que le service MongoDB est appelé avec la bonne limite
-        mock_mongodb_service.get_all_critical_reviews.assert_called_once()
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.assert_called_once()
 
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_memory_guard_warning(
-        self, mock_llm_service, mock_mongodb_service, client, mock_extracted_books
+        self,
+        mock_llm_service,
+        mock_mongodb_service,
+        mock_cache_service,
+        client,
+        mock_extracted_books,
     ):
         """Test que le garde-fou mémoire est vérifié."""
         with patch("back_office_lmelp.app.memory_guard") as mock_memory_guard:
@@ -244,15 +288,18 @@ class TestLivresAuteursEndpoint:
             mock_mongodb_service.get_all_critical_reviews.return_value = []
             mock_llm_service.extract_books_from_reviews = AsyncMock(return_value=[])
 
-            response = client.get("/api/livres-auteurs")
+            response = client.get(
+                "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+            )
 
             assert response.status_code == 200
             mock_memory_guard.check_memory_limit.assert_called_once()
 
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     @patch("back_office_lmelp.app.mongodb_service")
     @patch("back_office_lmelp.app.books_extraction_service")
     def test_get_livres_auteurs_response_format(
-        self, mock_llm_service, mock_mongodb_service, client
+        self, mock_llm_service, mock_mongodb_service, mock_cache_service, client
     ):
         """Test du format de réponse de l'endpoint."""
         # Format simplifié : seulement les champs essentiels
@@ -268,8 +315,12 @@ class TestLivresAuteursEndpoint:
             "coup_de_coeur": False,
         }
 
-        mock_mongodb_service.get_all_critical_reviews.return_value = [
-            {"_id": "test_id", "episode_oid": "test_oid", "summary": "test"}
+        mock_mongodb_service.get_critical_reviews_by_episode_oid.return_value = [
+            {
+                "_id": "test_id",
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "summary": "test",
+            }
         ]
         mock_llm_service.extract_books_from_reviews = AsyncMock(
             return_value=[expected_book_simplified]
@@ -278,7 +329,9 @@ class TestLivresAuteursEndpoint:
             expected_book_simplified
         ]
 
-        response = client.get("/api/livres-auteurs")
+        response = client.get(
+            "/api/livres-auteurs?episode_oid=6865f995a1418e3d7c63d076"
+        )
 
         assert response.status_code == 200
         data = response.json()

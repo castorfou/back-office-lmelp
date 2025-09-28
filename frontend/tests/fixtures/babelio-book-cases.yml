@@ -283,3 +283,55 @@ cases:
     original_title: Aval
     status: corrected
   timestamp: 1758409474090
+- input:
+    author: Laurent Mauvignier
+    title: La Maison Vide
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '2241'
+      ca_note: '4.44'
+      couverture: /couv/cvt_La-maison-vide_2615.jpg
+      id_auteur: '3013'
+      id_oeuvre: '1868350'
+      nom: Mauvignier
+      prenoms: Laurent
+      titre: La maison vide
+      tri: '2241'
+      type: livres
+      url: /livres/Mauvignier-La-maison-vide/1868350
+    babelio_suggestion_author: Laurent Mauvignier
+    babelio_suggestion_title: La maison vide
+    babelio_url: https://www.babelio.com/livres/Mauvignier-La-maison-vide/1868350
+    confidence_score: 1
+    error_message: null
+    original_author: Laurent Mauvignier
+    original_title: La Maison Vide
+    status: verified
+  timestamp: 1758830481143
+- input:
+    author: Alice Ferney
+    title: Comme en amour
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '486'
+      ca_note: '3.49'
+      couverture: /couv/cvt_Comme-en-amour_300.jpg
+      id_auteur: '7842'
+      id_oeuvre: '1833584'
+      nom: Ferney
+      prenoms: Alice
+      titre: Comme en amour
+      tri: '486'
+      type: livres
+      url: /livres/Ferney-Comme-en-amour/1833584
+    babelio_suggestion_author: Alice Ferney
+    babelio_suggestion_title: Comme en amour
+    babelio_url: https://www.babelio.com/livres/Ferney-Comme-en-amour/1833584
+    confidence_score: 1
+    error_message: null
+    original_author: Alice Ferney
+    original_title: Comme en amour
+    status: verified
+  timestamp: 1759055213227

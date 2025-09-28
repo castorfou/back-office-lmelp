@@ -45,13 +45,18 @@ L'interface comprend maintenant **deux pages principales** :
 │     Masque et la Plume              │
 └─────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────┐
-│              Informations générales                 │
-│                                                     │
-│ [142]     [37]      [45]      [28]         [...]    │
-│Épisodes  Titres  Descriptions Avis      Dernière    │
-│ total   corrigés  corrigées  critiques  mise à jour │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                  Informations générales                     │
+│                                                              │
+│ [...]     [142]     [37]      [45]      [28]       [27]     │
+│Dernière  Épisodes  Titres  Descriptions Avis      Avis      │
+│mise à    au total  corrigés  corrigées  critiques critiques │
+│jour                                     extraits  analysés  │
+│                                                              │
+│ [128]     [86]        [52]                                   │
+│Livres   Livres    Livres non                                │
+│en base  suggérés   trouvés                                  │
+└──────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────┐
 │      Fonctions disponibles          │

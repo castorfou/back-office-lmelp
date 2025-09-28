@@ -208,6 +208,125 @@ describe('BiblioValidationService Tests', () => {
     }
   });
 
+  describe('🔬 Phase 0: Direct Babelio Validation (TDD)', () => {
+    it('should validate extracted book directly with Babelio before fuzzy search - Alice Ferney case', async () => {
+      // ===== CASE: Alice Ferney - Comme en amour should be found directly =====
+
+      // Setup: Mock Babelio to return a positive result for the extracted book
+      const extractedAuthor = 'Alice Ferney';
+      const extractedTitle = 'Comme en amour';
+      const inputAuthor = 'Alice Ferney';  // User typed this
+      const inputTitle = 'Comme en amour'; // User typed this (correct match)
+
+      // Mock: Babelio finds the extracted book directly
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'verified',
+        babelio_suggestion_author: 'Alice Ferney',
+        babelio_suggestion_title: 'Comme en amour',
+        confidence_score: 1.0,
+        original_author: extractedAuthor,
+        original_title: extractedTitle
+      });
+
+      // When: Validate the incorrect user input
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        '68ab04b92dc760119d18f8ef' // pragma: allowlist secret
+      );
+
+      // Then: Should return verified status with the extracted book info
+      expect(result.status).toBe('verified');
+      expect(result.data.original.author).toBe(inputAuthor);
+      expect(result.data.original.title).toBe(inputTitle);
+      expect(result.data.suggested?.author).toBe('Alice Ferney');
+      expect(result.data.suggested?.title).toBe('Comme en amour');
+      expect(result.data.source).toBe('babelio_phase0');
+
+      // Verify: Babelio was called with extracted data, NOT user input
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledWith(extractedTitle, extractedAuthor);
+
+      // Verify: Fuzzy search should NOT be called (phase 0 succeeded)
+      expect(mockFuzzySearchService.searchEpisode).not.toHaveBeenCalled();
+    });
+
+    it('should NOT trigger phase 0 when user input does not match extracted book exactly', async () => {
+      // Setup: User types "Pour" but extracted book is "Comme en amour"
+      const inputAuthor = 'Alice Ferney';
+      const inputTitle = 'Pour';  // User typed this (incorrect, no exact match)
+
+      // Mock: Fuzzy search should be called (normal workflow)
+      mockFuzzySearchService.searchEpisode.mockResolvedValueOnce({
+        found_suggestions: true,
+        titleMatches: [['Pour', 77]],
+        authorMatches: [['Alice', 90], ['Ferney', 90]]
+      });
+
+      // Mock: Author validation
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'verified',
+        babelio_suggestion: 'Alice Ferney',
+        confidence_score: 1.0
+      });
+
+      // Mock: Book validation for user input
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found'
+      });
+
+      // When: Validate with input that doesn't match extracted book
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        '68ab04b92dc760119d18f8ef' // pragma: allowlist secret
+      );
+
+      // Then: Phase 0 should NOT be triggered, fallback to normal workflow
+      expect(mockFuzzySearchService.searchEpisode).toHaveBeenCalled();
+      expect(result.status).toBe('suggestion'); // Since fuzzy search found decent matches
+    });
+
+    it('should fallback to normal workflow when phase 0 fails', async () => {
+      // Setup: Mock Babelio to fail for the extracted book (phase 0)
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found'
+      });
+
+      // Mock: Continue with normal workflow - fuzzy search finds suggestions
+      mockFuzzySearchService.searchEpisode.mockResolvedValueOnce({
+        found_suggestions: true,
+        titleMatches: [['Pour', 77]],
+        authorMatches: [['Alice', 90], ['Ferney', 90]]
+      });
+
+      // Mock: Author validation
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'verified',
+        babelio_suggestion: 'Alice Ferney',
+        confidence_score: 1.0
+      });
+
+      // Mock: Book validation for user input
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found'
+      });
+
+      // When: Validate with phase 0 failing
+      const result = await biblioValidationService.validateBiblio(
+        'Alice Ferney',
+        'NonExistentBook',
+        '',
+        '68ab04b92dc760119d18f8ef' // pragma: allowlist secret
+      );
+
+      // Then: Should fallback to normal workflow
+      expect(mockFuzzySearchService.searchEpisode).toHaveBeenCalled();
+      expect(result.status).toBe('suggestion'); // Since fuzzy search found decent matches
+    });
+  });
+
   describe('📊 Statistics', () => {
     it('should report captured cases statistics', () => {
       const totalCases = biblioValidationCases.cases.length;

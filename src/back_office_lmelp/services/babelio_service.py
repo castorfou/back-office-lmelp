@@ -67,7 +67,7 @@ class BabelioService:
         # Contrôle des logs temporaires pour le cache disque (utile en dev)
         # Si la variable d'environnement BABELIO_CACHE_LOG est '1' ou 'true',
         # on exposera des logs plus verbeux (info) pour hit/miss et écriture.
-        self._cache_log_enabled = os.getenv("BABELIO_CACHE_LOG", "1").lower() in (
+        self._cache_log_enabled = os.getenv("BABELIO_CACHE_LOG", "0").lower() in (
             "1",
             "true",
             "yes",

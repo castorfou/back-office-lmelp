@@ -302,3 +302,61 @@ cases:
     - - Alikavazovic
       - 68
   timestamp: 1758409474077
+- input:
+    episode_id: 68c707ad6e51b9428ab87e9e
+    query_author: Laurent Mauvignier
+    query_title: La Maison Vide
+  output:
+    authorMatches:
+    - - Laurent
+      - 90
+    - - Mauvignier
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 La Maison vide
+      - 100
+    - - 📖 Ramsès de Paris
+      - 43
+    - - 📖 Au grand jamais
+      - 41
+    - - 📖 Avale
+      - 40
+    - - 📖 Tressaillir
+      - 24
+    - - Maison
+      - 90
+    - - vide
+      - 90
+    - - jamais
+      - 75
+    - - durée
+      - 60
+  timestamp: 1758830480907
+- input:
+    episode_id: 68ab04b92dc760119d18f8ef
+    query_author: Alice Ferney
+    query_title: Comme en amour
+  output:
+    authorMatches:
+    - - Alice
+      - 90
+    - - Ferney
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 45
+    - - Pour
+      - 77
+    - - lourd
+      - 68
+    - - durée
+      - 60
+    - - mère
+      - 60
+    - - mêle
+      - 60
+    - - écouter
+      - 60
+  timestamp: 1759055212959

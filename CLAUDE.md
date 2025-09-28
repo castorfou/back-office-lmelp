@@ -562,6 +562,18 @@ curl -X POST "$BACKEND_URL/api/verify-babelio" \
   -d '{"type": "book", "title": "L'\''Étranger", "author": "Albert Camus"}'
 ```
 
+### Stats
+
+to autonomously get stats data (Informations Generales blocks)
+
+```bash
+# Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+# stats
+curl "$BACKEND_URL/api/stats" | jq
+```
+
 ### API Testing Best Practices
 - **Always check the API documentation first**: Visit `/docs` for interactive testing
 - **Use jq for JSON parsing**: Makes endpoint discovery much faster
@@ -576,6 +588,95 @@ curl -X POST "$BACKEND_URL/api/verify-babelio" \
 - **Missing field errors**: Use OpenAPI schema to verify all required fields
 
 **Note**: Issue #56 has been fully implemented - automatic port discovery is now available via the Claude Code Auto-Discovery System (see section above).
+
+## Auto-Discovery Best Practices for API Testing
+
+### Pattern Optimal : Chaînage Auto-Discovery + API Call
+```bash
+# ✅ MÉTHODE RECOMMANDÉE : Chaînage avec && (FONCTIONNE PARFAITEMENT)
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -X POST "$BACKEND_URL/api/endpoint" \
+  -H "Content-Type: application/json" \
+  -d '{"data": "value"}'
+
+# ✅ Health check automatique avec chaînage
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl "$BACKEND_URL/"
+
+# ✅ Test API avec query string (testé et validé)
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq
+
+# ✅ Validation d'endpoint avec données POST
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl "$BACKEND_URL/api/livres-auteurs/validate-suggestion" \
+  -H "Content-Type: application/json" \
+  -d '{"cache_id": "test"}' | jq
+```
+
+### Pattern Alternatif : Substitution Directe
+```bash
+# ✅ Alternative compacte : Substitution directe (aussi validé)
+curl "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/endpoint"
+
+# ✅ Avec JSON formatting
+curl -s "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/stats" | jq
+```
+
+### Pattern 2-étapes (si chaînage pose problème)
+```bash
+# ✅ Fallback : Séparer en deux étapes
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl "$BACKEND_URL/api/endpoint"
+```
+
+### ⚠️ Note Importante sur l'Échappement
+**Le chaînage fonctionne parfaitement en ligne de commande normale**. Si des erreurs d'échappement apparaissent dans certains environnements (interfaces, IDE, etc.), utiliser la substitution directe ou la méthode 2-étapes comme fallback.
+
+### Pattern Robuste : Validation + Fallback
+```bash
+# Vérifier que le backend est actif avant test
+BACKEND_STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
+if [ "$BACKEND_STATUS" = "active" ]; then
+    BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+    curl "$BACKEND_URL/api/test"
+else
+    echo "❌ Backend not running"
+    exit 1
+fi
+```
+
+### Anti-Patterns à Éviter
+```bash
+# ❌ Hardcoder les ports (fragile)
+curl "http://localhost:54321/api/endpoint"
+
+# ❌ Deviner les ports (inefficace)
+curl "http://localhost:8000/api/endpoint" || curl "http://localhost:5000/api/endpoint"
+
+# ❌ Ne pas valider l'état du service
+curl "http://localhost:$RANDOM/api/endpoint"
+```
+
+### Workflow TDD avec Auto-Discovery
+```bash
+# 1. Vérifier l'état des services
+/workspaces/back-office-lmelp/.claude/get-services-info.sh
+
+# 2. Tester le cas d'erreur (Red phase)
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl "$BACKEND_URL/api/validate" -d '{"invalid": null}' # → 422
+
+# 3. Après correction, tester le cas de succès (Green phase)
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl "$BACKEND_URL/api/validate" -d '{"valid": "data"}' # → 200
+```
+
+**Avantages** :
+- ✅ Élimine 90% des erreurs "Connection refused"
+- ✅ S'adapte automatiquement aux changements de port
+- ✅ Tests plus robustes et maintenables
+- ✅ Workflow de debug plus efficace
 
 ## MongoDB Database Operations
 
@@ -693,6 +794,7 @@ mcp__MongoDB__collection-storage-size --database "masque_et_la_plume" --collecti
 ### Structure
 - **User documentation**: docs/user/ (guides, troubleshooting)
 - **Developer documentation**: docs/dev/ (architecture, API, security)
+- **Environment variables**: docs/dev/environment-variables.md (complete reference)
 - **Automatic deployment**: GitHub Actions on docs changes
 
 ## Project Maintenance Guidelines

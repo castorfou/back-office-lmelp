@@ -41,6 +41,9 @@ cd frontend && npm run dev
 # Tests backend uniquement
 pytest -v
 
+# en mode très quiet
+pytest -qq --tb=no --disable-warnings
+
 # Tests frontend uniquement
 cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
@@ -62,6 +65,22 @@ nService.modular.test.js -t "Alain" --run
 ```bash
 /workspaces/back-office-lmelp/.claude/get-services-info.sh
 ```
+
+les stats
+```bash
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl "$BACKEND_URL/api/stats" | jq
+```
+
+la liste de tous les services
+```bash
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+curl -s "$BACKEND_URL/openapi.json" | jq
+
+# en version reduite
+curl -s "$BACKEND_URL/openapi_reduced.json" | jq
+```
+
 
 cf dans `CLAUDE.md` tous les usages possibles
 
