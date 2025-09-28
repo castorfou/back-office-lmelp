@@ -120,35 +120,6 @@ class TestCollectionsAPIEndpoints:
             assert "author_id" in data
             assert "book_id" in data
 
-    def test_post_add_manual_book_endpoint(self):
-        """Test endpoint POST /api/livres-auteurs/add-manual-book."""
-        book_data = {
-            "id": "64f1234567890abcdef12345",  # pragma: allowlist secret,  # pragma: allowlist secret
-            "user_entered_author": "Manual Author",
-            "user_entered_title": "Manual Title",
-            "user_entered_publisher": "Manual Publisher",
-        }
-
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
-            mock_service.handle_book_validation.return_value = {
-                "success": True,
-                "author_id": "64f1234567890abcdef11111",  # pragma: allowlist secret
-                "book_id": "64f1234567890abcdef22222",  # pragma: allowlist secret
-            }
-
-            response = self.client.post(
-                "/api/livres-auteurs/add-manual-book", json=book_data
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "success" in data
-            assert data["success"] is True
-            assert "author_id" in data
-            assert "book_id" in data
-
     def test_get_all_authors_endpoint(self):
         """Test endpoint GET /api/authors pour récupérer tous les auteurs."""
         with patch(

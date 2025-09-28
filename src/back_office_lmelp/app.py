@@ -832,7 +832,7 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
         print(f"⚠️ {memory_check}")
 
     try:
-        result = collections_management_service.manually_validate_suggestion(
+        result = collections_management_service.handle_book_validation(
             request.model_dump()
         )
         return result

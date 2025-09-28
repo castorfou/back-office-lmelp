@@ -28,7 +28,10 @@ class TestVerifiedBooksAutoProcessing:
         ):
             # Setup basic mocks
             mock_memory_guard.check_memory_limit.return_value = None
-            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = []
+            # Mock critical reviews to bypass early return (need at least one review)
+            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = [
+                {"episode_oid": episode_oid, "avis_critique": "test review"}
+            ]
 
             # Mock: cache hit avec le livre verified (l'API retourne ce qui est en cache)
             verified_book_in_cache = {
@@ -88,7 +91,10 @@ class TestVerifiedBooksAutoProcessing:
         ):
             # Setup basic mocks
             mock_memory_guard.check_memory_limit.return_value = None
-            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = []
+            # Mock critical reviews to bypass early return (need at least one review)
+            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = [
+                {"episode_oid": episode_oid, "avis_critique": "test review"}
+            ]
 
             # Mock: cache hit avec le livre suggested (l'API retourne ce qui est en cache)
             suggested_book_in_cache = {
@@ -147,7 +153,10 @@ class TestVerifiedBooksAutoProcessing:
         ):
             # Setup basic mocks
             mock_memory_guard.check_memory_limit.return_value = None
-            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = []
+            # Mock critical reviews to bypass early return (need at least one review)
+            mock_mongodb.get_critical_reviews_by_episode_oid.return_value = [
+                {"episode_oid": episode_oid, "avis_critique": "test review"}
+            ]
 
             # Mock: cache hit avec le livre verified
             verified_book_in_cache = {
