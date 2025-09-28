@@ -143,7 +143,7 @@ classmethod-decorators = ["classmethod", "pydantic.validator"]
 # Règles spécifiques par type de fichier
 "notebooks/*.py" = ["E402", "F401", "F841"]  # Imports, unused vars OK en notebooks
 "scripts/*.py" = ["T201"]                    # print() OK dans les scripts
-"tests/*.py" = ["S101", "PLR2004"]          # assert OK, magic values OK en tests
+"tests/*.py" = ["S101", "PLR2004", "N802"]  # assert OK, magic values OK, TDD naming conventions OK en tests
 
 # Configuration MyPy - Vérification de types statique
 [tool.mypy]
