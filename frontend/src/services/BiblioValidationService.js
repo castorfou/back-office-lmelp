@@ -242,7 +242,7 @@ export class BiblioValidationService {
       }
 
       // Étape 4: Arbitrage et décision finale
-      return this._arbitrateResults({
+      const result = this._arbitrateResults({
         original,
         groundTruthResult,
         authorValidation,
