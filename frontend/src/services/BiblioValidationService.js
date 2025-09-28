@@ -77,22 +77,18 @@ export class BiblioValidationService {
    * @private
    */
   async _tryPhase0DirectValidation(original, episodeId) {
-    console.log(`🔍 [PHASE0] Tentative phase 0 pour: ${original.author} - ${original.title}`);
 
     // Vérifier si les données originales correspondent exactement à un livre extrait
     const extractedBooks = this._getExtractedBooks(episodeId);
-    console.log(`📚 [PHASE0] Livres extraits:`, extractedBooks);
 
     const matchingExtractedBook = extractedBooks.find(book =>
       book.author === original.author && book.title === original.title
     );
 
     if (!matchingExtractedBook) {
-      console.log(`❌ [PHASE0] "${original.author} - ${original.title}" ne correspond à aucun livre extrait`);
       return null;
     }
 
-    console.log(`📖 [PHASE0] Correspondance trouvée, test Babelio: ${matchingExtractedBook.author} - ${matchingExtractedBook.title}`);
 
     try {
       const bookValidation = await this._verifyBookWithCapture(
@@ -100,10 +96,7 @@ export class BiblioValidationService {
         matchingExtractedBook.author
       );
 
-      console.log(`📋 [PHASE0] Résultat Babelio:`, bookValidation);
-
       if (bookValidation && bookValidation.status === 'verified') {
-        console.log(`✅ [PHASE0] SUCCÈS! Livre trouvé sur Babelio`);
         return {
           status: 'verified',
           data: {
@@ -122,10 +115,9 @@ export class BiblioValidationService {
         };
       }
     } catch (error) {
-      console.log(`❌ [PHASE0] Erreur lors du test Babelio:`, error);
+      // Erreur silencieuse - on retombe sur le workflow normal
     }
 
-    console.log(`❌ [PHASE0] Livre extrait non trouvé sur Babelio`);
     return null;
   }
 

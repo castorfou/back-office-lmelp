@@ -678,7 +678,6 @@ export default {
 
         // Récupérer SEULEMENT les livres de cet épisode (cache ou extraction)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
-        console.log(`📚 [DEBUG] Livres récupérés:`, this.books);
 
         // Si pas de statuts ou statuts temporaires → validation biblio + rechargement
         const needsValidation = this.books.some(book =>
@@ -686,10 +685,7 @@ export default {
           !['verified', 'suggested', 'mongo', 'not_found'].includes(book.status)
         );
 
-        console.log(`🔍 [DEBUG] needsValidation: ${needsValidation}`);
-
         if (needsValidation) {
-          console.log(`✅ [DEBUG] Lancement autoValidateAndSendResults`);
           // Auto-validation des livres avec BiblioValidationService et envoi au backend
           await this.autoValidateAndSendResults();
 
@@ -938,18 +934,14 @@ export default {
         const validatedBooks = [];
 
         // Valider chaque livre avec BiblioValidationService
-        console.log(`🚀 [DEBUG] Début autoValidateAndSendResults - ${this.books.length} livres à traiter`);
         for (const book of this.books) {
           try {
-            console.log(`🔍 [DEBUG] Validation de: ${book.auteur} - ${book.titre}`);
             const validationResult = await BiblioValidationService.validateBiblio(
               book.auteur,
               book.titre,
               book.editeur || '',
               this.selectedEpisodeId
             );
-
-            console.log(`📋 [DEBUG] Résultat validation:`, validationResult);
 
             // Convertir le résultat de validation au format backend
             let status = validationResult.status;
@@ -976,7 +968,6 @@ export default {
               bookForBackend.suggested_title = validationResult.data.suggested.title;
             }
 
-            console.log(`📤 [DEBUG] Livre pour backend:`, bookForBackend);
             validatedBooks.push(bookForBackend);
 
           } catch (validationError) {
@@ -992,23 +983,17 @@ export default {
           }
         }
 
-        console.log(`✅ [DEBUG] Fin boucle validation - ${validatedBooks.length} livres traités`);
-
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
         const selectedEpisode = this.episodesWithReviews?.find(ep => ep.id === this.selectedEpisodeId);
         const avis_critique_id = selectedEpisode?.avis_critique_id;
 
 
         // Envoyer les résultats au backend via le service existant
-        const payload = {
+        const result = await livresAuteursService.setValidationResults({
           episode_oid: this.selectedEpisodeId,
           avis_critique_id: avis_critique_id,
           books: validatedBooks
-        };
-        console.log(`🚀 [DEBUG] Envoi au backend:`, payload);
-
-        const result = await livresAuteursService.setValidationResults(payload);
-        console.log(`✅ [DEBUG] Réponse backend:`, result);
+        });
 
       } catch (error) {
         console.error('❌ Erreur auto-validation:', error);
