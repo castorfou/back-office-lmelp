@@ -103,13 +103,17 @@ class LivresAuteursCacheService:
 
             # Mettre à jour l'entrée existante
             result = cache_collection.replace_one(uniqueness_filter, cache_entry)
-            return existing_entry["_id"]
+            return ObjectId(existing_entry["_id"])
         else:
             # Créer une nouvelle entrée
             result = cache_collection.replace_one(
                 uniqueness_filter, cache_entry, upsert=True
             )
-            return result.upserted_id
+            if result.upserted_id is None:
+                raise RuntimeError(
+                    "Failed to create cache entry: no upserted_id returned"
+                )
+            return ObjectId(result.upserted_id)
 
     def get_books_by_avis_critique_id(
         self,
