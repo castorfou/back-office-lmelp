@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from thefuzz import process
 
@@ -17,7 +18,9 @@ from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
 from .services.collections_management_service import collections_management_service
 from .services.fixture_updater import FixtureUpdaterService
+from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
+from .services.stats_service import stats_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
@@ -49,6 +52,26 @@ class CapturedCall(BaseModel):
     timestamp: int
 
 
+class BookValidationResult(BaseModel):
+    """Modèle pour un livre avec résultat de validation du frontend."""
+
+    auteur: str
+    titre: str
+    editeur: str
+    programme: bool
+    validation_status: str  # 'verified' | 'suggested' | 'not_found'
+    suggested_author: str | None = None
+    suggested_title: str | None = None
+
+
+class ValidationResultsRequest(BaseModel):
+    """Modèle pour recevoir les résultats de validation du frontend."""
+
+    episode_oid: str
+    avis_critique_id: str
+    books: list[BookValidationResult]
+
+
 class FixtureUpdateRequest(BaseModel):
     """Modèle pour les requêtes de mise à jour de fixtures."""
 
@@ -59,12 +82,15 @@ class FixtureUpdateRequest(BaseModel):
 class ValidateSuggestionRequest(BaseModel):
     """Modèle pour la validation d'une suggestion."""
 
-    id: str
+    cache_id: str | None = None
+    episode_oid: str
+    avis_critique_id: str
     auteur: str
     titre: str
+    editeur: str | None = None
     user_validated_author: str
     user_validated_title: str
-    editeur: str | None = None
+    user_validated_publisher: str | None = None
 
 
 class AddManualBookRequest(BaseModel):
@@ -301,7 +327,7 @@ async def get_statistics() -> dict[str, Any]:
 
 @app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
 async def get_livres_auteurs(
-    limit: int | None = None, episode_oid: str | None = None
+    episode_oid: str, limit: int | None = None
 ) -> list[dict[str, Any]]:
     """Récupère la liste des livres/auteurs extraits des avis critiques via parsing des tableaux markdown (format simplifié : auteur/titre/éditeur)."""
     # Vérification mémoire
@@ -311,28 +337,58 @@ async def get_livres_auteurs(
             memory_guard.force_shutdown(memory_check)
         print(f"⚠️ {memory_check}")
 
+    # Validation de episode_oid
+    if not episode_oid or not episode_oid.strip():
+        raise HTTPException(
+            status_code=422, detail="episode_oid is required and cannot be empty"
+        )
+
+    # Validation du format episode_oid (ObjectId MongoDB : 24 caractères hexadécimaux)
+    if len(episode_oid) != 24 or not all(
+        c in "0123456789abcdefABCDEF" for c in episode_oid
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="episode_oid must be a valid MongoDB ObjectId (24 hex characters)",
+        )
+
     try:
-        # Récupérer les avis critiques selon les paramètres
-        if episode_oid:
-            # Récupérer seulement les avis critiques de cet épisode
-            avis_critiques = mongodb_service.get_critical_reviews_by_episode_oid(
-                episode_oid
-            )
-        else:
-            # Récupérer tous les avis critiques
-            avis_critiques = mongodb_service.get_all_critical_reviews(limit=limit)
+        # Récupérer seulement les avis critiques de cet épisode (episode_oid obligatoire)
+        avis_critiques = mongodb_service.get_critical_reviews_by_episode_oid(
+            episode_oid
+        )
 
         if not avis_critiques:
             return []
 
-        # Extraire les informations bibliographiques via parsing markdown
-        extracted_books = await books_extraction_service.extract_books_from_reviews(
-            avis_critiques
+        # Phase 1: Vérifier le cache global pour cet episode_oid
+        cached_books = livres_auteurs_cache_service.get_books_by_episode_oid(
+            episode_oid
         )
 
-        # Formater pour l'affichage simplifié (auteur/titre/éditeur uniquement)
+        # Utiliser les données du cache ou initialiser une liste vide
+        all_books = cached_books or []
+
+        # Phase 2: Extraction si cache miss global
+        if not cached_books:
+            try:
+                extracted_books = (
+                    await books_extraction_service.extract_books_from_reviews(
+                        avis_critiques
+                    )
+                )
+                all_books.extend(extracted_books)
+
+            except Exception as extraction_error:
+                print(f"⚠️ Erreur extraction: {extraction_error}")
+                # En cas d'erreur d'extraction, continuer avec les données du cache uniquement
+
+        # Pas de filtrage - afficher tous les livres (système unifié)
+        books_for_frontend = all_books
+
+        # Formater pour l'affichage simplifié
         formatted_books = books_extraction_service.format_books_for_simplified_display(
-            extracted_books
+            books_for_frontend
         )
 
         return formatted_books
@@ -360,13 +416,27 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
             {avis["episode_oid"] for avis in avis_critiques if avis.get("episode_oid")}
         )
 
-        # Récupérer les détails des épisodes correspondants
+        # Récupérer les détails des épisodes correspondants avec avis_critique_id
         episodes_with_reviews = []
         for episode_oid in unique_episode_oids:
             episode_data = mongodb_service.get_episode_by_id(episode_oid)
             if episode_data:
                 episode = Episode(episode_data)
-                episodes_with_reviews.append(episode.to_summary_dict())
+                episode_dict = episode.to_summary_dict()
+
+                # Ajouter l'avis_critique_id correspondant à cet épisode
+                avis_critique = next(
+                    (
+                        avis
+                        for avis in avis_critiques
+                        if avis["episode_oid"] == episode_oid
+                    ),
+                    None,
+                )
+                if avis_critique:
+                    episode_dict["avis_critique_id"] = str(avis_critique["_id"])
+
+                episodes_with_reviews.append(episode_dict)
 
         # Trier par date décroissante
         episodes_with_reviews.sort(key=lambda x: x.get("date", ""), reverse=True)
@@ -416,6 +486,93 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
             )
 
         return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/set-validation-results", response_model=dict[str, Any])
+async def set_validation_results(request: ValidationResultsRequest) -> dict[str, Any]:
+    """Reçoit les résultats de validation biblio du frontend et les stocke."""
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        books_processed = 0
+
+        for book_result in request.books:
+            # Convertir le statut de validation frontend vers statut cache unifié
+            if book_result.validation_status == "verified":
+                cache_status = "verified"
+            elif book_result.validation_status == "suggestion":
+                cache_status = "suggested"
+            else:  # not_found
+                cache_status = "not_found"
+
+            # Préparer les données pour le cache
+            book_data = {
+                "episode_oid": request.episode_oid,
+                "auteur": book_result.auteur,
+                "titre": book_result.titre,
+                "editeur": book_result.editeur,
+                "programme": book_result.programme,
+                "status": cache_status,
+            }
+
+            # Ajouter les suggestions si disponibles
+            if book_result.suggested_author:
+                book_data["suggested_author"] = book_result.suggested_author
+            if book_result.suggested_title:
+                book_data["suggested_title"] = book_result.suggested_title
+
+            # Créer l'entrée cache
+            from bson import ObjectId
+
+            avis_critique_id = ObjectId(request.avis_critique_id)
+            cache_entry_id = livres_auteurs_cache_service.create_cache_entry(
+                avis_critique_id, book_data
+            )
+
+            # Auto-processing pour les livres verified
+            if cache_status == "verified":
+                try:
+                    # Créer auteur en base
+                    author_id = mongodb_service.create_author_if_not_exists(
+                        book_result.auteur
+                    )
+
+                    # Créer livre en base
+                    book_data_for_mongo = {
+                        "titre": book_result.titre,
+                        "auteur_id": author_id,
+                        "editeur": book_result.editeur,
+                        "episodes": [request.episode_oid],
+                        "avis_critiques": [request.avis_critique_id],
+                    }
+                    book_id = mongodb_service.create_book_if_not_exists(
+                        book_data_for_mongo
+                    )
+
+                    # Marquer comme traité (mongo)
+                    livres_auteurs_cache_service.mark_as_processed(
+                        cache_entry_id, author_id, book_id
+                    )
+
+                except Exception as auto_processing_error:
+                    # Ne pas faire échouer l'endpoint si l'auto-processing échoue
+                    print(
+                        f"⚠️ Erreur auto-processing pour {book_result.auteur}: {auto_processing_error}"
+                    )
+
+            books_processed += 1
+
+        return {"success": True, "books_processed": books_processed}
 
     except HTTPException:
         raise
@@ -683,23 +840,7 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
-@app.post("/api/livres-auteurs/add-manual-book", response_model=dict[str, Any])
-async def add_manual_book(request: AddManualBookRequest) -> dict[str, Any]:
-    """Ajoute manuellement un livre marqué comme 'not_found'."""
-    # Vérification mémoire
-    memory_check = memory_guard.check_memory_limit()
-    if memory_check:
-        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
-            memory_guard.force_shutdown(memory_check)
-        print(f"⚠️ {memory_check}")
-
-    try:
-        result = collections_management_service.manually_add_not_found_book(
-            request.model_dump()
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+# Note: add_manual_book endpoint removed - functionality unified with validate_suggestion
 
 
 @app.get("/api/authors", response_model=list[dict[str, Any]])
@@ -734,6 +875,113 @@ async def get_all_books() -> list[dict[str, Any]]:
         return books
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/stats", response_model=dict[str, int])
+async def get_cache_statistics() -> dict[str, int] | JSONResponse:
+    """Récupère les statistiques de base du cache livres/auteurs."""
+    try:
+        return stats_service.get_cache_statistics()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/stats/detailed", response_model=list[dict[str, Any]])
+async def get_detailed_breakdown() -> list[dict[str, Any]] | JSONResponse:
+    """Récupère la répartition détaillée par biblio_verification_status."""
+    try:
+        result = stats_service.get_detailed_breakdown()
+        return list(result) if result else []
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/stats/recent", response_model=list[dict[str, Any]])
+async def get_recent_processed_books(
+    limit: int = 10,
+) -> list[dict[str, Any]] | JSONResponse:
+    """Récupère les livres récemment auto-traités."""
+    try:
+        result = stats_service.get_recent_processed_books(limit)
+        return list(result) if result else []
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/stats/summary")
+async def get_human_readable_summary() -> Response:
+    """Récupère un résumé lisible des statistiques."""
+    try:
+        summary = stats_service.get_human_readable_summary()
+        return Response(content=summary, media_type="text/plain; charset=utf-8")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/stats/validation", response_model=list[dict[str, Any]])
+async def get_validation_status_breakdown() -> list[dict[str, Any]] | JSONResponse:
+    """Récupère la répartition par validation_status."""
+    try:
+        result = stats_service.get_validation_status_breakdown()
+        return list(result) if result else []
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/openapi_reduced.json")
+async def openapi_reduced() -> JSONResponse:
+    """Retourne une version allégée de la spec OpenAPI (chemins, méthodes, summary, params, responses).
+
+    Utile pour un client qui veut lister rapidement les endpoints et leurs usages sans charger
+    toute la définition des schémas.
+    """
+    try:
+        schema = app.openapi()
+
+        reduced: dict[str, object] = {
+            "openapi": schema.get("openapi"),
+            "info": {
+                "title": schema.get("info", {}).get("title"),
+                "version": schema.get("info", {}).get("version"),
+            },
+            "paths": {},
+        }
+
+        for path, methods in (schema.get("paths") or {}).items():
+            reduced_methods: dict[str, object] = {}
+            for method, op in methods.items():
+                params = []
+                for p in op.get("parameters", []) if op.get("parameters") else []:
+                    p_schema = p.get("schema", {})
+                    params.append(
+                        {
+                            "name": p.get("name"),
+                            "in": p.get("in"),
+                            "required": p.get("required", False),
+                            "type": p_schema.get("type"),
+                        }
+                    )
+
+                responses = {
+                    status: (resp.get("description") if isinstance(resp, dict) else "")
+                    for status, resp in (op.get("responses") or {}).items()
+                }
+
+                reduced_methods[method] = {
+                    "summary": op.get("summary"),
+                    "description": op.get("description"),
+                    "tags": op.get("tags", []),
+                    "parameters": params,
+                    "responses": responses,
+                }
+
+            paths_dict = reduced["paths"]
+            assert isinstance(paths_dict, dict)
+            paths_dict[path] = reduced_methods
+
+        return JSONResponse(content=reduced)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 # Variables globales pour la gestion propre du serveur

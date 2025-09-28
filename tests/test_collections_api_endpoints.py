@@ -68,10 +68,10 @@ class TestCollectionsAPIEndpoints:
         ) as mock_service:
             mock_books = [
                 {
-                    "id": "64f1234567890abcdef12345",  # pragma: allowlist secret,  # pragma: allowlist secret # pragma: allowlist secret
+                    "_id": "64f1234567890abcdef12345",  # pragma: allowlist secret
                     "auteur": "Test Author",
                     "titre": "Test Book",
-                    "validation_status": "suggested",
+                    "status": "suggested",
                     "suggested_author": "Corrected Author",
                     "suggested_title": "Corrected Title",
                 }
@@ -84,13 +84,15 @@ class TestCollectionsAPIEndpoints:
             data = response.json()
             assert isinstance(data, list)
             assert len(data) == 1
-            assert data[0]["validation_status"] == "suggested"
+            assert data[0]["status"] == "suggested"
             assert "suggested_author" in data[0]
 
     def test_post_validate_suggestion_endpoint(self):
         """Test endpoint POST /api/livres-auteurs/validate-suggestion."""
         book_data = {
-            "id": "64f1234567890abcdef12345",  # pragma: allowlist secret,  # pragma: allowlist secret
+            "cache_id": "64f1234567890abcdef12345",  # pragma: allowlist secret
+            "episode_oid": "68c707ad6e51b9428ab87e9e",  # pragma: allowlist secret
+            "avis_critique_id": "68c718a16e51b9428ab88066",  # pragma: allowlist secret
             "auteur": "Original Author",
             "titre": "Original Title",
             "user_validated_author": "Validated Author",
@@ -101,10 +103,10 @@ class TestCollectionsAPIEndpoints:
         with patch(
             "back_office_lmelp.app.collections_management_service"
         ) as mock_service:
-            mock_service.manually_validate_suggestion.return_value = {
+            mock_service.handle_book_validation.return_value = {
                 "success": True,
                 "author_id": "64f1234567890abcdef11111",  # pragma: allowlist secret
-                "book_id": "64f1234567890abcdef22222",  # pragma: allowlist secret,
+                "book_id": "64f1234567890abcdef22222",  # pragma: allowlist secret
             }
 
             response = self.client.post(
@@ -130,10 +132,10 @@ class TestCollectionsAPIEndpoints:
         with patch(
             "back_office_lmelp.app.collections_management_service"
         ) as mock_service:
-            mock_service.manually_add_not_found_book.return_value = {
+            mock_service.handle_book_validation.return_value = {
                 "success": True,
                 "author_id": "64f1234567890abcdef11111",  # pragma: allowlist secret
-                "book_id": "64f1234567890abcdef22222",  # pragma: allowlist secret,
+                "book_id": "64f1234567890abcdef22222",  # pragma: allowlist secret
             }
 
             response = self.client.post(

@@ -333,13 +333,13 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
     ) -> list[dict[str, Any]]:
         """
         Formate les données de livres pour l'affichage simplifié.
-        Ne retourne que les champs essentiels: auteur, titre, éditeur + métadonnées épisode.
+        Retourne les champs essentiels + statut unifié (système simplifié).
 
         Args:
             books_data: Données brutes des livres extraits
 
         Returns:
-            Données simplifiées pour l'affichage (sans statistiques)
+            Données simplifiées pour l'affichage avec statut unifié
         """
         if not books_data:
             return []
@@ -355,8 +355,25 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                 "titre": book.get("titre", ""),
                 "editeur": book.get("editeur", ""),
                 "programme": bool(book.get("programme", False)),
-                "coup_de_coeur": bool(book.get("coup_de_coeur", False)),
+                "coup_de_coeur": not bool(
+                    book.get("programme", False)
+                ),  # programme=false = coup de cœur
             }
+
+            # Ajouter le cache_id (mapping depuis _id MongoDB)
+            if "_id" in book:
+                simplified_book["cache_id"] = str(book["_id"])
+
+            # Ajouter le statut unifié (système simplifié)
+            if "status" in book:
+                simplified_book["status"] = book["status"]
+
+            # Ajouter les suggestions si disponibles (NoSQL: seulement si fournies)
+            if "suggested_author" in book and book["suggested_author"]:
+                simplified_book["suggested_author"] = book["suggested_author"]
+            if "suggested_title" in book and book["suggested_title"]:
+                simplified_book["suggested_title"] = book["suggested_title"]
+
             simplified_books.append(simplified_book)
 
         return simplified_books

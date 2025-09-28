@@ -1,6 +1,7 @@
 """Service MongoDB pour la gestion des épisodes."""
 
 import os
+from datetime import datetime
 from typing import Any
 
 from bson import ObjectId
@@ -55,6 +56,12 @@ class MongoDBService:
         """Ferme la connexion MongoDB."""
         if self.client:
             self.client.close()
+
+    def get_collection(self, collection_name: str) -> Collection:
+        """Récupère une collection MongoDB par son nom."""
+        if self.db is None:
+            raise Exception("Connexion MongoDB non établie")
+        return self.db[collection_name]
 
     def get_all_episodes(self) -> list[dict[str, Any]]:
         """Récupère tous les épisodes avec tri par date décroissante."""
@@ -628,94 +635,6 @@ class MongoDBService:
             print(f"Erreur lors du comptage des livres: {e}")
             return 0
 
-    def get_verified_books_not_in_collections(self) -> int | list[dict[str, Any]]:
-        """
-        Récupère les livres verified pas encore en base ou leur nombre.
-
-        Version simplifiée qui retourne directement les livres extraits
-        avec vérification Babelio synchrone.
-        """
-        try:
-            # Pour l'instant, implémenter une version simple qui fonctionne
-            # sans appel async pour éviter l'erreur "event loop already running"
-
-            # Simuler quelques livres verified connus pour tester
-            # TODO: Intégrer avec l'extraction complète sans async
-            verified_books_candidates = [
-                {
-                    "episode_oid": "68c707ad6e51b9428ab87e9e",  # pragma: allowlist secret
-                    "auteur": "Maria Pourchet",
-                    "titre": "Tressaillir",
-                    "editeur": "Stock",
-                    "programme": True,
-                },
-                # Ajouter d'autres auteurs vérifiés si nécessaire
-            ]
-
-            verified_books_not_in_collections = []
-
-            for book in verified_books_candidates:
-                try:
-                    # Vérifier si le livre n'est pas déjà en base
-                    author_exists = (
-                        self.auteurs_collection.find_one({"nom": book["auteur"]})
-                        if self.auteurs_collection is not None
-                        else None
-                    )
-
-                    book_exists = None
-                    if self.livres_collection is not None:
-                        if author_exists:
-                            # Si l'auteur existe, vérifier le livre avec cet auteur
-                            book_exists = self.livres_collection.find_one(
-                                {
-                                    "titre": book["titre"],
-                                    "auteur_id": author_exists["_id"],
-                                }
-                            )
-                        else:
-                            # Si l'auteur n'existe pas, chercher le livre par titre seulement
-                            book_exists = self.livres_collection.find_one(
-                                {"titre": book["titre"]}
-                            )
-
-                    # Debug logging
-                    print(f"DEBUG: Checking {book['auteur']} - {book['titre']}")
-                    print(f"  author_exists: {author_exists is not None}")
-                    print(f"  book_exists: {book_exists}")
-
-                    # Si le livre n'existe pas, l'ajouter à la liste
-                    # (peu importe si l'auteur existe ou non)
-                    if book_exists is None:
-                        book_with_status = book.copy()
-                        book_with_status["babelio_verification_status"] = "verified"
-                        verified_books_not_in_collections.append(book_with_status)
-                        print("  -> ADDED to verified list")
-                    else:
-                        print("  -> NOT ADDED (book exists)")
-
-                except Exception as e:
-                    print(
-                        f"Erreur lors de la vérification pour {book.get('auteur', 'unknown')}: {e}"
-                    )
-                    continue
-
-            return verified_books_not_in_collections
-
-        except Exception as e:
-            print(f"Erreur lors de la récupération des livres verified: {e}")
-            return []
-
-    def get_suggested_books_not_in_collections(self) -> int:
-        """Récupère le nombre de livres suggested pas en base."""
-        # TODO: Implémenter la logique
-        return 0
-
-    def get_not_found_books_not_in_collections(self) -> int:
-        """Récupère le nombre de livres not_found pas en base."""
-        # TODO: Implémenter la logique
-        return 0
-
     def create_author_if_not_exists(self, nom: str) -> ObjectId:
         """Crée un auteur s'il n'existe pas déjà."""
         if self.auteurs_collection is None:
@@ -765,19 +684,82 @@ class MongoDBService:
             raise
 
     def get_books_by_validation_status(self, status: str) -> list[dict[str, Any]]:
-        """Récupère les livres par statut de validation."""
-        # TODO: Cette méthode devra interroger la collection qui stocke
-        # les statuts de validation (probablement dans avis_critiques ou une nouvelle collection)
-        # Pour l'instant, retourner une liste vide pour les tests
-        return []
+        """Récupère les livres par statut de validation depuis le cache livresauteurs_cache."""
+        cache_collection = self.get_collection("livresauteurs_cache")
+
+        # Déterminer le filtre selon le statut demandé
+        if status in ["mongo", "pending", "rejected"]:
+            # Statuts directs de validation_status
+            query_filter = {"validation_status": status}
+        elif status in ["verified", "suggested", "not_found"]:
+            # Statuts de biblio_verification_status pour les livres pending
+            query_filter = {
+                "validation_status": "pending",
+                "biblio_verification_status": status,
+            }
+        else:
+            # Statut inconnu, retourner une liste vide
+            query_filter = {"validation_status": status}
+
+        # Récupérer les documents
+        books = list(cache_collection.find(query_filter))
+
+        # Convertir les ObjectId en string pour la sérialisation
+        for book in books:
+            if "_id" in book and hasattr(book["_id"], "__str__"):
+                book["_id"] = str(book["_id"])
+            if "episode_oid" in book and hasattr(book["episode_oid"], "__str__"):
+                book["episode_oid"] = str(book["episode_oid"])
+
+        return books
 
     def update_book_validation(
         self, book_id: str, status: str, metadata: dict[str, Any]
     ) -> bool:
-        """Met à jour le statut de validation d'un livre."""
-        # TODO: Implémenter la logique de mise à jour du statut
-        # Pour l'instant, retourner True pour les tests
-        return True
+        """
+        Met à jour le statut de validation d'un livre dans la collection cache.
+
+        Args:
+            book_id: ID du livre (cache_id) dans livresauteurs_cache
+            status: Nouveau statut de validation
+            metadata: Métadonnées supplémentaires à sauvegarder (suggested_author, etc.)
+
+        Returns:
+            True si la mise à jour a réussi
+        """
+        try:
+            from bson import ObjectId
+
+            # Obtenir la collection cache
+            cache_collection = self.get_collection("livresauteurs_cache")
+            if cache_collection is None:
+                raise Exception(
+                    "Impossible d'accéder à la collection livresauteurs_cache"
+                )
+
+            # Préparer les données de mise à jour
+            update_data = {"validation_status": status, "updated_at": datetime.now()}
+
+            # Ajouter toutes les métadonnées (suggested_author, suggested_title, etc.)
+            update_data.update(metadata)
+
+            # Mettre à jour le document dans la collection cache
+            result = cache_collection.update_one(
+                {"_id": ObjectId(book_id)}, {"$set": update_data}
+            )
+
+            if result.modified_count > 0:
+                print(
+                    f"✅ Mise à jour réussie: {result.modified_count} document(s) modifié(s)"
+                )
+                return True
+            else:
+                print(f"⚠️ Aucun document modifié pour cache_id={book_id}")
+                return False
+
+        except Exception as e:
+            print(f"❌ Erreur lors de la mise à jour: {e}")
+            return False
 
     def get_all_authors(self) -> list[dict[str, Any]]:
         """Récupère tous les auteurs."""

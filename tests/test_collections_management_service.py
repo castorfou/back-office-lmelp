@@ -21,12 +21,30 @@ class TestCollectionsManagementService:
         """Test récupération des statistiques pour la page livres-auteurs."""
         service = CollectionsManagementService()
 
-        # Mock des données de test
+        # Mock des données de test avec système unifié
         with patch.object(service, "mongodb_service") as mock_mongodb:
-            # Setup mock responses
-            mock_mongodb.get_verified_books_not_in_collections.return_value = 15
-            mock_mongodb.get_suggested_books_not_in_collections.return_value = 8
-            mock_mongodb.get_not_found_books_not_in_collections.return_value = 12
+            # Setup mock responses avec méthode unifiée
+            mock_mongodb.get_books_by_validation_status.side_effect = lambda status: {
+                "verified": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                ],  # 15 livres
+                "suggested": [1, 2, 3, 4, 5, 6, 7, 8],  # 8 livres
+                "not_found": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],  # 12 livres
+            }[status]
             mock_mongodb.get_books_in_collections_count.return_value = 45
             mock_mongodb.get_untreated_episodes_count.return_value = 3
 
@@ -70,9 +88,7 @@ class TestCollectionsManagementService:
         ]
 
         with patch.object(service, "mongodb_service") as mock_mongodb:
-            mock_mongodb.get_verified_books_not_in_collections.return_value = (
-                verified_books
-            )
+            mock_mongodb.get_books_by_validation_status.return_value = verified_books
             mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
                 "64f1234567890abcdef11111"  # pragma: allowlist secret
             )
@@ -92,71 +108,6 @@ class TestCollectionsManagementService:
             # Vérifier que les méthodes de création ont été appelées
             assert mock_mongodb.create_author_if_not_exists.call_count == 2
             assert mock_mongodb.create_book_if_not_exists.call_count == 2
-
-    def test_get_verified_books_not_in_collections_calls_extraction_service(self):
-        """Test TDD: get_verified_books_not_in_collections doit utiliser le service d'extraction."""
-        from back_office_lmelp.services.mongodb_service import MongoDBService
-
-        # Créer une instance réelle du service MongoDB
-        mongodb_service = MongoDBService()
-
-        # Mock du service d'extraction existant
-        with patch(
-            "back_office_lmelp.services.books_extraction_service.books_extraction_service"
-        ) as mock_extraction:
-            # Mock des livres extraits (comme l'API /livres-auteurs)
-            mock_extracted_books = [
-                {
-                    "episode_oid": "68c707ad6e51b9428ab87e9e",  # pragma: allowlist secret
-                    "auteur": "Maria Pourchet",
-                    "titre": "Tressaillir",
-                    "editeur": "Stock",
-                    "programme": True,
-                }
-            ]
-
-            # Mock de la fonction async
-            async def mock_async_extraction(reviews):
-                return mock_extracted_books
-
-            mock_extraction.extract_books_from_reviews = mock_async_extraction
-
-            # Mock du service Babelio (retourne verified)
-            with patch(
-                "back_office_lmelp.services.babelio_service.babelio_service"
-            ) as mock_babelio:
-                mock_babelio.verify_author.return_value = {"status": "verified"}
-
-                # Mock des collections MongoDB
-                with patch.object(
-                    mongodb_service, "get_all_critical_reviews"
-                ) as mock_reviews:
-                    mock_reviews.return_value = [{"summary": "test"}]
-
-                    with patch.object(
-                        mongodb_service, "auteurs_collection"
-                    ) as mock_auteurs:
-                        mock_auteurs.find_one.return_value = None  # Auteur pas en base
-
-                        with patch.object(
-                            mongodb_service, "livres_collection"
-                        ) as mock_livres:
-                            mock_livres.find_one.return_value = (
-                                None  # Livre pas en base
-                            )
-
-                            # Act
-                            result = (
-                                mongodb_service.get_verified_books_not_in_collections()
-                            )
-
-                            # Assert - Maria Pourchet verified devrait être retournée
-                            assert isinstance(result, list)
-                            assert len(result) > 0
-                            assert result[0]["auteur"] == "Maria Pourchet"
-                            assert (
-                                result[0]["babelio_verification_status"] == "verified"
-                            )
 
     def test_get_books_by_validation_status(self):
         """Test récupération des livres par statut de validation."""
@@ -211,18 +162,26 @@ class TestCollectionsManagementService:
             assert "author_id" in result
             assert "book_id" in result
 
-    def test_manually_add_not_found_book(self):
-        """Test ajout manuel d'un livre 'not_found'."""
+    def test_handle_book_validation_for_not_found_case(self):
+        """Test méthode unifiée pour le cas not_found (ancien manually_add_not_found_book)."""
         service = CollectionsManagementService()
 
         book_data = {
-            "id": "64f1234567890abcdef12345",  # pragma: allowlist secret
-            "user_entered_author": "New Author",
+            "cache_id": "64f1234567890abcdef12345",  # pragma: allowlist secret
+            "auteur": "Original Author",  # Données originales du cache
+            "titre": "Original Title",
+            "editeur": "Original Publisher",
+            "user_entered_author": "New Author",  # Saisie utilisateur
             "user_entered_title": "New Title",
             "user_entered_publisher": "New Publisher",
         }
 
-        with patch.object(service, "mongodb_service") as mock_mongodb:
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.livres_auteurs_cache_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
             mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
                 "64f1234567890abcdef11111"  # pragma: allowlist secret
             )
@@ -230,8 +189,9 @@ class TestCollectionsManagementService:
                 "64f1234567890abcdef22222"  # pragma: allowlist secret
             )
             mock_mongodb.update_book_validation.return_value = True
+            mock_cache_service.mark_as_processed.return_value = True
 
-            result = service.manually_add_not_found_book(book_data)
+            result = service.handle_book_validation(book_data)
 
             assert isinstance(result, dict)
             assert "success" in result
@@ -262,10 +222,8 @@ class TestCollectionsManagementService:
         }
 
         with patch.object(service, "mongodb_service") as mock_mongodb:
-            # Mock des méthodes existantes
-            mock_mongodb.get_verified_books_not_in_collections.return_value = (
-                verified_books
-            )
+            # Mock des méthodes existantes avec système unifié
+            mock_mongodb.get_books_by_validation_status.return_value = verified_books
             mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
                 "67a79b615b03b52d8c51db29"  # ID existant de Maria Pourchet  # pragma: allowlist secret
             )
@@ -301,10 +259,12 @@ class TestCollectionsManagementService:
         service = CollectionsManagementService()
 
         with patch.object(service, "mongodb_service") as mock_mongodb:
-            # Mock des retours - tous devraient être des nombres
-            mock_mongodb.get_verified_books_not_in_collections.return_value = []  # Liste vide
-            mock_mongodb.get_suggested_books_not_in_collections.return_value = 5
-            mock_mongodb.get_not_found_books_not_in_collections.return_value = 2
+            # Mock des retours avec système unifié - tous devraient retourner des listes
+            mock_mongodb.get_books_by_validation_status.side_effect = lambda status: {
+                "verified": [],  # Liste vide = 0 livres
+                "suggested": [1, 2, 3, 4, 5],  # 5 livres
+                "not_found": [1, 2],  # 2 livres
+            }[status]
             mock_mongodb.get_books_in_collections_count.return_value = 10
             mock_mongodb.get_untreated_episodes_count.return_value = 3
 
@@ -319,5 +279,7 @@ class TestCollectionsManagementService:
             assert isinstance(stats["couples_suggested_pas_en_base"], int)
             assert isinstance(stats["couples_not_found_pas_en_base"], int)
 
-            # La liste vide doit être convertie en 0
+            # La liste vide doit être convertie en 0, les autres listes en leur taille
             assert stats["couples_verified_pas_en_base"] == 0
+            assert stats["couples_suggested_pas_en_base"] == 5
+            assert stats["couples_not_found_pas_en_base"] == 2
