@@ -144,6 +144,40 @@ describe('TextSearchEngine', () => {
     expect(wrapper.text()).toContain('Épisode sur Camus');
   });
 
+  it('displays book results with author name when available', async () => {
+    const mockResults = {
+      query: 'simone',
+      results: {
+        auteurs: [],
+        livres: [
+          {
+            titre: 'Simone Emonet',
+            auteur_nom: 'Catherine Millet',
+            auteur_id: '123',
+            editeur: 'Gallimard'
+          }
+        ],
+        editeurs: [],
+        episodes: [],
+        episodes_total_count: 0
+      }
+    };
+
+    searchService.search.mockResolvedValue(mockResults);
+
+    wrapper = mount(TextSearchEngine);
+
+    const input = wrapper.find('input');
+    await input.setValue('simone');
+
+    await new Promise(resolve => setTimeout(resolve, 400));
+    await wrapper.vm.$nextTick();
+
+    // Vérifier que le livre est affiché avec le format "auteur - titre"
+    expect(wrapper.text()).toContain('Catherine Millet - Simone Emonet');
+    expect(wrapper.text()).not.toMatch(/^Simone Emonet$/);
+  });
+
   it('shows no results message when search returns empty', async () => {
     const mockResults = {
       query: 'xyz123',
