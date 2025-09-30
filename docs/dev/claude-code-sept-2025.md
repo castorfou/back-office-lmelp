@@ -60,8 +60,8 @@ Cette mise à jour majeure de Claude Code introduit des fonctionnalités permett
 **Description** : Améliorations de l'interface en ligne de commande.
 
 **Nouvelles commandes** :
-- **`Ctrl+r`** : Historique de prompts consultable (déjà documenté dans [commands.md](../../commands.md#voir-le-detail-de-claude-code))
-- **`Ctrl+t`** : Afficher/masquer la todo list (déjà documenté dans [commands.md](../../commands.md#voir-la-todo-de-claude-code))
+- **`Ctrl+r`** : Historique de prompts consultable (déjà documenté dans [commands.md](../commands.md))
+- **`Ctrl+t`** : Afficher/masquer la todo list (déjà documenté dans [commands.md](../commands.md))
 
 **Améliorations** :
 - Meilleure visibilité des statuts de tâches
@@ -228,8 +228,8 @@ Ajouter à `.vscode/settings.json` :
 
 ### Documentation complémentaire
 
-- [Commands.md](../../commands.md) : Commandes fréquentes du projet
-- [CLAUDE.md](../../CLAUDE.md) : Guide complet pour Claude Code
+- [Commands.md](../commands.md) : Commandes fréquentes du projet
+- CLAUDE.md : Guide complet pour Claude Code (voir racine du projet)
 - [Development](development.md) : Workflow de développement
 
 ---

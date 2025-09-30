@@ -369,6 +369,92 @@ class MongoDBService:
             print(f"Erreur lors de la recherche dans les avis critiques: {e}")
             return {"auteurs": [], "livres": [], "editeurs": []}
 
+    def search_auteurs(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Recherche textuelle dans la collection auteurs."""
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"auteurs": [], "total_count": 0}
+
+        try:
+            query_escaped = query.strip()
+
+            # Recherche dans le champ nom
+            search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
+
+            # Compter le nombre total de résultats
+            total_count = self.auteurs_collection.count_documents(search_query)
+
+            # Récupérer les résultats limités
+            auteurs = list(self.auteurs_collection.find(search_query).limit(limit))
+
+            # Conversion ObjectId en string
+            results = []
+            for auteur in auteurs:
+                auteur["_id"] = str(auteur["_id"])
+                results.append(auteur)
+
+            return {"auteurs": results, "total_count": total_count}
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'auteurs: {e}")
+            return {"auteurs": [], "total_count": 0}
+
+    def search_livres(self, query: str, limit: int = 10) -> dict[str, Any]:
+        """Recherche textuelle dans la collection livres."""
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"livres": [], "total_count": 0}
+
+        try:
+            query_escaped = query.strip()
+
+            # Recherche dans les champs titre et editeur
+            search_query = {
+                "$or": [
+                    {"titre": {"$regex": query_escaped, "$options": "i"}},
+                    {"editeur": {"$regex": query_escaped, "$options": "i"}},
+                ]
+            }
+
+            # Compter le nombre total de résultats
+            total_count = self.livres_collection.count_documents(search_query)
+
+            # Récupérer les résultats limités
+            livres = list(self.livres_collection.find(search_query).limit(limit))
+
+            # Conversion ObjectId en string et enrichissement avec nom auteur
+            results = []
+            for livre in livres:
+                livre["_id"] = str(livre["_id"])
+
+                # Récupérer le nom de l'auteur si auteur_id existe
+                if (
+                    "auteur_id" in livre
+                    and livre["auteur_id"]
+                    and self.auteurs_collection is not None
+                ):
+                    try:
+                        auteur = self.auteurs_collection.find_one(
+                            {"_id": livre["auteur_id"]}
+                        )
+                        if auteur:
+                            livre["auteur_nom"] = auteur.get("nom", "")
+                    except Exception:
+                        livre["auteur_nom"] = ""
+
+                    # Convertir auteur_id en string
+                    livre["auteur_id"] = str(livre["auteur_id"])
+
+                results.append(livre)
+
+            return {"livres": results, "total_count": total_count}
+        except Exception as e:
+            print(f"Erreur lors de la recherche de livres: {e}")
+            return {"livres": [], "total_count": 0}
+
     def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
         """Calcule le score de pertinence et le type de match - STRICT: terme doit être présent."""
         if not text or not query:

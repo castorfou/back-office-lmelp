@@ -755,14 +755,120 @@ class AddManualBookRequest:
     user_entered_publisher: Optional[str]
 ```
 
+---
+
+## Search API (Issue #49 + #68)
+
+**✨ NOUVEAU** - Moteur de recherche textuelle multi-collections
+
+### GET /api/search
+
+Recherche textuelle dans les collections MongoDB (épisodes, auteurs, livres, éditeurs).
+
+#### Paramètres
+
+- `q` (string, required) : Terme de recherche (minimum 3 caractères)
+- `limit` (int, optional) : Nombre maximum de résultats par catégorie (défaut: 10)
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "query": "camus",
+  "results": {
+    "auteurs": [
+      {
+        "id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+        "nom": "Albert Camus",
+        "livres": ["64f1234567890abcdef22222"]  // pragma: allowlist secret
+      }
+    ],
+    "auteurs_total_count": 1,
+    "livres": [
+      {
+        "id": "64f1234567890abcdef22222",  // pragma: allowlist secret
+        "titre": "L'Étranger",
+        "auteur_id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+        "auteur_nom": "Albert Camus",
+        "editeur": "Gallimard",
+        "episodes": []
+      }
+    ],
+    "livres_total_count": 1,
+    "editeurs": [
+      {
+        "id": "64f1234567890abcdef33333",  // pragma: allowlist secret
+        "nom": "Gallimard"
+      }
+    ],
+    "episodes": [
+      {
+        "id": "64f1234567890abcdef44444",  // pragma: allowlist secret
+        "titre": "Épisode sur Camus",
+        "date": "2025-08-03T10:59:59.000+00:00",
+        "search_context": "...discussion sur Albert Camus et son œuvre majeure..."
+      }
+    ],
+    "episodes_total_count": 15
+  }
+}
+```
+
+**400 Bad Request**
+```json
+{
+  "detail": "Le paramètre 'q' est requis et doit contenir au moins 3 caractères"
+}
+```
+
+#### Fonctionnalités
+
+- ✅ **Recherche auteurs** : Regex case-insensitive sur `auteurs.nom`
+- ✅ **Recherche livres** : Regex sur `livres.titre` et `livres.editeur`
+- ✅ **Enrichissement auteur** : Livres incluent automatiquement `auteur_nom` via lookup
+- ✅ **Recherche épisodes** : Regex sur titre/description/transcription avec extraction de contexte
+- ✅ **Recherche éditeurs** : Via collection `avis_critiques`
+- ✅ **Compteurs intelligents** : Affiche résultats limités + total réel
+
+#### Exemples d'utilisation
+
+```bash
+# Recherche d'auteur
+curl "http://localhost:[PORT]/api/search?q=camus&limit=10"
+
+# Recherche de livre
+curl "http://localhost:[PORT]/api/search?q=étranger"
+
+# Recherche d'éditeur
+curl "http://localhost:[PORT]/api/search?q=gallimard"
+
+# Recherche dans épisodes
+curl "http://localhost:[PORT]/api/search?q=littérature"
+```
+
+#### Notes techniques
+
+**Issue #49** (Implémentation initiale) :
+- Moteur de recherche de base avec épisodes
+- Extraction de contexte (10 mots avant/après)
+- Surlignage frontend avec highlighting
+
+**Issue #68** (Extension) :
+- Recherche étendue aux collections dédiées `auteurs` et `livres`
+- Enrichissement automatique avec noms d'auteurs
+- Affichage format "auteur - titre" dans l'interface
+
+---
+
 ## Roadmap API
 
 - [ ] Authentification JWT
 - [ ] Pagination des résultats
-- [ ] Filtrage et recherche d'épisodes
 - [ ] Validation Pydantic stricte
 - [ ] Rate limiting
 - [ ] Versioning API (v1, v2)
 - [ ] Endpoints de métadonnées (/health, /metrics)
 - [x] **Intégration Babelio** ✅ COMPLETED
 - [x] **Gestion Collections Auteurs/Livres** ✅ COMPLETED (Issue #66)
+- [x] **Moteur de Recherche Multi-Collections** ✅ COMPLETED (Issues #49 + #68)

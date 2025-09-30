@@ -56,7 +56,7 @@
           <h4 class="category-title">📚 LIVRES ({{ results.livres.length }})</h4>
           <ul class="result-list">
             <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
-              <span class="result-name" v-html="highlightSearchTerm(livre.titre)"></span>
+              <span class="result-name" v-html="highlightSearchTerm(formatLivreDisplay(livre))"></span>
             </li>
           </ul>
         </div>
@@ -224,6 +224,14 @@ export default {
     truncateText(text, maxLength) {
       if (!text || text.length <= maxLength) return text;
       return text.substring(0, maxLength) + '...';
+    },
+
+    formatLivreDisplay(livre) {
+      // Format: "auteur_nom - titre" si auteur_nom existe, sinon juste "titre"
+      if (livre.auteur_nom) {
+        return `${livre.auteur_nom} - ${livre.titre}`;
+      }
+      return livre.titre;
     },
 
     highlightSearchTerm(text) {

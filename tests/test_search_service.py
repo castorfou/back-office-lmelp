@@ -16,9 +16,13 @@ class TestSearchService:
         # Mock des collections MongoDB
         self.mock_episodes_collection = Mock()
         self.mock_avis_critiques_collection = Mock()
+        self.mock_auteurs_collection = Mock()
+        self.mock_livres_collection = Mock()
 
         mongodb_service.episodes_collection = self.mock_episodes_collection
         mongodb_service.avis_critiques_collection = self.mock_avis_critiques_collection
+        mongodb_service.auteurs_collection = self.mock_auteurs_collection
+        mongodb_service.livres_collection = self.mock_livres_collection
 
     def test_search_episodes_method_exists(self):
         """Test que la méthode search_episodes existe."""
@@ -202,3 +206,133 @@ class TestSearchService:
         context = mongodb_service._extract_search_context("inexistant", episode)
 
         assert context == ""
+
+    def test_search_auteurs_returns_dict_with_results_and_count(self):
+        """Test que search_auteurs retourne un dict avec auteurs et total_count."""
+        # Mock du retour de la collection
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = []
+        self.mock_auteurs_collection.find.return_value = mock_cursor
+        self.mock_auteurs_collection.count_documents.return_value = 0
+
+        result = mongodb_service.search_auteurs("test", limit=10)
+
+        assert isinstance(result, dict)
+        assert "auteurs" in result
+        assert "total_count" in result
+        assert isinstance(result["auteurs"], list)
+        assert isinstance(result["total_count"], int)
+
+    def test_search_auteurs_finds_author_by_name(self):
+        """Test que search_auteurs trouve un auteur par son nom."""
+        mock_auteurs = [
+            {"_id": "507f1f77bcf86cd799439011", "nom": "Albert Camus", "livres": []}
+        ]
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = mock_auteurs
+        self.mock_auteurs_collection.find.return_value = mock_cursor
+        self.mock_auteurs_collection.count_documents.return_value = 1
+
+        result = mongodb_service.search_auteurs("Camus", limit=10)
+
+        assert len(result["auteurs"]) > 0
+        assert result["total_count"] == 1
+        # Vérifier que _id est converti en string
+        assert isinstance(result["auteurs"][0]["_id"], str)
+
+    def test_search_auteurs_handles_empty_query(self):
+        """Test que search_auteurs gère les requêtes vides."""
+        result = mongodb_service.search_auteurs("", limit=10)
+        assert result == {"auteurs": [], "total_count": 0}
+
+    def test_search_livres_returns_dict_with_results_and_count(self):
+        """Test que search_livres retourne un dict avec livres et total_count."""
+        # Mock du retour de la collection
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = []
+        self.mock_livres_collection.find.return_value = mock_cursor
+        self.mock_livres_collection.count_documents.return_value = 0
+
+        result = mongodb_service.search_livres("test", limit=10)
+
+        assert isinstance(result, dict)
+        assert "livres" in result
+        assert "total_count" in result
+        assert isinstance(result["livres"], list)
+        assert isinstance(result["total_count"], int)
+
+    def test_search_livres_finds_book_by_title(self):
+        """Test que search_livres trouve un livre par son titre."""
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439012",
+                "titre": "L'Étranger",
+                "auteur_id": "507f1f77bcf86cd799439011",
+                "editeur": "Gallimard",
+            }
+        ]
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor
+        self.mock_livres_collection.count_documents.return_value = 1
+
+        result = mongodb_service.search_livres("Étranger", limit=10)
+
+        assert len(result["livres"]) > 0
+        assert result["total_count"] == 1
+        assert isinstance(result["livres"][0]["_id"], str)
+
+    def test_search_livres_finds_book_by_editeur(self):
+        """Test que search_livres trouve un livre par son éditeur."""
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439013",
+                "titre": "La Peste",
+                "auteur_id": "507f1f77bcf86cd799439011",
+                "editeur": "Gallimard",
+            }
+        ]
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor
+        self.mock_livres_collection.count_documents.return_value = 1
+
+        result = mongodb_service.search_livres("Gallimard", limit=10)
+
+        assert len(result["livres"]) > 0
+        assert result["total_count"] == 1
+
+    def test_search_livres_handles_empty_query(self):
+        """Test que search_livres gère les requêtes vides."""
+        result = mongodb_service.search_livres("", limit=10)
+        assert result == {"livres": [], "total_count": 0}
+
+    def test_search_livres_includes_author_name(self):
+        """Test que search_livres enrichit les résultats avec le nom de l'auteur."""
+        # Mock des livres avec auteur_id
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439012",
+                "titre": "L'Étranger",
+                "auteur_id": "507f1f77bcf86cd799439011",
+                "editeur": "Gallimard",
+            }
+        ]
+        # Mock de l'auteur correspondant
+        mock_auteur = {
+            "_id": "507f1f77bcf86cd799439011",
+            "nom": "Albert Camus",
+            "livres": [],
+        }
+
+        mock_cursor = Mock()
+        mock_cursor.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor
+        self.mock_livres_collection.count_documents.return_value = 1
+        self.mock_auteurs_collection.find_one.return_value = mock_auteur
+
+        result = mongodb_service.search_livres("Étranger", limit=10)
+
+        assert len(result["livres"]) == 1
+        assert "auteur_nom" in result["livres"][0]
+        assert result["livres"][0]["auteur_nom"] == "Albert Camus"
