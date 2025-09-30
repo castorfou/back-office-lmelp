@@ -185,13 +185,15 @@ export BABELIO_CACHE_LOG=1
 
 
 
-#### Moteur de Recherche Textuelle ⭐ **NOUVEAU**
-- 🔍 **Recherche multi-entités** : Episodes, auteurs, livres, éditeurs
+#### Moteur de Recherche Textuelle ⭐ **NOUVEAU** (Issues #49 + #68)
+- 🔍 **Recherche multi-collections** : Episodes, auteurs, livres, éditeurs
+- 📚 **Collections dédiées** : Recherche directe dans `auteurs` et `livres` MongoDB
+- 👤 **Enrichissement auteur** : Livres affichés avec format "Auteur - Titre"
 - ⚡ **Temps réel** : Debouncing 300ms, minimum 3 caractères
-- 🎯 **Extraction de contexte** : 10 mots avant/après le terme trouvé
+- 🎯 **Extraction de contexte** : 10 mots avant/après le terme trouvé (épisodes)
 - 🖍️ **Surlignage** : Mise en évidence des termes recherchés
-- 📊 **Compteurs intelligents** : Format "🎙️ ÉPISODES (3/155)" (limite 3, total affiché)
-- 🔤 **Recherche exacte** : Insensible à la casse, correspondance exacte dans titre/description/transcription
+- 📊 **Compteurs intelligents** : Format "📖 LIVRES (3/155)" (affichés/total)
+- 🔤 **Recherche exacte** : Insensible à la casse, regex MongoDB sur tous les champs
 
 ### API disponible
 
@@ -222,8 +224,8 @@ GET /api/books                               # Tous les livres de la collection
 # Vérification orthographique Babelio ⭐ NOUVEAU
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
 
-# Recherche textuelle ⭐ NOUVEAU
-GET /api/search?q={query}&limit={n}  # Recherche multi-entités avec limite
+# Recherche textuelle ⭐ NOUVEAU (Issues #49 + #68)
+GET /api/search?q={query}&limit={n}  # Recherche multi-collections (auteurs, livres, épisodes)
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
