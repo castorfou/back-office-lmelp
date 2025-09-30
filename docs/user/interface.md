@@ -13,6 +13,9 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 │  🎧 Back-Office LMELP                                      │
 │  ─────────────────────────────────────────────────────────  │
 │                                                             │
+│  🔍 Rechercher...                                          │
+│  [Rechercher auteurs, livres, épisodes...          ]      │
+│                                                             │
 │  Sélectionnez un épisode :                                  │
 │  [Choisir un épisode                               ▼]      │
 └─────────────────────────────────────────────────────────────┘
@@ -21,6 +24,7 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 #### Éléments de l'en-tête
 
 - **Logo/Titre** : Identification de l'application
+- **Moteur de recherche** : Zone de recherche textuelle multi-collections (voir section dédiée)
 - **Sélecteur d'épisodes** : Menu déroulant pour choisir l'épisode à modifier
 
 ### Zone principale (Episode Editor)
@@ -381,3 +385,259 @@ Utilisateur tape → Délai 1 seconde → Sauvegarde automatique
 2. **Sauvegarde échouée** → Indicateur rouge avec retry
 3. **Épisode inexistant** → Message "Épisode introuvable"
 4. **Connexion perdue** → Notification de reconnexion
+
+---
+
+## Moteur de recherche textuelle
+
+**✨ NOUVEAU** - Recherche multi-collections (Issues #49 + #68)
+
+### Vue d'ensemble
+
+Le moteur de recherche permet de trouver rapidement du contenu dans toutes les collections MongoDB : auteurs, livres, épisodes et éditeurs.
+
+### Apparence et positionnement
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔍 Rechercher...                                          │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │ camus                                       [×]        │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                                                             │
+│  📚 AUTEURS (1)                                            │
+│  • Albert Camus                                            │
+│                                                             │
+│  📖 LIVRES (3/15)                                          │
+│  • Albert Camus - L'Étranger                               │
+│  • Albert Camus - La Peste                                 │
+│  • Albert Camus - Le Mythe de Sisyphe                      │
+│                                                             │
+│  🎙️ ÉPISODES (5/23)                                       │
+│  • Épisode sur Camus (2025-08-03)                         │
+│    ...discussion sur Albert Camus et son œuvre majeure... │
+│                                                             │
+│  🏢 ÉDITEURS (2)                                           │
+│  • Gallimard                                               │
+│  • Éditions de Minuit                                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Caractéristiques
+
+#### Zone de saisie
+- **Type** : Input text avec debouncing (300ms)
+- **Placeholder** : "Rechercher auteurs, livres, épisodes..."
+- **Minimum** : 3 caractères pour déclencher la recherche
+- **Icône** : 🔍 (loupe) à gauche
+- **Bouton clear** : × (croix) pour effacer rapidement
+- **Raccourci** : ESC pour effacer la recherche
+
+#### États visuels
+
+**Inactif** :
+```
+┌─────────────────────────────────────────┐
+│ 🔍 Rechercher...                    │
+└─────────────────────────────────────────┘
+```
+
+**En saisie (< 3 caractères)** :
+```
+┌─────────────────────────────────────────┐
+│ 🔍 ca|                           [×]    │
+└─────────────────────────────────────────┘
+(Pas de résultats affichés)
+```
+
+**Recherche active (≥ 3 caractères)** :
+```
+┌─────────────────────────────────────────┐
+│ 🔍 camus|                        [×]    │
+└─────────────────────────────────────────┘
+⏳ Recherche en cours...
+```
+
+**Résultats affichés** :
+```
+┌─────────────────────────────────────────┐
+│ 🔍 camus                         [×]    │
+└─────────────────────────────────────────┘
+Résultats organisés par catégorie ↓
+```
+
+### Catégories de résultats
+
+#### 📚 AUTEURS
+- **Format d'affichage** : Nom complet de l'auteur
+- **Exemple** : "Albert Camus"
+- **Compteur** : `(N)` où N = nombre de résultats
+- **Action au clic** : (À implémenter) Afficher les livres de l'auteur
+
+#### 📖 LIVRES
+- **Format d'affichage** : "Auteur - Titre" (Issue #68)
+- **Exemple** : "Catherine Millet - Simone Emonet"
+- **Compteur** : `(N/M)` où N = affichés, M = total
+- **Surlignage** : Terme recherché en jaune
+- **Métadonnées** : Éditeur affiché en gris
+- **Action au clic** : (À implémenter) Afficher les épisodes du livre
+
+#### 🎙️ ÉPISODES
+- **Format d'affichage** : Titre + Date + Contexte
+- **Exemple** : "Épisode sur Camus (2025-08-03)"
+- **Contexte** : 10 mots avant/après le terme trouvé
+- **Compteur** : `(N/M)` où N = affichés, M = total
+- **Surlignage** : Terme recherché en jaune
+- **Action au clic** : Charge l'épisode dans l'éditeur
+
+#### 🏢 ÉDITEURS
+- **Format d'affichage** : Nom de l'éditeur
+- **Exemple** : "Gallimard"
+- **Compteur** : `(N)` où N = nombre de résultats
+- **Action au clic** : (À implémenter) Afficher les livres de l'éditeur
+
+### Fonctionnalités
+
+#### Debouncing intelligent
+- **Délai** : 300ms après la dernière frappe
+- **Avantage** : Évite les requêtes excessives au serveur
+- **Indicateur** : Spinner pendant l'attente
+
+#### Surlignage des résultats
+- **Style** : Fond jaune (#fff3cd), texte foncé (#856404)
+- **Gras** : Texte surligné en gras (font-weight: 700)
+- **Arrondi** : Coins légèrement arrondis (3px)
+- **Exemple** : "Albert **Camus**" (Camus surligné)
+
+#### Extraction de contexte (épisodes)
+- **Méthode** : 10 mots avant et après le terme trouvé
+- **Ellipses** : "..." si contexte tronqué
+- **Exemple** : "...discussion sur Albert Camus et son œuvre..."
+
+#### Compteurs intelligents
+- **Format simple** : `(3)` = 3 résultats
+- **Format avec total** : `(5/23)` = 5 affichés sur 23 totaux
+- **Indication** : Aide à comprendre si plus de résultats existent
+
+#### Effacement rapide
+- **Bouton [×]** : Clic pour effacer la recherche
+- **Touche ESC** : Raccourci clavier pour effacer
+- **Résultat** : Champ vide + résultats cachés
+
+### Messages d'état
+
+#### Pas de résultats
+```
+┌─────────────────────────────────────────┐
+│ 🔍 aucunresultat             [×]        │
+└─────────────────────────────────────────┘
+Aucun résultat trouvé pour "aucunresultat"
+```
+
+#### Erreur réseau
+```
+┌─────────────────────────────────────────┐
+│ 🔍 camus                     [×]        │
+└─────────────────────────────────────────┘
+❌ Erreur lors de la recherche. Réessayez.
+```
+
+#### Recherche trop courte
+```
+┌─────────────────────────────────────────┐
+│ 🔍 ca|                       [×]        │
+└─────────────────────────────────────────┘
+(Aucun message - recherche non déclenchée)
+```
+
+### Workflow utilisateur
+
+#### Recherche simple
+1. **Cliquer** dans la zone de recherche
+2. **Taper** au moins 3 caractères
+3. **Attendre** 300ms (debounce automatique)
+4. **Visualiser** les résultats organisés par catégorie
+5. **Cliquer** sur un résultat pour l'ouvrir
+6. **Effacer** avec [×] ou ESC pour nouvelle recherche
+
+#### Recherche itérative
+1. **Taper** un terme large (ex: "camus")
+2. **Affiner** en ajoutant des mots (ex: "camus étranger")
+3. **Réduire** le nombre de résultats progressivement
+4. **Trouver** exactement ce qui est recherché
+
+### Performance et optimisation
+
+#### Limite par défaut
+- **Résultats affichés** : 10 par catégorie
+- **Total possible** : Illimité (compteur indique le total)
+- **Requête backend** : `limit=10` par défaut
+
+#### Cache et réactivité
+- **Pas de cache** : Chaque recherche interroge le serveur
+- **Temps réponse** : Généralement < 500ms
+- **Indicateur** : Spinner si > 200ms
+
+### Accessibilité
+
+#### Navigation clavier
+- **Tab** : Accéder à la zone de recherche
+- **Entrée** : Forcer la recherche (bypass debounce)
+- **ESC** : Effacer la recherche
+- **Flèches** : (À implémenter) Naviguer dans les résultats
+
+#### Lecteurs d'écran
+- **Label** : "Rechercher auteurs, livres, épisodes"
+- **ARIA** : `role="search"` sur la zone
+- **Statut** : Annonce du nombre de résultats
+
+### Cas d'usage
+
+#### Trouver un auteur
+```
+Utilisateur tape : "houelle"
+Résultats :
+📚 AUTEURS (1)
+• Michel Houellebecq
+```
+
+#### Trouver un livre
+```
+Utilisateur tape : "simone"
+Résultats :
+📖 LIVRES (1)
+• Catherine Millet - Simone Emonet
+```
+
+#### Trouver un épisode
+```
+Utilisateur tape : "littérature française"
+Résultats :
+🎙️ ÉPISODES (3/12)
+• Les nouveaux livres de... (2025-08-03)
+  ...chronique de littérature française...
+```
+
+### Améliorations futures
+
+- [ ] Navigation clavier dans les résultats (flèches haut/bas)
+- [ ] Actions au clic pour auteurs et éditeurs
+- [ ] Filtres par catégorie (auteurs uniquement, etc.)
+- [ ] Historique des recherches
+- [ ] Suggestions de recherche (autocomplétion)
+- [ ] Export des résultats
+- [ ] Recherche avancée avec opérateurs booléens
+
+### Notes techniques
+
+**Implémentation** :
+- **Backend** : Endpoint `/api/search` (GET)
+- **Frontend** : Composant `TextSearchEngine.vue`
+- **Tests** : 11 tests frontend + 31 tests backend
+- **Documentation** : Issues #49 (base) + #68 (extension)
+
+**Collections interrogées** :
+1. `auteurs` - Recherche sur `nom`
+2. `livres` - Recherche sur `titre` et `editeur`
+3. `episodes` - Recherche sur `titre`, `description`, `transcription`
+4. `avis_critiques` - Recherche d'éditeurs
