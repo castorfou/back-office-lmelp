@@ -835,9 +835,6 @@ class MongoDBService:
             )
 
             if result.modified_count > 0:
-                print(
-                    f"✅ Mise à jour réussie: {result.modified_count} document(s) modifié(s)"
-                )
                 return True
             else:
                 print(f"⚠️ Aucun document modifié pour cache_id={book_id}")
