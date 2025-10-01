@@ -248,3 +248,225 @@ cases:
     original: Alice Ferney
     status: verified
   timestamp: 1759055213102
+- input:
+    name: Amélie Nothomb
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '94172'
+      ca_oeuvres: '56'
+      first_of_group: first_of_group
+      id: '3062'
+      nom: Nothomb
+      prenoms: Amélie
+      type: auteurs
+      url: /auteur/Amelie-Nothomb/3062
+      url_photo: /users/avt_fd_3062.jpg
+    babelio_suggestion: Amélie Nothomb
+    babelio_url: https://www.babelio.com/auteur/Amelie-Nothomb/3062
+    confidence_score: 1
+    error_message: null
+    original: Amélie Nothomb
+    status: verified
+  timestamp: 1759335521183
+- input:
+    name: Rebecca Warrior
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '781'
+      ca_oeuvres: '1'
+      first_of_group: first_of_group
+      id: '783320'
+      id_auteur: '783320'
+      nom: Warrior
+      prenoms: Rebeka
+      type: auteurs
+      url: /auteur/Rebeka-Warrior/783320
+      url_photo: /users/avt_fd_783320_1759239161.jpg
+      weight: '2625'
+    babelio_suggestion: Rebeka Warrior
+    babelio_url: https://www.babelio.com/auteur/Rebeka-Warrior/783320
+    confidence_score: 0.896551724137931
+    error_message: null
+    original: Rebecca Warrior
+    status: corrected
+  timestamp: 1759335552120
+- input:
+    name: Sigrid Nunez
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '838'
+      ca_oeuvres: '8'
+      first_of_group: first_of_group
+      id: '224325'
+      nom: Nunez
+      prenoms: Sigrid
+      type: auteurs
+      url: /auteur/Sigrid-Nunez/224325
+      url_photo: /users/avt_fd_224325.jpg
+    babelio_suggestion: Sigrid Nunez
+    babelio_url: https://www.babelio.com/auteur/Sigrid-Nunez/224325
+    confidence_score: 1
+    error_message: null
+    original: Sigrid Nunez
+    status: verified
+  timestamp: 1759335558275
+- input:
+    name: Sorge Chalandon
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '25944'
+      ca_oeuvres: '16'
+      first_of_group: first_of_group
+      id: '6176'
+      id_auteur: '6176'
+      nom: Chalandon
+      prenoms: Sorj
+      type: auteurs
+      url: /auteur/Sorj-Chalandon/6176
+      url_photo: /users/avt_fd_6176.jpg
+      weight: '2652'
+    babelio_suggestion: Sorj Chalandon
+    babelio_url: https://www.babelio.com/auteur/Sorj-Chalandon/6176
+    confidence_score: 0.896551724137931
+    error_message: null
+    original: Sorge Chalandon
+    status: corrected
+  timestamp: 1759335559613
+- input:
+    name: Alex Hinker et Thibaut Vermeaux
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Alex Hinker et Thibaut Vermeaux
+    status: not_found
+  timestamp: 1759335571579
+- input:
+    name: Alexandre Lamboreau
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Alexandre Lamboreau
+    status: not_found
+  timestamp: 1759335572522
+- input:
+    name: Claude Mackey
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '368'
+      ca_oeuvres: '10'
+      first_of_group: first_of_group
+      id: '328734'
+      id_auteur: '328734'
+      nom: McKay
+      prenoms: Claude
+      type: auteurs
+      url: /auteur/Claude-McKay/328734
+      url_photo: /users/avt_fd_328734.jpg
+      weight: '2586'
+    babelio_suggestion: Claude McKay
+    babelio_url: https://www.babelio.com/auteur/Claude-McKay/328734
+    confidence_score: 0.88
+    error_message: null
+    original: Claude Mackey
+    status: corrected
+  timestamp: 1759335573370
+- input:
+    name: Gaëlle Octavia
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '162'
+      ca_oeuvres: '6'
+      first_of_group: first_of_group
+      id: '312817'
+      id_auteur: '312817'
+      nom: Octavia
+      prenoms: Gaël
+      type: auteurs
+      url: /auteur/Gal-Octavia/312817
+      url_photo: /users/avt_fd_312817.jpg
+      weight: '2616'
+    babelio_suggestion: Gaël Octavia
+    babelio_url: https://www.babelio.com/auteur/Gal-Octavia/312817
+    confidence_score: 0.9230769230769231
+    error_message: null
+    original: Gaëlle Octavia
+    status: corrected
+  timestamp: 1759335574192
+- input:
+    name: Lismour
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '10'
+      ca_oeuvres: '1'
+      id: '769253'
+      id_auteur: '769253'
+      nom: Lissmyr
+      prenoms: Pernilla
+      type: auteurs
+      url: /auteur/Pernilla-Lissmyr/769253
+      url_photo: /images/avatar55x55_stylo.jpg
+      weight: '1708'
+    babelio_suggestion: Pernilla Lissmyr
+    babelio_url: https://www.babelio.com/auteur/Pernilla-Lissmyr/769253
+    confidence_score: 0.43478260869565216
+    error_message: null
+    original: Lismour
+    status: corrected
+  timestamp: 1759335575267
+- input:
+    name: Simon Chevrier
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '585'
+      ca_oeuvres: '1'
+      first_of_group: first_of_group
+      id: '745336'
+      nom: Chevrier
+      prenoms: Simon
+      type: auteurs
+      url: /auteur/Simon-Chevrier/745336
+      url_photo: /users/avt_fd_745336_1749233392.jpg
+    babelio_suggestion: Simon Chevrier
+    babelio_url: https://www.babelio.com/auteur/Simon-Chevrier/745336
+    confidence_score: 1
+    error_message: null
+    original: Simon Chevrier
+    status: verified
+  timestamp: 1759335576870
+- input:
+    name: Sylvain Tesson
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '27257'
+      ca_oeuvres: '63'
+      first_of_group: first_of_group
+      id: '10998'
+      nom: Tesson
+      prenoms: Sylvain
+      type: auteurs
+      url: /auteur/Sylvain-Tesson/10998
+      url_photo: /users/avt_fd_10998.jpg
+    babelio_suggestion: Sylvain Tesson
+    babelio_url: https://www.babelio.com/auteur/Sylvain-Tesson/10998
+    confidence_score: 1
+    error_message: null
+    original: Sylvain Tesson
+    status: verified
+  timestamp: 1759335577991

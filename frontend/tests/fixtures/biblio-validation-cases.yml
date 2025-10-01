@@ -169,3 +169,14 @@ cases:
     episodeId: "68ab04b92dc760119d18f8ef"  # pragma: allowlist secret
   output:
     status: "verified"
+
+# Issue #74 : Amélie Nothomb - Tant mieux (fuzzy search retourne URL + fragment "Amélie")
+# Le filtrage des suggestions invalides doit rejeter l'URL et le prénom isolé
+# Résultat attendu : fallback vers Babelio qui confirme les données correctes
+- input:
+    author: "Amélie Nothomb"
+    title: "Tant mieux"
+    publisher: "Albin Michel"
+    episodeId: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+  output:
+    status: "verified"
