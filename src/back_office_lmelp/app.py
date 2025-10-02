@@ -851,6 +851,20 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.delete(
+    "/api/livres-auteurs/cache/episode/{episode_oid}", response_model=dict[str, Any]
+)
+async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
+    """Supprime toutes les entrées de cache pour un épisode donné."""
+    try:
+        deleted_count = livres_auteurs_cache_service.delete_cache_by_episode(
+            episode_oid
+        )
+        return {"deleted_count": deleted_count, "episode_oid": episode_oid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Note: add_manual_book endpoint removed - functionality unified with validate_suggestion
 
 

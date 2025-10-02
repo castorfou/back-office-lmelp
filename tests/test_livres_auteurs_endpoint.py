@@ -1,6 +1,6 @@
 """Tests pour l'endpoint API /api/livres-auteurs."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -368,3 +368,42 @@ class TestLivresAuteursEndpoint:
         assert isinstance(book["auteur"], str)
         assert isinstance(book["titre"], str)
         assert isinstance(book["editeur"], str)
+
+
+class TestLivresAuteursCacheEndpoint:
+    """Tests pour la gestion du cache livres-auteurs."""
+
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
+    def test_delete_cache_by_episode_success(self, mock_cache_service, client):
+        """Test de suppression du cache pour un épisode spécifique."""
+        # Arrange
+        episode_oid = "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+        mock_cache_service.delete_cache_by_episode = Mock(return_value=3)
+
+        # Act
+        response = client.delete(f"/api/livres-auteurs/cache/episode/{episode_oid}")
+
+        # Assert
+        assert response.status_code == 200
+        result = response.json()
+        assert result["deleted_count"] == 3
+        assert result["episode_oid"] == episode_oid
+
+        # Vérifier que delete_cache_by_episode a été appelé avec le bon episode_oid
+        mock_cache_service.delete_cache_by_episode.assert_called_once_with(episode_oid)
+
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
+    def test_delete_cache_by_episode_not_found(self, mock_cache_service, client):
+        """Test de suppression du cache quand aucun document n'est trouvé."""
+        # Arrange
+        episode_oid = "nonexistent_episode"
+        mock_cache_service.delete_cache_by_episode = Mock(return_value=0)
+
+        # Act
+        response = client.delete(f"/api/livres-auteurs/cache/episode/{episode_oid}")
+
+        # Assert
+        assert response.status_code == 200
+        result = response.json()
+        assert result["deleted_count"] == 0
+        assert result["episode_oid"] == episode_oid

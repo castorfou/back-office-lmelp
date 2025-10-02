@@ -313,6 +313,20 @@ class LivresAuteursCacheService:
 
         return int(total_avis - treated_count)
 
+    def delete_cache_by_episode(self, episode_oid: str) -> int:
+        """
+        Supprime toutes les entrées de cache pour un épisode donné.
+
+        Args:
+            episode_oid: ID de l'épisode dont on veut supprimer le cache
+
+        Returns:
+            Nombre de documents supprimés
+        """
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        result = cache_collection.delete_many({"episode_oid": episode_oid})
+        return int(result.deleted_count)
+
 
 # Instance globale du service
 livres_auteurs_cache_service = LivresAuteursCacheService()
