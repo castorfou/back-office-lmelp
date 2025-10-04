@@ -25,21 +25,33 @@
             <label for="episode-select" class="form-label">
               Choisir un épisode avec avis critiques ({{ episodesWithReviews?.length || 0 }} disponibles)
             </label>
-            <select
-              id="episode-select"
-              v-model="selectedEpisodeId"
-              @change="onEpisodeChange"
-              class="form-control"
-            >
-              <option value="">-- Sélectionner un épisode --</option>
-              <option
-                v-for="episode in (episodesWithReviews || [])"
-                :key="episode.id"
-                :value="episode.id"
+            <div class="episode-select-wrapper">
+              <select
+                id="episode-select"
+                v-model="selectedEpisodeId"
+                @change="onEpisodeChange"
+                class="form-control"
               >
-                {{ formatEpisodeOption(episode) }}
-              </option>
-            </select>
+                <option value="">-- Sélectionner un épisode --</option>
+                <option
+                  v-for="episode in (episodesWithReviews || [])"
+                  :key="episode.id"
+                  :value="episode.id"
+                >
+                  {{ formatEpisodeOption(episode) }}
+                </option>
+              </select>
+              <button
+                v-if="selectedEpisodeId"
+                @click="refreshEpisodeCache"
+                class="btn-icon-refresh"
+                data-testid="refresh-cache-button"
+                title="Relancer la validation Biblio"
+                aria-label="Relancer la validation Biblio"
+              >
+                🔄
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -719,6 +731,24 @@ export default {
 
       // Charger les livres pour le nouvel épisode
       await this.loadBooksForEpisode();
+    },
+
+    /**
+     * Rafraîchit le cache pour l'épisode sélectionné
+     */
+    async refreshEpisodeCache() {
+      if (!this.selectedEpisodeId) return;
+
+      try {
+        const result = await livresAuteursService.deleteCacheByEpisode(this.selectedEpisodeId);
+        console.log(`Cache supprimé : ${result.deleted_count} entrée(s)`);
+
+        // Recharger les données après suppression du cache
+        await this.loadBooksForEpisode();
+      } catch (error) {
+        console.error('Erreur lors de la suppression du cache:', error);
+        this.error = 'Erreur lors du rafraîchissement du cache';
+      }
     },
 
     /**
@@ -1806,8 +1836,14 @@ export default {
   color: #333;
 }
 
+.episode-select-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .form-control {
-  width: 100%;
+  flex: 1;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 6px;
@@ -1819,6 +1855,32 @@ export default {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.btn-icon-refresh {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-refresh:hover {
+  background: #f8f9fa;
+  border-color: #667eea;
+  transform: rotate(180deg);
+}
+
+.btn-icon-refresh:active {
+  transform: rotate(180deg) scale(0.95);
 }
 
 .modal-actions {

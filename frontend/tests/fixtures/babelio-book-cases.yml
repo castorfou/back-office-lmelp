@@ -335,3 +335,298 @@ cases:
     original_title: Comme en amour
     status: verified
   timestamp: 1759055213227
+- input:
+    author: Amélie Nothomb
+    title: Tant mieux
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '1825'
+      ca_note: '4.06'
+      couverture: /couv/cvt_Tant-mieux_4825.jpg
+      id_auteur: '3062'
+      id_oeuvre: '1839938'
+      nom: Nothomb
+      prenoms: Amélie
+      titre: Tant mieux
+      tri: '1825'
+      type: livres
+      url: /livres/Nothomb-Tant-mieux/1839938
+    babelio_suggestion_author: Amélie Nothomb
+    babelio_suggestion_title: Tant mieux
+    babelio_url: https://www.babelio.com/livres/Nothomb-Tant-mieux/1839938
+    confidence_score: 1
+    error_message: null
+    original_author: Amélie Nothomb
+    original_title: Tant mieux
+    status: verified
+  timestamp: 1759335521313
+- input:
+    author: Rebecca Warrior
+    title: Toutes les vies
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Rebecca Warrior
+    original_title: Toutes les vies
+    status: not_found
+  timestamp: 1759335552206
+- input:
+    author: Rebeka Warrior
+    title: Toutes les vies
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '781'
+      ca_note: '3.68'
+      couverture: /couv/cvt_Toutes-les-vies_7895.jpg
+      id_auteur: '783320'
+      id_oeuvre: '1867256'
+      nom: Warrior
+      prenoms: Rebeka
+      titre: Toutes les vies
+      tri: '781'
+      type: livres
+      url: /livres/Warrior-Toutes-les-vies/1867256
+    babelio_suggestion_author: Rebeka Warrior
+    babelio_suggestion_title: Toutes les vies
+    babelio_url: https://www.babelio.com/livres/Warrior-Toutes-les-vies/1867256
+    confidence_score: 1
+    error_message: null
+    original_author: Rebeka Warrior
+    original_title: Toutes les vies
+    status: verified
+  timestamp: 1759335552346
+- input:
+    author: Sigrid Nunez
+    title: Les vulnérables
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '84'
+      ca_note: '3.56'
+      couverture: /couv/cvt_Les-vulnerables_1392.jpg
+      id_auteur: '224325'
+      id_oeuvre: '1864601'
+      nom: Nunez
+      prenoms: Sigrid
+      titre: Les vulnérables
+      tri: '84'
+      type: livres
+      url: /livres/Nunez-Les-vulnerables/1864601
+    babelio_suggestion_author: Sigrid Nunez
+    babelio_suggestion_title: Les vulnérables
+    babelio_url: https://www.babelio.com/livres/Nunez-Les-vulnerables/1864601
+    confidence_score: 1
+    error_message: null
+    original_author: Sigrid Nunez
+    original_title: Les vulnérables
+    status: verified
+  timestamp: 1759335558362
+- input:
+    author: Sorge Chalandon
+    title: Le livre de Kels
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Sorge Chalandon
+    original_title: Le livre de Kels
+    status: not_found
+  timestamp: 1759335559739
+- input:
+    author: Sorj Chalandon
+    title: Le livre de Kels
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Sorj Chalandon
+    original_title: Le livre de Kels
+    status: not_found
+  timestamp: 1759335559834
+- input:
+    author: Alex Hinker et Thibaut Vermeaux
+    title: Crimi
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Alex Hinker et Thibaut Vermeaux
+    original_title: Crimi
+    status: not_found
+  timestamp: 1759335571713
+- input:
+    author: Alexandre Lamboreau
+    title: Pâture
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Alexandre Lamboreau
+    original_title: Pâture
+    status: not_found
+  timestamp: 1759335572651
+- input:
+    author: Claude Mackey
+    title: Harlem, Jamaïque, Marseille
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Claude Mackey
+    original_title: Harlem, Jamaïque, Marseille
+    status: not_found
+  timestamp: 1759335573494
+- input:
+    author: Claude McKay
+    title: Harlem, Jamaïque, Marseille
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '13'
+      ca_note: '0.00'
+      couverture: https://m.media-amazon.com/images/I/41I3rO9QH-L._SX95_.jpg
+      id_auteur: '328734'
+      id_oeuvre: '1898345'
+      nom: McKay
+      prenoms: Claude
+      titre: Harlem, Jamaïque, Marseille
+      tri: '13'
+      type: livres
+      url: /livres/McKay-Harlem-Jamaique-Marseille/1898345
+    babelio_suggestion_author: Claude McKay
+    babelio_suggestion_title: Harlem, Jamaïque, Marseille
+    babelio_url: https://www.babelio.com/livres/McKay-Harlem-Jamaique-Marseille/1898345
+    confidence_score: 1
+    error_message: null
+    original_author: Claude McKay
+    original_title: Harlem, Jamaïque, Marseille
+    status: verified
+  timestamp: 1759335573624
+- input:
+    author: Gaëlle Octavia
+    title: L'étrangeté de Mathilde Thé
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Gaëlle Octavia
+    original_title: L'étrangeté de Mathilde Thé
+    status: not_found
+  timestamp: 1759335574324
+- input:
+    author: Gaël Octavia
+    title: L'étrangeté de Mathilde Thé
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Gaël Octavia
+    original_title: L'étrangeté de Mathilde Thé
+    status: not_found
+  timestamp: 1759335574460
+- input:
+    author: Lismour
+    title: Le dieu des bois
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '1732'
+      ca_nb_citations: '20'
+      ca_nb_critiques: '112'
+      ca_note: '4.19'
+      couverture: https://m.media-amazon.com/images/I/51MTMXYfliL._SX95_.jpg
+      id: '1805315'
+      id_auteur: '243478'
+      id_oeuvre: '1805315'
+      nb_items_filtres: '2'
+      nom: Moore
+      prenoms: Liz
+      titre: Le Dieu des Bois
+      type: livres
+      url: /livres/Moore-Le-Dieu-des-Bois/1805315
+      weight: '4'
+    babelio_suggestion_author: Liz Moore
+    babelio_suggestion_title: Le Dieu des Bois
+    babelio_url: https://www.babelio.com/livres/Moore-Le-Dieu-des-Bois/1805315
+    confidence_score: 0.8875
+    error_message: null
+    original_author: Lismour
+    original_title: Le dieu des bois
+    status: corrected
+  timestamp: 1759335575398
+- input:
+    author: Simon Chevrier
+    title: Photos sur demande
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Simon Chevrier
+    original_title: Photos sur demande
+    status: not_found
+  timestamp: 1759335576991
+- input:
+    author: Sylvain Tesson
+    title: Les piliers de la mer
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '831'
+      ca_note: '3.68'
+      couverture: /couv/cvt_Les-Piliers-de-la-mer_9423.jpg
+      id_auteur: '10998'
+      id_oeuvre: '1783303'
+      nom: Tesson
+      prenoms: Sylvain
+      titre: Les Piliers de la mer
+      tri: '831'
+      type: livres
+      url: /livres/Tesson-Les-Piliers-de-la-mer/1783303
+    babelio_suggestion_author: Sylvain Tesson
+    babelio_suggestion_title: Les Piliers de la mer
+    babelio_url: https://www.babelio.com/livres/Tesson-Les-Piliers-de-la-mer/1783303
+    confidence_score: 1
+    error_message: null
+    original_author: Sylvain Tesson
+    original_title: Les piliers de la mer
+    status: verified
+  timestamp: 1759335578118

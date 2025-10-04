@@ -360,3 +360,246 @@ cases:
     - - écouter
       - 60
   timestamp: 1759055212959
+- input:
+    episode_id: 68d98f74edbcf1765933a9b5
+    query_author: Amélie Nothomb
+    query_title: Tant mieux
+  output:
+    authorMatches:
+    - - Amélie
+      - 90
+    - - Nothomb
+      - 90
+    - - Nothomb
+      - 90
+    - - d'Amélie
+      - 86
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 36
+    - - Amélie
+      - 64
+    - - mère
+      - 60
+  timestamp: 1759335521055
+- input:
+    episode_id: 68d98f74edbcf1765933a9b5
+    query_author: Rebecca Warrior
+    query_title: Toutes les vies
+  output:
+    authorMatches:
+    - - Warrior
+      - 90
+    - - Rebecca
+      - 90
+    - - Warrior
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 48
+    - - tous
+      - 77
+    - - écouter
+      - 65
+    - - autres
+      - 60
+  timestamp: 1759335551983
+- input:
+    episode_id: 68d98f74edbcf1765933a9b5
+    query_author: Sigrid Nunez
+    query_title: Les vulnérables
+  output:
+    authorMatches:
+    - - Sigrid
+      - 90
+    - - Nunez
+      - 90
+    - - Sigrid
+      - 90
+    - - Nunez
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 43
+    - - lire
+      - 60
+    - - Leyris
+      - 60
+    - - Leyris
+      - 60
+  timestamp: 1759335558141
+- input:
+    episode_id: 68d98f74edbcf1765933a9b5
+    query_author: Sorge Chalandon
+    query_title: Le livre de Kels
+  output:
+    authorMatches:
+    - - Chalandon
+      - 90
+    - - Chalandon
+      - 90
+    - - Sorj
+      - 77
+    - - Sorj
+      - 77
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 86
+    - - livre
+      - 90
+    - - mère
+      - 68
+    - - lire
+      - 68
+  timestamp: 1759335559473
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Alex Hinker et Thibaut Vermeaux
+    query_title: Crimi
+  output:
+    authorMatches:
+    - - Alex
+      - 90
+    - - Inker
+      - 90
+    - - https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 86
+    - - hrefhttpswwwfranceinterfremissionsle-masque-et-la-plumeat_campaigndesc_episodeampat_mediumlien_RSSRadio
+      - 86
+    - - Thibault
+      - 79
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 36
+    - - critique
+      - 72
+  timestamp: 1759335571452
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Alexandre Lamboreau
+    query_title: Pâture
+  output:
+    authorMatches:
+    - - Alex
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 36
+    - - durée
+      - 67
+    - - tour
+      - 67
+    - - Pour
+      - 67
+    - - Plume
+      - 60
+  timestamp: 1759335572405
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Claude Mackey
+    query_title: Harlem, Jamaïque, Marseille
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 50
+    - - ELLE
+      - 77
+    - - Masque
+      - 75
+    - - Alex
+      - 68
+    - - Lire
+      - 60
+  timestamp: 1759335573247
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Gaëlle Octavia
+    query_title: L'étrangeté de Mathilde Thé
+  output:
+    authorMatches:
+    - - Gaël
+      - 90
+    - - Octavia
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 45
+  timestamp: 1759335574070
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Lismour
+    query_title: Le dieu des bois
+  output:
+    authorMatches:
+    - - tour
+      - 77
+    - - Pour
+      - 77
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 86
+    - - épisodes
+      - 61
+    - - Alex
+      - 60
+    - - ELLE
+      - 60
+    - - Lire
+      - 60
+  timestamp: 1759335575143
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Simon Chevrier
+    query_title: Photos sur demande
+  output:
+    authorMatches:
+    - - Simon
+      - 90
+    - - Chevrier
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 40
+    - - monde
+      - 72
+    - - tous
+      - 68
+    - - durée
+      - 60
+  timestamp: 1759335576740
+- input:
+    episode_id: 68a3911df8b628e552fdf11f
+    query_author: Sylvain Tesson
+    query_title: Les piliers de la mer
+  output:
+    authorMatches:
+    - - Sylvain
+      - 90
+    - - Tesson
+      - 90
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 86
+    - - hrefhttpswwwfranceinterfremissionsle-masque-et-la-plumeat_campaigndesc_episodeampat_mediumlien_RSSRadio
+      - 86
+    - - Lire
+      - 68
+    - - Alex
+      - 64
+    - - livres
+      - 62
+    - - ELLE
+      - 60
+  timestamp: 1759335577898

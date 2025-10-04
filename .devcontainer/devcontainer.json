@@ -39,7 +39,8 @@
                 "GitHub.copilot",
                 "dbaeumer.vscode-eslint",
                 "ms-python.autopep8",
-                "Vue.volar"
+                "Vue.volar",
+                "anthropic.claude-code"
             ],
             "settings": {
                 // Configuration Python

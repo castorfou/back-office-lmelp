@@ -1,110 +1,88 @@
-# Vérification orthographique Babelio
+# Guide Utilisateur - Validation Bibliographique
 
 ## Vue d'ensemble
 
-L'intégration Babelio permet de vérifier et corriger l'orthographe des noms d'auteurs et titres de livres en utilisant la base de données collaborative de Babelio.com.
+La validation bibliographique vérifie automatiquement l'orthographe des auteurs et titres de livres extraits des avis critiques en utilisant la base de données Babelio.com.
 
-## Fonctionnalités
+## Accès à la fonctionnalité
 
-### ✅ Auteurs
-- **Vérification exacte** : Confirme l'orthographe correcte des noms d'auteurs
-- **Correction automatique** : Propose des corrections pour les fautes de frappe
-- **Données enrichies** : Fournit des informations supplémentaires (nombre d'œuvres, popularité)
-- **Lien Babelio** : URL directe vers la page auteur sur Babelio
+**Navigation** : Menu principal → **Livres et Auteurs**
 
-**Exemple :**
-- Saisie : "Houllebeck" → Correction : "Michel Houellebecq"
-- Saisie : "Amélie Nothomb" → Vérification : ✅ Orthographe correcte
+## Comprendre les indicateurs de validation
 
-### ✅ Livres
-- **Vérification titre + auteur** : Validation croisée titre/auteur
-- **Correction intelligente** : Suggestions pour titres mal orthographiés
-- **Métadonnées complètes** : Couverture, notes, nombre d'exemplaires
-- **Lien direct** : URL vers la page livre sur Babelio
+Dans le tableau des livres, la colonne **"Validation Biblio"** affiche l'un des indicateurs suivants :
 
-**Exemple :**
-- Titre : "Le Petit Prince", Auteur : "Antoine de Saint-Exupéry" → ✅ Vérifié
+### ✅ Validé
+**Signification** : Les données sont correctes et confirmées par Babelio.
 
-### ⚠️ Éditeurs
-- **Fonctionnalité limitée** : Recherche basique dans les données auteurs
-- **Nécessite amélioration** : Approche alternative en développement
+**Action** : Aucune, les informations sont fiables.
 
-## Interface utilisateur
+### 🔄 Suggestion
+**Signification** : Le système propose une correction orthographique.
 
-### Page Livres et Auteurs (Validation intégrée)
+**Exemples** :
+- "Alain Mabancou" → "Alain Mabanckou" (correction auteur)
+- "Tant mieu" → "Tant mieux" (correction titre)
 
-**Accès principal :** Via la navigation → **Livres et Auteurs**
+**Action** : Cliquez sur l'indicateur pour voir les détails de la suggestion (original → corrigé).
 
-La validation bibliographique est désormais **intégrée directement** dans l'interface de consultation des livres :
+### ❓ Non trouvé
+**Signification** : Aucune correspondance fiable n'a été trouvée sur Babelio.
 
-1. **Sélection d'épisode** : Choisissez un épisode avec avis critiques
-2. **Tableau enrichi** : Colonne "Validation Biblio" avec indicateurs visuels :
-   - ✅ **Validé** : Données confirmées par Babelio
-   - 🔄 **Suggestion** : Correction proposée (cliquez pour voir les détails)
-   - ❓ **Non trouvé** : Aucune correspondance fiable trouvée
-   - ⚠️ **Erreur** : Problème de connexion (bouton retry disponible)
+**Raisons possibles** :
+- Faute d'orthographe importante
+- Livre récent non encore référencé
+- Inversion de nom (ex: "Le Floch" → "Lefloc")
 
-3. **Validation automatique** : Chaque livre est vérifié automatiquement au chargement
-4. **Validation intelligente** : Combine plusieurs sources :
-   - Données exactes de l'épisode (ground truth)
-   - Corrections orthographiques Babelio
-   - Vérification croisée auteur/livre
+**Action** : Vérification manuelle nécessaire. Consultez directement [Babelio.com](https://www.babelio.com) pour confirmation.
 
-### Page de test Babelio (Développeurs)
+### ⚠️ Erreur
+**Signification** : Problème technique lors de la vérification.
 
-**Accès technique :** **http://localhost:5174/babelio-test**
+**Action** : Cliquez sur le bouton **Retry** pour relancer la validation.
 
-Interface de débogage avec trois formulaires distincts :
+## Comment fonctionne la validation ?
 
-1. **Formulaire Auteur**
-   - Champ : Nom de l'auteur
-   - Exemples : "Amélie Nothomb", "Houllebeck" (faute intentionnelle)
+Le système combine **plusieurs sources** pour maximiser la fiabilité :
 
-2. **Formulaire Livre**
-   - Champs : Titre du livre, Auteur (optionnel)
-   - Exemple : "Le Petit Prince" / "Antoine de Saint-Exupéry"
+1. **Vérification directe Babelio** : Test rapide si les données sont exactes
+2. **Recherche dans les métadonnées d'épisode** : Recherche fuzzy dans titre/description de l'épisode
+3. **Validation croisée auteur + titre** : Vérification que l'auteur correspond bien au livre
 
-3. **Formulaire Éditeur**
-   - Champ : Nom de l'éditeur
-   - Exemple : "Gallimard"
+**Priorité** : Les données de l'épisode (vérifiées par l'éditeur France Inter) sont prioritaires sur les corrections Babelio quand elles sont fiables.
 
-### Résultats
+## Cas d'usage typiques
 
-Pour chaque vérification, vous obtenez :
-- **Status** : `verified` (exact), `corrected` (corrigé), `not_found` (non trouvé)
-- **Score de confiance** : De 0.0 à 1.0 (1.0 = correspondance parfaite)
-- **Suggestion** : Orthographe corrigée si nécessaire
-- **Données Babelio** : Informations complètes de la base de données
-- **URL** : Lien direct vers la page Babelio
+### Utilisateur final (consultation)
+1. Sélectionnez un épisode dans la liste déroulante
+2. Consultez le tableau des livres avec validation automatique
+3. Identifiez rapidement les erreurs orthographiques (🔄)
 
-## Cas d'usage
+### Correcteur d'épreuves (validation qualité)
+1. Parcourez les épisodes récents
+2. Vérifiez les suggestions (🔄) pour confirmer les corrections
+3. Traitez manuellement les cas "Non trouvé" (❓)
 
-### Pour les utilisateurs finaux
-1. **Navigation** : Aller dans "Livres et Auteurs"
-2. **Sélection** : Choisir un épisode avec avis critiques
-3. **Consultation** : Observer les indicateurs de validation dans le tableau
-4. **Correction** : Consulter les suggestions (🔄) pour identifier les erreurs orthographiques
+### Enrichissement de données
+1. Utilisez les suggestions validées pour mettre à jour la base de données
+2. Récupérez les liens Babelio pour métadonnées supplémentaires (couverture, notes)
 
-### Pour les correcteurs d'épreuves
-1. **Validation automatique** : Les données sont vérifiées automatiquement
-2. **Suggestions intelligentes** : Corrections basées sur les données de l'épisode ET Babelio
-3. **Fiabilité** : Score de confiance et validation croisée auteur/livre
-4. **Contexte** : Priorise les données exactes de l'épisode (ground truth)
+## Limitations connues
 
-### Pour l'enrichissement de données
-1. Vérifier les métadonnées existantes dans le tableau
-2. Récupérer des informations complémentaires via les suggestions
-3. Obtenir des liens canoniques vers Babelio
+- **Rate limiting** : 1 requête/seconde vers Babelio (validation peut prendre quelques secondes)
+- **Cas difficiles** : Inversions de nom, segmentation incorrecte nécessitent intervention manuelle
+- **Dépendance externe** : Nécessite connexion internet pour interroger Babelio
 
-## Limitations actuelles
+## En cas de problème
 
-- **Éditeurs** : Recherche limitée, nécessite une approche spécialisée
-- **Rate limiting** : 1 requête par seconde pour respecter Babelio
-- **Dépendance externe** : Nécessite une connexion internet active
+1. **Erreur de connexion** : Vérifiez votre connexion internet, puis cliquez sur Retry
+2. **Résultats incorrects** : Signalez via GitHub Issues avec exemple précis (auteur + titre)
+3. **Performance lente** : Normal avec beaucoup de livres (rate limiting Babelio)
 
-## Support et dépannage
+## Documentation technique
 
-En cas de problème :
-1. Vérifiez votre connexion internet
-2. Consultez les logs du serveur backend
-3. Reportez les bugs via les issues GitHub du projet
+Pour comprendre le fonctionnement détaillé du système de validation :
+
+📖 **Développeurs** : Consultez [biblio-verification-flow.md](../dev/biblio-verification-flow.md)
+
+📖 **Tests** : Consultez [validation-biblio-tests.md](../dev/validation-biblio-tests.md)

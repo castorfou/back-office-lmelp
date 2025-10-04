@@ -65,6 +65,51 @@ La validation bibliographique (auteur-titre) dans l'application suit une archite
 **Critère :** Le système ne peut pas proposer de suggestion fiable
 **Exemple :** `Agnès Michaud - Huitsemences vivantes` → Aucune correspondance fiable trouvée
 
+## Filtrage des Suggestions Invalides (Issue #74)
+
+Le système inclut un mécanisme de validation pour filtrer les suggestions invalides provenant de la recherche floue (fuzzy search) dans les transcriptions d'épisodes. Ce filtrage est implémenté dans la méthode `_isValidTitleSuggestion()` du `BiblioValidationService`.
+
+### Règles de Filtrage
+
+Les suggestions sont rejetées si elles correspondent à l'un des critères suivants :
+
+1. **URLs complètes ou partielles**
+   - Contient `http://`, `https://`, `www.`
+   - Contient des domaines typiques : `franceinter.fr`, `.com`, `.fr`
+   - **Exemple rejeté :** `https://www.franceinter.fr/emissions/le-masque-et-la-plume`
+
+2. **Fragments trop courts**
+   - Moins de 3 caractères (sauf si correspond exactement au titre original)
+   - **Exemple rejeté :** `am`, `de`, `le`
+
+3. **Mots isolés trop courts**
+   - Un seul mot de moins de 5 caractères
+   - **Exemple rejeté :** `tous`, `Amélie` (prénom seul)
+
+### Comportement en Cas de Suggestion Invalide
+
+Lorsque le système détecte une suggestion invalide issue de la ground truth (transcription d'épisode) :
+
+1. La suggestion invalide est **rejetée** avant le tri par score
+2. Le système effectue un **fallback vers Babelio**
+3. Le résultat final utilise les données validées de Babelio avec `source: 'babelio'`
+
+**Exemple concret (Issue #74) :**
+- **Entrée :** `Amélie Nothomb - Tant mieux`
+- **Fuzzy search retourne :**
+  - `https://www.franceinter.fr/...` (score 36) → **rejeté (URL)**
+  - `Amélie` (score 64) → **rejeté (prénom seul)**
+- **Babelio retourne :** `Amélie Nothomb - Tant mieux` ✅
+- **Résultat final :** `status: 'suggestion'`, `source: 'babelio'`, suggère données Babelio correctes
+
+### Tests Associés
+
+Les tests vérifiant ce comportement sont dans `BiblioValidationService.modular.test.js` :
+- `should reject URL suggestions from fuzzy search`
+- `should reject single-word title suggestions that do not match`
+
+Ces tests garantissent que le système privilégie toujours des suggestions valides et évite d'afficher des fragments, URLs ou données tronquées.
+
 ## Architecture de Décision
 
 ```

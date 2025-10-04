@@ -306,28 +306,38 @@ export class BiblioValidationService {
     if (hasGroundTruth && hasGoodMatches) {
   const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult, original);
 
-      // Vérifier la cohérence avec Babelio
-      return await this._validateGroundTruthSuggestion(
-        original,
-        groundTruthSuggestion,
-        bookValidation,
-        groundTruthResult,
-        authorValidation
-      );
+      // Reject ground truth suggestion if title is invalid (URL, fragment, etc.)
+      if (!groundTruthSuggestion.title || !this._isValidTitleSuggestion(groundTruthSuggestion.title, original.title)) {
+        // Fall through to Babelio-only validation
+      } else {
+        // Vérifier la cohérence avec Babelio
+        return await this._validateGroundTruthSuggestion(
+          original,
+          groundTruthSuggestion,
+          bookValidation,
+          groundTruthResult,
+          authorValidation
+        );
+      }
     }
 
     // Cas 2: Ground truth avec matches décents (seuils assouplis) - PRIORITAIRE aussi
     if (hasGroundTruth && this._hasDecentGroundTruthMatches(groundTruthResult)) {
   const groundTruthSuggestion = this._extractGroundTruthSuggestion(groundTruthResult, original);
 
-      // Vérifier la cohérence avec Babelio
-      return await this._validateGroundTruthSuggestion(
-        original,
-        groundTruthSuggestion,
-        bookValidation,
-        groundTruthResult,
-        authorValidation
-      );
+      // Reject ground truth suggestion if title is invalid (URL, fragment, etc.)
+      if (!groundTruthSuggestion.title || !this._isValidTitleSuggestion(groundTruthSuggestion.title, original.title)) {
+        // Fall through to Babelio-only validation
+      } else {
+        // Vérifier la cohérence avec Babelio
+        return await this._validateGroundTruthSuggestion(
+          original,
+          groundTruthSuggestion,
+          bookValidation,
+          groundTruthResult,
+          authorValidation
+        );
+      }
     }
 
     // Cas 3: Validation directe - auteur ET livre tous deux vérifiés
@@ -418,7 +428,13 @@ export class BiblioValidationService {
     const titleMatches = groundTruthResult.titleMatches || groundTruthResult.title_matches;
     const authorMatches = groundTruthResult.authorMatches || groundTruthResult.author_matches;
 
-    const titleMatch = titleMatches?.[0];
+    // Filter out invalid title suggestions before checking scores
+    const validTitleMatches = (titleMatches || []).filter(tm => {
+      const text = (tm[0] || '').replace('📖 ', '').trim();
+      return this._isValidTitleSuggestion(text, null);
+    });
+
+    const titleMatch = validTitleMatches?.[0];
     const authorMatch = authorMatches?.[0];
 
     // Format des matches : [["text", score], ...]
@@ -452,7 +468,13 @@ export class BiblioValidationService {
     const titleMatches = groundTruthResult.titleMatches || groundTruthResult.title_matches;
     const authorMatches = groundTruthResult.authorMatches || groundTruthResult.author_matches;
 
-    const titleMatch = titleMatches?.[0];
+    // Filter out invalid title suggestions before checking scores
+    const validTitleMatches = (titleMatches || []).filter(tm => {
+      const text = (tm[0] || '').replace('📖 ', '').trim();
+      return this._isValidTitleSuggestion(text, null);
+    });
+
+    const titleMatch = validTitleMatches?.[0];
 
     // Format des matches : [["text", score], ...]
     const titleScore = titleMatch?.[1] || 0;
@@ -542,9 +564,12 @@ export class BiblioValidationService {
         const sim = origNorm ? levenshtein(origNorm, candNorm) : 0;
         const combined = sim * 0.7 + score * 0.3;
         return { text, score: score * 100, combined };
-      }).sort((a, b) => b.combined - a.combined);
+      })
+      // Filter out invalid suggestions before sorting
+      .filter(candidate => this._isValidTitleSuggestion(candidate.text, original.title))
+      .sort((a, b) => b.combined - a.combined);
 
-      titleMatch = scored[0]?.text || titleMatches[0]?.[0] || '';
+      titleMatch = scored[0]?.text || '';
     }
 
     // Pour l'auteur, essayer de reconstruire le nom complet à partir des matches
@@ -662,6 +687,44 @@ export class BiblioValidationService {
       title: (titleMatch || '').replace('📖 ', '').trim(), // Enlever le préfixe et espaces
       author: reconstructedAuthor.trim()
     };
+  }
+
+  /**
+   * Valide si une suggestion de titre est acceptable
+   * Filtre les URLs, les fragments trop courts, et autres suggestions invalides
+   * @private
+   */
+  _isValidTitleSuggestion(suggestion, originalTitle) {
+    if (!suggestion || typeof suggestion !== 'string') {
+      return false;
+    }
+
+    const trimmed = suggestion.trim();
+
+    // Rejeter les URLs
+    if (trimmed.includes('http://') || trimmed.includes('https://') || trimmed.includes('www.')) {
+      return false;
+    }
+
+    // Rejeter les URLs partielles typiques
+    if (trimmed.includes('franceinter.fr') || trimmed.includes('.com') || trimmed.includes('.fr')) {
+      return false;
+    }
+
+    // Rejeter les fragments trop courts (< 3 caractères) sauf si c'est exactement le titre original
+    if (trimmed.length < 3 && trimmed.toLowerCase() !== (originalTitle || '').toLowerCase()) {
+      return false;
+    }
+
+    // Rejeter les mots isolés qui ne ressemblent pas à des titres
+    // Un titre devrait avoir au moins 2 mots OU être un mot long et significatif (>= 8 lettres)
+    // Ceci filtre les prénoms isolés comme "Amélie" (6 lettres) qui ne sont pas des titres
+    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 1 && trimmed.length < 8) {
+      return false;
+    }
+
+    return true;
   }
 
   /**

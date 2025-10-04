@@ -24,6 +24,7 @@ vi.mock('../../src/services/api.js', () => ({
     getAllAuthors: vi.fn(),
     getAllBooks: vi.fn(),
     setValidationResults: vi.fn(),
+    deleteCacheByEpisode: vi.fn(),
   },
   episodeService: {
     getAllEpisodes: vi.fn(),
@@ -1193,6 +1194,70 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       // Vérifier que le modal se ferme
       modal = wrapper.find('[data-testid="validation-modal"]');
       expect(modal.exists()).toBe(false);
+    });
+  });
+
+  describe('Cache Management', () => {
+    it('should display refresh cache button when episode is selected', async () => {
+      // Arrange
+      const episodeOid = '68d98f74edbcf1765933a9b5'; // pragma: allowlist secret
+      livresAuteursService.getLivresAuteurs.mockResolvedValue([
+        {
+          episode_oid: episodeOid,
+          episode_title: 'Test Episode',
+          auteur: 'Test Author',
+          titre: 'Test Book',
+          editeur: 'Test Publisher',
+        }
+      ]);
+
+      // Act
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Sélectionner un épisode
+      wrapper.vm.selectedEpisodeId = episodeOid;
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Assert
+      const refreshButton = wrapper.find('[data-testid="refresh-cache-button"]');
+      expect(refreshButton.exists()).toBe(true);
+    });
+
+    it('should call deleteCacheByEpisode when refresh button is clicked', async () => {
+      // Arrange
+      const episodeOid = '68d98f74edbcf1765933a9b5'; // pragma: allowlist secret
+      livresAuteursService.getLivresAuteurs.mockResolvedValue([
+        {
+          episode_oid: episodeOid,
+          episode_title: 'Test Episode',
+          auteur: 'Test Author',
+          titre: 'Test Book',
+          editeur: 'Test Publisher',
+        }
+      ]);
+      livresAuteursService.deleteCacheByEpisode = vi.fn().mockResolvedValue({ deleted_count: 3 });
+
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Sélectionner un épisode
+      wrapper.vm.selectedEpisodeId = episodeOid;
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Act
+      const refreshButton = wrapper.find('[data-testid="refresh-cache-button"]');
+      await refreshButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      // Assert
+      expect(livresAuteursService.deleteCacheByEpisode).toHaveBeenCalledWith(episodeOid);
     });
   });
 });

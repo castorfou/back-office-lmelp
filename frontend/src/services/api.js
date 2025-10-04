@@ -141,6 +141,16 @@ export const livresAuteursService = {
     const response = await api.post('/set-validation-results', validationData);
     return response.data;
   },
+
+  /**
+   * Supprime toutes les entrées de cache pour un épisode donné
+   * @param {string} episodeOid - ID de l'épisode dont on veut supprimer le cache
+   * @returns {Promise<Object>} Nombre de documents supprimés
+   */
+  async deleteCacheByEpisode(episodeOid) {
+    const response = await api.delete(`/livres-auteurs/cache/episode/${episodeOid}`);
+    return response.data;
+  },
 };
 
 /**
