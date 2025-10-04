@@ -71,11 +71,9 @@ where = ["src"]
 "" = "src"
 
 # Configuration uv pour la reproductibilité
-[tool.uv]
-dev-dependencies = [
-    "pytest",
-    "types-pyyaml>=6.0.12.20250915",
-]
+[dependency-groups]
+dev = ["pytest", "types-pyyaml>=6.0.12.20250915"]
+
 
 # Configuration Ruff - Linter et formateur Python moderne
 [tool.ruff.lint]
