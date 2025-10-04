@@ -60,7 +60,8 @@ nav:
     - Vue d'ensemble: dev/README.md
     - Architecture: dev/architecture.md
     - API Reference: dev/api.md
-    - Intégration Babelio: dev/babelio-integration.md
+    - Validation Bibliographique: dev/biblio-verification-flow.md
+    - Tests Validation Biblio: dev/validation-biblio-tests.md
     - Base de données: dev/database.md
     - Développement: dev/development.md
     - Déploiement: dev/deployment.md
