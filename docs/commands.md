@@ -177,7 +177,7 @@ cd /workspaces/back-office-lmelp/frontend && npm install
 
 il est divisé en plusieurs phases
 
-phase 0 - verif direct
+phase 0 - verif direct sur babelio
 
 ```bash
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
@@ -188,6 +188,35 @@ curl -X POST "$BACKEND_URL/api/verify-babelio" \
   "type": "book",
   "title": "L'invention de Tristan",
   "author": "Adrien Bosque"
+}
+EOF
+```
+
+phase 1 - fuzzy search (champs titre description d'un episode donné)
+
+```bash
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -X POST "$BACKEND_URL/api/fuzzy-search-episode" \
+  -H "Content-Type: application/json" \
+  -d @- <<'EOF' | jq
+{
+  "episode_id": "6865f99ba1418e3d7c63d07a",
+  "query_title": "L'invention de Tristan",
+  "query_author": "Adrien Bosque"
+}
+EOF
+```
+
+phase 2 - babelio search avec des auteurs / titres
+
+```bash
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d @- <<'EOF' | jq
+{
+  "type": "author",
+  "name": "Adrien Bosc"
 }
 EOF
 ```
