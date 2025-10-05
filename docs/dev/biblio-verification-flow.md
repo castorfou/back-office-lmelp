@@ -6,53 +6,78 @@ Le système de vérification bibliographique est un service multi-phase qui vali
 
 **Contexte** : Les livres à corriger proviennent de la collection MongoDB `avis_critique` (champ `summary`), générée depuis la transcription audio Whisper. Cette transcription automatique introduit des erreurs orthographiques que le service doit corriger.
 
-Le service combine trois sources de données pour maximiser la fiabilité :
+**Données d'entrée** : Livres extraits des avis critiques (collection MongoDB `avis_critique`, champ `summary`), générés depuis la transcription audio Whisper.
 
-1. **Livres extraits directement** (Phase 0) - Livres identifiés dans les métadonnées d'épisodes
-2. **Ground truth fuzzy search** (Phase 1) - Recherche approximative dans les métadonnées éditorialisées (titre + description) des épisodes
-3. **Validation Babelio** (Phases 2-3) - Vérification via l'API Babelio.com
+Le service utilise **deux sources de validation** pour maximiser la fiabilité :
+
+1. **Babelio** (API externe) - Base de données bibliographique de référence
+2. **Métadonnées épisodes** (MongoDB `episodes`) - Données éditorialisées France Inter (champs `titre` + `description`)
+
+Le workflow se décompose en **trois phases successives** :
+
+- **Phase 0** : Validation directe Babelio des livres extraits (avec enrichissements : double appel, correction auteur)
+- **Phase 1** : Fuzzy search dans les métadonnées éditorialisées de l'épisode
+- **Phase 2** : Validation Babelio complète (auteur + livre) avec cascade de recherches
 
 ## Architecture Générale
 
 ```
+                    ┌──────────────────────────────┐
+                    │    DONNÉES D'ENTRÉE          │
+                    │  Livres extraits avis_       │
+                    │  critique (Whisper)          │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    BiblioValidationService                          │
-│                (Frontend - Orchestration)                           │
+│                    (Frontend - Orchestration)                       │
 └─────────────────────────────────────────────────────────────────────┘
-                              │
-                ┌─────────────┼─────────────┐
-                │             │             │
-                ▼             ▼             ▼
-    ┌─────────────────┐ ┌──────────────┐ ┌──────────────────┐
-    │ Phase 0         │ │ Fuzzy Search │ │ Babelio Service  │
-    │ Babelio Direct  │ │  (Phase 1)   │ │  (Phases 2-3)    │
-    │                 │ │              │ │                  │
-    │ Verify exact    │ │ Backend API  │ │ External API     │
-    │ author+title    │ │ /api/fuzzy-  │ │ /api/verify-     │
-    │ from avis_      │ │ search-      │ │ babelio          │
-    │ critique        │ │ episode      │ │                  │
-    └─────────────────┘ └──────────────┘ └──────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │   Arbitration    │
-                    │   (Phase 4)      │
-                    │                  │
-                    │ - Priority rules │
-                    │ - Confidence     │
-                    │   scoring        │
-                    │ - Filtering      │
-                    └──────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │  Final Result    │
-                    │                  │
-                    │ - verified       │
-                    │ - suggestion     │
-                    │ - not_found      │
-                    │ - error          │
-                    └──────────────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         │                         │                         │
+         ▼                         ▼                         ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│    Phase 0      │    │     Phase 1      │    │      Phase 2        │
+│                 │    │                  │    │                     │
+│ Validation      │    │ Fuzzy Search     │    │ Validation Babelio  │
+│ Babelio directe │    │ (Ground Truth)   │    │ complète            │
+│                 │    │                  │    │                     │
+│ - Livres        │    │ Backend API      │    │ External API        │
+│   extraits      │    │ /api/fuzzy-      │    │ /api/verify-        │
+│ - Double appel  │    │ search-episode   │    │ babelio             │
+│ - Correction    │    │                  │    │                     │
+│   auteur        │    │ Sources:         │    │ - verifyAuthor()    │
+│                 │    │ - episode.titre  │    │ - verifyBook()      │
+│ Source:         │    │ - episode.       │    │ - Cascade           │
+│ Babelio API     │    │   description    │    │                     │
+└─────────────────┘    └──────────────────┘    └─────────────────────┘
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────┐
+                         │   Arbitration    │
+                         │                  │
+                         │ - Priority rules │
+                         │ - Confidence     │
+                         │   scoring        │
+                         │ - Filtering      │
+                         └──────────────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────┐
+                         │  Final Result    │
+                         │                  │
+                         │ - verified       │
+                         │ - suggestion     │
+                         │ - not_found      │
+                         │ - error          │
+                         └──────────────────┘
+
+SOURCES DE VALIDATION :
+1. Babelio API (Phases 0 & 2)
+2. Métadonnées épisodes MongoDB (Phase 1)
 ```
 
 ## Flux de Traitement Détaillé
@@ -232,21 +257,6 @@ verifyBook("Tant mieux", "Amélie Nothomb")
 }
 // ✅ Pas besoin de fuzzy search, workflow terminé
 ```
-
-**Résultats réels (Issue #75)** :
-Sur un épisode test de 11 livres, Phase 0 enrichie traite automatiquement **5 livres sur 11** (45% de taux de succès) :
-- ✅ 2 livres validés directement (confidence 1.0)
-- ✅ 1 livre confirmé par double appel (Adrien Bosc)
-- ✅ 1 livre corrigé via correction auteur (Fabcaro)
-- ✅ 1 livre validé sans enrichissement
-- ❌ 6 livres passent en Phase 1 (cas complexes nécessitant fuzzy search)
-
-**Avantages** :
-- **Évite le fuzzy search coûteux** pour 45% des cas
-- **Réduit la latence** : 1-3 appels Babelio au lieu de fuzzy search complet
-- **Corrige automatiquement** les erreurs fréquentes de transcription Whisper
-- **Robuste** : Gère les cas de confidence intermédiaire (0.85-0.99)
-- **Intelligent** : Teste d'abord l'auteur si le livre n'est pas trouvé
 
 ---
 
