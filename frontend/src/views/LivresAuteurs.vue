@@ -411,6 +411,7 @@
               class="form-control"
               data-testid="author-input"
               placeholder="Nom de l'auteur"
+              @keydown.stop
             />
           </div>
 
@@ -423,6 +424,7 @@
               class="form-control"
               data-testid="title-input"
               placeholder="Titre du livre"
+              @keydown.stop
             />
           </div>
 
@@ -435,6 +437,7 @@
               class="form-control"
               data-testid="publisher-input"
               placeholder="Nom de l'éditeur"
+              @keydown.stop
             />
           </div>
         </div>
@@ -624,6 +627,9 @@ export default {
     // Keyboard navigation for episode select (left / right)
     // prevent default browser navigation when using arrows and avoid races
     this._onKeydown = async (e) => {
+      // Désactiver navigation si un modal est ouvert
+      if (this.showValidationModal || this.showManualAddModal) return;
+
       if (!this.selectedEpisodeId) return;
       if (e.key === 'ArrowLeft') {
         // prevent the native select from changing the option and creating a race
