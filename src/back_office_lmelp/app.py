@@ -733,6 +733,19 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
                 (match, score) for match, score in author_matches_raw if score >= 75
             ]
 
+        # Nettoyer la ponctuation en fin de chaîne pour tous les matches
+        def clean_trailing_punctuation(text: str) -> str:
+            """Nettoie la ponctuation en fin de chaîne (virgules, points, etc.)"""
+            return text.rstrip(",.;:!? ")
+
+        title_matches = [
+            (clean_trailing_punctuation(match), score) for match, score in title_matches
+        ]
+        author_matches = [
+            (clean_trailing_punctuation(match), score)
+            for match, score in author_matches
+        ]
+
         # Trier les résultats par score décroissant
         title_matches.sort(key=lambda x: x[1], reverse=True)
         author_matches.sort(key=lambda x: x[1], reverse=True)
