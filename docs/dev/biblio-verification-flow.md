@@ -6,66 +6,96 @@ Le système de vérification bibliographique est un service multi-phase qui vali
 
 **Contexte** : Les livres à corriger proviennent de la collection MongoDB `avis_critique` (champ `summary`), générée depuis la transcription audio Whisper. Cette transcription automatique introduit des erreurs orthographiques que le service doit corriger.
 
-Le service combine trois sources de données pour maximiser la fiabilité :
+**Données d'entrée** : Livres extraits des avis critiques (collection MongoDB `avis_critique`, champ `summary`), générés depuis la transcription audio Whisper.
 
-1. **Livres extraits directement** (Phase 0) - Livres identifiés dans les métadonnées d'épisodes
-2. **Ground truth fuzzy search** (Phase 1) - Recherche approximative dans les métadonnées éditorialisées (titre + description) des épisodes
-3. **Validation Babelio** (Phases 2-3) - Vérification via l'API Babelio.com
+Le service utilise **deux sources de validation** pour maximiser la fiabilité :
+
+1. **Babelio** (API externe) - Base de données bibliographique de référence
+2. **Métadonnées épisodes** (MongoDB `episodes`) - Données éditorialisées France Inter (champs `titre` + `description`)
+
+Le workflow se décompose en **trois phases successives** :
+
+- **Phase 0** : Validation directe Babelio des livres extraits (avec enrichissements : double appel, correction auteur)
+- **Phase 1** : Fuzzy search dans les métadonnées éditorialisées de l'épisode
+- **Phase 2** : Validation Babelio complète (auteur + livre) avec cascade de recherches
 
 ## Architecture Générale
 
 ```
+                    ┌──────────────────────────────┐
+                    │    DONNÉES D'ENTRÉE          │
+                    │  Livres extraits avis_       │
+                    │  critique (Whisper)          │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    BiblioValidationService                          │
-│                (Frontend - Orchestration)                           │
+│                    (Frontend - Orchestration)                       │
 └─────────────────────────────────────────────────────────────────────┘
-                              │
-                ┌─────────────┼─────────────┐
-                │             │             │
-                ▼             ▼             ▼
-    ┌─────────────────┐ ┌──────────────┐ ┌──────────────────┐
-    │ Phase 0         │ │ Fuzzy Search │ │ Babelio Service  │
-    │ Babelio Direct  │ │  (Phase 1)   │ │  (Phases 2-3)    │
-    │                 │ │              │ │                  │
-    │ Verify exact    │ │ Backend API  │ │ External API     │
-    │ author+title    │ │ /api/fuzzy-  │ │ /api/verify-     │
-    │ from avis_      │ │ search-      │ │ babelio          │
-    │ critique        │ │ episode      │ │                  │
-    └─────────────────┘ └──────────────┘ └──────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │   Arbitration    │
-                    │   (Phase 4)      │
-                    │                  │
-                    │ - Priority rules │
-                    │ - Confidence     │
-                    │   scoring        │
-                    │ - Filtering      │
-                    └──────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │  Final Result    │
-                    │                  │
-                    │ - verified       │
-                    │ - suggestion     │
-                    │ - not_found      │
-                    │ - error          │
-                    └──────────────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         │                         │                         │
+         ▼                         ▼                         ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│    Phase 0      │    │     Phase 1      │    │      Phase 2        │
+│                 │    │                  │    │                     │
+│ Validation      │    │ Fuzzy Search     │    │ Validation Babelio  │
+│ Babelio directe │    │ (Ground Truth)   │    │ complète            │
+│                 │    │                  │    │                     │
+│ - Livres        │    │ Backend API      │    │ External API        │
+│   extraits      │    │ /api/fuzzy-      │    │ /api/verify-        │
+│ - Double appel  │    │ search-episode   │    │ babelio             │
+│ - Correction    │    │                  │    │                     │
+│   auteur        │    │ Sources:         │    │ - verifyAuthor()    │
+│                 │    │ - episode.titre  │    │ - verifyBook()      │
+│ Source:         │    │ - episode.       │    │ - Cascade           │
+│ Babelio API     │    │   description    │    │                     │
+└─────────────────┘    └──────────────────┘    └─────────────────────┘
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────┐
+                         │   Arbitration    │
+                         │                  │
+                         │ - Priority rules │
+                         │ - Confidence     │
+                         │   scoring        │
+                         │ - Filtering      │
+                         └──────────────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────┐
+                         │  Final Result    │
+                         │                  │
+                         │ - verified       │
+                         │ - suggestion     │
+                         │ - not_found      │
+                         │ - error          │
+                         └──────────────────┘
+
+SOURCES DE VALIDATION :
+1. Babelio API (Phases 0 & 2)
+2. Métadonnées épisodes MongoDB (Phase 1)
 ```
 
 ## Flux de Traitement Détaillé
 
-### Phase 0 : Validation Directe Babelio (Nouveau - Issue #68)
+### Phase 0 : Validation Directe Babelio avec Enrichissements
 
-**Objectif** : Pour chaque couple auteur-livre à valider, effectuer une **vérification directe sur Babelio** avant toute autre tentative. C'est un test binaire simple : soit Babelio valide les données exactes, soit on passe à la Phase 1.
+**Objectif** : Pour chaque couple auteur-livre à valider, effectuer une **vérification directe sur Babelio** des livres extraits de l'épisode avant toute autre tentative. Phase 0 inclut deux mécanismes d'enrichissement pour maximiser le taux de succès :
 
-**Processus** :
-1. Recevoir les données à valider : `author`, `title`, `episodeId`
-2. Appeler **directement Babelio** : `verifyBook(title, author)`
-3. **Si Babelio confirme** avec `status: 'verified'` → ✅ **Terminé, retourner `verified`**
-4. **Si Babelio ne confirme pas** (statut `not_found`, `corrected`, ou erreur) → ❌ **Passer à Phase 1** (fuzzy search)
+1. **Double appel de confirmation** : Si Babelio suggère une correction avec confidence 0.85-0.99, un 2ème appel confirme la suggestion
+2. **Correction automatique d'auteur** : Si le livre n'est pas trouvé, Phase 0 essaie de corriger l'auteur avant de passer en Phase 1
+
+**Processus complet** :
+1. Récupérer les livres extraits de l'épisode via `livresAuteursService.getLivresAuteurs({ episode_oid: episodeId })`
+2. Vérifier si l'input utilisateur correspond exactement à un livre extrait
+3. **Si match trouvé**, appeler Babelio : `verifyBook(title, author)`
+4. **Selon la réponse Babelio**, appliquer les enrichissements (détails ci-dessous)
+5. **Si succès** → ✅ **Terminé, retourner résultat**
+6. **Si échec** → ❌ **Passer à Phase 1** (fuzzy search)
 
 **Fonctionnement de `verifyBook()` :**
 - Recherche le livre sur Babelio avec fuzzy matching (tolère les fautes d'orthographe)
@@ -75,17 +105,134 @@ Le service combine trois sources de données pour maximiser la fiabilité :
   - **`corrected`** si `confidence_score < 0.90` (suggestion de correction)
   - **`not_found`** si aucun livre trouvé sur Babelio
 
-**Conditions de succès (Phase 0 accepte uniquement)** :
-- Babelio retourne `status: 'verified'` ET `confidence_score >= 0.90`
+#### Enrichissement 1 : Double Appel de Confirmation
+
+**Scénario** : Babelio retourne `status: 'verified'` ou `'corrected'` avec `confidence_score` entre 0.85 et 0.99
+
+**Workflow** :
+1. **1er appel** : `verifyBook(title, author)` retourne suggestion avec confidence 0.85-0.99
+2. **Détection** : Le score n'est pas assez élevé (< 1.0) pour valider directement
+3. **2ème appel** : `verifyBook(suggested_title, suggested_author)` avec les valeurs suggérées
+4. **Si le 2ème appel confirme avec confidence 1.0** :
+   - ✅ Retourner `status: 'verified'`
+   - Source : `babelio_phase0_confirmed`
+   - Confidence : 1.0
+5. **Si le 2ème appel ne confirme pas** :
+   - ❌ Fallback Phase 1 (fuzzy search)
+
+**Exemple concret** :
+```javascript
+// Input utilisateur
+author: "Adrien Bosque"  // Erreur de transcription Whisper
+title: "L'invention de Tristan"
+
+// Livre extrait en base (même erreur)
+{ auteur: "Adrien Bosque", titre: "L'invention de Tristan" }
+
+// 1er appel Babelio
+verifyBook("L'invention de Tristan", "Adrien Bosque")
+→ status: 'verified', confidence: 0.95
+→ babelio_suggestion_author: "Adrien Bosc"  // Correction détectée
+
+// 2ème appel de confirmation
+verifyBook("L'invention de Tristan", "Adrien Bosc")
+→ status: 'verified', confidence: 1.0  // Confirmation !
+
+// Résultat Phase 0
+{
+  status: 'verified',
+  data: {
+    source: 'babelio_phase0_confirmed',
+    confidence_score: 1.0,
+    suggested: {
+      author: "Adrien Bosc",
+      title: "L'invention de Tristan"
+    },
+    corrections: { author: true, title: false }
+  }
+}
+```
+
+**Avantage** : Permet de corriger automatiquement les erreurs de transcription Whisper même quand Babelio n'est pas sûr à 100% au premier appel.
+
+#### Enrichissement 2 : Correction Automatique d'Auteur
+
+**Scénario** : Babelio retourne `status: 'not_found'` (livre non trouvé)
+
+**Hypothèse** : Le problème vient de l'orthographe de l'auteur, pas du titre
+
+**Workflow** :
+1. **1er appel livre** : `verifyBook(title, author)` → `not_found`
+2. **Détection** : Aucun livre trouvé, possiblement à cause de l'auteur
+3. **Appel auteur** : `verifyAuthor(author)` pour obtenir suggestion d'auteur corrigé
+4. **Si suggestion d'auteur obtenue** :
+   - 2ème appel livre : `verifyBook(title, corrected_author)`
+5. **Si le 2ème appel livre réussit avec confidence 1.0** :
+   - ✅ Retourner `status: 'verified'`
+   - Source : `babelio_phase0_author_correction`
+   - Confidence : 1.0
+6. **Si le 2ème appel livre échoue** :
+   - ❌ Fallback Phase 1 (fuzzy search)
+
+**Exemple concret** :
+```javascript
+// Input utilisateur
+author: "Fabrice Caro"  // Erreur de transcription Whisper
+title: "Rumba Mariachi"
+
+// Livre extrait en base (même erreur)
+{ auteur: "Fabrice Caro", titre: "Rumba Mariachi" }
+
+// 1er appel livre
+verifyBook("Rumba Mariachi", "Fabrice Caro")
+→ status: 'not_found'  // Livre inconnu avec cet auteur
+
+// Appel auteur pour correction
+verifyAuthor("Fabrice Caro")
+→ status: 'corrected', confidence: 0.73
+→ babelio_suggestion: "Fabcaro"  // Vrai nom de l'auteur
+
+// 2ème appel livre avec auteur corrigé
+verifyBook("Rumba Mariachi", "Fabcaro")
+→ status: 'verified', confidence: 1.0  // Livre trouvé !
+
+// Résultat Phase 0
+{
+  status: 'verified',
+  data: {
+    source: 'babelio_phase0_author_correction',
+    confidence_score: 1.0,
+    suggested: {
+      author: "Fabcaro",
+      title: "Rumba Mariachi"
+    },
+    corrections: { author: true, title: false }
+  }
+}
+```
+
+**Avantage** : Traite automatiquement le cas fréquent où seul le nom d'auteur est mal orthographié (noms propres complexes, transcription audio difficile).
+
+#### Cas de Succès Phase 0 (Sans Enrichissement)
+
+**Scénario simple** : Babelio confirme directement avec `confidence_score >= 1.0`
+
+**Workflow** :
+1. **Appel unique** : `verifyBook(title, author)` → `status: 'verified'`, `confidence: 1.0`
+2. ✅ Retourner `status: 'verified'` immédiatement
+3. Source : `babelio_phase0`
+
+**Conditions de succès** :
+- Babelio retourne `status: 'verified'` ET `confidence_score >= 1.0`
 
 **Conditions d'échec (passage Phase 1)** :
-- Babelio retourne `not_found` (auteur/titre inconnu)
-- Babelio retourne `corrected` avec `confidence_score < 0.90` (suggestion disponible mais pas assez fiable)
 - Erreur réseau ou timeout
+- Tous les enrichissements ont échoué
 
 **Code source** :
-- Frontend : `BiblioValidationService.js:79-122` (`_tryPhase0DirectValidation`)
+- Frontend : `BiblioValidationService.js:80-216` (`_tryPhase0DirectValidation`)
 - Backend API : `/api/verify-babelio` (endpoint Babelio)
+- Backend API : `/api/livres-auteurs` (livres extraits)
 
 **Exemple de succès** :
 ```javascript
@@ -109,40 +256,6 @@ verifyBook("Tant mieux", "Amélie Nothomb")
 }
 // ✅ Pas besoin de fuzzy search, workflow terminé
 ```
-
-**Exemple d'échec (passage Phase 1) - Not Found** :
-```javascript
-// Entrée (faute d'orthographe dans la transcription Whisper)
-author: "Alain Mabancou"  // Erreur : devrait être "Mabanckou"
-title: "Ramsès de Paris"
-
-// Phase 0 : Vérification directe Babelio
-verifyBook("Ramsès de Paris", "Alain Mabancou")
-→ status: 'not_found'  // Babelio ne trouve pas "Mabancou"
-
-// ❌ Phase 0 échoue, passer à Phase 1 (fuzzy search)
-```
-
-**Exemple d'échec (passage Phase 1) - Corrected** :
-```javascript
-// Entrée (faute légère sur le titre dans la transcription Whisper)
-author: "Amélie Nothomb"
-title: "Tant mieu"  // Erreur : devrait être "Tant mieux"
-
-// Phase 0 : Vérification directe Babelio
-verifyBook("Tant mieu", "Amélie Nothomb")
-→ status: 'corrected'  // Babelio suggère une correction
-→ babelio_suggestion_title: "Tant mieux"
-→ confidence_score: 0.85  // < 0.90 donc "corrected"
-
-// ❌ Phase 0 échoue car status != 'verified'
-// Passer à Phase 1 pour validation complète avec fuzzy search
-```
-
-**Avantage** :
-- Évite le fuzzy search coûteux quand Whisper a correctement transcrit les données
-- Réduit la latence (1 seul appel Babelio au lieu de 3 minimum)
-- Simple et rapide : test binaire sans arbitrage complexe
 
 ---
 
@@ -207,7 +320,7 @@ verifyBook("Tant mieu", "Amélie Nothomb")
 - Backend : `app.py:583-674` (endpoint `/api/fuzzy-search-episode`)
 - Frontend : `BiblioValidationService.js:426-518` (`_hasGoodGroundTruthMatches`, `_hasDecentGroundTruthMatches`)
 
-**Limites connues** (voir Issue #74) :
+**Limites connues** :
 - Peut retourner des **URLs** : `https://www.franceinter.fr/...` (présentes dans le champ `description`)
 - Peut retourner des **fragments trop courts** : `am`, `de`, `Amélie`
 - Nécessite filtrage avant utilisation (voir Phase 4)
@@ -333,7 +446,7 @@ Résultat final: Caroline du Saint - Un Déni français - Enquête...
 
 **Objectif** : Combiner les résultats des 3 sources avec règles de priorité et filtrage intelligent.
 
-#### 4.1 Filtrage des Suggestions Invalides (Issue #74)
+#### 4.1 Filtrage des Suggestions Invalides
 
 **Avant l'arbitrage**, filtrer les suggestions ground truth invalides via `_isValidTitleSuggestion()` :
 
@@ -458,16 +571,48 @@ titleMatches: [
 Le service retourne toujours un objet avec `status` et `data` :
 
 ### ✅ `verified` - Données Vérifiées Exactes
-**Signification** : Les données originales sont exactement identiques aux références trouvées.
+**Signification** : Les données originales sont exactement identiques aux références trouvées (ou ont été corrigées et confirmées).
 
-**Exemple** :
+**Sources possibles** :
+- `babelio_phase0` : Validation directe sans enrichissement (confidence 1.0)
+- `babelio_phase0_confirmed` : Double appel de confirmation (1er appel 0.85-0.99, 2ème appel 1.0)
+- `babelio_phase0_author_correction` : Correction automatique d'auteur (livre trouvé après correction auteur)
+- `babelio` : Validation via Phases 2-3 (workflow complet)
+- `ground_truth+babelio` : Validation combinée fuzzy search + Babelio
+
+**Exemples** :
 ```javascript
+// Validation directe Phase 0
 {
   status: 'verified',
   data: {
     original: { author: "Alice Ferney", title: "Comme en amour" },
-    source: 'babelio',
+    source: 'babelio_phase0',
     confidence_score: 1.0
+  }
+}
+
+// Double appel de confirmation
+{
+  status: 'verified',
+  data: {
+    original: { author: "Adrien Bosque", title: "L'invention de Tristan" },
+    suggested: { author: "Adrien Bosc", title: "L'invention de Tristan" },
+    source: 'babelio_phase0_confirmed',
+    confidence_score: 1.0,
+    corrections: { author: true, title: false }
+  }
+}
+
+// Correction automatique d'auteur
+{
+  status: 'verified',
+  data: {
+    original: { author: "Fabrice Caro", title: "Rumba Mariachi" },
+    suggested: { author: "Fabcaro", title: "Rumba Mariachi" },
+    source: 'babelio_phase0_author_correction',
+    confidence_score: 1.0,
+    corrections: { author: true, title: false }
   }
 }
 ```
@@ -585,7 +730,7 @@ Le service retourne toujours un objet avec `status` et `data` :
 **Problème** : "Matin" vs "m'attend" = faible similarité
 **Résultat** : ❓ `not_found` (nécessite intervention manuelle)
 
-### Cas Spéciaux - Issue #74
+### Cas Spéciaux - Filtrage URLs et Fragments
 
 #### 10. Filtrage d'URL
 **Entrée** : Amélie Nothomb - Tant mieux
@@ -826,9 +971,11 @@ _getExtractedBooks(episodeId) {
    - Corrections connues non réutilisées (recalcul à chaque fois)
    - Pas de base de données d'auteurs normalisés
 
-3. **Phase 0 Limitée**
-   - Fixtures hardcodées pour tests uniquement
-   - Devrait utiliser une vraie API de livres extraits
+3. **Phase 0 Enrichie** ✅
+   - Appelle l'API réelle `livresAuteursService.getLivresAuteurs()`
+   - Double appel de confirmation pour confidence 0.85-0.99
+   - Correction automatique d'auteur si livre not_found
+   - Taux de succès typique : ~45% des livres traités automatiquement
 
 4. **Babelio Rate Limiting**
    - 0.8 sec entre requêtes = lent pour gros volumes
@@ -937,10 +1084,12 @@ console.log(JSON.stringify(fixtures, null, 2));
   - `frontend/src/services/BiblioValidationService.js` : Orchestration
   - `frontend/src/components/BiblioValidationCell.vue` : Composant affichage
 
-### Issues GitHub
-- [Issue #74](https://github.com/castorfou/back-office-lmelp/issues/74) : Filtrage URLs/fragments
-- [Issue #68](https://github.com/castorfou/back-office-lmelp/issues/68) : Phase 0 livres extraits
-- [Issue #66](https://github.com/castorfou/back-office-lmelp/issues/66) : Collections management
+### Historique GitHub
+Pour l'historique détaillé des développements, consulter les issues suivantes :
+- Phase 0 - Double appel et correction auteur : Issue #75
+- Filtrage URLs/fragments : Issue #74
+- Phase 0 livres extraits (base) : Issue #68
+- Collections management : Issue #66
 
 ---
 

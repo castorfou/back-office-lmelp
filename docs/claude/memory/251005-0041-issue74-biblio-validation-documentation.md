@@ -455,7 +455,7 @@ docs/
 - **Commits** :
   - `de8c3f5` - PR #77 squash merge
   - `36f680e` - Fix lien cassé MkDocs
-- **Documentation produite** : [biblio-verification-flow.md](../dev/biblio-verification-flow.md)
+- **Documentation produite** : [biblio-verification-flow.md](../../dev/biblio-verification-flow.md)
 
 ## Statut final
 

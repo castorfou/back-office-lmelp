@@ -470,3 +470,47 @@ cases:
     original: Sylvain Tesson
     status: verified
   timestamp: 1759335577991
+- input:
+    name: Adrien Bosque
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '2306'
+      ca_oeuvres: '7'
+      first_of_group: first_of_group
+      id: '259029'
+      id_auteur: '259029'
+      nom: Bosc
+      prenoms: Adrien
+      type: auteurs
+      url: /auteur/Adrien-Bosc/259029
+      url_photo: /users/avt_fd_259029.jpg
+      weight: '2618'
+    babelio_suggestion: Adrien Bosc
+    babelio_url: https://www.babelio.com/auteur/Adrien-Bosc/259029
+    confidence_score: 0.8333333333333334
+    error_message: null
+    original: Adrien Bosque
+    status: corrected
+  timestamp: 1759627833494
+- input:
+    name: Fabrice Caro
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '21993'
+      ca_oeuvres: '63'
+      first_of_group: first_of_group
+      id: '83755'
+      nom: Fabcaro
+      prenoms: ''
+      type: auteurs
+      url: /auteur/-Fabcaro/83755
+      url_photo: /users/avt_fd_83755.jpg
+    babelio_suggestion: Fabcaro
+    babelio_url: https://www.babelio.com/auteur/-Fabcaro/83755
+    confidence_score: 0.7368421052631579
+    error_message: null
+    original: Fabrice Caro
+    status: corrected
+  timestamp: 1759631107420
