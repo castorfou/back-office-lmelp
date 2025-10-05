@@ -927,7 +927,7 @@ console.log(JSON.stringify(fixtures, null, 2));
 
 ### Documentation
 - [Validation Biblio Tests](validation-biblio-tests.md) : Architecture tests hiérarchiques
-- [Fixtures YAML](../../frontend/tests/fixtures/biblio-validation-cases.yml) : Cas de test réels
+- Fixtures YAML : `frontend/tests/fixtures/biblio-validation-cases.yml` (cas de test réels)
 
 ### Code Source Principal
 - **Backend** :
