@@ -638,3 +638,22 @@ cases:
     - - Leyris
       - 60
   timestamp: 1759627833370
+- input:
+    episode_id: 6865f99ba1418e3d7c63d07a
+    query_author: Fabrice Caro
+    query_title: Rumba Mariachi
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 45
+    - - Martin
+      - 68
+    - - Martin
+      - 68
+    - - Patricia
+      - 60
+    - - Patricia
+      - 60
+  timestamp: 1759631107291

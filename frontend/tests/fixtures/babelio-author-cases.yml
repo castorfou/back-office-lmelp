@@ -493,3 +493,24 @@ cases:
     original: Adrien Bosque
     status: corrected
   timestamp: 1759627833494
+- input:
+    name: Fabrice Caro
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '21993'
+      ca_oeuvres: '63'
+      first_of_group: first_of_group
+      id: '83755'
+      nom: Fabcaro
+      prenoms: ''
+      type: auteurs
+      url: /auteur/-Fabcaro/83755
+      url_photo: /users/avt_fd_83755.jpg
+    babelio_suggestion: Fabcaro
+    babelio_url: https://www.babelio.com/auteur/-Fabcaro/83755
+    confidence_score: 0.7368421052631579
+    error_message: null
+    original: Fabrice Caro
+    status: corrected
+  timestamp: 1759631107420
