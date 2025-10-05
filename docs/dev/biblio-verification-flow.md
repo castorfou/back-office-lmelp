@@ -82,11 +82,10 @@ SOURCES DE VALIDATION :
 
 ## Flux de Traitement Détaillé
 
-### Phase 0 : Validation Directe Babelio avec Enrichissements (Issues #68, #75)
+### Phase 0 : Validation Directe Babelio avec Enrichissements
 
-**Objectif** : Pour chaque couple auteur-livre à valider, effectuer une **vérification directe sur Babelio** des livres extraits de l'épisode avant toute autre tentative. Phase 0 inclut maintenant deux mécanismes d'enrichissement pour maximiser le taux de succès.
+**Objectif** : Pour chaque couple auteur-livre à valider, effectuer une **vérification directe sur Babelio** des livres extraits de l'épisode avant toute autre tentative. Phase 0 inclut deux mécanismes d'enrichissement pour maximiser le taux de succès :
 
-**Nouveauté Issue #75** : Phase 0 est maintenant **beaucoup plus robuste** grâce à deux améliorations majeures :
 1. **Double appel de confirmation** : Si Babelio suggère une correction avec confidence 0.85-0.99, un 2ème appel confirme la suggestion
 2. **Correction automatique d'auteur** : Si le livre n'est pas trouvé, Phase 0 essaie de corriger l'auteur avant de passer en Phase 1
 
@@ -106,7 +105,7 @@ SOURCES DE VALIDATION :
   - **`corrected`** si `confidence_score < 0.90` (suggestion de correction)
   - **`not_found`** si aucun livre trouvé sur Babelio
 
-#### Enrichissement 1 : Double Appel de Confirmation (Issue #75)
+#### Enrichissement 1 : Double Appel de Confirmation
 
 **Scénario** : Babelio retourne `status: 'verified'` ou `'corrected'` avec `confidence_score` entre 0.85 et 0.99
 
@@ -156,7 +155,7 @@ verifyBook("L'invention de Tristan", "Adrien Bosc")
 
 **Avantage** : Permet de corriger automatiquement les erreurs de transcription Whisper même quand Babelio n'est pas sûr à 100% au premier appel.
 
-#### Enrichissement 2 : Correction Automatique d'Auteur (Issue #75)
+#### Enrichissement 2 : Correction Automatique d'Auteur
 
 **Scénario** : Babelio retourne `status: 'not_found'` (livre non trouvé)
 
@@ -321,7 +320,7 @@ verifyBook("Tant mieux", "Amélie Nothomb")
 - Backend : `app.py:583-674` (endpoint `/api/fuzzy-search-episode`)
 - Frontend : `BiblioValidationService.js:426-518` (`_hasGoodGroundTruthMatches`, `_hasDecentGroundTruthMatches`)
 
-**Limites connues** (voir Issue #74) :
+**Limites connues** :
 - Peut retourner des **URLs** : `https://www.franceinter.fr/...` (présentes dans le champ `description`)
 - Peut retourner des **fragments trop courts** : `am`, `de`, `Amélie`
 - Nécessite filtrage avant utilisation (voir Phase 4)
@@ -447,7 +446,7 @@ Résultat final: Caroline du Saint - Un Déni français - Enquête...
 
 **Objectif** : Combiner les résultats des 3 sources avec règles de priorité et filtrage intelligent.
 
-#### 4.1 Filtrage des Suggestions Invalides (Issue #74)
+#### 4.1 Filtrage des Suggestions Invalides
 
 **Avant l'arbitrage**, filtrer les suggestions ground truth invalides via `_isValidTitleSuggestion()` :
 
@@ -574,7 +573,7 @@ Le service retourne toujours un objet avec `status` et `data` :
 ### ✅ `verified` - Données Vérifiées Exactes
 **Signification** : Les données originales sont exactement identiques aux références trouvées (ou ont été corrigées et confirmées).
 
-**Sources possibles** (Issue #75) :
+**Sources possibles** :
 - `babelio_phase0` : Validation directe sans enrichissement (confidence 1.0)
 - `babelio_phase0_confirmed` : Double appel de confirmation (1er appel 0.85-0.99, 2ème appel 1.0)
 - `babelio_phase0_author_correction` : Correction automatique d'auteur (livre trouvé après correction auteur)
@@ -593,7 +592,7 @@ Le service retourne toujours un objet avec `status` et `data` :
   }
 }
 
-// Double appel de confirmation (Issue #75)
+// Double appel de confirmation
 {
   status: 'verified',
   data: {
@@ -605,7 +604,7 @@ Le service retourne toujours un objet avec `status` et `data` :
   }
 }
 
-// Correction automatique d'auteur (Issue #75)
+// Correction automatique d'auteur
 {
   status: 'verified',
   data: {
@@ -731,7 +730,7 @@ Le service retourne toujours un objet avec `status` et `data` :
 **Problème** : "Matin" vs "m'attend" = faible similarité
 **Résultat** : ❓ `not_found` (nécessite intervention manuelle)
 
-### Cas Spéciaux - Issue #74
+### Cas Spéciaux - Filtrage URLs et Fragments
 
 #### 10. Filtrage d'URL
 **Entrée** : Amélie Nothomb - Tant mieux
@@ -972,12 +971,11 @@ _getExtractedBooks(episodeId) {
    - Corrections connues non réutilisées (recalcul à chaque fois)
    - Pas de base de données d'auteurs normalisés
 
-3. **Phase 0 Améliorée (Issue #75) ✅**
-   - ✅ Appelle maintenant l'API réelle `livresAuteursService.getLivresAuteurs()`
-   - ✅ Double appel de confirmation pour confidence 0.85-0.99
-   - ✅ Correction automatique d'auteur si livre not_found
-   - ✅ Taux de succès : 45% (5/11 livres traités automatiquement)
-   - Note : En production depuis Issue #75
+3. **Phase 0 Enrichie** ✅
+   - Appelle l'API réelle `livresAuteursService.getLivresAuteurs()`
+   - Double appel de confirmation pour confidence 0.85-0.99
+   - Correction automatique d'auteur si livre not_found
+   - Taux de succès typique : ~45% des livres traités automatiquement
 
 4. **Babelio Rate Limiting**
    - 0.8 sec entre requêtes = lent pour gros volumes
@@ -1086,11 +1084,12 @@ console.log(JSON.stringify(fixtures, null, 2));
   - `frontend/src/services/BiblioValidationService.js` : Orchestration
   - `frontend/src/components/BiblioValidationCell.vue` : Composant affichage
 
-### Issues GitHub
-- [Issue #75](https://github.com/castorfou/back-office-lmelp/issues/75) : Phase 0 - Double appel confirmation et correction auteur (✅ Implémenté)
-- [Issue #74](https://github.com/castorfou/back-office-lmelp/issues/74) : Filtrage URLs/fragments
-- [Issue #68](https://github.com/castorfou/back-office-lmelp/issues/68) : Phase 0 livres extraits (base)
-- [Issue #66](https://github.com/castorfou/back-office-lmelp/issues/66) : Collections management
+### Historique GitHub
+Pour l'historique détaillé des développements, consulter les issues suivantes :
+- Phase 0 - Double appel et correction auteur : Issue #75
+- Filtrage URLs/fragments : Issue #74
+- Phase 0 livres extraits (base) : Issue #68
+- Collections management : Issue #66
 
 ---
 

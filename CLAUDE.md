@@ -902,3 +902,54 @@ git commit -m "fix: address code review feedback"
 **Exception:** Only amend commits that have **never been pushed** to any remote repository.
 
 Rationale: Amended commits create history rewriting that complicates collaboration and can lead to lost work or merge conflicts.
+
+### Documentation Writing Guidelines
+**CRITICAL**: Documentation should describe the **current state** of the application, not its construction history.
+
+**DO NOT include** in documentation:
+- ❌ References to GitHub issues in feature descriptions (e.g., "Issue #75 improved this...")
+- ❌ Historical comparisons (e.g., "This is now much better than before...")
+- ❌ Evolution narratives (e.g., "We first implemented X, then added Y...")
+- ❌ "New feature" or "Recently added" markers (features are current, not new)
+- ❌ Development timeline references (e.g., "3 commits ago", "last week we added...")
+
+**DO include** in documentation:
+- ✅ Current functionality and how it works
+- ✅ Technical specifications and architecture
+- ✅ Usage examples and best practices
+- ✅ Configuration options and parameters
+- ✅ Known limitations and constraints
+
+**Issue references - when acceptable:**
+- ✅ In a dedicated "History" or "Development Notes" section at the end
+- ✅ In commit messages and pull requests
+- ✅ In code comments when explaining technical decisions
+- ❌ NOT in the main functional documentation
+
+**Example - Bad documentation:**
+```markdown
+### Phase 0 Validation (Issue #75 - Implemented)
+
+**New in Issue #75**: Phase 0 is now much better thanks to:
+1. Double call confirmation (Issue #75)
+2. Author correction (also Issue #75)
+
+This is a major improvement over the previous implementation.
+```
+
+**Example - Good documentation:**
+```markdown
+### Phase 0 Validation
+
+Phase 0 uses two enrichment mechanisms to maximize success rate:
+1. **Double call confirmation**: When Babelio returns confidence 0.85-0.99, a second call confirms the suggestion
+2. **Author correction**: When book is not found, Phase 0 attempts author correction before fallback
+
+Typical success rate: ~45% of books processed automatically.
+```
+
+**Rationale:**
+- Documentation readers want to understand **what the system does now**, not how it evolved
+- Issue references create noise and reduce readability
+- Historical context becomes stale and irrelevant over time
+- Clean documentation is more maintainable and professional
