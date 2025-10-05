@@ -71,9 +71,13 @@ class CollectionsManagementService:
             updated_references = 0
 
             for book in verified_books:
+                # Utiliser le nom validé (suggested_author si disponible, sinon auteur original)
+                validated_author = book.get("suggested_author") or book["auteur"]
+                validated_title = book.get("suggested_title") or book["titre"]
+
                 # Créer l'auteur si il n'existe pas
                 author_id = self.mongodb_service.create_author_if_not_exists(
-                    book["auteur"]
+                    validated_author
                 )
                 if author_id:
                     created_authors += 1
@@ -90,7 +94,7 @@ class CollectionsManagementService:
 
                 # Créer le livre si il n'existe pas
                 book_data = {
-                    "titre": book["titre"],
+                    "titre": validated_title,
                     "auteur_id": author_id,
                     "editeur": book.get("editeur", ""),
                     "episodes": [ObjectId(book["episode_oid"])],
@@ -167,18 +171,20 @@ class CollectionsManagementService:
             Dictionnaire avec les résultats de la validation/ajout
         """
         try:
-            # Déterminer le nom de l'auteur (correction ou saisie utilisateur)
+            # Déterminer le nom de l'auteur en priorité décroissante
             author_name = (
                 book_data.get("user_validated_author")
                 or book_data.get("user_entered_author")
+                or book_data.get("suggested_author")
                 or book_data["auteur"]
             )
             author_id = self.mongodb_service.create_author_if_not_exists(author_name)
 
-            # Déterminer le titre du livre (correction ou saisie utilisateur)
+            # Déterminer le titre du livre en priorité décroissante
             book_title = (
                 book_data.get("user_validated_title")
                 or book_data.get("user_entered_title")
+                or book_data.get("suggested_title")
                 or book_data["titre"]
             )
             book_info = {

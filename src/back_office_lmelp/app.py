@@ -543,14 +543,20 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
             # Auto-processing pour les livres verified
             if cache_status == "verified":
                 try:
+                    # Utiliser le nom validé (suggested_author si disponible, sinon auteur original)
+                    validated_author = (
+                        book_result.suggested_author or book_result.auteur
+                    )
+                    validated_title = book_result.suggested_title or book_result.titre
+
                     # Créer auteur en base
                     author_id = mongodb_service.create_author_if_not_exists(
-                        book_result.auteur
+                        validated_author
                     )
 
                     # Créer livre en base
                     book_data_for_mongo = {
-                        "titre": book_result.titre,
+                        "titre": validated_title,
                         "auteur_id": author_id,
                         "editeur": book_result.editeur,
                         "episodes": [request.episode_oid],

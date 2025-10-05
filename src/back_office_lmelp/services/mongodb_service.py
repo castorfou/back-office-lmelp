@@ -743,6 +743,26 @@ class MongoDBService:
             print(f"Erreur lors de la création de l'auteur {nom}: {e}")
             raise
 
+    def _add_book_to_author(self, author_id: ObjectId, book_id: ObjectId) -> None:
+        """Ajoute la référence d'un livre au tableau livres[] de l'auteur."""
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Utiliser $addToSet pour éviter les doublons
+            self.auteurs_collection.update_one(
+                {"_id": author_id},
+                {
+                    "$addToSet": {"livres": str(book_id)},
+                    "$set": {"updated_at": datetime.now()},
+                },
+            )
+        except Exception as e:
+            print(
+                f"Erreur lors de la mise à jour de l'auteur {author_id} avec le livre {book_id}: {e}"
+            )
+            # Ne pas raise pour ne pas bloquer la création du livre
+
     def create_book_if_not_exists(self, book_data: dict[str, Any]) -> ObjectId:
         """Crée un livre s'il n'existe pas déjà."""
         if self.livres_collection is None:
@@ -754,14 +774,22 @@ class MongoDBService:
                 {"titre": book_data["titre"], "auteur_id": book_data["auteur_id"]}
             )
             if existing_book:
-                return ObjectId(existing_book["_id"])
+                book_id = ObjectId(existing_book["_id"])
+                # S'assurer que l'auteur a la référence au livre existant
+                self._add_book_to_author(book_data["auteur_id"], book_id)
+                return book_id
 
             # Créer le nouveau livre
             from ..models.book import Book
 
             formatted_data = Book.for_mongodb_insert(book_data)
             result = self.livres_collection.insert_one(formatted_data)
-            return ObjectId(result.inserted_id)
+            book_id = ObjectId(result.inserted_id)
+
+            # Ajouter la référence du livre à l'auteur
+            self._add_book_to_author(book_data["auteur_id"], book_id)
+
+            return book_id
 
         except Exception as e:
             print(
