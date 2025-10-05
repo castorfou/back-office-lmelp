@@ -801,9 +801,15 @@ Le service retourne toujours un objet avec `status` et `data` :
 **Algorithme** :
 1. Extraire texte : `episode.titre + episode.description`
 2. Segments entre guillemets → titres prioritaires (marqueur 📖)
-3. Mots > 3 caractères → candidats généraux
-4. `rapidfuzz.process.extract()` pour scoring
-5. Filtrage par seuils : `titleScore >= 60`, `authorScore >= 75`
+3. **N-grams contigus** → détection titres multi-mots :
+   - Quadrigrams (4 mots) filtrés si longueur > 10 caractères
+   - Trigrams (3 mots) filtrés si longueur > 8 caractères
+   - Bigrams (2 mots) filtrés si longueur > 6 caractères
+4. Mots > 3 caractères → candidats généraux (fallback)
+5. `rapidfuzz.process.extract()` pour scoring
+6. Filtrage par seuils : `titleScore >= 60`, `authorScore >= 75`
+
+**Priorité des candidats** : guillemets > 4-grams > 3-grams > 2-grams > mots isolés
 
 ---
 
@@ -962,10 +968,12 @@ _getExtractedBooks(episodeId) {
 
 ### Limitations Actuelles
 
-1. **Fuzzy Search Fragile**
-   - Ne détecte pas les inversions de nom (Le Floch → Lefloc)
-   - Échoue sur prénoms raccourcis (Nine → Nin)
-   - Retourne parfois URLs et fragments parasites
+1. **Fuzzy Search avec N-grams**
+   - Détecte maintenant les titres multi-mots grâce aux n-grams contigus (ex: "L'invention de Tristan")
+   - Limitations restantes :
+     - Ne détecte pas les inversions de nom (Le Floch → Lefloc)
+     - Échoue sur prénoms raccourcis (Nine → Nin)
+     - Retourne parfois URLs et fragments parasites (filtrés en Phase 4)
 
 2. **Pas de Mapping Canonique**
    - Corrections connues non réutilisées (recalcul à chaque fois)
@@ -1010,9 +1018,11 @@ _getExtractedBooks(episodeId) {
 **Cas bénéficiaires** : Christophe Bigot, Agnès Michaux
 
 #### 3. Amélioration Fuzzy Search Backend
-**Techniques** :
+**Techniques déjà implémentées** :
+- ✅ N-grams contigus pour titres multi-mots (bigrams, trigrams, quadrigrams)
+
+**Techniques proposées** :
 - Détection phonétique (Soundex, Metaphone pour français)
-- N-grams pour variantes orthographiques
 - NER (Named Entity Recognition) pour extraction auteurs/titres
 - Fine-tuning seuils adaptatifs par type d'erreur
 

@@ -657,3 +657,14 @@ cases:
     - - Patricia
       - 60
   timestamp: 1759631107291
+- input:
+    episode_id: 6865f99ba1418e3d7c63d07a
+    query_author: Albin de la Simone
+    query_title: Mes battements
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 22.033898305084744
+  timestamp: 1759684505124

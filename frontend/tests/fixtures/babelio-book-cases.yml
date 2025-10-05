@@ -727,3 +727,33 @@ cases:
     original_title: Rumba Mariachi
     status: verified
   timestamp: 1759631107688
+- input:
+    author: Albin de la Simone
+    title: Mes battements
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Albin de la Simone
+    original_title: Mes battements
+    status: not_found
+  timestamp: 1759684504723
+- input:
+    author: Albin De la simone
+    title: Mes battements
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Albin De la simone
+    original_title: Mes battements
+    status: not_found
+  timestamp: 1759684505007
