@@ -603,3 +603,38 @@ cases:
     - - ELLE
       - 60
   timestamp: 1759335577898
+- input:
+    episode_id: 6865f99ba1418e3d7c63d07a
+    query_author: Adrien Bosque
+    query_title: L'invention de Tristan
+  output:
+    authorMatches:
+    - - Adrien
+      - 90
+    - - quête
+      - 77
+    found_suggestions: true
+    titleMatches:
+    - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
+      - 42
+    - - Tristan
+      - 90
+    - - l'aristocratie
+      - 86
+    - - l'humour
+      - 86
+    - - Monde
+      - 72
+    - - brisé
+      - 68
+    - - sans
+      - 68
+    - - Armistead
+      - 60
+    - - invités
+      - 60
+    - - Leyris
+      - 60
+    - - Leyris
+      - 60
+  timestamp: 1759627833370

@@ -180,3 +180,12 @@ cases:
     episodeId: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
   output:
     status: "verified"
+
+# Issue #75 : Adrien Bosc - L'invention de Tristan
+- input:
+    author: "Adrien Bosque"
+    title: "L'invention de Tristan"
+    publisher: "Stock"
+    episodeId: "6865f99ba1418e3d7c63d07a"  # pragma: allowlist secret
+  output:
+    status: "verified"

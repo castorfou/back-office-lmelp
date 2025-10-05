@@ -630,3 +630,59 @@ cases:
     original_title: Les piliers de la mer
     status: verified
   timestamp: 1759335578118
+- input:
+    author: Adrien Bosque
+    title: L'invention de Tristan
+    type: book
+  output:
+    babelio_data:
+      ca_copies: '225'
+      ca_nb_citations: '4'
+      ca_nb_critiques: '15'
+      ca_note: '3.66'
+      couverture: https://m.media-amazon.com/images/I/41P85TnUezL._SX95_.jpg
+      id: '1833389'
+      id_auteur: '259029'
+      id_oeuvre: '1833389'
+      nb_items_filtres: '1'
+      nom: Bosc
+      prenoms: Adrien
+      titre: L'invention de Tristan
+      type: livres
+      url: /livres/Bosc-Linvention-de-Tristan/1833389
+      weight: '4'
+    babelio_suggestion_author: Adrien Bosc
+    babelio_suggestion_title: L'invention de Tristan
+    babelio_url: https://www.babelio.com/livres/Bosc-Linvention-de-Tristan/1833389
+    confidence_score: 0.95
+    error_message: null
+    original_author: Adrien Bosque
+    original_title: L'invention de Tristan
+    status: verified
+  timestamp: 1759627833585
+- input:
+    author: Adrien Bosc
+    title: L'invention de Tristan
+    type: book
+  name: Adrien Bosc - L'invention de Tristan (2nd call confirmation)
+  output:
+    babelio_data:
+      ca_copies: '224'
+      ca_note: '3.66'
+      couverture: https://m.media-amazon.com/images/I/41P85TnUezL._SX95_.jpg
+      id_auteur: '259029'
+      id_oeuvre: '1833389'
+      nom: Bosc
+      prenoms: Adrien
+      titre: L'invention de Tristan
+      tri: '224'
+      type: livres
+      url: /livres/Bosc-Linvention-de-Tristan/1833389
+    babelio_suggestion_author: Adrien Bosc
+    babelio_suggestion_title: L'invention de Tristan
+    babelio_url: https://www.babelio.com/livres/Bosc-Linvention-de-Tristan/1833389
+    confidence_score: 1
+    error_message: null
+    original_author: Adrien Bosc
+    original_title: L'invention de Tristan
+    status: verified
