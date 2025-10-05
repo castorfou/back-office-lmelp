@@ -36,6 +36,10 @@ const mockBabelioService = {
   verifyBook: vi.fn()
 };
 
+const mockLivresAuteursService = {
+  getLivresAuteurs: vi.fn()
+};
+
 describe('BiblioValidationService Tests', () => {
   let biblioValidationService;
 
@@ -45,6 +49,7 @@ describe('BiblioValidationService Tests', () => {
     biblioValidationService = new BiblioValidationService({
       fuzzySearchService: mockFuzzySearchService,
       babelioService: mockBabelioService,
+      livresAuteursService: mockLivresAuteursService,
       localAuthorService: null
     });
   });
@@ -149,6 +154,16 @@ describe('BiblioValidationService Tests', () => {
           const authorResponse = getFixtureResponseOrError('babelioAuthor', { name: testCase.input.author }, authorFixture);
           const bookResponse = getFixtureResponseOrError('babelioBook', { author: testCase.input.author, title: testCase.input.title }, bookFixture);
 
+          // Mock livresAuteursService with extracted books for specific episodes
+          // Issue #75: Episode 6865f99ba1418e3d7c63d07a has extracted book "Adrien Bosque - L'invention de Tristan"
+          if (testCase.input.episodeId === '6865f99ba1418e3d7c63d07a') { // pragma: allowlist secret
+            mockLivresAuteursService.getLivresAuteurs.mockResolvedValue([
+              { auteur: 'Adrien Bosque', titre: "L'invention de Tristan" }
+            ]);
+          } else {
+            mockLivresAuteursService.getLivresAuteurs.mockResolvedValue([]);
+          }
+
           mockFuzzySearchService.searchEpisode.mockResolvedValueOnce(fuzzyResponse);
           mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorResponse);
 
@@ -218,6 +233,11 @@ describe('BiblioValidationService Tests', () => {
       const inputAuthor = 'Alice Ferney';  // User typed this
       const inputTitle = 'Comme en amour'; // User typed this (correct match)
 
+      // Mock: livresAuteursService returns the extracted book for this episode
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce([
+        { auteur: extractedAuthor, titre: extractedTitle }
+      ]);
+
       // Mock: Babelio finds the extracted book directly
       mockBabelioService.verifyBook.mockResolvedValueOnce({
         status: 'verified',
@@ -257,6 +277,208 @@ describe('BiblioValidationService Tests', () => {
 
     // it('should NOT trigger phase 0 when user input does not match extracted book exactly', ...)
     // it('should fallback to normal workflow when phase 0 fails', ...)
+  });
+
+  describe('_getExtractedBooks() - Issue #75', () => {
+    it('should fetch extracted books from backend API for given episode', async () => {
+      // Mock backend API response
+      const mockApiResponse = [
+        { auteur: 'Adrien Bosque', titre: "L'invention de Tristan" },
+        { auteur: 'Shina Patel', titre: 'Je suis fan' }
+      ];
+
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce(mockApiResponse);
+
+      const episodeId = '6865f99ba1418e3d7c63d07a'; // pragma: allowlist secret
+      const extractedBooks = await biblioValidationService._getExtractedBooks(episodeId);
+
+      // Should call API with correct params
+      expect(mockLivresAuteursService.getLivresAuteurs).toHaveBeenCalledWith({ episode_oid: episodeId });
+
+      // Should return array of books transformed to {author, title} format
+      expect(Array.isArray(extractedBooks)).toBe(true);
+      expect(extractedBooks.length).toBe(2);
+
+      // Should contain Adrien Bosque book
+      const adrienBook = extractedBooks.find(b =>
+        b.author === 'Adrien Bosque' && b.title === "L'invention de Tristan"
+      );
+      expect(adrienBook).toBeDefined();
+      expect(adrienBook.author).toBe('Adrien Bosque');
+      expect(adrienBook.title).toBe("L'invention de Tristan");
+    });
+
+    it('should return empty array when episode has no extracted books', async () => {
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce([]);
+
+      const episodeId = 'nonexistent-episode-id';
+      const extractedBooks = await biblioValidationService._getExtractedBooks(episodeId);
+
+      expect(Array.isArray(extractedBooks)).toBe(true);
+      expect(extractedBooks.length).toBe(0);
+    });
+
+    it('should return empty array on API error', async () => {
+      mockLivresAuteursService.getLivresAuteurs.mockRejectedValueOnce(new Error('API Error'));
+
+      const episodeId = '6865f99ba1418e3d7c63d07a'; // pragma: allowlist secret
+      const extractedBooks = await biblioValidationService._getExtractedBooks(episodeId);
+
+      expect(Array.isArray(extractedBooks)).toBe(true);
+      expect(extractedBooks.length).toBe(0);
+    });
+  });
+
+  describe('🔄 Issue #75: Double appel Phase 0 avec confirmation', () => {
+    it('should make 2nd confirmation call when 1st call returns confidence 0.85-0.99', async () => {
+      // ===== SCÉNARIO Issue #75 : Double appel de confirmation =====
+      // Input utilisateur : "Adrien Bosque - L'invention de Tristan"
+      // Livre extrait : "Adrien Bosque - L'invention de Tristan" (même chose, donc Phase 0 activée)
+      // 1er appel Babelio : retourne confidence 0.95, suggère "Adrien Bosc"
+      // 2ème appel Babelio : retourne confidence 1.0 (confirmation)
+      // Attendu : status 'verified', source 'babelio_phase0_confirmed', confidence 1.0
+
+      const episodeId = '6865f99ba1418e3d7c63d07a'; // pragma: allowlist secret
+      const inputAuthor = 'Adrien Bosque';
+      const inputTitle = "L'invention de Tristan";
+
+      // Mock: livre extrait (même que l'input)
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce([
+        { auteur: inputAuthor, titre: inputTitle }
+      ]);
+
+      // Mock: 1er appel Babelio → confidence 0.95, suggère "Adrien Bosc"
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'verified',
+        confidence_score: 0.95,
+        babelio_suggestion_author: 'Adrien Bosc',
+        babelio_suggestion_title: "L'invention de Tristan",
+        original_author: inputAuthor,
+        original_title: inputTitle
+      });
+
+      // Mock: 2ème appel Babelio → confidence 1.0 (confirmation)
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'verified',
+        confidence_score: 1.0,
+        babelio_suggestion_author: 'Adrien Bosc',
+        babelio_suggestion_title: "L'invention de Tristan",
+        original_author: 'Adrien Bosc',
+        original_title: "L'invention de Tristan"
+      });
+
+      // When: Valider
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        episodeId
+      );
+
+      // Then: Vérifier qu'il y a eu 2 appels Babelio
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(2);
+
+      // 1er appel avec input utilisateur
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(1, inputTitle, inputAuthor);
+
+      // 2ème appel avec la suggestion
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(2, "L'invention de Tristan", 'Adrien Bosc');
+
+      // Résultat final doit utiliser la confirmation du 2ème appel
+      expect(result.status).toBe('verified');
+      expect(result.data.source).toBe('babelio_phase0_confirmed');
+      expect(result.data.confidence_score).toBe(1.0);
+      expect(result.data.suggested.author).toBe('Adrien Bosc');
+      expect(result.data.suggested.title).toBe("L'invention de Tristan");
+    });
+
+    it('should try author verification if 1st book call returns not_found - Fabrice Caro case', async () => {
+      // ===== SCÉNARIO : Enrichissement Phase 0 avec vérification auteur =====
+      // Input utilisateur : "Fabrice Caro - Rumba Mariachi"
+      // Livre extrait : "Fabrice Caro - Rumba Mariachi" (même chose → Phase 0 activée)
+      // 1er appel verifyBook("Rumba Mariachi", "Fabrice Caro") → not_found
+      // 2ème appel verifyAuthor("Fabrice Caro") → suggère "Fabcaro"
+      // 3ème appel verifyBook("Rumba Mariachi", "Fabcaro") → verified (confidence 1.0)
+      // Résultat : status 'verified', source 'babelio_phase0_author_correction', confidence 1.0
+
+      // Force reset mocks to prevent interference from previous test
+      vi.resetAllMocks();
+
+      // Re-inject the service with fresh mocks
+      biblioValidationService = new BiblioValidationService({
+        fuzzySearchService: mockFuzzySearchService,
+        babelioService: mockBabelioService,
+        livresAuteursService: mockLivresAuteursService,
+        localAuthorService: null
+      });
+
+      const episodeId = 'test-fabrice-caro-episode'; // Unique episode ID for this test
+      const inputAuthor = 'Fabrice Caro';
+      const inputTitle = 'Rumba Mariachi';
+
+      // Mock: livre extrait (même que l'input)
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce([
+        { auteur: inputAuthor, titre: inputTitle }
+      ]);
+
+      // Mock: 1er appel verifyBook → not_found
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found',
+        confidence_score: 0,
+        babelio_suggestion_author: null,
+        babelio_suggestion_title: null,
+        original_author: inputAuthor,
+        original_title: inputTitle
+      });
+
+      // Mock: 2ème appel verifyAuthor → suggère "Fabcaro"
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'corrected',
+        babelio_suggestion: 'Fabcaro',
+        confidence_score: 0.73,
+        original: inputAuthor
+      });
+
+      // Mock: 3ème appel verifyBook avec auteur corrigé → verified
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'verified',
+        confidence_score: 1.0,
+        babelio_suggestion_author: 'Fabcaro',
+        babelio_suggestion_title: 'Rumba Mariachi',
+        original_author: 'Fabcaro',
+        original_title: inputTitle
+      });
+
+      // When: Valider
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        episodeId
+      );
+
+      // Then: Vérifier les appels
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(2);
+      expect(mockBabelioService.verifyAuthor).toHaveBeenCalledTimes(1);
+
+      // 1er appel verifyBook avec input utilisateur
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(1, inputTitle, inputAuthor);
+
+      // 2ème appel verifyAuthor
+      expect(mockBabelioService.verifyAuthor).toHaveBeenCalledWith(inputAuthor);
+
+      // 3ème appel verifyBook avec auteur corrigé
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(2, inputTitle, 'Fabcaro');
+
+      // Résultat final doit être verified avec correction auteur
+      expect(result.status).toBe('verified');
+      expect(result.data.source).toBe('babelio_phase0_author_correction');
+      expect(result.data.confidence_score).toBe(1.0);
+      expect(result.data.suggested.author).toBe('Fabcaro');
+      expect(result.data.suggested.title).toBe('Rumba Mariachi');
+      expect(result.data.corrections.author).toBe(true); // Auteur corrigé
+      expect(result.data.corrections.title).toBe(false); // Titre inchangé
+    });
   });
 
   describe('📊 Statistics', () => {

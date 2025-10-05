@@ -10,6 +10,7 @@ export class BiblioValidationService {
     this.fuzzySearchService = dependencies.fuzzySearchService;
     this.babelioService = dependencies.babelioService;
     this.localAuthorService = dependencies.localAuthorService;
+    this.livresAuteursService = dependencies.livresAuteursService;
   }
 
   /**
@@ -79,7 +80,7 @@ export class BiblioValidationService {
   async _tryPhase0DirectValidation(original, episodeId) {
 
     // Vérifier si les données originales correspondent exactement à un livre extrait
-    const extractedBooks = this._getExtractedBooks(episodeId);
+    const extractedBooks = await this._getExtractedBooks(episodeId);
 
     const matchingExtractedBook = extractedBooks.find(book =>
       book.author === original.author && book.title === original.title
@@ -91,12 +92,61 @@ export class BiblioValidationService {
 
 
     try {
+      // 1er appel Babelio avec le livre extrait
       const bookValidation = await this._verifyBookWithCapture(
         matchingExtractedBook.title,
         matchingExtractedBook.author
       );
 
       if (bookValidation && bookValidation.status === 'verified') {
+        // Issue #75: Double appel de confirmation si confidence entre 0.85 et 0.99
+        const confidence = bookValidation.confidence_score || 0;
+
+        if (confidence >= 0.85 && confidence < 1.0) {
+          // Confidence entre 0.85 et 0.99 → faire un 2ème appel de confirmation
+          const suggestedAuthor = bookValidation.babelio_suggestion_author;
+          const suggestedTitle = bookValidation.babelio_suggestion_title;
+
+          if (suggestedAuthor && suggestedTitle) {
+            try {
+              // 2ème appel Babelio avec les valeurs suggérées
+              const confirmationValidation = await this._verifyBookWithCapture(
+                suggestedTitle,
+                suggestedAuthor
+              );
+
+              // Si le 2ème appel confirme avec confidence 1.0, utiliser la confirmation
+              if (confirmationValidation &&
+                  confirmationValidation.status === 'verified' &&
+                  confirmationValidation.confidence_score === 1.0) {
+                return {
+                  status: 'verified',
+                  data: {
+                    original,
+                    suggested: {
+                      author: confirmationValidation.babelio_suggestion_author || suggestedAuthor,
+                      title: confirmationValidation.babelio_suggestion_title || suggestedTitle
+                    },
+                    source: 'babelio_phase0_confirmed',
+                    confidence_score: 1.0,
+                    corrections: {
+                      author: original.author !== suggestedAuthor,
+                      title: original.title !== suggestedTitle
+                    }
+                  }
+                };
+              }
+              // Si le 2ème appel ne confirme pas avec confidence 1.0, retourner null pour fallback Phase 1
+            } catch (error) {
+              // Erreur sur le 2ème appel → fallback Phase 1
+            }
+          }
+
+          // Si pas de suggestion ou 2ème appel échoué, retourner null pour fallback Phase 1
+          return null;
+        }
+
+        // Confidence = 1.0 → retour direct sans 2ème appel
         return {
           status: 'verified',
           data: {
@@ -108,11 +158,55 @@ export class BiblioValidationService {
             source: 'babelio_phase0',
             confidence_score: bookValidation.confidence_score || 1.0,
             corrections: {
-              author: false, // Pas de correction puisque c'est le livre extrait
+              author: false,
               title: false
             }
           }
         };
+      }
+
+      // Enrichissement Phase 0 : Si le livre n'est pas trouvé, essayer de corriger l'auteur
+      if (bookValidation && bookValidation.status === 'not_found') {
+        try {
+          // Vérifier si l'auteur peut être corrigé
+          const authorValidation = await this._verifyAuthorWithCapture(matchingExtractedBook.author);
+
+          if (authorValidation &&
+              (authorValidation.status === 'corrected' || authorValidation.status === 'verified') &&
+              authorValidation.babelio_suggestion) {
+            // L'auteur a une suggestion → essayer avec l'auteur corrigé
+            const correctedAuthor = authorValidation.babelio_suggestion;
+
+            const bookWithCorrectedAuthor = await this._verifyBookWithCapture(
+              matchingExtractedBook.title,
+              correctedAuthor
+            );
+
+            // Si le livre est trouvé avec l'auteur corrigé et confidence 1.0
+            if (bookWithCorrectedAuthor &&
+                bookWithCorrectedAuthor.status === 'verified' &&
+                bookWithCorrectedAuthor.confidence_score === 1.0) {
+              return {
+                status: 'verified',
+                data: {
+                  original,
+                  suggested: {
+                    author: bookWithCorrectedAuthor.babelio_suggestion_author || correctedAuthor,
+                    title: bookWithCorrectedAuthor.babelio_suggestion_title || matchingExtractedBook.title
+                  },
+                  source: 'babelio_phase0_author_correction',
+                  confidence_score: 1.0,
+                  corrections: {
+                    author: true,  // Auteur corrigé
+                    title: false
+                  }
+                }
+              };
+            }
+          }
+        } catch (error) {
+          // Erreur sur la correction auteur → continuer vers fallback Phase 1
+        }
       }
     } catch (error) {
       // Erreur silencieuse - on retombe sur le workflow normal
@@ -122,19 +216,28 @@ export class BiblioValidationService {
   }
 
   /**
-   * Récupère les livres extraits pour un épisode donné
+   * Récupère les livres extraits pour un épisode donné depuis le backend
    * @param {string} episodeId - ID de l'épisode
-   * @returns {Array} Liste des livres extraits
+   * @returns {Promise<Array>} Liste des livres extraits ({author, title})
    * @private
    */
-  _getExtractedBooks(episodeId) {
-    // Simulation basée sur les fixtures pour Alice Ferney
-    if (episodeId === '68ab04b92dc760119d18f8ef') { // pragma: allowlist secret
-      return [
-        { author: 'Alice Ferney', title: 'Comme en amour' }
-      ];
+  async _getExtractedBooks(episodeId) {
+    if (!episodeId || !this.livresAuteursService) {
+      return [];
     }
-    return [];
+
+    try {
+      const livresAuteurs = await this.livresAuteursService.getLivresAuteurs({ episode_oid: episodeId });
+
+      // Transformer le format API {auteur, titre} en format {author, title}
+      return livresAuteurs.map(livre => ({
+        author: livre.auteur,
+        title: livre.titre
+      }));
+    } catch (error) {
+      console.error(`Failed to fetch extracted books for episode ${episodeId}:`, error);
+      return [];
+    }
   }
 
   /**
@@ -999,10 +1102,11 @@ export class BiblioValidationService {
 }
 
 // Import des dépendances nécessaires
-import { babelioService, fuzzySearchService } from './api.js';
+import { babelioService, fuzzySearchService, livresAuteursService } from './api.js';
 
 export default new BiblioValidationService({
   babelioService,
   fuzzySearchService,
+  livresAuteursService,
   localAuthorService: null // Pas encore implémenté
 });

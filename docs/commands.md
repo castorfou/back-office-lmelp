@@ -207,7 +207,7 @@ curl -X POST "$BACKEND_URL/api/fuzzy-search-episode" \
 EOF
 ```
 
-phase 2 - babelio search avec des auteurs / titres
+phase 2 - babelio search avec juste des auteurs
 
 ```bash
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
