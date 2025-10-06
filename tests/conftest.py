@@ -21,15 +21,22 @@ def event_loop():
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    # Mock MongoDB service pour éviter les connexions réelles
+def mock_mongodb_service():
+    """Create a mock MongoDB service for tests."""
     with patch(
         "back_office_lmelp.services.mongodb_service.mongodb_service"
     ) as mock_service:
         mock_service.connect = MagicMock(return_value=True)
         mock_service.disconnect = MagicMock()
-        yield TestClient(app)
+        mock_service.create_author_if_not_exists = MagicMock()
+        mock_service.create_book_if_not_exists = MagicMock()
+        yield mock_service
+
+
+@pytest.fixture
+def client(mock_mongodb_service):
+    """Create a test client for the FastAPI app."""
+    yield TestClient(app)
 
 
 @pytest.fixture
