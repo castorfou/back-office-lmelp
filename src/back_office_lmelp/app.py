@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
-from rapidfuzz import fuzz  # type: ignore[import-not-found]
+from rapidfuzz import fuzz
 from thefuzz import process
 
 from .models.episode import Episode

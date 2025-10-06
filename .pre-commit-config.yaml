@@ -44,6 +44,7 @@ repos:
           - pandas-stubs              # Types pour pandas
           - types-python-dateutil     # Types pour dateutil
           - types-requests           # Types pour requests
+          - rapidfuzz                 # Fuzzy string matching
         args: [--config-file=pyproject.toml]
 
   # Sécurité - Détection de secrets et vulnérabilités
