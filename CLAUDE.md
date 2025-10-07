@@ -382,6 +382,187 @@ If a test fails with unexpected data:
 
 **Never rely solely on user declarations of intent** - always verify the real world state using available tools.
 
+### Backend Testing - Mocking Services with Complex Dependencies
+
+**CRITICAL**: When testing services with multiple injected dependencies (MongoDB, cache services, external APIs), use the **helper function pattern** instead of pytest fixtures for mocking.
+
+#### The Problem: Pytest Fixtures Don't Work Well with Dependency Injection
+
+```python
+# ❌ PROBLEMATIC: Pytest fixtures with @patch can fail with local imports
+@pytest.fixture
+def collections_service(mock_mongodb_service):
+    with patch.object(CollectionsManagementService, "mongodb_service", mock_mongodb_service):
+        service = CollectionsManagementService()
+        return service
+```
+
+**Why this fails:**
+1. Services often use **local imports** inside methods (e.g., `from bson import ObjectId`)
+2. Patching at module level doesn't intercept calls made after service instantiation
+3. Dependency injection happens in `__init__`, but method-level imports bypass mocks
+4. Error: `"Connexion MongoDB non établie"` - the mock never gets injected properly
+
+#### The Solution: Helper Function Pattern
+
+**✅ GOOD: Create mocked services with direct attribute assignment**
+
+```python
+def create_mocked_service():
+    """Crée un service avec tous les mocks configurés.
+
+    Pattern recommandé pour tester des services avec dépendances injectées.
+    Évite les problèmes de pytest fixtures avec patch.object().
+    """
+    from bson import ObjectId
+
+    service = CollectionsManagementService()
+
+    # Mock mongodb_service directement sur l'instance
+    mock_mongodb = Mock()
+    mock_mongodb.create_author_if_not_exists.return_value = ObjectId("507f1f77bcf86cd799439014")
+    mock_mongodb.create_book_if_not_exists.return_value = ObjectId("507f1f77bcf86cd799439015")
+    mock_mongodb.update_book_validation.return_value = None
+    mock_mongodb.update_avis_critique = Mock(return_value=True)
+    mock_mongodb.get_avis_critique_by_id.return_value = None
+
+    # Injection directe (bypass du __init__)
+    service.mongodb_service = mock_mongodb
+    service._mock_mongodb = mock_mongodb  # Pour accès dans les tests
+
+    return service
+
+
+class TestMyService:
+    def test_my_feature(self):
+        # Arrange
+        service = create_mocked_service()
+
+        # Configurer le mock pour ce test spécifique
+        service._mock_mongodb.get_avis_critique_by_id.return_value = {
+            "_id": "507f...",
+            "summary": "Original text"
+        }
+
+        # Mock des services externes (livres_auteurs_cache_service)
+        with patch("back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service") as mock_cache:
+            mock_cache.mark_as_processed.return_value = True
+            mock_cache.is_summary_corrected.return_value = False
+
+            # Act
+            service.handle_book_validation(book_data)
+
+            # Assert
+            assert service._mock_mongodb.update_avis_critique.called
+            call_args = service._mock_mongodb.update_avis_critique.call_args[0]
+            assert call_args[1]["summary"] == "Expected corrected text"
+```
+
+#### When to Use Helper Functions vs Fixtures
+
+**Use helper functions when:**
+- ✅ Service has multiple dependencies (MongoDB, cache, external APIs)
+- ✅ Dependencies are set via `__init__` or attribute assignment
+- ✅ Methods use local imports (`from bson import ObjectId`)
+- ✅ You need fine-grained control over mock configuration per test
+
+**Use fixtures when:**
+- ✅ Mocking simple external modules (no dependency injection)
+- ✅ Setting up test data (dictionaries, lists, test cases)
+- ✅ Sharing configuration across multiple tests
+- ✅ No complex service initialization
+
+#### Best Practices
+
+1. **Name helper clearly**: `create_mocked_service()` not `get_service()`
+2. **Document why**: Add docstring explaining the pattern avoids fixture issues
+3. **Expose mock for tests**: Store mock in `service._mock_xyz` for assertions
+4. **Configure defaults**: Set safe default return values (empty lists, None, etc.)
+5. **Per-test customization**: Override specific mock behaviors in each test
+
+#### Example: Testing Service with MongoDB + Cache Dependencies
+
+```python
+def create_mocked_service():
+    """Pattern pour tester CollectionsManagementService avec mocks MongoDB + cache."""
+    service = CollectionsManagementService()
+
+    # Mock MongoDB service
+    mock_mongodb = Mock()
+    mock_mongodb.create_author_if_not_exists.return_value = ObjectId("507f1f77bcf86cd799439014")
+    mock_mongodb.create_book_if_not_exists.return_value = ObjectId("507f1f77bcf86cd799439015")
+    mock_mongodb.get_avis_critique_by_id.return_value = None  # Default: pas d'avis
+    mock_mongodb.update_avis_critique = Mock(return_value=True)
+
+    service.mongodb_service = mock_mongodb
+    service._mock_mongodb = mock_mongodb
+
+    return service
+
+
+def test_should_update_summary_with_correction():
+    # Arrange
+    service = create_mocked_service()
+
+    # Override pour ce test spécifique
+    service._mock_mongodb.get_avis_critique_by_id.return_value = {
+        "_id": "507f...",
+        "summary": "Original | Alain Mabancou | Book |"
+    }
+
+    book_data = {
+        "cache_id": "507f...",
+        "avis_critique_id": "507f...",
+        "auteur": "Alain Mabancou",
+        "titre": "Book",
+        "user_validated_author": "Alain Mabanckou",  # Correction
+        "user_validated_title": "Book"
+    }
+
+    with patch("...livres_auteurs_cache_service") as mock_cache:
+        mock_cache.is_summary_corrected.return_value = False
+        mock_cache.mark_summary_corrected.return_value = True
+
+        # Act
+        service.handle_book_validation(book_data)
+
+        # Assert
+        assert service._mock_mongodb.update_avis_critique.called
+        updates = service._mock_mongodb.update_avis_critique.call_args[0][1]
+        assert "Alain Mabanckou" in updates["summary"]
+        assert "Alain Mabancou" not in updates["summary"]
+```
+
+#### Common Pitfalls to Avoid
+
+**❌ Don't use module-level patching for injected services**
+```python
+# ❌ NE FONCTIONNE PAS avec dependency injection
+@patch("back_office_lmelp.services.collections_management_service.mongodb_service")
+def test_something(mock_mongodb):
+    service = CollectionsManagementService()  # mongodb_service n'est pas mock
+```
+
+**❌ Don't rely on fixtures for complex service mocking**
+```python
+# ❌ FRAGILE: Fixtures + patch.object = problèmes avec imports locaux
+@pytest.fixture
+def service(mock_mongodb):
+    with patch.object(Service, "mongodb_service", mock_mongodb):
+        return Service()
+```
+
+**✅ Use helper functions with direct attribute assignment**
+```python
+# ✅ ROBUSTE: Helper function + attribute injection
+def create_mocked_service():
+    service = Service()
+    service.mongodb_service = Mock()  # Injection directe
+    return service
+```
+
+**Reference**: Issue #67 - Learned this pattern while implementing summary correction tests
+
 ## Claude Code Auto-Discovery System
 
 ### Overview
