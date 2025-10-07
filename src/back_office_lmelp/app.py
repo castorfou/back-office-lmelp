@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from rapidfuzz import fuzz
 from thefuzz import process
 
 from .models.episode import Episode
@@ -542,14 +543,20 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
             # Auto-processing pour les livres verified
             if cache_status == "verified":
                 try:
+                    # Utiliser le nom validé (suggested_author si disponible, sinon auteur original)
+                    validated_author = (
+                        book_result.suggested_author or book_result.auteur
+                    )
+                    validated_title = book_result.suggested_title or book_result.titre
+
                     # Créer auteur en base
                     author_id = mongodb_service.create_author_if_not_exists(
-                        book_result.auteur
+                        validated_author
                     )
 
                     # Créer livre en base
                     book_data_for_mongo = {
-                        "titre": book_result.titre,
+                        "titre": validated_title,
                         "auteur_id": author_id,
                         "editeur": book_result.editeur,
                         "episodes": [request.episode_oid],
@@ -580,6 +587,55 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+def extract_ngrams(text: str, n: int) -> list[str]:
+    """
+    Extrait des séquences de n mots consécutifs.
+
+    Args:
+        text: Le texte source
+        n: Le nombre de mots par n-gram
+
+    Returns:
+        Liste des n-grams extraits
+
+    Example:
+        >>> extract_ngrams("L'invention de Tristan", 2)
+        ["L'invention de", "de Tristan"]
+    """
+    words = text.split()
+    if len(words) < n:
+        return []
+    return [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
+
+
+def smart_fuzzy_score(query: str, candidate: str) -> float:
+    """
+    Scorer intelligent qui pénalise les matches partiels trop courts.
+
+    Problème avec ratio/WRatio : "Adrien" vs "Adrien Bosc" pour query "Adrien Bosque"
+    - "Adrien" → score élevé (petit dénominateur)
+    - "Adrien Bosc" → score plus bas (dénominateur plus grand)
+
+    Solution : Utiliser token_sort_ratio ET pénaliser si le candidat est trop court
+    par rapport à la query.
+    """
+    # Score de base avec token_sort_ratio (ignore l'ordre des mots)
+    base_score: float = float(fuzz.token_sort_ratio(query, candidate))
+
+    # Pénalité si le candidat est significativement plus court que la query
+    query_len = len(query)
+    candidate_len = len(candidate)
+
+    # Si le candidat est < 60% de la longueur de la query, appliquer une pénalité
+    if candidate_len < query_len * 0.6:
+        # Pénalité proportionnelle à la différence de longueur
+        length_ratio = candidate_len / query_len
+        penalty = (1 - length_ratio) * 15  # Pénalité max 15 points
+        return float(max(0, base_score - penalty))
+
+    return float(base_score)
+
+
 @app.post("/api/fuzzy-search-episode", response_model=dict[str, Any])
 async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
     """Recherche fuzzy dans le titre et description d'un épisode."""
@@ -607,6 +663,12 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
         # Extraire segments entre guillemets (priorité haute - titres potentiels)
         quoted_segments = re.findall(r'"([^"]+)"', full_text)
 
+        # NOUVEAU : Extraire n-grams de différentes tailles (Issue #76)
+        # Pour détecter les titres multi-mots comme "L'invention de Tristan"
+        bigrams = extract_ngrams(full_text, 2)  # "L'invention de", "de Tristan"
+        trigrams = extract_ngrams(full_text, 3)  # "L'invention de Tristan"
+        quadrigrams = extract_ngrams(full_text, 4)  # "L'invention de Tristan Adrien"
+
         # Extraire mots individuels de plus de 3 caractères
         words = [word for word in full_text.split() if len(word) > 3]
 
@@ -614,19 +676,30 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
         clean_words = [re.sub(r"[^\w\-\'àâäéèêëïîôöùûüÿç]", "", word) for word in words]
         clean_words = [word for word in clean_words if len(word) > 3]
 
-        # Prioriser les segments entre guillemets, puis les mots longs
-        search_candidates = quoted_segments + clean_words
+        # Candidats par priorité : guillemets > 4-grams > 3-grams > 2-grams > mots
+        # Filtrer n-grams trop courts pour éviter le bruit
+        search_candidates = (
+            quoted_segments
+            + [ng for ng in quadrigrams if len(ng) > 10]  # Filtrer n-grams courts
+            + [ng for ng in trigrams if len(ng) > 8]
+            + [ng for ng in bigrams if len(ng) > 6]
+            + clean_words
+        )
 
         # Recherche fuzzy pour le titre
         # D'abord chercher dans les segments entre guillemets (priorité haute)
         quoted_matches = (
-            process.extract(request.query_title, quoted_segments, limit=5)
+            process.extract(
+                request.query_title, quoted_segments, scorer=smart_fuzzy_score, limit=5
+            )
             if quoted_segments
             else []
         )
 
         # Puis chercher dans tous les candidats
-        all_matches = process.extract(request.query_title, search_candidates, limit=10)
+        all_matches = process.extract(
+            request.query_title, search_candidates, scorer=smart_fuzzy_score, limit=10
+        )
 
         # Retourner TOUS les segments entre guillemets (potentiels titres) + bons matches généraux
         title_matches = []
@@ -650,12 +723,32 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
         author_matches = []
         if request.query_author:
             author_matches_raw = process.extract(
-                request.query_author, search_candidates, limit=10
+                request.query_author,
+                search_candidates,
+                scorer=smart_fuzzy_score,
+                limit=10,
             )
             # Filtrer manuellement par score
             author_matches = [
                 (match, score) for match, score in author_matches_raw if score >= 75
             ]
+
+        # Nettoyer la ponctuation en fin de chaîne pour tous les matches
+        def clean_trailing_punctuation(text: str) -> str:
+            """Nettoie la ponctuation en fin de chaîne (virgules, points, etc.)"""
+            return text.rstrip(",.;:!? ")
+
+        title_matches = [
+            (clean_trailing_punctuation(match), score) for match, score in title_matches
+        ]
+        author_matches = [
+            (clean_trailing_punctuation(match), score)
+            for match, score in author_matches
+        ]
+
+        # Trier les résultats par score décroissant
+        title_matches.sort(key=lambda x: x[1], reverse=True)
+        author_matches.sort(key=lambda x: x[1], reverse=True)
 
         return {
             "episode_id": request.episode_id,

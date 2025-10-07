@@ -587,8 +587,12 @@ class BabelioService:
 
     def _format_author_name(self, prenoms: Any, nom: Any) -> str:
         """Formate un nom d'auteur à partir des données Babelio."""
-        prenoms_str = str(prenoms) if prenoms else ""
-        nom_str = str(nom) if nom else ""
+        prenoms_str = str(prenoms).strip() if prenoms else ""
+        nom_str = str(nom).strip() if nom else ""
+
+        # Nettoyer les virgules et espaces en fin de chaîne (bug Babelio)
+        prenoms_str = prenoms_str.rstrip(", ")
+        nom_str = nom_str.rstrip(", ")
 
         if prenoms_str and nom_str:
             return f"{prenoms_str} {nom_str}"

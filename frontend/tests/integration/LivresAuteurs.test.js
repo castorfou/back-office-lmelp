@@ -1260,4 +1260,113 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       expect(livresAuteursService.deleteCacheByEpisode).toHaveBeenCalledWith(episodeOid);
     });
   });
+
+  describe('Validation Statistics Display', () => {
+    it('should compute validation statistics for programme books', async () => {
+      // Arrange
+      const episodeOid = '507f1f77bcf86cd799439011'; // pragma: allowlist secret
+      const mockBooks = [
+        { auteur: 'Auteur 1', titre: 'Livre 1', programme: true, status: 'mongo' },
+        { auteur: 'Auteur 2', titre: 'Livre 2', programme: true, status: 'extracted', suggested_author: 'Auteur 2 Corrected' },
+        { auteur: 'Auteur 3', titre: 'Livre 3', programme: true, status: 'extracted', suggested_title: 'Livre 3 Corrected' },
+        { auteur: 'Auteur 4', titre: 'Livre 4', programme: true, status: 'extracted' },
+        { auteur: 'Auteur 5', titre: 'Livre 5', programme: false, status: 'mongo' }, // Not counted (not programme)
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValueOnce(mockBooks);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValueOnce([
+        { id: episodeOid, titre: 'Test Episode', date: '2025-01-01' }
+      ]);
+      episodeService.getEpisodeById.mockResolvedValueOnce({
+        id: episodeOid,
+        titre: 'Test Episode',
+        description: 'Test description'
+      });
+
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Act: select episode and set books
+      wrapper.vm.selectedEpisodeId = episodeOid;
+      wrapper.vm.books = mockBooks;
+      await wrapper.vm.$nextTick();
+
+      // Assert: check computed property
+      const stats = wrapper.vm.programBooksValidationStats;
+      expect(stats.total).toBe(4); // 4 books with programme: true
+      expect(stats.traites).toBe(1); // 1 book with status === 'mongo'
+      expect(stats.suggested).toBe(2); // 2 books with suggestions
+      expect(stats.not_found).toBe(1); // 1 book without suggestions
+    });
+
+    it('should display validation stats in the UI when programme books exist', async () => {
+      // Arrange
+      const episodeOid = '507f1f77bcf86cd799439011'; // pragma: allowlist secret
+      const mockBooks = [
+        { auteur: 'Auteur 1', titre: 'Livre 1', programme: true, status: 'mongo' },
+        { auteur: 'Auteur 2', titre: 'Livre 2', programme: true, status: 'extracted', suggested_title: 'Livre 2 Corrected' },
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValueOnce(mockBooks);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValueOnce([
+        { id: episodeOid, titre: 'Test Episode', date: '2025-01-01' }
+      ]);
+      episodeService.getEpisodeById.mockResolvedValueOnce({
+        id: episodeOid,
+        titre: 'Test Episode',
+        description: 'Test description'
+      });
+
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Act: select episode and set books
+      wrapper.vm.selectedEpisodeId = episodeOid;
+      wrapper.vm.books = mockBooks;
+      await wrapper.vm.$nextTick();
+
+      // Assert: check that validation stats are visible
+      const statsElement = wrapper.find('.validation-stats');
+      expect(statsElement.exists()).toBe(true);
+      expect(statsElement.text()).toContain('au programme');
+      expect(statsElement.text()).toContain('1 traités');
+      expect(statsElement.text()).toContain('1 suggested');
+    });
+
+    it('should not display validation stats when no programme books exist', async () => {
+      // Arrange
+      const episodeOid = '507f1f77bcf86cd799439011'; // pragma: allowlist secret
+      const mockBooks = [
+        { auteur: 'Auteur 1', titre: 'Livre 1', programme: false, validation_status: 'verified' },
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValueOnce(mockBooks);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValueOnce([
+        { id: episodeOid, titre: 'Test Episode', date: '2025-01-01' }
+      ]);
+      episodeService.getEpisodeById.mockResolvedValueOnce({
+        id: episodeOid,
+        titre: 'Test Episode',
+        description: 'Test description'
+      });
+
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+      await wrapper.vm.$nextTick();
+
+      // Act: select episode and set books
+      wrapper.vm.selectedEpisodeId = episodeOid;
+      wrapper.vm.books = mockBooks;
+      await wrapper.vm.$nextTick();
+
+      // Assert: validation stats should not be visible
+      const statsElement = wrapper.find('.validation-stats');
+      expect(statsElement.exists()).toBe(false);
+    });
+  });
 });

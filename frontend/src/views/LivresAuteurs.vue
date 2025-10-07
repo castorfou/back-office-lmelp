@@ -26,6 +26,15 @@
               Choisir un épisode avec avis critiques ({{ episodesWithReviews?.length || 0 }} disponibles)
             </label>
             <div class="episode-select-wrapper">
+              <button
+                class="nav-episode-btn prev-btn"
+                @click.prevent="selectPreviousEpisode"
+                :disabled="!hasPreviousEpisode"
+                aria-label="Épisode précédent"
+                data-testid="prev-episode-button"
+              >
+                ◀️ Précédent
+              </button>
               <select
                 id="episode-select"
                 v-model="selectedEpisodeId"
@@ -42,6 +51,15 @@
                 </option>
               </select>
               <button
+                class="nav-episode-btn next-btn"
+                @click.prevent="selectNextEpisode"
+                :disabled="!hasNextEpisode"
+                aria-label="Épisode suivant"
+                data-testid="next-episode-button"
+              >
+                Suivant ▶️
+              </button>
+              <button
                 v-if="selectedEpisodeId"
                 @click="refreshEpisodeCache"
                 class="btn-icon-refresh"
@@ -54,12 +72,36 @@
             </div>
           </div>
         </div>
+
+        <!-- Détails de l'épisode (accordéon replié) -->
+        <div v-if="selectedEpisode" class="episode-details-accordion">
+          <button
+            @click="showEpisodeDetails = !showEpisodeDetails"
+            class="accordion-toggle"
+            :aria-expanded="showEpisodeDetails"
+          >
+            <span class="toggle-icon">{{ showEpisodeDetails ? '▼' : '▶' }}</span>
+            <span class="toggle-label">Détails de l'épisode (titre et description)</span>
+          </button>
+          <div v-if="showEpisodeDetails" class="accordion-content">
+            <div class="episode-info">
+              <div class="info-section">
+                <strong>Titre :</strong>
+                <p class="episode-title">{{ episodeDisplayTitle }}</p>
+              </div>
+              <div class="info-section">
+                <strong>Description :</strong>
+                <p class="episode-description">{{ episodeDisplayDescription }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Section simplifiée : nombre de livres extraits seulement -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
         <div class="simple-stats">
-          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span>
+          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span><span v-if="programBooksValidationStats.total > 0" class="validation-stats"> — au programme : {{ programBooksValidationStats.traites }} traités, {{ programBooksValidationStats.suggested }} suggested, {{ programBooksValidationStats.not_found }} not found</span>
         </div>
       </section>
 
@@ -369,6 +411,7 @@
               class="form-control"
               data-testid="author-input"
               placeholder="Nom de l'auteur"
+              @keydown.stop
             />
           </div>
 
@@ -381,6 +424,7 @@
               class="form-control"
               data-testid="title-input"
               placeholder="Titre du livre"
+              @keydown.stop
             />
           </div>
 
@@ -393,6 +437,7 @@
               class="form-control"
               data-testid="publisher-input"
               placeholder="Nom de l'éditeur"
+              @keydown.stop
             />
           </div>
         </div>
@@ -422,7 +467,7 @@
 </template>
 
 <script>
-import { livresAuteursService } from '../services/api.js';
+import { livresAuteursService, episodeService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
 import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
@@ -480,13 +525,83 @@ export default {
       },
 
       // Contrôle d'affichage de la colonne YAML
-      showYamlColumn: false
+      showYamlColumn: false,
+
+  // Contrôle d'affichage des détails de l'épisode
+  showEpisodeDetails: false,
+  // Full episode details fetched on demand (may include description)
+  selectedEpisodeFull: null,
+  // Prevent re-entrant navigation while changing episode
+  navLock: false,
 
     };
   },
 
   computed: {
+    selectedEpisode() {
+      if (!this.selectedEpisodeId) return null;
+      return this.episodesWithReviews.find(ep => String(ep.id) === String(this.selectedEpisodeId));
+    },
 
+
+    // Display helpers for episode title/description to match backend fields
+    episodeDisplayTitle() {
+      const epFull = this.selectedEpisodeFull;
+      const ep = epFull || this.selectedEpisode;
+      if (!ep) return '';
+      return ep.titre_corrige || ep.titre || ep.title || '';
+    },
+
+    episodeDisplayDescription() {
+      const epFull = this.selectedEpisodeFull;
+      const ep = epFull || this.selectedEpisode;
+      if (!ep) return '';
+      // prefer corrected description, then original description, then any summary field
+      return ep.description || ep.description_origin || ep.resume || ep.excerpt || '';
+    },
+
+    // Navigation helpers
+    currentEpisodeIndex() {
+      if (!this.episodesWithReviews || !this.selectedEpisodeId) return -1;
+      return this.episodesWithReviews.findIndex(ep => String(ep.id) === String(this.selectedEpisodeId));
+    },
+
+    // Note: episodes are sorted from most recent to oldest. "Previous" (left) should go to older
+    // episodes (higher index). "Next" (right) goes to more recent (lower index).
+    hasPreviousEpisode() {
+      return this.currentEpisodeIndex >= 0 && this.currentEpisodeIndex < (this.episodesWithReviews.length - 1);
+    },
+
+    hasNextEpisode() {
+      return this.currentEpisodeIndex > 0;
+    },
+
+    // Statistiques de validation des livres au programme
+    programBooksValidationStats() {
+      // "Au programme" = TOUS les livres (programme: true ET coup_de_coeur: true)
+      const programBooks = this.books.filter(book => book.programme || book.coup_de_coeur);
+      const stats = {
+        traites: 0,
+        suggested: 0,
+        not_found: 0,
+        total: programBooks.length
+      };
+
+      programBooks.forEach(book => {
+        if (book.status === 'mongo') {
+          // Livre traité (déjà en MongoDB)
+          stats.traites++;
+        } else if (book.suggested_author || book.suggested_title) {
+          // Livre avec suggestion Babelio (pas encore traité)
+          stats.suggested++;
+        } else {
+          // Livre sans suggestion (not found)
+          stats.not_found++;
+        }
+      });
+
+      return stats;
+    },
 
     filteredBooks() {
       let filtered = [...this.books];
@@ -536,6 +651,28 @@ export default {
 
   async mounted() {
     await this.loadEpisodesWithReviews();
+    // Keyboard navigation for episode select (left / right)
+    // prevent default browser navigation when using arrows and avoid races
+    this._onKeydown = async (e) => {
+      // Désactiver navigation si un modal est ouvert
+      if (this.showValidationModal || this.showManualAddModal) return;
+
+      if (!this.selectedEpisodeId) return;
+      if (e.key === 'ArrowLeft') {
+        // prevent the native select from changing the option and creating a race
+        e.preventDefault();
+        await this.selectPreviousEpisode();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        await this.selectNextEpisode();
+      }
+    };
+    // Use capture phase so we receive the keydown before the native <select> handler
+    window.addEventListener('keydown', this._onKeydown, true);
+  },
+
+  beforeUnmount() {
+    if (this._onKeydown) window.removeEventListener('keydown', this._onKeydown, true);
   },
 
   methods: {
@@ -729,8 +866,54 @@ export default {
       this.searchFilter = '';
       this.sortOrder = 'rating_desc';
 
+      // Reset any previously fetched full episode
+      this.selectedEpisodeFull = null;
+
       // Charger les livres pour le nouvel épisode
       await this.loadBooksForEpisode();
+
+      // Essayer de récupérer les détails complets de l'épisode (description, corrections)
+      try {
+        const ep = await episodeService.getEpisodeById(this.selectedEpisodeId);
+        this.selectedEpisodeFull = ep || null;
+      } catch (err) {
+        // Ne pas bloquer l'UI si l'endpoint n'est pas disponible
+        console.warn('Impossible de récupérer les détails complets de l\'épisode:', err.message || err);
+      }
+    },
+
+    async selectPreviousEpisode() {
+      if (this.navLock) return;
+      // Move to older episode (to the right on timeline) => index + 1
+      const idx = this.currentEpisodeIndex;
+      if (idx >= 0 && idx < this.episodesWithReviews.length - 1) {
+        this.navLock = true;
+        try {
+          const prev = this.episodesWithReviews[idx + 1];
+          this.selectedEpisodeId = prev.id;
+          // trigger change flow
+          await this.onEpisodeChange();
+        } finally {
+          this.navLock = false;
+        }
+      }
+    },
+
+    async selectNextEpisode() {
+      if (this.navLock) return;
+      // Move to more recent episode (to the left on timeline) => index - 1
+      const idx = this.currentEpisodeIndex;
+      if (idx > 0) {
+        this.navLock = true;
+        try {
+          const next = this.episodesWithReviews[idx - 1];
+          this.selectedEpisodeId = next.id;
+          // trigger change flow
+          await this.onEpisodeChange();
+        } finally {
+          this.navLock = false;
+        }
+      }
     },
 
     /**
@@ -848,7 +1031,7 @@ export default {
         const suggestion = this.validationSuggestions.get(bookKey);
 
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
-        const selectedEpisode = this.episodesWithReviews?.find(ep => ep.id === this.selectedEpisodeId);
+  const selectedEpisode = this.episodesWithReviews?.find(ep => String(ep.id) === String(this.selectedEpisodeId));
 
         const validationData = {
           cache_id: book.cache_id, // Utiliser le cache_id du livre
@@ -890,7 +1073,7 @@ export default {
 
         // Utiliser directement validateSuggestion pour l'ajout manuel
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
-        const selectedEpisode = this.episodesWithReviews?.find(ep => ep.id === this.selectedEpisodeId);
+  const selectedEpisode = this.episodesWithReviews?.find(ep => String(ep.id) === String(this.selectedEpisodeId));
 
         const validationData = {
           cache_id: book.cache_id,
@@ -1014,7 +1197,7 @@ export default {
         }
 
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
-        const selectedEpisode = this.episodesWithReviews?.find(ep => ep.id === this.selectedEpisodeId);
+  const selectedEpisode = this.episodesWithReviews?.find(ep => String(ep.id) === String(this.selectedEpisodeId));
         const avis_critique_id = selectedEpisode?.avis_critique_id;
 
 
@@ -1109,6 +1292,17 @@ export default {
   font-size: 1.1rem;
   color: #666;
   font-weight: 500;
+}
+
+.validation-stats {
+  font-size: 0.95rem;
+  color: #888;
+  margin-left: 0.5rem;
+}
+
+.validation-stats .stat-item {
+  font-weight: 500;
+  color: #555;
 }
 
 /* Filtres */
@@ -1842,6 +2036,29 @@ export default {
   align-items: center;
 }
 
+.nav-episode-btn {
+  background: #111827;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nav-episode-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.prev-btn {
+  margin-right: 0.25rem;
+}
+
+.next-btn {
+  margin-left: 0.25rem;
+}
+
 .form-control {
   flex: 1;
   padding: 0.5rem;
@@ -2038,5 +2255,119 @@ export default {
   .modal-actions .btn {
     width: 100%;
   }
+}
+
+/* Accordéon détails de l'épisode */
+.episode-details-accordion {
+  margin-top: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.accordion-toggle {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  transition: background-color 0.2s;
+}
+
+.accordion-toggle:hover {
+  background: #e5e7eb;
+}
+
+.toggle-icon {
+  font-size: 0.75rem;
+  color: #6b7280;
+  transition: transform 0.2s;
+}
+
+.toggle-label {
+  color: #4b5563;
+}
+
+.accordion-content {
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.episode-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.info-section strong {
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.episode-title {
+  margin: 0;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.episode-description {
+  margin: 0;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-left: 3px solid #10b981;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #374151;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.episode-description::-webkit-scrollbar {
+  width: 6px;
+}
+
+.episode-description::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.episode-description::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.episode-description::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

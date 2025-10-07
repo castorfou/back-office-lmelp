@@ -514,3 +514,24 @@ cases:
     original: Fabrice Caro
     status: corrected
   timestamp: 1759631107420
+- input:
+    name: Albin de la Simone
+    type: author
+  output:
+    babelio_data:
+      ca_membres: '65'
+      ca_oeuvres: '1'
+      first_of_group: first_of_group
+      id: '745545'
+      nom: De la simone
+      prenoms: Albin
+      type: auteurs
+      url: /auteur/Albin-De-la-simone/745545
+      url_photo: /users/avt_fd_745545.jpg
+    babelio_suggestion: Albin De la simone
+    babelio_url: https://www.babelio.com/auteur/Albin-De-la-simone/745545
+    confidence_score: 1
+    error_message: null
+    original: Albin de la Simone
+    status: verified
+  timestamp: 1759684504871
