@@ -14,7 +14,4 @@ Utilise une todo list pour garder la trace complète de ce travail, et être sû
 13. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
 14. Clos la todo list si elle est bien vide
 15. Repasse sur la branche main locale, et recupere les dernieres modifications
-16. Finis en appelant la slash-command interne de claude
-```claude
-/stocke-memoire
-```
+16. Finis en appelant la slash-command interne de claude  `/stocke-memoire`
