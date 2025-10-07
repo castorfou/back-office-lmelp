@@ -101,7 +101,7 @@
       <!-- Section simplifiée : nombre de livres extraits seulement -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
         <div class="simple-stats">
-          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span>
+          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span><span v-if="programBooksValidationStats.total > 0" class="validation-stats"> — au programme : {{ programBooksValidationStats.traites }} traités, {{ programBooksValidationStats.suggested }} suggested, {{ programBooksValidationStats.not_found }} not found</span>
         </div>
       </section>
 
@@ -574,6 +574,33 @@ export default {
 
     hasNextEpisode() {
       return this.currentEpisodeIndex > 0;
+    },
+
+    // Statistiques de validation des livres au programme
+    programBooksValidationStats() {
+      // "Au programme" = TOUS les livres (programme: true ET coup_de_coeur: true)
+      const programBooks = this.books.filter(book => book.programme || book.coup_de_coeur);
+      const stats = {
+        traites: 0,
+        suggested: 0,
+        not_found: 0,
+        total: programBooks.length
+      };
+
+      programBooks.forEach(book => {
+        if (book.status === 'mongo') {
+          // Livre traité (déjà en MongoDB)
+          stats.traites++;
+        } else if (book.suggested_author || book.suggested_title) {
+          // Livre avec suggestion Babelio (pas encore traité)
+          stats.suggested++;
+        } else {
+          // Livre sans suggestion (not found)
+          stats.not_found++;
+        }
+      });
+
+      return stats;
     },
 
     filteredBooks() {
@@ -1265,6 +1292,17 @@ export default {
   font-size: 1.1rem;
   color: #666;
   font-weight: 500;
+}
+
+.validation-stats {
+  font-size: 0.95rem;
+  color: #888;
+  margin-left: 0.5rem;
+}
+
+.validation-stats .stat-item {
+  font-weight: 500;
+  color: #555;
 }
 
 /* Filtres */
