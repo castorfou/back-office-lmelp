@@ -77,6 +77,44 @@ this.$router.push('/');
 this.$router.push('/episodes');
 ```
 
+## Computed Properties
+
+### Statistiques de validation (`LivresAuteurs.vue`)
+
+#### `programBooksValidationStats`
+Computed property qui calcule les statistiques de validation pour les livres au programme.
+
+**Logique** :
+- Filtre les livres avec `programme: true` OU `coup_de_coeur: true`
+- Catégorise chaque livre selon son statut :
+  - **Traités** : `status === 'mongo'` (déjà en base MongoDB)
+  - **Suggested** : `suggested_author` ou `suggested_title` présents (suggestions Babelio)
+  - **Not found** : Ni traité ni suggestion
+
+**Retour** :
+```javascript
+{
+  traites: number,    // Livres en MongoDB
+  suggested: number,  // Livres avec suggestions
+  not_found: number,  // Livres non trouvés
+  total: number       // Total au programme
+}
+```
+
+**Utilisation** :
+```vue
+<span v-if="programBooksValidationStats.total > 0">
+  — au programme :
+  {{ programBooksValidationStats.traites }} traités,
+  {{ programBooksValidationStats.suggested }} suggested,
+  {{ programBooksValidationStats.not_found }} not found
+</span>
+```
+
+**Tests** :
+- Tests unitaires : `tests/unit/ProgramBooksStats.test.js`
+- Tests d'intégration : `tests/integration/LivresAuteurs.test.js`
+
 ## Services API
 
 ### statisticsService (`src/services/api.js`)

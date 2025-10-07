@@ -20,7 +20,23 @@ La page présente un tableau avec quatre colonnes :
 
 ### Statistiques simplifiées
 
-En haut de page, un compteur indique simplement le nombre de livres extraits de l'épisode sélectionné.
+En haut de page, vous trouverez deux types de compteurs :
+
+#### Nombre de livres extraits
+Un compteur indique le nombre total de livres extraits de l'épisode sélectionné.
+
+#### Statistiques de validation (livres au programme)
+Pour les livres au programme (livres discutés + coups de cœur), un compteur détaillé affiche leur statut de validation :
+
+**Format** : `— au programme : X traités, Y suggested, Z not found`
+
+- **Traités** : Livres déjà sauvegardés dans MongoDB (statut `mongo`)
+- **Suggested** : Livres avec suggestions Babelio en attente de validation
+- **Not found** : Livres non trouvés sur Babelio, nécessitant une saisie manuelle
+
+**Exemple** : `10 livre(s) extrait(s) — au programme : 6 traités, 2 suggested, 2 not found`
+
+Cet affichage permet de suivre rapidement la progression du traitement des livres d'un épisode.
 
 ## Navigation et fonctionnalités
 
