@@ -370,6 +370,20 @@ async def get_livres_auteurs(
         # Utiliser les données du cache ou initialiser une liste vide
         all_books = cached_books or []
 
+        # Phase 1.5: Ramasse-miettes automatique pour livres mongo non corrigés (Issue #67 - Phase 2)
+        try:
+            cleanup_stats = collections_management_service.cleanup_uncorrected_summaries_for_episode(
+                episode_oid
+            )
+            # Logger les stats pour suivre la progression du cleanup global
+            if cleanup_stats["corrected"] > 0:
+                print(
+                    f"🧹 Cleanup épisode {episode_oid}: {cleanup_stats['corrected']} summaries corrigés"
+                )
+        except Exception as cleanup_error:
+            # Ne pas bloquer l'affichage en cas d'erreur de cleanup
+            print(f"⚠️ Erreur cleanup épisode {episode_oid}: {cleanup_error}")
+
         # Phase 2: Extraction si cache miss global
         if not cached_books:
             try:

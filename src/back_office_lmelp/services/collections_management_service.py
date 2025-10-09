@@ -373,7 +373,8 @@ class CollectionsManagementService:
 
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour du summary: {e}")
-            # Ne pas propager l'erreur pour ne pas bloquer la validation
+            # Propager l'erreur pour que le cleanup puisse la compter
+            raise
 
     def get_all_authors(self) -> list[dict[str, Any]]:
         """
@@ -400,6 +401,100 @@ class CollectionsManagementService:
             return list(result)
         except Exception as e:
             raise Exception(f"Erreur lors de la récupération des livres: {e}") from e
+
+    def cleanup_uncorrected_summaries_for_episode(
+        self, episode_oid: str
+    ) -> dict[str, int]:
+        """
+        Ramasse-miettes : corrige les summaries des livres mongo non traités.
+
+        Cette méthode est appelée automatiquement lors de l'affichage de la page
+        /livres-auteurs pour un épisode donné. Elle traite progressivement les
+        livres déjà validés (status=mongo) qui n'ont pas encore eu leurs summaries
+        corrigés (summary_corrected != true).
+
+        Args:
+            episode_oid: ID de l'épisode à traiter
+
+        Returns:
+            Statistiques du traitement:
+            - total_books: Nombre total de livres mongo trouvés
+            - already_corrected: Déjà traités (summary_corrected=true)
+            - no_correction_needed: Pas de différence auteur/titre
+            - corrected: Summaries mis à jour
+            - errors: Erreurs rencontrées
+        """
+        from ..services.livres_auteurs_cache_service import (
+            livres_auteurs_cache_service,
+        )
+        from ..utils.summary_updater import should_update_summary
+
+        stats = {
+            "total_books": 0,
+            "already_corrected": 0,
+            "no_correction_needed": 0,
+            "corrected": 0,
+            "errors": 0,
+        }
+
+        try:
+            # 1. Récupérer tous les livres status=mongo pour cet épisode
+            books = livres_auteurs_cache_service.get_books_by_episode_oid(
+                episode_oid, status="mongo"
+            )
+            stats["total_books"] = len(books)
+
+            # 2. Pour chaque livre
+            for book in books:
+                try:
+                    # Skip si déjà traité (idempotence)
+                    if livres_auteurs_cache_service.is_summary_corrected(book["_id"]):
+                        stats["already_corrected"] += 1
+                        continue
+
+                    # Récupérer les valeurs originales et corrigées
+                    original_author = book.get("auteur", "")
+                    original_title = book.get("titre", "")
+                    corrected_author = book.get(
+                        "user_validated_author", original_author
+                    )
+                    corrected_title = book.get("user_validated_title", original_title)
+
+                    # Skip si pas de correction nécessaire
+                    if not should_update_summary(
+                        original_author,
+                        original_title,
+                        corrected_author,
+                        corrected_title,
+                    ):
+                        stats["no_correction_needed"] += 1
+                        # Marquer quand même pour éviter de re-vérifier
+                        livres_auteurs_cache_service.mark_summary_corrected(book["_id"])
+                        continue
+
+                    # 3. Corriger le summary (réutilise le code existant)
+                    avis_critique_id = book.get("avis_critique_id")
+                    if avis_critique_id:
+                        self._update_summary_with_correction(
+                            avis_critique_id=str(avis_critique_id),
+                            original_author=original_author,
+                            original_title=original_title,
+                            corrected_author=corrected_author,
+                            corrected_title=corrected_title,
+                            cache_id=book["_id"],
+                        )
+                        stats["corrected"] += 1
+
+                except Exception as e:
+                    stats["errors"] += 1
+                    print(f"Erreur cleanup pour livre {book.get('_id')}: {e}")
+                    continue
+
+            return stats
+
+        except Exception as e:
+            print(f"Erreur cleanup épisode {episode_oid}: {e}")
+            return stats
 
 
 # Instance globale du service
