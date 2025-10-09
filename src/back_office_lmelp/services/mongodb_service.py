@@ -196,6 +196,70 @@ class MongoDBService:
             )
             return []
 
+    def get_avis_critique_by_id(self, avis_critique_id: str) -> dict[str, Any] | None:
+        """
+        Récupère un avis critique par son ID.
+
+        Args:
+            avis_critique_id: ID de l'avis critique (ObjectId ou string)
+
+        Returns:
+            Dictionnaire de l'avis critique ou None si non trouvé
+        """
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            from bson import ObjectId
+
+            # Convertir en ObjectId
+            oid = ObjectId(avis_critique_id)
+
+            avis = self.avis_critiques_collection.find_one({"_id": oid})
+
+            if avis:
+                avis["_id"] = str(avis["_id"])
+                return dict(avis)  # Type cast pour mypy
+            return None
+        except Exception as e:
+            print(
+                f"Erreur lors de la récupération de l'avis critique {avis_critique_id}: {e}"
+            )
+            return None
+
+    def update_avis_critique(
+        self, avis_critique_id: str, updates: dict[str, Any]
+    ) -> bool:
+        """
+        Met à jour un avis critique.
+
+        Args:
+            avis_critique_id: ID de l'avis critique
+            updates: Dictionnaire des champs à mettre à jour
+
+        Returns:
+            True si la mise à jour a réussi, False sinon
+        """
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            from bson import ObjectId
+
+            # Convertir en ObjectId
+            oid = ObjectId(avis_critique_id)
+
+            result = self.avis_critiques_collection.update_one(
+                {"_id": oid}, {"$set": updates}
+            )
+
+            return bool(result.modified_count > 0 or result.matched_count > 0)
+        except Exception as e:
+            print(
+                f"Erreur lors de la mise à jour de l'avis critique {avis_critique_id}: {e}"
+            )
+            return False
+
     def get_statistics(self) -> dict[str, Any]:
         """Récupère les statistiques de la base de données."""
         if self.episodes_collection is None or self.avis_critiques_collection is None:

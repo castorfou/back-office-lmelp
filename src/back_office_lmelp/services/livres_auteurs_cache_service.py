@@ -233,6 +233,52 @@ class LivresAuteursCacheService:
 
         return self.update_validation_status(cache_id, "mongo", metadata)
 
+    def mark_summary_corrected(self, cache_id: ObjectId) -> bool:
+        """
+        Marque qu'une entrée a eu son summary corrigé dans avis_critiques (Issue #67).
+
+        Args:
+            cache_id: ID de l'entrée de cache
+
+        Returns:
+            True si mise à jour réussie, False sinon
+        """
+        try:
+            cache_collection = self.mongodb_service.get_collection(
+                "livresauteurs_cache"
+            )
+            result = cache_collection.update_one(
+                {"_id": cache_id}, {"$set": {"summary_corrected": True}}
+            )
+            return bool(result.modified_count > 0 or result.matched_count > 0)
+        except Exception as e:
+            print(f"Erreur lors du marquage summary_corrected pour {cache_id}: {e}")
+            return False
+
+    def is_summary_corrected(self, cache_id: ObjectId) -> bool:
+        """
+        Vérifie si le summary a déjà été corrigé pour cette entrée.
+
+        Args:
+            cache_id: ID de l'entrée de cache
+
+        Returns:
+            True si summary_corrected=True, False sinon
+        """
+        try:
+            cache_collection = self.mongodb_service.get_collection(
+                "livresauteurs_cache"
+            )
+            entry = cache_collection.find_one({"_id": cache_id})
+            if entry:
+                return bool(entry.get("summary_corrected", False))
+            return False
+        except Exception as e:
+            print(
+                f"Erreur lors de la vérification summary_corrected pour {cache_id}: {e}"
+            )
+            return False
+
     def get_statistics_from_cache(self) -> dict[str, int]:
         """
         Récupère les statistiques optimisées depuis le cache (système simplifié).

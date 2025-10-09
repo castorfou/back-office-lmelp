@@ -275,6 +275,22 @@ class CollectionsManagementService:
                     cache_id, author_id, book_id
                 )
 
+                # Issue #67: Mise à jour du summary dans avis_critiques
+                avis_critique_id = book_data.get("avis_critique_id")
+                # Vérifier si le summary n'a pas déjà été corrigé (idempotence)
+                if (
+                    avis_critique_id
+                    and not livres_auteurs_cache_service.is_summary_corrected(cache_id)
+                ):
+                    self._update_summary_with_correction(
+                        avis_critique_id=avis_critique_id,
+                        original_author=book_data.get("auteur", ""),
+                        original_title=book_data.get("titre", ""),
+                        corrected_author=author_name,
+                        corrected_title=book_title,
+                        cache_id=cache_id,
+                    )
+
             return {
                 "success": True,
                 "author_id": str(author_id),
@@ -283,6 +299,81 @@ class CollectionsManagementService:
 
         except Exception as e:
             raise Exception(f"Erreur lors de la validation/ajout: {e}") from e
+
+    def _update_summary_with_correction(
+        self,
+        avis_critique_id: str,
+        original_author: str,
+        original_title: str,
+        corrected_author: str,
+        corrected_title: str,
+        cache_id: Any,
+    ) -> None:
+        """
+        Met à jour le summary de l'avis critique avec les données corrigées (Issue #67).
+
+        Args:
+            avis_critique_id: ID de l'avis critique
+            original_author: Auteur original (potentiellement erroné)
+            original_title: Titre original (potentiellement erroné)
+            corrected_author: Auteur corrigé
+            corrected_title: Titre corrigé
+            cache_id: ID de l'entrée dans le cache
+        """
+        from ..services.livres_auteurs_cache_service import (
+            livres_auteurs_cache_service,
+        )
+        from ..utils.summary_updater import (
+            replace_book_in_summary,
+            should_update_summary,
+        )
+
+        try:
+            # Vérifier s'il y a réellement une correction à faire
+            if not should_update_summary(
+                original_author, original_title, corrected_author, corrected_title
+            ):
+                # Pas de changement, marquer quand même comme corrigé pour éviter retraitement
+                livres_auteurs_cache_service.mark_summary_corrected(cache_id)
+                return
+
+            # Récupérer l'avis critique
+            avis_critique = self.mongodb_service.get_avis_critique_by_id(
+                avis_critique_id
+            )
+            if not avis_critique:
+                print(f"⚠️ Avis critique {avis_critique_id} non trouvé")
+                return
+
+            # Sauvegarder summary_origin si première correction
+            updates: dict[str, Any] = {}
+            if "summary_origin" not in avis_critique:
+                updates["summary_origin"] = avis_critique.get("summary", "")
+
+            # Remplacer le livre dans le summary
+            original_summary = avis_critique.get("summary", "")
+            updated_summary = replace_book_in_summary(
+                summary=original_summary,
+                original_author=original_author,
+                original_title=original_title,
+                corrected_author=corrected_author,
+                corrected_title=corrected_title,
+            )
+
+            updates["summary"] = updated_summary
+
+            # Mettre à jour l'avis critique
+            if updates:
+                self.mongodb_service.update_avis_critique(avis_critique_id, updates)
+
+            # Marquer comme corrigé dans le cache
+            livres_auteurs_cache_service.mark_summary_corrected(cache_id)
+
+            print(f"✅ Summary mis à jour pour {corrected_author} - {corrected_title}")
+
+        except Exception as e:
+            print(f"❌ Erreur lors de la mise à jour du summary: {e}")
+            # Ne pas propager l'erreur pour ne pas bloquer la validation
 
     def get_all_authors(self) -> list[dict[str, Any]]:
         """
