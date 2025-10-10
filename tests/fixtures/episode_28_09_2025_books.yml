@@ -1,0 +1,159 @@
+# Données réelles de l'épisode du 28/09/2025
+# Utilisé pour tester la logique du ramasse-miette
+# Note: Le champ summary_corrected a été volontairement omis pour tester la logique
+
+episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+
+books:
+  # Livre 1: Auteur exact, titre avec correction mineure (é)
+  - _id: "68e2c148bf26cd8dd9a0a32a"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Catherine Millet"
+    titre: "Simone Emonet"
+    editeur: "Flammarion"
+    programme: true
+    status: "mongo"
+    suggested_author: "Catherine Millet"
+    suggested_title: "Simone Émonet"
+    author_id: "68e2c1481391489c77ccdecd"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccdece"  # pragma: allowlist secret
+
+  # Livre 2: Auteur et titre avec corrections + validation utilisateur
+  - _id: "68e2c148bf26cd8dd9a0a32b"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Sorge Chalandon"
+    titre: "Le livre de Kels"
+    editeur: "Grasset"
+    programme: true
+    status: "mongo"
+    suggested_author: "Sorj Chalandon"
+    suggested_title: "Le livre de Kells"
+    validated_author: "Sorj Chalandon"
+    validated_title: "Le livre de Kells"
+    validation_status: "validated"
+    author_id: "68e2c3641391489c77ccdedd"  # pragma: allowlist secret
+    book_id: "68e2c3641391489c77ccdede"  # pragma: allowlist secret
+
+  # Livre 3: Aucune correction (auteur et titre identiques)
+  - _id: "68e2c148bf26cd8dd9a0a32c"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Sigrid Nunez"
+    titre: "Les vulnérables"
+    editeur: "Stock"
+    programme: true
+    status: "mongo"
+    suggested_author: "Sigrid Nunez"
+    suggested_title: "Les vulnérables"
+    author_id: "68e2c1481391489c77ccdecf"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccded0"  # pragma: allowlist secret
+
+  # Livre 4: Correction auteur seulement (Rebecca -> Rebeka)
+  - _id: "68e2c148bf26cd8dd9a0a32d"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Rebecca Warrior"
+    titre: "Toutes les vies"
+    editeur: "Stock"
+    programme: true
+    status: "mongo"
+    suggested_author: "Rebeka Warrior"
+    suggested_title: "Toutes les vies"
+    author_id: "68e2c1481391489c77ccded1"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccded2"  # pragma: allowlist secret
+
+  # Livre 5: Aucune correction (auteur et titre identiques)
+  - _id: "68e2c148bf26cd8dd9a0a32e"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Amélie Nothomb"
+    titre: "Tant mieux"
+    editeur: "Albin Michel"
+    programme: true
+    status: "mongo"
+    suggested_author: "Amélie Nothomb"
+    suggested_title: "Tant mieux"
+    author_id: "68e2c1481391489c77ccded3"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccded4"  # pragma: allowlist secret
+
+  # Livre 6: Correction auteur seulement (Sybille -> Sibylle)
+  - _id: "68e2c148bf26cd8dd9a0a32f"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Sybille Grimbert"
+    titre: "Au pays des Pnines"
+    editeur: "Premier Parallèle"
+    programme: false
+    status: "mongo"
+    suggested_author: "Sibylle Grimbert"
+    suggested_title: "Au pays des Pnines"
+    author_id: "68e2c1481391489c77ccded5"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccded6"  # pragma: allowlist secret
+
+  # Livre 7: Titre complété + validation utilisateur
+  - _id: "68e2c148bf26cd8dd9a0a330"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "David Dufresne"
+    titre: "Remember Fessenheim"
+    editeur: "Grasset"
+    programme: false
+    status: "mongo"
+    suggested_author: "David Dufresne"
+    suggested_title: "Remember Fessenheim: Enquête intime sur Françoise ..."
+    validated_author: "David Dufresne"
+    validated_title: "Remember Fessenheim: Enquête intime sur Françoise ..."
+    validation_status: "validated"
+    author_id: "68e2c3171391489c77ccdedb"  # pragma: allowlist secret
+    book_id: "68e2c3171391489c77ccdedc"  # pragma: allowlist secret
+
+  # Livre 8: Auteur et titre avec corrections + validation utilisateur
+  - _id: "68e2c148bf26cd8dd9a0a331"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Carlos Jiménez"
+    titre: "Paracuelos"
+    editeur: "Fluide Glacial"
+    programme: false
+    status: "mongo"
+    suggested_author: "Carlos Gimenez"
+    suggested_title: "Paracuellos, Intégrale"
+    validated_author: "Carlos Gimenez"
+    validated_title: "Paracuellos, Intégrale"
+    validation_status: "validated"
+    author_id: "68e2c3121391489c77ccded9"  # pragma: allowlist secret
+    book_id: "68e2c3121391489c77ccdeda"  # pragma: allowlist secret
+
+  # Livre 9: Auteur et titre avec corrections
+  - _id: "68e2c148bf26cd8dd9a0a332"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Bruno Cabane"
+    titre: "Les fantômes de l'île de Pelléliou"
+    editeur: "Seuil"
+    programme: false
+    status: "mongo"
+    suggested_author: "Bruno Cabanes"
+    suggested_title: "Les Fantômes de l'île de Peleliu"
+    author_id: "68e2c1481391489c77ccded7"  # pragma: allowlist secret
+    book_id: "68e2c1481391489c77ccded8"  # pragma: allowlist secret
+
+  # Livre 10: Auteur et titre avec corrections + validation utilisateur
+  - _id: "68e2c148bf26cd8dd9a0a333"  # pragma: allowlist secret
+    avis_critique_id: "68da1cf0edbcf1765933ab7f"  # pragma: allowlist secret
+    episode_oid: "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
+    auteur: "Valérie Tongkong"
+    titre: "Voltige"
+    editeur: "Livre de poche"
+    programme: false
+    status: "mongo"
+    suggested_author: "Valérie Tong Cuong"
+    suggested_title: "Voltiges"
+    validated_author: "Valérie Tong Cuong"
+    validated_title: "Voltiges"
+    validation_status: "validated"
+    author_id: "68e2c3831391489c77ccdedf"  # pragma: allowlist secret
+    book_id: "68e2c3831391489c77ccdee0"  # pragma: allowlist secret

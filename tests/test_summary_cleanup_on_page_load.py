@@ -62,7 +62,7 @@ class TestSummaryCleanupOnPageLoad:
 
         GIVEN un épisode avec 2 livres status=mongo
         AND 1 livre sans flag summary_corrected
-        AND ce livre a une correction (auteur original != user_validated_author)
+        AND ce livre a une correction (auteur original != suggested_author)
         WHEN on appelle cleanup_uncorrected_summaries_for_episode()
         THEN le summary de l'avis_critique est mis à jour avec l'auteur corrigé
         AND le flag summary_corrected est marqué à true
@@ -88,8 +88,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Alexandre Lamboreau",  # Original (OCR)
                 "titre": "Pâture",
-                "user_validated_author": "Alexandre Lamborot",  # Corrigé
-                "user_validated_title": "Pâture",
+                "suggested_author": "Alexandre Lamborot",  # Corrigé (Phase 0)
+                "suggested_title": "Pâture",
                 "status": "mongo",
                 "summary_corrected": None,  # Pas encore traité
             },
@@ -177,7 +177,7 @@ class TestSummaryCleanupOnPageLoad:
         """
         Test 3: Ignorer les livres sans correction nécessaire.
 
-        GIVEN un livre où auteur == user_validated_author (pas de correction)
+        GIVEN un livre où auteur == suggested_author (pas de correction)
         WHEN on appelle cleanup
         THEN le summary n'est PAS mis à jour
         AND le flag summary_corrected est quand même marqué (pour éviter re-vérif)
@@ -196,8 +196,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Alexandre Lamborot",
                 "titre": "Pâture",
-                "user_validated_author": "Alexandre Lamborot",  # Identique
-                "user_validated_title": "Pâture",  # Identique
+                "suggested_author": "Alexandre Lamborot",  # Identique (Phase 0)
+                "suggested_title": "Pâture",  # Identique
                 "status": "mongo",
                 "summary_corrected": None,
             }
@@ -253,7 +253,7 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Alexandre Lamboreau",
                 "titre": "Pâture",
-                "user_validated_author": "Alexandre Lamborot",
+                "suggested_author": "Alexandre Lamborot",
                 "status": "mongo",
                 "summary_corrected": None,
             }
@@ -303,8 +303,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Lamboreau",
                 "titre": "Pâture",
-                "user_validated_author": "Lamborot",
-                "user_validated_title": "Pâture",
+                "suggested_author": "Lamborot",
+                "suggested_title": "Pâture",
                 "status": "mongo",
             },
             {
@@ -316,8 +316,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Fabcaro",
                 "titre": "Figurec",
-                "user_validated_author": "Fabrice Caro",
-                "user_validated_title": "Figurec",
+                "suggested_author": "Fabrice Caro",
+                "suggested_title": "Figurec",
                 "status": "mongo",
             },
             {
@@ -329,8 +329,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Hinker",
                 "titre": "Crimi",
-                "user_validated_author": "Alex Hinker",
-                "user_validated_title": "Crimi",
+                "suggested_author": "Alex Hinker",
+                "suggested_title": "Crimi",
                 "status": "mongo",
             },
         ]
@@ -391,8 +391,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Lamboreau",
                 "titre": "Pâture",
-                "user_validated_author": "Lamborot",
-                "user_validated_title": "Pâture",
+                "suggested_author": "Lamborot",
+                "suggested_title": "Pâture",
                 "status": "mongo",
             },
             {
@@ -404,8 +404,8 @@ class TestSummaryCleanupOnPageLoad:
                 ),
                 "auteur": "Fabcaro",
                 "titre": "Figurec",
-                "user_validated_author": "Fabrice Caro",
-                "user_validated_title": "Figurec",
+                "suggested_author": "Fabrice Caro",
+                "suggested_title": "Figurec",
                 "status": "mongo",
             },
         ]

@@ -452,13 +452,12 @@ class CollectionsManagementService:
                         stats["already_corrected"] += 1
                         continue
 
-                    # Récupérer les valeurs originales et corrigées
+                    # Récupérer les valeurs originales et corrigées (depuis Phase 0)
                     original_author = book.get("auteur", "")
                     original_title = book.get("titre", "")
-                    corrected_author = book.get(
-                        "user_validated_author", original_author
-                    )
-                    corrected_title = book.get("user_validated_title", original_title)
+                    # Utiliser suggested_* (Phase 0 Babelio), PAS validated_*
+                    corrected_author = book.get("suggested_author", original_author)
+                    corrected_title = book.get("suggested_title", original_title)
 
                     # Skip si pas de correction nécessaire
                     if not should_update_summary(
