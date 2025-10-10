@@ -458,6 +458,13 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
                 )
                 episode_dict["has_cached_books"] = len(cached_books) > 0
 
+                # Ajouter le flag has_incomplete_books pour identifier les épisodes avec livres non validés
+                # (au moins un livre avec status != 'mongo')
+                has_incomplete = any(
+                    book.get("status") != "mongo" for book in cached_books
+                )
+                episode_dict["has_incomplete_books"] = has_incomplete
+
                 episodes_with_reviews.append(episode_dict)
 
         # Trier par date décroissante

@@ -1,6 +1,6 @@
 /**
  * Tests unitaires pour formatEpisodeOption()
- * Vérifie l'ajout du préfixe * pour les épisodes déjà affichés
+ * Vérifie l'affichage des indicateurs visuels pour les épisodes
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -22,12 +22,25 @@ describe('formatEpisodeOption', () => {
     formatEpisodeOption = wrapper.vm.formatEpisodeOption
   })
 
-  it('should add * prefix when episode has_cached_books is true', () => {
-
+  it('should add ⚠️ prefix when episode has incomplete books', () => {
     const episode = {
       date: '2025-01-12',
       titre: 'Les nouvelles pages du polar',
-      has_cached_books: true
+      has_cached_books: true,
+      has_incomplete_books: true
+    }
+
+    const result = formatEpisodeOption(episode)
+
+    expect(result).toBe('⚠️ 12/01/2025 - Les nouvelles pages du polar')
+  })
+
+  it('should add * prefix when episode has cached books but all validated', () => {
+    const episode = {
+      date: '2025-01-12',
+      titre: 'Les nouvelles pages du polar',
+      has_cached_books: true,
+      has_incomplete_books: false
     }
 
     const result = formatEpisodeOption(episode)
@@ -39,7 +52,8 @@ describe('formatEpisodeOption', () => {
     const episode = {
       date: '2025-01-05',
       titre: 'Littérature contemporaine',
-      has_cached_books: false
+      has_cached_books: false,
+      has_incomplete_books: false
     }
 
     const result = formatEpisodeOption(episode)
@@ -64,7 +78,8 @@ describe('formatEpisodeOption', () => {
       date: '2025-01-12',
       titre: 'Titre original',
       titre_corrige: 'Titre corrigé',
-      has_cached_books: true
+      has_cached_books: true,
+      has_incomplete_books: false
     }
 
     const result = formatEpisodeOption(episode)
@@ -72,16 +87,17 @@ describe('formatEpisodeOption', () => {
     expect(result).toBe('* 12/01/2025 - Titre corrigé')
   })
 
-  it('should handle episodes with both titre_corrige and has_cached_books false', () => {
+  it('should prioritize ⚠️ over * when has_incomplete_books is true', () => {
     const episode = {
       date: '2025-01-12',
       titre: 'Titre original',
       titre_corrige: 'Titre corrigé',
-      has_cached_books: false
+      has_cached_books: true,
+      has_incomplete_books: true
     }
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('12/01/2025 - Titre corrigé')
+    expect(result).toBe('⚠️ 12/01/2025 - Titre corrigé')
   })
 })
