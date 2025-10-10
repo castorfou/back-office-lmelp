@@ -171,6 +171,24 @@ class CollectionsManagementService:
             Dictionnaire avec les résultats de la validation/ajout
         """
         try:
+            # Nettoyer les espaces parasites dans tous les champs texte
+            # Ceci évite les problèmes de matching et doublons causés par les copier-coller
+            text_fields = [
+                "auteur",
+                "titre",
+                "editeur",
+                "user_validated_author",
+                "user_validated_title",
+                "user_validated_publisher",
+                "user_entered_author",
+                "user_entered_title",
+                "suggested_author",
+                "suggested_title",
+            ]
+            for field in text_fields:
+                if field in book_data and isinstance(book_data[field], str):
+                    book_data[field] = book_data[field].strip()
+
             # Déterminer le nom de l'auteur en priorité décroissante
             author_name = (
                 book_data.get("user_validated_author")
