@@ -133,9 +133,72 @@ Non, cette fonctionnalité est intégrée au système et s'exécute automatiquem
 
 La correction est **quasi-instantanée** (quelques millisecondes par livre). Vous ne remarquerez aucun ralentissement.
 
+## Nettoyage automatique des espaces
+
+### Correction des espaces parasites
+
+Lors de la saisie ou de la validation des informations bibliographiques, le système supprime automatiquement les espaces en début et fin de champ. Cette fonctionnalité évite les problèmes de doublons et améliore la qualité des données.
+
+**Champs concernés** :
+- Auteur (OCR, suggestions Babelio, saisie manuelle)
+- Titre (OCR, suggestions Babelio, saisie manuelle)
+- Éditeur (OCR, saisie manuelle)
+
+**Exemples de nettoyage** :
+
+| Saisie utilisateur | Valeur enregistrée |
+|--------------------|-------------------|
+| `"  Albert Camus  "` | `"Albert Camus"` |
+| `"L'Étranger "` | `"L'Étranger"` |
+| `" Simone Émonet"` | `"Simone Émonet"` |
+
+**Aucune action requise** : Le nettoyage est totalement transparent et s'applique automatiquement à chaque validation.
+
+---
+
+## Identification visuelle des épisodes traités
+
+### Préfixe `*` dans la liste des épisodes
+
+Dans le sélecteur d'épisodes de la page **Livres & Auteurs**, les épisodes déjà traités sont identifiés par un préfixe `*` :
+
+**Exemple d'affichage** :
+```
+* 12/01/2025 - Les nouvelles pages du polar
+  05/01/2025 - Littérature contemporaine
+* 28/09/2024 - Spécial rentrée littéraire
+```
+
+**Signification** :
+- **`*` présent** : L'épisode a déjà été consulté et contient des livres enregistrés
+- **Pas de `*`** : L'épisode n'a pas encore été traité
+
+**Utilité** :
+- Repérer rapidement les épisodes déjà traités
+- Éviter de retraiter un épisode déjà validé
+- Navigation plus efficace dans l'historique
+
+---
+
+## Actualisation automatique des données
+
+### Rechargement sans Ctrl+F5
+
+En mode développement, l'application désactive automatiquement le cache du navigateur. Vous pouvez recharger la page avec un simple **F5** après un redémarrage du backend ou du frontend.
+
+**Avantages** :
+- Pas besoin de **Ctrl+F5** (vidage de cache forcé)
+- Changements visibles immédiatement après redémarrage des services
+- Expérience de développement plus fluide
+
+**Note** : Cette fonctionnalité est active uniquement en mode développement. En production, le cache fonctionne normalement pour optimiser les performances.
+
+---
+
 ## Références techniques
 
 Pour plus de détails techniques sur le fonctionnement interne, consultez :
 
 - [Documentation développeur - Ramasse-miettes](../dev/summary-garbage-collector.md)
 - [Flux de vérification bibliographique](../dev/biblio-verification-flow.md)
+- [Traitement des données bibliographiques](../dev/bibliographic-data-processing.md)

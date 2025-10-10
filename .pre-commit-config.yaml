@@ -9,6 +9,7 @@ repos:
       - id: trailing-whitespace        # Supprime les espaces en fin de ligne
       - id: end-of-file-fixer         # S'assure qu'il y a une ligne vide en fin de fichier
       - id: check-yaml                # Vérifie la syntaxe YAML
+        exclude: ^mkdocs\.yml$        # Exclure mkdocs.yml (contient des tags Python personnalisés)
       - id: check-toml                # Vérifie la syntaxe TOML
       - id: check-json                # Vérifie la syntaxe JSON
         exclude: ^\.devcontainer/devcontainer\.json$

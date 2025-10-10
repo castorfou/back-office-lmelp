@@ -940,7 +940,8 @@ export default {
     formatEpisodeOption(episode) {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
-      return `${date} - ${title}`;
+      const prefix = episode.has_cached_books ? '* ' : '';
+      return `${prefix}${date} - ${title}`;
     },
 
     setSortOrder(field) {

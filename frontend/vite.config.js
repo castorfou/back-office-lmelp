@@ -54,6 +54,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',  // Écouter sur toutes les interfaces pour l'accès réseau mobile
     port: 5173,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    },
     proxy: {
       '/api': {
         target: getBackendTarget(),

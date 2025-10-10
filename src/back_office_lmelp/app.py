@@ -451,6 +451,13 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
                 if avis_critique:
                     episode_dict["avis_critique_id"] = str(avis_critique["_id"])
 
+                # Ajouter le flag has_cached_books pour indiquer si l'épisode a déjà été affiché
+                # (présence de livres dans livresauteurs_cache)
+                cached_books = livres_auteurs_cache_service.get_books_by_episode_oid(
+                    episode_oid
+                )
+                episode_dict["has_cached_books"] = len(cached_books) > 0
+
                 episodes_with_reviews.append(episode_dict)
 
         # Trier par date décroissante
