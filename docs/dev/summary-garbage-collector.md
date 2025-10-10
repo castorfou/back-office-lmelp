@@ -225,7 +225,5 @@ Si `cleanup_stats["corrected"] > 0`, le nombre de corrections est logué.
 
 ## Références
 
-- [biblio-verification-flow.md](biblio-verification-flow.md) - Flux complet de validation bibliographique
-- [testing-patterns-advanced-mocking.md](testing-patterns-advanced-mocking.md) - Patterns de test avec mocks
-- Code source : [collections_management_service.py:405-497](../../src/back_office_lmelp/services/collections_management_service.py#L405-L497)
-- Tests : [test_garbage_collector_cleanup.py](../../tests/test_garbage_collector_cleanup.py)
+Code source : [collections_management_service.py:405-497](https://github.com/castorfou/back-office-lmelp/blob/main/src/back_office_lmelp/services/collections_management_service.py#L405-L497)
+Tests : [test_garbage_collector_cleanup.py](https://github.com/castorfou/back-office-lmelp/blob/main/tests/test_garbage_collector_cleanup.py)
