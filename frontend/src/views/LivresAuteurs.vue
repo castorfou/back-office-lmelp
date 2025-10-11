@@ -46,6 +46,7 @@
                   v-for="episode in (episodesWithReviews || [])"
                   :key="episode.id"
                   :value="episode.id"
+                  :class="getEpisodeClass(episode)"
                 >
                   {{ formatEpisodeOption(episode) }}
                 </option>
@@ -940,7 +941,26 @@ export default {
     formatEpisodeOption(episode) {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
-      return `${date} - ${title}`;
+
+      // Indicateur visuel pour les épisodes avec livres incomplets (⚠️ = livres à valider)
+      if (episode.has_incomplete_books === true) {
+        return `⚠️ ${date} - ${title}`;
+      }
+
+      // Préfixe * pour les épisodes déjà visualisés (tous validés)
+      const prefix = episode.has_cached_books ? '* ' : '';
+      return `${prefix}${date} - ${title}`;
+    },
+
+    /**
+     * Retourne la classe CSS pour identifier les épisodes incomplets (livres non validés)
+     */
+    getEpisodeClass(episode) {
+      // Épisodes avec livres non validés → couleur orange
+      if (episode.has_incomplete_books === true) {
+        return 'episode-incomplete';
+      }
+      return '';
     },
 
     setSortOrder(field) {
@@ -1052,6 +1072,8 @@ export default {
         // Fermer le modal et recharger les données
         this.closeValidationModal();
         await this.loadBooksForEpisode();
+        // Recharger la liste des épisodes pour mettre à jour le flag has_incomplete_books
+        await this.loadEpisodesWithReviews();
       } catch (error) {
         console.error('❌ Erreur lors de la validation:', error);
         console.error('❌ Réponse du serveur:', error.response?.data);
@@ -1096,6 +1118,8 @@ export default {
         // Fermer le modal et recharger les données
         this.closeManualAddModal();
         await this.loadBooksForEpisode();
+        // Recharger la liste des épisodes pour mettre à jour le flag has_incomplete_books
+        await this.loadEpisodesWithReviews();
       } catch (error) {
         console.error('Erreur lors de l\'ajout manuel:', error);
       }
@@ -2369,5 +2393,11 @@ export default {
 
 .episode-description::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Épisodes avec livres incomplets (non validés) - couleur orange */
+.episode-incomplete {
+  color: #f97316; /* orange-500 */
+  font-weight: 500;
 }
 </style>

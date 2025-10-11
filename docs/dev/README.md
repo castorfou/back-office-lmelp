@@ -180,9 +180,18 @@ npm test -- --coverage  # Avec couverture
 
 ## Ressources
 
+### Architecture et API
 - [Architecture détaillée](architecture.md)
 - [Documentation API](api.md)
-- [Découverte automatique de port](port-discovery.md)
 - [Schéma base de données](database.md)
+- [Flux de vérification bibliographique](biblio-verification-flow.md)
+
+### Développement et Tests
+- [Patterns de mocking avancés](testing-patterns-advanced-mocking.md) ⭐ **Nouveau**
+- [Amélioration de la couverture de tests](test-coverage-improvement.md)
+- [Tests de validation bibliographique](validation-biblio-tests.md)
+
+### Infrastructure
+- [Découverte automatique de port](port-discovery.md)
 - [Guide déploiement](deployment.md)
 - [Sécurité et garde-fous](security.md)

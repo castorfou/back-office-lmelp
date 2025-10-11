@@ -1041,6 +1041,83 @@ _getExtractedBooks(episodeId) {
 
 ---
 
+## Fermeture de la Boucle : Mise à Jour du Summary Original
+
+### Contexte et Problématique
+
+Le workflow de validation bibliographique corrige les erreurs de transcription Whisper présentes dans `avis_critique.summary`, mais ces corrections restaient isolées dans les collections `livres` et `auteurs`. L'application principale lmelp continuait d'afficher les données erronées du summary original.
+
+**Issue #67** implémente la fermeture de cette boucle de correction.
+
+### Workflow de Mise à Jour
+
+Lorsqu'un livre/auteur est validé via le workflow `/livres-auteurs` :
+
+1. **Sauvegarde du summary original** :
+   - Si `summary_origin` n'existe pas encore, copier `summary` → `summary_origin`
+   - Cela préserve la transcription Whisper brute en cas de besoin de rollback
+
+2. **Mise à jour du summary avec données corrigées** :
+   - Remplacer les données erronées dans `summary` par les données validées
+   - Utiliser les données des collections `livres` et `auteurs` (sources de vérité)
+
+3. **Propagation automatique** :
+   - L'application lmelp lit `avis_critique.summary` → affiche les données corrigées
+   - Aucune modification nécessaire dans l'application consommatrice
+
+### Exemple de Transformation
+
+**Avant validation (Issue #67)** :
+```json
+{
+  "_id": "avis123",
+  "episode_oid": "episode456",
+  "summary": "| Alain Mabancou | Ramsès de Paris | Seuil |\n| Adrien Bosque | L'invention de Tristan | Verdier |"
+}
+```
+
+**Après validation de "Alain Mabancou → Alain Mabanckou"** :
+```json
+{
+  "_id": "avis123",
+  "episode_oid": "episode456",
+  "summary": "| Alain Mabanckou | Ramsès de Paris | Seuil |\n| Adrien Bosque | L'invention de Tristan | Verdier |",
+  "summary_origin": "| Alain Mabancou | Ramsès de Paris | Seuil |\n| Adrien Bosque | L'invention de Tristan | Verdier |"
+}
+```
+
+**Après validation de "Adrien Bosque → Adrien Bosc"** :
+```json
+{
+  "_id": "avis123",
+  "episode_oid": "episode456",
+  "summary": "| Alain Mabanckou | Ramsès de Paris | Seuil |\n| Adrien Bosc | L'invention de Tristan | Verdier |",
+  "summary_origin": "| Alain Mabancou | Ramsès de Paris | Seuil |\n| Adrien Bosque | L'invention de Tristan | Verdier |"
+}
+```
+
+### Sécurité et Rollback
+
+- **`summary_origin`** : Préserve toujours la transcription Whisper originale
+- **Idempotence** : `summary_origin` n'est écrit qu'une seule fois (à la première correction)
+- **Rollback possible** : En cas d'erreur, on peut restaurer `summary_origin` → `summary`
+
+### Impact sur le Système
+
+**Bénéfices** :
+- ✅ Les utilisateurs de l'application lmelp voient les données corrigées
+- ✅ Réduction de la dette technique (données cohérentes entre apps)
+- ✅ Backup automatique de la transcription originale
+
+**Collections affectées** :
+- `avis_critiques` : Ajout du champ `summary_origin`, modification de `summary`
+
+**Services impliqués** :
+- Backend : Endpoint `/api/livres-auteurs/validate-suggestion` (mise à jour summary)
+- MongoDB : Service de mise à jour `avis_critiques`
+
+---
+
 ## Debugging et Monitoring
 
 ### Logs de Debug
@@ -1099,6 +1176,7 @@ Pour l'historique détaillé des développements, consulter les issues suivantes
 - Phase 0 - Double appel et correction auteur : Issue #75
 - Filtrage URLs/fragments : Issue #74
 - Phase 0 livres extraits (base) : Issue #68
+- Fermeture de la boucle - Mise à jour summary : Issue #67
 - Collections management : Issue #66
 
 ---

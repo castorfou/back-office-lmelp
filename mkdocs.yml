@@ -55,12 +55,15 @@ nav:
     - Démarrage rapide: user/README.md
     - Gestion des épisodes: user/episodes.md
     - Vérification Babelio: user/babelio-verification.md
+    - Correction automatique résumés: user/automatic-summary-correction.md
     - Résolution de problèmes: user/troubleshooting.md
   - 👨‍💻 Documentation technique:
     - Vue d'ensemble: dev/README.md
     - Architecture: dev/architecture.md
     - API Reference: dev/api.md
     - Validation Bibliographique: dev/biblio-verification-flow.md
+    - Traitement données biblio: dev/bibliographic-data-processing.md
+    - Ramasse-miettes summaries: dev/summary-garbage-collector.md
     - Tests Validation Biblio: dev/validation-biblio-tests.md
     - Base de données: dev/database.md
     - Développement: dev/development.md

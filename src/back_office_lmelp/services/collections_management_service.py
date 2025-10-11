@@ -171,6 +171,24 @@ class CollectionsManagementService:
             Dictionnaire avec les résultats de la validation/ajout
         """
         try:
+            # Nettoyer les espaces parasites dans tous les champs texte
+            # Ceci évite les problèmes de matching et doublons causés par les copier-coller
+            text_fields = [
+                "auteur",
+                "titre",
+                "editeur",
+                "user_validated_author",
+                "user_validated_title",
+                "user_validated_publisher",
+                "user_entered_author",
+                "user_entered_title",
+                "suggested_author",
+                "suggested_title",
+            ]
+            for field in text_fields:
+                if field in book_data and isinstance(book_data[field], str):
+                    book_data[field] = book_data[field].strip()
+
             # Déterminer le nom de l'auteur en priorité décroissante
             author_name = (
                 book_data.get("user_validated_author")
@@ -275,6 +293,22 @@ class CollectionsManagementService:
                     cache_id, author_id, book_id
                 )
 
+                # Issue #67: Mise à jour du summary dans avis_critiques
+                avis_critique_id = book_data.get("avis_critique_id")
+                # Vérifier si le summary n'a pas déjà été corrigé (idempotence)
+                if (
+                    avis_critique_id
+                    and not livres_auteurs_cache_service.is_summary_corrected(cache_id)
+                ):
+                    self._update_summary_with_correction(
+                        avis_critique_id=avis_critique_id,
+                        original_author=book_data.get("auteur", ""),
+                        original_title=book_data.get("titre", ""),
+                        corrected_author=author_name,
+                        corrected_title=book_title,
+                        cache_id=cache_id,
+                    )
+
             return {
                 "success": True,
                 "author_id": str(author_id),
@@ -283,6 +317,82 @@ class CollectionsManagementService:
 
         except Exception as e:
             raise Exception(f"Erreur lors de la validation/ajout: {e}") from e
+
+    def _update_summary_with_correction(
+        self,
+        avis_critique_id: str,
+        original_author: str,
+        original_title: str,
+        corrected_author: str,
+        corrected_title: str,
+        cache_id: Any,
+    ) -> None:
+        """
+        Met à jour le summary de l'avis critique avec les données corrigées (Issue #67).
+
+        Args:
+            avis_critique_id: ID de l'avis critique
+            original_author: Auteur original (potentiellement erroné)
+            original_title: Titre original (potentiellement erroné)
+            corrected_author: Auteur corrigé
+            corrected_title: Titre corrigé
+            cache_id: ID de l'entrée dans le cache
+        """
+        from ..services.livres_auteurs_cache_service import (
+            livres_auteurs_cache_service,
+        )
+        from ..utils.summary_updater import (
+            replace_book_in_summary,
+            should_update_summary,
+        )
+
+        try:
+            # Vérifier s'il y a réellement une correction à faire
+            if not should_update_summary(
+                original_author, original_title, corrected_author, corrected_title
+            ):
+                # Pas de changement, marquer quand même comme corrigé pour éviter retraitement
+                livres_auteurs_cache_service.mark_summary_corrected(cache_id)
+                return
+
+            # Récupérer l'avis critique
+            avis_critique = self.mongodb_service.get_avis_critique_by_id(
+                avis_critique_id
+            )
+            if not avis_critique:
+                print(f"⚠️ Avis critique {avis_critique_id} non trouvé")
+                return
+
+            # Sauvegarder summary_origin si première correction
+            updates: dict[str, Any] = {}
+            if "summary_origin" not in avis_critique:
+                updates["summary_origin"] = avis_critique.get("summary", "")
+
+            # Remplacer le livre dans le summary
+            original_summary = avis_critique.get("summary", "")
+            updated_summary = replace_book_in_summary(
+                summary=original_summary,
+                original_author=original_author,
+                original_title=original_title,
+                corrected_author=corrected_author,
+                corrected_title=corrected_title,
+            )
+
+            updates["summary"] = updated_summary
+
+            # Mettre à jour l'avis critique
+            if updates:
+                self.mongodb_service.update_avis_critique(avis_critique_id, updates)
+
+            # Marquer comme corrigé dans le cache
+            livres_auteurs_cache_service.mark_summary_corrected(cache_id)
+
+            print(f"✅ Summary mis à jour pour {corrected_author} - {corrected_title}")
+
+        except Exception as e:
+            print(f"❌ Erreur lors de la mise à jour du summary: {e}")
+            # Propager l'erreur pour que le cleanup puisse la compter
+            raise
 
     def get_all_authors(self) -> list[dict[str, Any]]:
         """
@@ -309,6 +419,99 @@ class CollectionsManagementService:
             return list(result)
         except Exception as e:
             raise Exception(f"Erreur lors de la récupération des livres: {e}") from e
+
+    def cleanup_uncorrected_summaries_for_episode(
+        self, episode_oid: str
+    ) -> dict[str, int]:
+        """
+        Ramasse-miettes : corrige les summaries des livres mongo non traités.
+
+        Cette méthode est appelée automatiquement lors de l'affichage de la page
+        /livres-auteurs pour un épisode donné. Elle traite progressivement les
+        livres déjà validés (status=mongo) qui n'ont pas encore eu leurs summaries
+        corrigés (summary_corrected != true).
+
+        Args:
+            episode_oid: ID de l'épisode à traiter
+
+        Returns:
+            Statistiques du traitement:
+            - total_books: Nombre total de livres mongo trouvés
+            - already_corrected: Déjà traités (summary_corrected=true)
+            - no_correction_needed: Pas de différence auteur/titre
+            - corrected: Summaries mis à jour
+            - errors: Erreurs rencontrées
+        """
+        from ..services.livres_auteurs_cache_service import (
+            livres_auteurs_cache_service,
+        )
+        from ..utils.summary_updater import should_update_summary
+
+        stats = {
+            "total_books": 0,
+            "already_corrected": 0,
+            "no_correction_needed": 0,
+            "corrected": 0,
+            "errors": 0,
+        }
+
+        try:
+            # 1. Récupérer tous les livres status=mongo pour cet épisode
+            books = livres_auteurs_cache_service.get_books_by_episode_oid(
+                episode_oid, status="mongo"
+            )
+            stats["total_books"] = len(books)
+
+            # 2. Pour chaque livre
+            for book in books:
+                try:
+                    # Skip si déjà traité (idempotence)
+                    if livres_auteurs_cache_service.is_summary_corrected(book["_id"]):
+                        stats["already_corrected"] += 1
+                        continue
+
+                    # Récupérer les valeurs originales et corrigées (depuis Phase 0)
+                    original_author = book.get("auteur", "")
+                    original_title = book.get("titre", "")
+                    # Utiliser suggested_* (Phase 0 Babelio), PAS validated_*
+                    corrected_author = book.get("suggested_author", original_author)
+                    corrected_title = book.get("suggested_title", original_title)
+
+                    # Skip si pas de correction nécessaire
+                    if not should_update_summary(
+                        original_author,
+                        original_title,
+                        corrected_author,
+                        corrected_title,
+                    ):
+                        stats["no_correction_needed"] += 1
+                        # Marquer quand même pour éviter de re-vérifier
+                        livres_auteurs_cache_service.mark_summary_corrected(book["_id"])
+                        continue
+
+                    # 3. Corriger le summary (réutilise le code existant)
+                    avis_critique_id = book.get("avis_critique_id")
+                    if avis_critique_id:
+                        self._update_summary_with_correction(
+                            avis_critique_id=str(avis_critique_id),
+                            original_author=original_author,
+                            original_title=original_title,
+                            corrected_author=corrected_author,
+                            corrected_title=corrected_title,
+                            cache_id=book["_id"],
+                        )
+                        stats["corrected"] += 1
+
+                except Exception as e:
+                    stats["errors"] += 1
+                    print(f"Erreur cleanup pour livre {book.get('_id')}: {e}")
+                    continue
+
+            return stats
+
+        except Exception as e:
+            print(f"Erreur cleanup épisode {episode_oid}: {e}")
+            return stats
 
 
 # Instance globale du service

@@ -370,6 +370,20 @@ async def get_livres_auteurs(
         # Utiliser les données du cache ou initialiser une liste vide
         all_books = cached_books or []
 
+        # Phase 1.5: Ramasse-miettes automatique pour livres mongo non corrigés (Issue #67 - Phase 2)
+        try:
+            cleanup_stats = collections_management_service.cleanup_uncorrected_summaries_for_episode(
+                episode_oid
+            )
+            # Logger les stats pour suivre la progression du cleanup global
+            if cleanup_stats["corrected"] > 0:
+                print(
+                    f"🧹 Cleanup épisode {episode_oid}: {cleanup_stats['corrected']} summaries corrigés"
+                )
+        except Exception as cleanup_error:
+            # Ne pas bloquer l'affichage en cas d'erreur de cleanup
+            print(f"⚠️ Erreur cleanup épisode {episode_oid}: {cleanup_error}")
+
         # Phase 2: Extraction si cache miss global
         if not cached_books:
             try:
@@ -436,6 +450,20 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
                 )
                 if avis_critique:
                     episode_dict["avis_critique_id"] = str(avis_critique["_id"])
+
+                # Ajouter le flag has_cached_books pour indiquer si l'épisode a déjà été affiché
+                # (présence de livres dans livresauteurs_cache)
+                cached_books = livres_auteurs_cache_service.get_books_by_episode_oid(
+                    episode_oid
+                )
+                episode_dict["has_cached_books"] = len(cached_books) > 0
+
+                # Ajouter le flag has_incomplete_books pour identifier les épisodes avec livres non validés
+                # (au moins un livre avec status != 'mongo')
+                has_incomplete = any(
+                    book.get("status") != "mongo" for book in cached_books
+                )
+                episode_dict["has_incomplete_books"] = has_incomplete
 
                 episodes_with_reviews.append(episode_dict)
 

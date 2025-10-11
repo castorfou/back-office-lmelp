@@ -81,6 +81,7 @@ This document describes the significant improvement in backend test coverage ach
 - **Error scenario coverage** for robust error handling
 - **Isolation testing** with proper fixture management
 - **Parameterized testing** for similar test scenarios
+- **Advanced mocking patterns** for services with dependency injection and singletons (see [Advanced Mocking Patterns](testing-patterns-advanced-mocking.md))
 
 ## Compliance with Issue Requirements
 

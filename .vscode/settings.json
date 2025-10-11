@@ -9,5 +9,9 @@
 			"matchCommandLine": true
 		}
 	},
-	"remote.autoForwardPorts": false
+	"remote.autoForwardPorts": false,
+	"chat.emptyState.history.enabled": true,
+	"chat.tools.terminal.terminalProfile.linux": {
+		"path": "/usr/bin/zsh"
+	}
 }
