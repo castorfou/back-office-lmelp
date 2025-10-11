@@ -10,6 +10,11 @@
   - [mettre à jour l'env python](#mettre-à-jour-lenv-python)
   - [mettre à jour l'env nodejs](#mettre-à-jour-lenv-nodejs)
   - [Service Biblio](#service-biblio)
+  - [suppression d'un episode doublon](#suppression-dun-episode-doublon)
+    - [1. Get backend URL automatically](#1-get-backend-url-automatically)
+    - [2. Verify the duplicate episode exists](#2-verify-the-duplicate-episode-exists)
+    - [3. Delete the duplicate episode (June 29, 2025)](#3-delete-the-duplicate-episode-june-29-2025)
+    - [4. Verify it's deleted (should return 404)](#4-verify-its-deleted-should-return-404)
 
 
 # Commands
@@ -220,3 +225,17 @@ curl -X POST "$BACKEND_URL/api/verify-babelio" \
 }
 EOF
 ```
+
+## suppression d'un episode doublon
+
+### 1. Get backend URL automatically
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
+
+### 2. Verify the duplicate episode exists
+curl "$BACKEND_URL/api/episodes/6865f995a1418e3d7c63d076" | jq .titre
+
+### 3. Delete the duplicate episode (June 29, 2025)
+curl -X DELETE "$BACKEND_URL/api/episodes/6865f995a1418e3d7c63d076" | jq
+
+### 4. Verify it's deleted (should return 404)
+curl "$BACKEND_URL/api/episodes/6865f995a1418e3d7c63d076"
