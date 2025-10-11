@@ -233,6 +233,40 @@ async def get_episode(episode_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.delete("/api/episodes/{episode_id}", response_model=dict[str, Any])
+async def delete_episode(episode_id: str) -> dict[str, Any]:
+    """Supprime un épisode et toutes ses données associées.
+
+    Effectue une suppression en cascade :
+    - Supprime les avis critiques liés
+    - Retire les références de l'épisode des livres
+    - Supprime l'épisode lui-même
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Tenter de supprimer l'épisode
+        success = mongodb_service.delete_episode(episode_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Episode not found")
+
+        return {
+            "success": True,
+            "episode_id": episode_id,
+            "message": f"Episode {episode_id} deleted successfully",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 @app.put("/api/episodes/{episode_id}")
 async def update_episode_description(
     episode_id: str, request: Request

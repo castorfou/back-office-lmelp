@@ -247,6 +247,76 @@ titre_corrige = (await request.body()).decode('utf-8')
 
 ---
 
+### DELETE /episodes/{episode_id}
+
+Supprime un épisode et toutes ses données associées.
+
+#### Paramètres
+
+- `episode_id` (string, required) : ID MongoDB de l'épisode
+
+#### Comportement
+
+Cette opération effectue une suppression en cascade :
+1. Supprime tous les avis critiques liés (`avis_critiques.episode_oid`)
+2. Retire les références à l'épisode dans les livres (`livres.episodes`)
+3. Supprime l'épisode lui-même
+
+#### Réponses
+
+**200 OK**
+```json
+{
+  "success": true,
+  "episode_id": "680c97e15a667de306e42042",
+  "message": "Episode 680c97e15a667de306e42042 deleted successfully"
+}
+```
+
+**404 Not Found**
+```json
+{
+  "detail": "Episode not found"
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "detail": "Erreur serveur: message d'erreur"
+}
+```
+
+#### Exemple de requête
+
+```bash
+# Remplacez [PORT] par le port affiché au démarrage du backend
+curl -X DELETE "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"
+```
+
+#### Avertissements
+
+⚠️ **ATTENTION** : Cette opération est irréversible !
+
+- **Faites toujours une sauvegarde** avant de supprimer un épisode
+- Les avis critiques liés seront supprimés définitivement
+- Les références dans les livres seront retirées
+
+#### Exemple d'utilisation avec MongoDB backup
+
+```bash
+# 1. Sauvegarder la base avant suppression
+mongodump --db masque_et_la_plume --out /backup/$(date +%Y-%m-%d)
+
+# 2. Supprimer l'épisode
+curl -X DELETE "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"
+
+# 3. Vérifier la suppression
+curl "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"  # Devrait retourner 404
+```
+
+---
+
 ## Codes d'erreur
 
 | Code | Signification | Description |

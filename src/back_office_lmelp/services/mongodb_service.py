@@ -101,6 +101,66 @@ class MongoDBService:
             print(f"Erreur lors de la récupération de l'épisode {episode_id}: {e}")
             return None
 
+    def delete_episode(self, episode_id: str) -> bool:
+        """Supprime un épisode et toutes ses données associées.
+
+        Effectue les opérations suivantes :
+        1. Supprime les avis critiques liés à l'épisode
+        2. Retire les références à l'épisode des livres
+        3. Supprime l'épisode lui-même
+
+        Args:
+            episode_id: L'ID de l'épisode à supprimer (chaîne ObjectId)
+
+        Returns:
+            True si la suppression a réussi, False si l'épisode n'existe pas
+
+        Raises:
+            Exception: Si la connexion MongoDB n'est pas établie ou si l'ObjectId est invalide
+        """
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Convertir en ObjectId (peut lever bson.errors.InvalidId)
+            episode_oid = ObjectId(episode_id)
+
+            # 1. Supprimer les avis critiques liés (episode_oid est stocké comme string)
+            avis_delete_result = self.avis_critiques_collection.delete_many(
+                {"episode_oid": episode_id}
+            )
+            print(
+                f"Suppression de {avis_delete_result.deleted_count} avis critiques pour l'épisode {episode_id}"
+            )
+
+            # 2. Retirer les références à l'épisode des livres (episodes est un tableau de strings)
+            livres_update_result = self.livres_collection.update_many(
+                {"episodes": episode_id}, {"$pull": {"episodes": episode_id}}
+            )
+            print(
+                f"Mise à jour de {livres_update_result.modified_count} livres pour retirer l'épisode {episode_id}"
+            )
+
+            # 3. Supprimer l'épisode lui-même
+            episode_delete_result = self.episodes_collection.delete_one(
+                {"_id": episode_oid}
+            )
+
+            if episode_delete_result.deleted_count == 0:
+                print(f"Épisode {episode_id} non trouvé")
+                return False
+
+            print(f"Épisode {episode_id} supprimé avec succès")
+            return True
+
+        except Exception as e:
+            print(f"Erreur lors de la suppression de l'épisode {episode_id}: {e}")
+            raise
+
     def update_episode_description(
         self, episode_id: str, description_corrigee: str
     ) -> bool:
