@@ -511,7 +511,70 @@ export class BiblioValidationService {
       }
     }
 
-    // Cas 6: Aucune source ne trouve de match fiable
+    // Cas 6: Phase 2.5 - Recherche par titre seul avec double confirmation (Issue #80)
+    // Active uniquement si toutes les phases précédentes ont échoué
+    const shouldTryPhase25 = (
+      bookValidation?.status === 'not_found' &&
+      authorValidation?.status === 'not_found'
+    );
+
+    if (shouldTryPhase25) {
+      try {
+        // Étape 1 : Recherche Babelio avec titre seul (sans auteur)
+        const titleOnlyResult = await this._verifyBookWithCapture(original.title, null);
+
+        // Vérifier si on a une suggestion d'auteur
+        if (
+          titleOnlyResult &&
+          titleOnlyResult.status !== 'not_found' &&
+          titleOnlyResult.babelio_suggestion_title &&
+          titleOnlyResult.babelio_suggestion_author
+        ) {
+          // Nettoyer le titre suggéré (enlever "..." à la fin)
+          const cleanedTitle = titleOnlyResult.babelio_suggestion_title.replace(/\.\.\.+$/, '').trim();
+
+          // Étape 2 : Confirmation avec auteur suggéré + titre nettoyé
+          const confirmationResult = await this._verifyBookWithCapture(
+            cleanedTitle,
+            titleOnlyResult.babelio_suggestion_author
+          );
+
+          // Vérifier si la confirmation est réussie (confidence >= 0.95)
+          if (
+            confirmationResult &&
+            confirmationResult.confidence_score >= 0.95
+          ) {
+            // ✅ Phase 2.5 réussie - Retourner suggestion confirmée
+            return {
+              status: 'suggestion',
+              data: {
+                original,
+                suggested: {
+                  author: titleOnlyResult.babelio_suggestion_author,
+                  title: titleOnlyResult.babelio_suggestion_title,
+                  publisher: original.publisher
+                },
+                corrections: {
+                  author: true,  // Auteur toujours corrigé en Phase 2.5
+                  title: original.title !== titleOnlyResult.babelio_suggestion_title,
+                  publisher: false
+                },
+                source: 'babelio_title_only_confirmed',
+                confidence_score: confirmationResult.confidence_score,
+                babelio_url: titleOnlyResult.babelio_url || null
+              }
+            };
+          }
+          // ❌ Confirmation échoue (confidence < 0.95) → fallback not_found
+        }
+        // ❌ Pas de suggestion auteur au 1er appel → fallback not_found
+      } catch (error) {
+        // ❌ Erreur Phase 2.5 → fallback not_found
+        console.warn('Phase 2.5 failed:', error);
+      }
+    }
+
+    // Cas 7: Aucune source ne trouve de match fiable
     return {
       status: 'not_found',
       data: {

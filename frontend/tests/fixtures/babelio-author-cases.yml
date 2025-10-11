@@ -535,3 +535,15 @@ cases:
     original: Albin de la Simone
     status: verified
   timestamp: 1759684504871
+- input:
+    name: Anna Assouline
+    type: author
+  output:
+    babelio_data: null
+    babelio_suggestion: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original: Anna Assouline
+    status: not_found
+  timestamp: 1760216052912

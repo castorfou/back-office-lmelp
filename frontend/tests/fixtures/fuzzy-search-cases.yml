@@ -668,3 +668,22 @@ cases:
     - - 📖 https://www.franceinter.fr/emissions/le-masque-et-la-plume?at_campaign=desc_episode&amp;at_medium=lien_RSS
       - 22.033898305084744
   timestamp: 1759684505124
+- input:
+    episode_id: 678cce74a414f229887780cb
+    query_author: Anna Assouline
+    query_title: Des visages et des mains
+  output:
+    authorMatches: []
+    found_suggestions: true
+    titleMatches:
+    - - 📖 48 indices sur la disparition de ma sœur
+      - 43.75
+    - - 📖 Le nom sur le mur
+      - 39.02439024390244
+    - - 📖 Monique s’évade
+      - 35.89743589743589
+    - - 📖 Le couteau
+      - 14.77941176470589
+    - - 📖 Cold case
+      - 8.806818181818176
+  timestamp: 1760216052921

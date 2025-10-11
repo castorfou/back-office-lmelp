@@ -757,3 +757,45 @@ cases:
     original_title: Mes battements
     status: not_found
   timestamp: 1759684505007
+- input:
+    author: Anna Assouline
+    title: Des visages et des mains
+    type: book
+  output:
+    babelio_data: null
+    babelio_suggestion_author: null
+    babelio_suggestion_title: null
+    babelio_url: null
+    confidence_score: 0
+    error_message: null
+    original_author: Anna Assouline
+    original_title: Des visages et des mains
+    status: not_found
+  timestamp: 1760216052907
+- input:
+    author: null
+    title: Des visages et des mains
+    type: book
+  name: Des visages et des mains - title only search (Phase 2.5)
+  output:
+    babelio_data:
+      ca_copies: '6'
+      ca_note: '0.00'
+      couverture: https://m.media-amazon.com/images/I/41Dwg-og35L._SX95_.jpg
+      id_auteur: '696516'
+      id_oeuvre: '1635414'
+      nom: Assouline
+      prenoms: Hannah
+      titre: 'Des visages et des mains: 150 portraits d''écrivain...'
+      tri: '6'
+      type: livres
+      url: /livres/Assouline-Des-visages-et-des-mains-150-portraits-decrivain/1635414
+    babelio_suggestion_author: Hannah Assouline
+    babelio_suggestion_title: 'Des visages et des mains: 150 portraits d''écrivain...'
+    babelio_url: https://www.babelio.com/livres/Assouline-Des-visages-et-des-mains-150-portraits-decrivain/1635414
+    confidence_score: 0.7363636363636363
+    error_message: null
+    original_author: null
+    original_title: Des visages et des mains
+    status: corrected
+  timestamp: 1760216054000

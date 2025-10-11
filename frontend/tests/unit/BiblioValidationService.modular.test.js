@@ -112,10 +112,17 @@ describe('BiblioValidationService Tests', () => {
   }
 
   function findFixtureByBook(title, author) {
-    return babelioBookCases.cases.find(c =>
-      (c.input.title === title || c.input.title?.toLowerCase() === title.toLowerCase()) &&
-      (c.input.author === author || c.input.author?.toLowerCase() === author.toLowerCase())
-    );
+    return babelioBookCases.cases.find(c => {
+      const titleMatch = c.input.title === title || c.input.title?.toLowerCase() === title.toLowerCase();
+
+      // Handle null author (Phase 2.5 - title-only search)
+      if (author === null) {
+        return titleMatch && c.input.author === null;
+      }
+
+      // Handle normal case with author
+      return titleMatch && (c.input.author === author || c.input.author?.toLowerCase() === author?.toLowerCase());
+    });
   }
 
   function findFuzzyFixture(episodeId, author, title) {
@@ -478,6 +485,231 @@ describe('BiblioValidationService Tests', () => {
       expect(result.data.suggested.title).toBe('Rumba Mariachi');
       expect(result.data.corrections.author).toBe(true); // Auteur corrigé
       expect(result.data.corrections.title).toBe(false); // Titre inchangé
+    });
+  });
+
+  describe('🔬 Phase 2.5: Title-only Babelio search with double confirmation (Issue #80)', () => {
+    it('should activate Phase 2.5 when Phase 2 returns not_found - Anna Assouline case', async () => {
+      // ===== SCÉNARIO Issue #80 : Phase 2.5 avec double confirmation =====
+      // Input utilisateur : "Anna Assouline - Des visages et des mains"
+      // Phase 0 : Pas activée (pas de livre extrait)
+      // Phase 1 : Pas activée (pas d'épisode)
+      // Phase 2 : Échec not_found
+      // Phase 2.5 Étape 1 : Recherche titre seul → trouve "Hannah Assouline"
+      // Phase 2.5 Étape 2 : Confirmation avec "Hannah Assouline" → confidence 0.9796
+      // Résultat attendu : suggestion avec source 'babelio_title_only_confirmed'
+
+      const inputAuthor = 'Anna Assouline';
+      const inputTitle = 'Des visages et des mains';
+
+      // Mock: Pas de livre extrait (Phase 0 non activée)
+      mockLivresAuteursService.getLivresAuteurs.mockResolvedValueOnce([]);
+
+      // Mock: Phase 2 - verifyAuthor → not_found
+      const authorFixture = findFixtureByAuthor(inputAuthor);
+      expect(authorFixture).toBeDefined();
+      expect(authorFixture.output.status).toBe('not_found');
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorFixture.output);
+
+      // Mock: Phase 2 - verifyBook avec auteur → not_found
+      const bookWithAuthorFixture = findFixtureByBook(inputTitle, inputAuthor);
+      expect(bookWithAuthorFixture).toBeDefined();
+      expect(bookWithAuthorFixture.output.status).toBe('not_found');
+      mockBabelioService.verifyBook.mockResolvedValueOnce(bookWithAuthorFixture.output);
+
+      // Mock: Phase 2.5 Étape 1 - verifyBook titre seul → trouve Hannah Assouline
+      const bookTitleOnlyFixture = findFixtureByBook(inputTitle, null);
+      expect(bookTitleOnlyFixture).toBeDefined();
+      expect(bookTitleOnlyFixture.output.babelio_suggestion_author).toBe('Hannah Assouline');
+      mockBabelioService.verifyBook.mockResolvedValueOnce(bookTitleOnlyFixture.output);
+
+      // Mock: Phase 2.5 Étape 2 - Confirmation avec Hannah Assouline
+      // Titre nettoyé (sans "...") : "Des visages et des mains: 150 portraits d'écrivain"
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'verified',
+        original_title: "Des visages et des mains: 150 portraits d'écrivain",
+        babelio_suggestion_title: "Des visages et des mains: 150 portraits d'écrivain...",
+        original_author: 'Hannah Assouline',
+        babelio_suggestion_author: 'Hannah Assouline',
+        confidence_score: 0.9796,
+        babelio_data: {
+          id_oeuvre: '1635414',
+          titre: "Des visages et des mains: 150 portraits d'écrivain...",
+          id_auteur: '696516',
+          prenoms: 'Hannah',
+          nom: 'Assouline'
+        }
+      });
+
+      // When: Valider (sans episodeId → pas de Phase 0, pas de Phase 1)
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        null // Pas d'épisode
+      );
+
+      // Then: Vérifier le résultat final Phase 2.5
+      expect(result.status).toBe('suggestion');
+      expect(result.data.source).toBe('babelio_title_only_confirmed');
+      expect(result.data.suggested.author).toBe('Hannah Assouline');
+      expect(result.data.suggested.title).toBeTruthy();
+      expect(result.data.corrections.author).toBe(true); // Auteur corrigé
+      expect(result.data.confidence_score).toBeGreaterThanOrEqual(0.95);
+
+      // Vérifier les appels
+      expect(mockBabelioService.verifyAuthor).toHaveBeenCalledTimes(1);
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(3);
+
+      // 1er appel : Phase 2 avec auteur original
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(1, inputTitle, inputAuthor);
+
+      // 2ème appel : Phase 2.5 Étape 1 - titre seul
+      expect(mockBabelioService.verifyBook).toHaveBeenNthCalledWith(2, inputTitle, null);
+
+      // 3ème appel : Phase 2.5 Étape 2 - confirmation avec auteur suggéré et titre nettoyé
+      const thirdCallArgs = mockBabelioService.verifyBook.mock.calls[2];
+      expect(thirdCallArgs[0]).toMatch(/Des visages et des mains/); // Titre contient le texte de base
+      expect(thirdCallArgs[0]).not.toMatch(/\.\.\.$/); // Titre nettoyé (sans "..." à la fin)
+      expect(thirdCallArgs[1]).toBe('Hannah Assouline');
+
+      console.log(`✓ Phase 2.5: ${inputAuthor} → ${result.data.suggested.author} (confidence: ${result.data.confidence_score})`);
+    });
+
+    it('should NOT activate Phase 2.5 if Phase 2 succeeds', async () => {
+      // ===== SCÉNARIO : Phase 2.5 ne doit PAS s'activer si Phase 2 réussit =====
+      // Phase 2 trouve une suggestion → Phase 2.5 ne doit pas être tentée
+
+      const inputAuthor = 'Emmanuel Carrère';
+      const inputTitle = 'Colcause';
+
+      // Mock: verifyAuthor → verified
+      const authorFixture = findFixtureByAuthor(inputAuthor);
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce(authorFixture.output);
+
+      // Mock: verifyBook avec auteur → corrected (Phase 2 réussit)
+      const bookFixture = findFixtureByBook(inputTitle, inputAuthor);
+      mockBabelioService.verifyBook.mockResolvedValueOnce(bookFixture.output);
+
+      // When: Valider
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        null
+      );
+
+      // Then: Phase 2 a trouvé une suggestion
+      expect(result.status).toBe('suggestion');
+      expect(result.data.source).toBe('babelio');
+
+      // Phase 2.5 NE doit PAS être activée (seulement 1 appel verifyBook)
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fail Phase 2.5 if first call returns no author suggestion', async () => {
+      // ===== SCÉNARIO : Phase 2.5 Étape 1 échoue si pas de babelio_suggestion_author =====
+
+      const inputAuthor = 'Unknown Author';
+      const inputTitle = 'Unknown Book';
+
+      // Mock: verifyAuthor → not_found
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'not_found',
+        original: inputAuthor,
+        babelio_suggestion: null,
+        confidence_score: 0
+      });
+
+      // Mock: Phase 2 - verifyBook avec auteur → not_found
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found',
+        original_title: inputTitle,
+        original_author: inputAuthor,
+        babelio_suggestion_title: null,
+        babelio_suggestion_author: null,
+        confidence_score: 0
+      });
+
+      // Mock: Phase 2.5 Étape 1 - titre seul → pas de suggestion auteur
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found',
+        original_title: inputTitle,
+        original_author: null,
+        babelio_suggestion_title: null,
+        babelio_suggestion_author: null, // ❌ Pas d'auteur suggéré
+        confidence_score: 0
+      });
+
+      // When: Valider
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        null
+      );
+
+      // Then: Phase 2.5 échoue → not_found
+      expect(result.status).toBe('not_found');
+
+      // Seulement 2 appels verifyBook (Phase 2 + Phase 2.5 Étape 1)
+      // Pas de 3ème appel car pas de suggestion auteur
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(2);
+    });
+
+    it('should fail Phase 2.5 if confirmation returns confidence < 0.95', async () => {
+      // ===== SCÉNARIO : Phase 2.5 Étape 2 échoue si confidence < 0.95 =====
+
+      const inputAuthor = 'Test Author';
+      const inputTitle = 'Test Book';
+
+      // Mock: verifyAuthor → not_found
+      mockBabelioService.verifyAuthor.mockResolvedValueOnce({
+        status: 'not_found',
+        original: inputAuthor,
+        babelio_suggestion: null,
+        confidence_score: 0
+      });
+
+      // Mock: Phase 2 - verifyBook → not_found
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'not_found',
+        original_title: inputTitle,
+        original_author: inputAuthor,
+        confidence_score: 0
+      });
+
+      // Mock: Phase 2.5 Étape 1 - titre seul → trouve suggestion
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'corrected',
+        original_title: inputTitle,
+        babelio_suggestion_title: 'Test Book Title',
+        original_author: null,
+        babelio_suggestion_author: 'Suggested Author',
+        confidence_score: 0.7
+      });
+
+      // Mock: Phase 2.5 Étape 2 - confirmation avec confidence trop faible
+      mockBabelioService.verifyBook.mockResolvedValueOnce({
+        status: 'corrected',
+        original_title: 'Test Book Title',
+        babelio_suggestion_title: 'Test Book Title',
+        original_author: 'Suggested Author',
+        babelio_suggestion_author: 'Suggested Author',
+        confidence_score: 0.85 // ❌ < 0.95 requis
+      });
+
+      // When: Valider
+      const result = await biblioValidationService.validateBiblio(
+        inputAuthor,
+        inputTitle,
+        '',
+        null
+      );
+
+      // Then: Phase 2.5 confirmation échoue → not_found
+      expect(result.status).toBe('not_found');
+      expect(mockBabelioService.verifyBook).toHaveBeenCalledTimes(3);
     });
   });
 
