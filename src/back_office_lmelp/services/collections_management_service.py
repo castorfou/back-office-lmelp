@@ -209,8 +209,10 @@ class CollectionsManagementService:
             )
 
             # Déterminer l'éditeur en priorité décroissante
+            # Issue #85: babelio_publisher ajouté entre user_validated et user_entered
             publisher = (
                 book_data.get("user_validated_publisher")
+                or book_data.get("babelio_publisher")  # Nouveau: enrichissement Babelio
                 or book_data.get("user_entered_publisher")
                 or book_data.get("suggested_publisher")
                 or book_data.get("editeur", "")

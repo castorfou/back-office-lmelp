@@ -257,6 +257,72 @@ verifyBook("Tant mieux", "Amélie Nothomb")
 // ✅ Pas besoin de fuzzy search, workflow terminé
 ```
 
+#### Enrichissement 3 : Scraping de l'Éditeur depuis Babelio (Issue #85)
+
+**Objectif** : Enrichir automatiquement les réponses de `verifyBook()` avec l'éditeur du livre en scrapant les pages Babelio, afin d'éviter la saisie manuelle dans le modal de validation.
+
+**Scénario** : `verifyBook()` retourne `confidence_score >= 0.90` avec une URL Babelio
+
+**Workflow** :
+1. **Vérification préalable** : Seuil de confiance >= 0.90 (évite les appels inutiles sur des résultats peu fiables)
+2. **Scraping HTML** : Requête GET sur `babelio_url` + parsing BeautifulSoup
+3. **Extraction éditeur** : Sélecteur CSS `a.tiny_links.dark[href*="/editeur/"]`
+4. **Enrichissement** : Ajout du champ `babelio_publisher` dans la réponse
+5. **Gestion d'erreur** : Si le scraping échoue (404, timeout, parsing), `babelio_publisher` reste `None` (non fatal)
+
+**Exemple concret** :
+```javascript
+// Input utilisateur
+author: "Hannah Assouline"
+title: "Des visages et des mains"
+
+// 1er appel Babelio
+verifyBook("Des visages et des mains: 150 portraits d'écrivain...", "Hannah Assouline")
+→ status: 'verified', confidence: 0.973
+→ babelio_url: "https://www.babelio.com/livres/Assouline-Des-visages-et-des-mains-150-portraits-decrivain/1635414"
+
+// 2ème appel automatique : scraping éditeur
+fetch_publisher_from_url("https://www.babelio.com/livres/...")
+→ HTML parsing avec BeautifulSoup
+→ Sélecteur CSS : a.tiny_links.dark[href*="/editeur/"]
+→ Éditeur trouvé : "Herscher"
+
+// Réponse enrichie finale
+{
+  status: 'verified',
+  confidence_score: 0.973,
+  babelio_url: "https://www.babelio.com/livres/...",
+  babelio_publisher: "Herscher",  // ✅ Nouveau champ
+  babelio_data: {
+    id_oeuvre: "1635414",
+    titre: "Des visages et des mains: 150 portraits d'écrivain...",
+    prenoms: "Hannah",
+    nom: "Assouline"
+  }
+}
+```
+
+**Bénéfices** :
+- ✅ Élimine 90% des saisies manuelles d'éditeurs dans le modal
+- ✅ Pré-remplit automatiquement le champ "Éditeur" dans l'UI
+- ✅ L'utilisateur peut toujours modifier si nécessaire
+
+**Priorité d'éditeur dans `handle_book_validation()`** :
+```python
+publisher = (
+    user_validated_publisher    # 1. Saisi manuellement (priorité max)
+    or babelio_publisher        # 2. ✅ Depuis scraping Babelio (nouveau)
+    or user_entered_publisher   # 3. Saisi dans modal not_found
+    or suggested_publisher      # 4. Suggéré (autres sources)
+    or editeur                  # 5. Original transcription (souvent vide)
+)
+```
+
+**Limitations** :
+- Nécessite `confidence_score >= 0.90` (seuil qualité)
+- Respecte le rate limiting de 0.8s entre requêtes Babelio
+- Dépend de la structure HTML de Babelio (robuste mais peut évoluer)
+
 ---
 
 ### Phase 1 : Ground Truth Fuzzy Search

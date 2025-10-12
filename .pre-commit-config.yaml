@@ -46,6 +46,7 @@ repos:
           - types-python-dateutil     # Types pour dateutil
           - types-requests           # Types pour requests
           - rapidfuzz                 # Fuzzy string matching
+          - types-beautifulsoup4      # Types pour BeautifulSoup (Issue #85)
         args: [--config-file=pyproject.toml]
 
   # Sécurité - Détection de secrets et vulnérabilités
