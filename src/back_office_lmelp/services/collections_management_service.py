@@ -182,8 +182,10 @@ class CollectionsManagementService:
                 "user_validated_publisher",
                 "user_entered_author",
                 "user_entered_title",
+                "user_entered_publisher",
                 "suggested_author",
                 "suggested_title",
+                "suggested_publisher",
             ]
             for field in text_fields:
                 if field in book_data and isinstance(book_data[field], str):
@@ -205,10 +207,19 @@ class CollectionsManagementService:
                 or book_data.get("suggested_title")
                 or book_data["titre"]
             )
+
+            # Déterminer l'éditeur en priorité décroissante
+            publisher = (
+                book_data.get("user_validated_publisher")
+                or book_data.get("user_entered_publisher")
+                or book_data.get("suggested_publisher")
+                or book_data.get("editeur", "")
+            )
+
             book_info = {
                 "titre": book_title,
                 "auteur_id": author_id,
-                "editeur": book_data.get("editeur", ""),
+                "editeur": publisher,
                 "episodes": [book_data["episode_oid"]]
                 if book_data.get("episode_oid")
                 else [],
