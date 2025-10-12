@@ -381,6 +381,193 @@ Les livres/auteurs à valider proviennent de la collection `avis_critique` (cham
 
 ---
 
+### Phase 2.5 : Recherche Babelio par Titre Seul avec Double Confirmation (Issue #80)
+
+**Objectif** : Récupérer des livres perdus après échec de toutes les phases précédentes en cherchant **uniquement par titre** sur Babelio, puis **confirmer avec un 2ème appel**.
+
+**Scénario cible** : Livres marqués `not_found` après Phases 0, 1 et 2 à cause d'une **erreur orthographique sur le nom d'auteur**, alors que le **titre est correct**.
+
+**Activation conditionnelle** :
+- Phase 2.5 ne s'active **que si** :
+  - Phase 0 a échoué (ou n'a pas été activée)
+  - Phase 1 a échoué (ou pas d'épisode)
+  - Phase 2 retourne `not_found`
+- Ne s'active **jamais** si une phase précédente a réussi
+
+**Processus en 2 étapes obligatoires** :
+
+#### Étape 1 : Recherche par Titre Seul
+
+```javascript
+// Appel #1 : Babelio avec titre uniquement (sans auteur)
+POST /api/verify-babelio
+{
+  type: "book",
+  title: "Des visages et des mains",
+  author: null  // ← Auteur omis volontairement
+}
+
+// Réponse Babelio
+{
+  status: "corrected",  // ou "verified"
+  original_title: "Des visages et des mains",
+  babelio_suggestion_title: "Des visages et des mains: 150 portraits d'écrivain...",  // ⚠️ Titre tronqué
+  original_author: null,
+  babelio_suggestion_author: "Hannah Assouline",  // ✅ Auteur découvert
+  confidence_score: 0.736
+}
+```
+
+**Conditions pour passer à l'Étape 2** :
+- `babelio_suggestion_title` existe (non null, non vide)
+- `babelio_suggestion_author` existe (non null, non vide)
+- Sinon → ❌ Échec Phase 2.5, retour `not_found`
+
+#### Étape 2 : Confirmation avec Auteur Découvert
+
+**Problème connu** : Babelio tronque les titres longs avec `...` dans les suggestions. Exemple :
+- Suggestion brute : `"Des visages et des mains: 150 portraits d'écrivain..."`
+- Titre complet réel : `"Des visages et des mains: 150 portraits d'écrivain"`
+
+**Solution** : Nettoyer le titre suggéré avant le 2ème appel :
+
+```javascript
+// Nettoyage du titre suggéré
+let cleanedTitle = babelio_suggestion_title.replace(/\.\.\.+$/, '').trim();
+// "Des visages et des mains: 150 portraits d'écrivain..."
+// → "Des visages et des mains: 150 portraits d'écrivain"
+
+// Appel #2 : Confirmation avec auteur + titre nettoyé
+POST /api/verify-babelio
+{
+  type: "book",
+  title: cleanedTitle,  // Titre sans "..."
+  author: babelio_suggestion_author  // "Hannah Assouline"
+}
+
+// Réponse de confirmation
+{
+  status: "verified",
+  original_title: "Des visages et des mains: 150 portraits d'écrivain",
+  babelio_suggestion_title: "Des visages et des mains: 150 portraits d'écrivain...",
+  original_author: "Hannah Assouline",
+  babelio_suggestion_author: "Hannah Assouline",
+  confidence_score: 0.9796  // ⚠️ Pas toujours 1.0 à cause des variations de titre
+}
+```
+
+**Seuil de confirmation ajusté** :
+- **Minimum requis** : `confidence_score >= 0.95` (au lieu de 1.0)
+- **Raison** : Les variations de titre (troncature, sous-titres, casse) empêchent souvent d'atteindre 1.0
+- **Exemple observé** : 0.9796 pour "Des visages et des mains" (très proche mais pas exact)
+
+**Résultat final si confirmation réussie** :
+```javascript
+{
+  status: 'suggestion',
+  data: {
+    original: {
+      author: "Anna Assouline",
+      title: "Des visages et des mains"
+    },
+    suggested: {
+      author: "Hannah Assouline",  // ✅ Auteur corrigé découvert par Phase 2.5
+      title: "Des visages et des mains: 150 portraits d'écrivain..."  // Titre Babelio (peut inclure sous-titre)
+    },
+    corrections: {
+      author: true,   // Auteur toujours corrigé en Phase 2.5
+      title: false    // Titre souvent inchangé (sauf ajout sous-titre)
+    },
+    source: 'babelio_title_only_confirmed',  // ✅ Traçabilité Phase 2.5
+    confidence_score: 0.9796
+  }
+}
+```
+
+**Résultat si confirmation échoue** (`confidence_score < 0.95`) :
+```javascript
+{
+  status: 'not_found',
+  data: {
+    original: { author: "...", title: "..." },
+    reason: 'phase_2_5_confirmation_failed',  // Nouvelle raison spécifique
+    attempts: ['ground_truth', 'babelio', 'babelio_title_only']
+  }
+}
+```
+
+**Exemple complet - Cas "Anna Assouline"** :
+
+```javascript
+// Input utilisateur (transcription Whisper avec erreur)
+author: "Anna Assouline"  // ❌ Erreur : "Anna" au lieu de "Hannah"
+title: "Des visages et des mains"
+
+// Phase 2 échoue
+verifyBook("Des visages et des mains", "Anna Assouline")
+→ status: 'not_found'
+
+// Phase 2.5 - Étape 1 : Recherche par titre seul
+verifyBook("Des visages et des mains", null)
+→ confidence: 0.736
+→ babelio_suggestion_title: "Des visages et des mains: 150 portraits d'écrivain..."
+→ babelio_suggestion_author: "Hannah Assouline"  // ✅ Auteur découvert !
+
+// Phase 2.5 - Étape 2 : Confirmation avec auteur + titre nettoyé
+cleanedTitle = "Des visages et des mains: 150 portraits d'écrivain"  // "..." supprimé
+verifyBook(cleanedTitle, "Hannah Assouline")
+→ confidence: 0.9796  // ✅ >= 0.95 requis
+→ status: 'verified'
+
+// Résultat final Phase 2.5
+{
+  status: 'suggestion',
+  source: 'babelio_title_only_confirmed',
+  suggested: {
+    author: "Hannah Assouline",
+    title: "Des visages et des mains: 150 portraits d'écrivain..."
+  },
+  confidence_score: 0.9796
+}
+```
+
+**Gestion des homonymes** :
+- Titres communs (ex: "L'Étranger") peuvent matcher plusieurs auteurs au 1er appel
+- Le 2ème appel avec confirmation évite les faux positifs :
+  - Si le livre existe réellement → `confidence >= 0.95`
+  - Si homonyme ou mauvais auteur → `confidence < 0.95` → rejet
+
+**Avantages de la double confirmation** :
+- ✅ Zéro faux positifs : Le 2ème appel élimine les ambiguïtés
+- ✅ Pattern éprouvé : Similaire à Phase 0 enrichie (double appel déjà testé)
+- ✅ Robuste aux homonymes : Titre commun → 1er appel suggère, mais 2ème appel échoue si mauvais auteur
+- ✅ Traçabilité : `source: 'babelio_title_only_confirmed'` identifie clairement Phase 2.5
+
+**Limitations et cas d'échec** :
+- ⚠️ **Titre trop différent** : Si utilisateur tape "Des visages" au lieu de "Des visages et des mains" → échec 1er appel
+- ⚠️ **Titre très commun** : "Le Procès", "L'Étranger" → risque d'homonymes même avec confirmation
+- ⚠️ **Variations de titre** : Sous-titres, éditions différentes peuvent faire échouer la confirmation
+- ⚠️ **Seuil 0.95 ajusté** : Moins strict que 1.0 à cause des troncatures Babelio, mais risque théorique de faux positifs
+
+**Cas réels testés** :
+
+| Input Original | Phase 2 | Phase 2.5 Étape 1 | Phase 2.5 Étape 2 | Résultat Final |
+|----------------|---------|-------------------|-------------------|----------------|
+| Anna Assouline - Des visages et des mains | not_found | Hannah Assouline (0.736) | verified (0.9796) | ✅ suggestion |
+| Alexandre Lamboreau - Pâture | not_found | Alexandre Lamborot (?) | verified (1.0) | ✅ suggestion |
+
+**Code source** :
+- Frontend : `BiblioValidationService.js:_arbitrateResults()` (Cas 6 - ajout Phase 2.5)
+- Backend : Endpoint `/api/verify-babelio` (accepte `author: null` depuis l'origine)
+- Fixtures : `frontend/tests/fixtures/babelio-book-cases.yml` (cas `author: null`)
+
+**Métriques de succès attendues** :
+- Réduction du taux de `not_found` de ~10-15%
+- Taux de précision Phase 2.5 > 95% (validation manuelle)
+- Temps de réponse total < 3s (2 appels API supplémentaires)
+
+---
+
 ### Phase 3 : Validation Babelio du Livre
 
 **Objectif** : Vérifier et corriger le titre du livre, en tenant compte de la suggestion d'auteur.
