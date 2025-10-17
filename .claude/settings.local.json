@@ -26,7 +26,8 @@
       "Bash(/workspaces/back-office-lmelp/.claude/get-backend-info.sh:*)",
       "Bash(/workspaces/back-office-lmelp/.claude/get-frontend-info.sh:*)",
       "Bash(/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh:*)",
-      "mcp__MongoDB__count"
+      "mcp__MongoDB__count",
+      "Bash(mcp__MongoDB__collection-schema:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
