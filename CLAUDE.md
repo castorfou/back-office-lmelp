@@ -215,6 +215,59 @@ pre-commit run --all-files
 - **Progressive typing**: New code should include type hints
 - **Import resolution**: Use proper module imports for type checking
 
+#### CRITICAL: MyPy Type Stubs with Pre-commit
+
+**Problem**: When adding a new Python library that requires type stubs (e.g., `beautifulsoup4`), mypy in pre-commit may fail with `import-not-found` even if the types are installed in your local environment.
+
+**Root Cause**: Pre-commit runs mypy in an **isolated environment** with its own dependencies defined in `.pre-commit-config.yaml`. Installing type stubs via `pyproject.toml` or locally does NOT make them available to pre-commit's mypy.
+
+**❌ WRONG Solution (avoid this)**:
+```python
+# Don't use type: ignore to suppress the error
+from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+```
+
+**✅ CORRECT Solution (always do this)**:
+
+1. Add type stubs to **both** `pyproject.toml` dev dependencies AND `.pre-commit-config.yaml`:
+
+```toml
+# pyproject.toml
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "types-beautifulsoup4",  # ✅ For local mypy runs
+    ...
+]
+```
+
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/pre-commit/mirrors-mypy
+  hooks:
+    - id: mypy
+      additional_dependencies:
+        - types-beautifulsoup4  # ✅ For pre-commit mypy runs
+        ...
+```
+
+2. Reinstall pre-commit hooks to pick up new dependencies:
+```bash
+pre-commit clean
+pre-commit install
+```
+
+**Why this matters**:
+- Maintains type safety without suppressing errors
+- Ensures CI/CD and local environments have same type checking
+- Avoids accumulating `type: ignore` comments that hide real issues
+
+**Example from Issue #85**:
+- Added `beautifulsoup4` for scraping
+- Initial error: `Cannot find implementation or library stub for module named "bs4"`
+- Fixed by adding `types-beautifulsoup4` to both locations
+- Result: Clean type checking in both local and pre-commit environments
+
 #### Pre-commit Hook Enforcement
 The project uses pre-commit hooks that will **automatically block commits** if:
 - Ruff linting fails
