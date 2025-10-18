@@ -871,6 +871,270 @@ def test_with_di():
 
 **Reference**: Issue #67 - Discovered this pattern after 12 failed test attempts with standard mocking approaches. This documentation serves as a critical reference for future test writing when dealing with singleton services.
 
+### Backend Testing - CRITICAL: Creating Mocks from Real API Responses
+
+**🚨 ABSOLUTE RULE 🚨**: When writing backend tests, **NEVER invent mock response structures**. **ALWAYS call the real API first** to capture the actual response format, then create your mocks based on that real structure.
+
+#### Why This is Critical
+
+Invented mocks can perfectly match buggy code, causing tests to pass while real code fails in production. This creates a dangerous false sense of security where your test suite validates incorrect behavior.
+
+**Real Example from Issue #85 - The Bug That Tests Didn't Catch:**
+
+```python
+# ❌ WRONG - Code reads wrong dictionary key
+# File: books_extraction_service.py:329
+confidence = verification.get("confidence", 0) if verification else 0  # ❌ Wrong key!
+
+# ❌ WRONG - Test mock uses invented structure that matches buggy code
+mock_babelio_response = {
+    "confidence": 0.95,  # ❌ Invented key (matches bug!)
+    "babelio_publisher": "Gallimard"
+}
+
+# What happens:
+# - Code reads verification.get("confidence", 0) → Gets 0.95 from mock ✅ Test passes
+# - Real API returns {"confidence_score": 0.95, ...} → Code gets 0 (default) ❌ Real code fails
+# - ALL BOOKS showed confidence: 0.00 in production despite tests passing!
+```
+
+**Real API Response (discovered via manual testing):**
+```json
+{
+  "status": "verified",
+  "original_title": "Paracuellos, Intégrale",
+  "babelio_suggestion_title": "Paracuellos, Intégrale",
+  "original_author": "Carlos Gimenez",
+  "babelio_suggestion_author": "Carlos Gimenez",
+  "confidence_score": 1.0,  // ✅ Real key is "confidence_score" NOT "confidence"
+  "babelio_data": {...},
+  "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+  "babelio_publisher": "Audie-Fluide glacial",
+  "error_message": null
+}
+```
+
+#### The Correct Process - ALWAYS Follow These Steps
+
+**Step 1: Call the Real API**
+
+Before writing any test, manually call the actual API endpoint to see what it really returns:
+
+```bash
+# Example: Testing Babelio verify_book()
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "book", "title": "Paracuellos, Intégrale", "author": "Carlos Gimenez"}' | jq
+
+# Save the EXACT response structure
+```
+
+**Step 2: Capture the Complete Response**
+
+```python
+# Add temporary debug logging to see real responses
+print(f"DEBUG: Real API response: {json.dumps(verification, indent=2)}")
+```
+
+**Step 3: Create Mock Based on Real Structure**
+
+```python
+# ✅ CORRECT - Mock based on real API response
+mock_babelio_response = {
+    "status": "verified",
+    "original_title": "Paracuellos, Intégrale",
+    "babelio_suggestion_title": "Paracuellos, Intégrale",
+    "original_author": "Carlos Gimenez",
+    "babelio_suggestion_author": "Carlos Gimenez",
+    "confidence_score": 0.95,  # ✅ Real key from actual API
+    "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+    "babelio_publisher": "Gallimard",
+    "error_message": None
+}
+
+# Now code that reads confidence_score will work correctly:
+confidence = verification.get("confidence_score", 0)  # ✅ Correct key
+```
+
+**Step 4: Write Code That Works with Real Structure**
+
+```python
+# ✅ Code correctly reads the real API response structure
+async def _enrich_books_with_babelio(self, books: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched_books = []
+
+    for book in books:
+        enriched_book = book.copy()
+        verification = await babelio_service.verify_book(titre, auteur)
+
+        # ✅ CORRECT - Reads real key from API
+        confidence = verification.get("confidence_score", 0) if verification else 0
+
+        if verification and confidence >= 0.90:
+            if verification.get("babelio_url"):
+                enriched_book["babelio_url"] = verification["babelio_url"]
+            if verification.get("babelio_publisher"):
+                enriched_book["babelio_publisher"] = verification["babelio_publisher"]
+
+        enriched_books.append(enriched_book)
+
+    return enriched_books
+```
+
+#### Common Scenarios and How to Handle Them
+
+**Scenario 1: Testing a new service method**
+
+```python
+# ❌ WRONG - Guessing the response structure
+def test_new_feature():
+    mock_service.new_method.return_value = {
+        "result": "success",  # Guessing!
+        "data": {...}  # Making this up!
+    }
+
+# ✅ CORRECT - Call real API first
+# 1. Manually test the endpoint:
+#    curl "$BACKEND_URL/api/new-endpoint" | jq
+# 2. Capture real response
+# 3. Then create test:
+
+def test_new_feature():
+    # Mock based on REAL response seen in step 1
+    mock_service.new_method.return_value = {
+        "status": "success",  # ✅ Real key from API
+        "result": {...},      # ✅ Real structure from API
+        "metadata": {...}     # ✅ Real nested structure
+    }
+```
+
+**Scenario 2: Multiple response variations**
+
+```python
+# ✅ CORRECT - Test with multiple REAL response examples
+
+def test_high_confidence_response():
+    # From real API call with "Paracuellos, Intégrale"
+    mock_response = {
+        "status": "verified",
+        "confidence_score": 1.0,  # Real response
+        "babelio_url": "...",
+        "babelio_publisher": "Audie-Fluide glacial"
+    }
+
+def test_low_confidence_response():
+    # From real API call with partial title
+    mock_response = {
+        "status": "not_found",
+        "confidence_score": 0.45,  # Real response
+        "babelio_url": None,
+        "babelio_publisher": None,
+        "error_message": "No match found"
+    }
+```
+
+**Scenario 3: Error responses**
+
+```python
+# ✅ CORRECT - Trigger real errors to see structure
+
+# 1. Manually trigger error:
+#    curl "$BACKEND_URL/api/endpoint" -d '{"invalid": "data"}'
+# 2. Capture error response structure
+# 3. Mock based on real error:
+
+def test_error_handling():
+    mock_service.method.side_effect = Exception("Network timeout")  # Real error
+    # OR
+    mock_service.method.return_value = {
+        "status": "error",           # Real error structure
+        "error_message": "Timeout",  # Real error message format
+        "error_code": 504            # Real error code
+    }
+```
+
+#### Quick Checklist Before Writing Any Mock
+
+Before creating a mock in your test, verify:
+
+- [ ] Have I called the real API endpoint manually?
+- [ ] Have I captured the complete response structure (use `| jq` or `json.dumps(..., indent=2)`)?
+- [ ] Does my mock include ALL fields from the real response (not just what I think I need)?
+- [ ] Have I tested with multiple real examples (success, partial match, error cases)?
+- [ ] Have I documented where the mock structure came from (comment with curl command)?
+
+#### Documentation Pattern for Mocks
+
+```python
+def test_verify_book_high_confidence():
+    """
+    GIVEN: Book with exact match in Babelio database
+    WHEN: verify_book() is called
+    THEN: Returns confidence_score >= 0.90 with enriched data
+
+    Mock structure based on real API response:
+    curl -X POST "$BACKEND_URL/api/verify-babelio" \
+      -d '{"type": "book", "title": "Paracuellos, Intégrale", "author": "Carlos Gimenez"}'
+
+    Real response captured: 2025-01-15
+    """
+    # ✅ Mock based on documented real API call
+    mock_babelio_response = {
+        "status": "verified",
+        "confidence_score": 1.0,  # Real key from actual API
+        "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+        "babelio_publisher": "Audie-Fluide glacial"
+    }
+```
+
+#### Why This Rule is Non-Negotiable
+
+1. **Prevents Silent Failures**: Tests that validate incorrect behavior are worse than no tests
+2. **Catches Integration Issues**: Real API structure changes won't match invented mocks
+3. **Documents Actual Behavior**: Mocks become living documentation of real API contracts
+4. **Saves Debug Time**: When production fails but tests pass, you know to check mock accuracy
+5. **Enforces TDD Discipline**: Can't write test before seeing real behavior
+
+#### What to Do If You Can't Call the Real API
+
+If the API endpoint doesn't exist yet (pure TDD):
+
+1. **Document the assumption clearly**:
+   ```python
+   # ⚠️ WARNING: Mock structure is ASSUMED, not from real API
+   # TODO: Update mock after first real API call
+   # Expected structure based on similar endpoint X
+   ```
+
+2. **Create ticket to validate mock** after implementation:
+   ```python
+   # TODO(Issue #XX): Validate mock against real API response
+   ```
+
+3. **Mark test as needing validation**:
+   ```python
+   @pytest.mark.needs_real_api_validation
+   def test_new_feature():
+       pass
+   ```
+
+4. **Update immediately** after real API is available
+
+#### Reference
+
+**Issue #85** - Discovered this critical rule the hard way:
+- All enrichment tests passed (5/5) ✅
+- Real enrichment failed 100% (0% success rate) ❌
+- Root cause: Mocks used `"confidence"` key, real API uses `"confidence_score"`
+- Impact: ALL books showed confidence 0.00 in production
+- Lesson: **NEVER invent mock structures, ALWAYS call real APIs first**
+
+**User's exact words:**
+> "là je ne suis pas d'accord avec l'approche. il faut ABSOLUMENT appeler les APIs pour creer les mocks"
+
+This rule is now a **non-negotiable requirement** for all backend testing in this project.
+
 ### Backend Testing - Writing Proper TDD Tests with Mocks
 
 **CRITICAL**: When writing backend tests, ALWAYS use mocks for external dependencies (MongoDB, APIs, services). NEVER use real database connections or external API calls in unit tests.

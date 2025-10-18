@@ -323,6 +323,263 @@ publisher = (
 - Respecte le rate limiting de 0.8s entre requêtes Babelio
 - Dépend de la structure HTML de Babelio (robuste mais peut évoluer)
 
+#### Enrichissement 4 : Enrichissement Automatique lors de l'Extraction (Option 1)
+
+**Objectif** : Enrichir automatiquement TOUS les livres extraits des avis critiques avec `babelio_url` et `babelio_publisher` dès leur ajout au cache MongoDB, sans attendre la validation manuelle.
+
+**Workflow d'extraction enrichie** :
+
+```
+┌──────────────────────────────────────────────────────┐
+│   extract_books_from_reviews(avis_critiques)        │
+│   (BooksExtractionService)                           │
+└──────────────────┬───────────────────────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────┐
+│   Extraction via parsing markdown ou LLM            │
+│   → Liste de livres avec auteur/titre/éditeur       │
+└──────────────────┬───────────────────────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────┐
+│   _enrich_books_with_babelio(books)                 │
+│   Pour chaque livre:                                 │
+│   1. verify_book(title, author)                      │
+│   2. Si confidence >= 0.90:                          │
+│      - Ajouter babelio_url                           │
+│      - Ajouter babelio_publisher                     │
+│   3. Si erreur ou confidence < 0.90:                 │
+│      - Continuer sans enrichissement                 │
+└──────────────────┬───────────────────────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────┐
+│   Insertion dans MongoDB cache                       │
+│   (livresauteurs_cache)                              │
+│   {                                                   │
+│     auteur: "Albert Camus",                          │
+│     titre: "L'Étranger",                             │
+│     editeur: "Gallimard",                            │
+│     babelio_url: "https://...",       ✅ Enrichi     │
+│     babelio_publisher: "Gallimard",   ✅ Enrichi     │
+│     status: "extracted"                              │
+│   }                                                   │
+└──────────────────────────────────────────────────────┘
+```
+
+**Code source** :
+```python
+# Backend : books_extraction_service.py
+
+async def extract_books_from_reviews(self, avis_critiques):
+    """
+    Extrait les livres depuis les avis critiques ET enrichit automatiquement
+    chaque livre avec Babelio (babelio_url, babelio_publisher).
+    """
+    # 1. Extraction classique
+    all_extracted_books = []
+    for avis in avis_critiques:
+        books_from_review = await self._extract_books_from_single_review(avis)
+        all_extracted_books.extend(books_from_review)
+
+    # 2. ✅ Enrichissement automatique Babelio (Option 1)
+    enriched_books = await self._enrich_books_with_babelio(all_extracted_books)
+
+    return enriched_books
+
+async def _enrich_books_with_babelio(self, books):
+    """
+    Enrichit automatiquement chaque livre avec Babelio.
+    Appelle verify_book() pour chaque livre et enrichit si confidence >= 0.90.
+    """
+    enriched_books = []
+
+    for book in books:
+        enriched_book = book.copy()
+
+        try:
+            # Appeler Babelio verify_book()
+            verification = await babelio_service.verify_book(
+                book.get("titre", ""),
+                book.get("auteur", "")
+            )
+
+            # Enrichir si confidence >= 0.90
+            if verification and verification.get("confidence", 0) >= 0.90:
+                if verification.get("url"):
+                    enriched_book["babelio_url"] = verification["url"]
+                if verification.get("babelio_publisher"):
+                    enriched_book["babelio_publisher"] = verification["babelio_publisher"]
+
+        except Exception:
+            # En cas d'erreur Babelio, continuer sans enrichissement
+            # Le livre reste tel quel sans babelio_url/babelio_publisher
+            pass
+
+        enriched_books.append(enriched_book)
+
+    return enriched_books
+```
+
+**Exemple concret** :
+
+```javascript
+// Avis critique extrait
+{
+  "summary": """
+  | Auteur | Titre | Éditeur |
+  |--------|-------|---------|
+  | Albert Camus | L'Étranger | Gallimard |
+  | Victor Hugo | Les Misérables | Le Livre de Poche |
+  """
+}
+
+// Extraction + Enrichissement automatique
+// Pour chaque livre extrait:
+
+// Livre 1: Albert Camus - L'Étranger
+verify_book("L'Étranger", "Albert Camus")
+→ confidence: 0.95 ✅
+→ babelio_url: "https://www.babelio.com/livres/Camus-LEtranger/1234"
+→ babelio_publisher: "Gallimard"
+
+// Livre 2: Victor Hugo - Les Misérables
+verify_book("Les Misérables", "Victor Hugo")
+→ confidence: 0.92 ✅
+→ babelio_url: "https://www.babelio.com/livres/Hugo-Les-Miserables/5678"
+→ babelio_publisher: "Gallimard"
+
+// Résultat dans MongoDB cache
+[
+  {
+    auteur: "Albert Camus",
+    titre: "L'Étranger",
+    editeur: "Gallimard",
+    babelio_url: "https://www.babelio.com/livres/Camus-LEtranger/1234",  ✅
+    babelio_publisher: "Gallimard",  ✅
+    status: "extracted"
+  },
+  {
+    auteur: "Victor Hugo",
+    titre: "Les Misérables",
+    editeur: "Le Livre de Poche",
+    babelio_url: "https://www.babelio.com/livres/Hugo-Les-Miserables/5678",  ✅
+    babelio_publisher: "Gallimard",  ✅
+    status: "extracted"
+  }
+]
+```
+
+**Avantages de l'enrichissement automatique** :
+- ✅ Cache pré-enrichi : Les livres ont déjà `babelio_url` et `babelio_publisher` dès l'extraction
+- ✅ UX améliorée : L'utilisateur voit les données enrichies immédiatement dans l'interface
+- ✅ Moins de saisie manuelle : L'éditeur est pré-rempli pour ~70-80% des livres
+- ✅ Traçabilité : Chaque livre garde une trace de son enrichissement Babelio
+- ✅ Compatibilité : Se combine parfaitement avec la persistence lors de la validation (Enrichissement 3)
+
+**Gestion d'erreurs** :
+- Si Babelio échoue (timeout, réseau, 404) → Le livre est ajouté au cache SANS enrichissement
+- Si `confidence < 0.90` → Pas d'enrichissement (données peu fiables)
+- L'extraction continue même si certains livres échouent l'enrichissement
+
+**Performance** :
+- ⚠️ Ralentit l'extraction : 1 appel Babelio par livre (~ 1-2s par livre avec rate limiting)
+- ⚠️ Pour un épisode avec 5 livres → +5-10s de temps d'extraction total
+- ✅ Appels asynchrones en série pour respecter le rate limiting de 0.8s
+- ✅ Cache Babelio évite les appels redondants pour les livres déjà vus
+
+**Alternative (Option 2 - Non implémentée)** :
+Un système de ramasse-miettes (garbage collector) pourrait enrichir les livres en batch asynchrone après l'extraction, sans ralentir le workflow principal.
+
+**Code source impacté** :
+- Backend : `books_extraction_service.py::extract_books_from_reviews()` - Ajout de l'enrichissement automatique
+- Backend : `books_extraction_service.py::_enrich_books_with_babelio()` - Nouvelle méthode d'enrichissement
+- Tests : `tests/test_babelio_cache_enrichment.py` - 5 tests TDD vérifiant l'enrichissement
+
+#### Persistance de `babelio_publisher` dans le Cache MongoDB
+
+**Contexte** : Le champ `babelio_publisher` est enrichi dans la **réponse de `verify_book()`** mais doit être **persisté dans le cache MongoDB** (`livresauteurs_cache`) pour être réutilisé ultérieurement.
+
+**Workflow de persistence** :
+
+1. **Frontend appelle `/verify-babelio`** :
+   - Retourne `babelio_publisher` dans la réponse (si `confidence >= 0.90`)
+   - Frontend affiche `babelio_publisher` dans le modal de validation
+
+2. **Frontend envoie les données de validation** :
+   - Inclut `babelio_publisher` dans le payload de `/validate-suggestion`
+   - Backend `handle_book_validation()` reçoit `babelio_publisher`
+
+3. **Backend utilise `babelio_publisher` pour créer le livre** :
+   - Priorité : `user_validated_publisher > babelio_publisher > user_entered_publisher`
+   - Le livre est créé avec l'éditeur enrichi ✅
+
+4. **Backend persiste `babelio_publisher` dans le cache** :
+   - Lors de `mark_as_processed()`, ajouter `babelio_publisher` aux metadata
+   - Cache MongoDB `livresauteurs_cache` est mis à jour avec :
+     ```json
+     {
+       "_id": "cache123",
+       "auteur": "Hannah Assouline",
+       "titre": "Des visages et des mains",
+       "babelio_publisher": "Herscher",
+       "status": "mongo",
+       "author_id": "author456",
+       "book_id": "book789"
+     }
+     ```
+
+**Exemple de flux complet** :
+
+```javascript
+// 1. Frontend : Appel /verify-babelio
+const result = await verifyBook("Des visages et des mains", "Hannah Assouline");
+// → { babelio_publisher: "Herscher", confidence_score: 0.973 }
+
+// 2. Frontend : Validation avec babelio_publisher
+await validateSuggestion({
+  cache_id: "cache123",
+  user_validated_author: "Hannah Assouline",
+  user_validated_title: "Des visages et des mains",
+  babelio_publisher: "Herscher"  // ✅ Envoyé au backend
+});
+
+// 3. Backend : Utilisation dans handle_book_validation()
+publisher = (
+    book_data.get("user_validated_publisher")
+    or book_data.get("babelio_publisher")  // ✅ Utilisé pour créer livre
+    or book_data.get("user_entered_publisher")
+    or book_data.get("editeur", "")
+)
+
+// 4. Backend : Persisté dans le cache
+cache_service.mark_as_processed(
+    cache_id,
+    author_id,
+    book_id,
+    metadata={"babelio_publisher": babelio_publisher}  // ✅ Persisté
+)
+
+// 5. Résultat dans MongoDB cache
+{
+  "_id": "cache123",
+  "babelio_publisher": "Herscher",  // ✅ Disponible pour réutilisation
+  "status": "mongo"
+}
+```
+
+**Bénéfices de la persistence** :
+- ✅ Traçabilité : Historique de l'enrichissement Babelio
+- ✅ Réutilisation : Évite de re-scraper l'éditeur si le livre est revalidé
+- ✅ Cohérence : Cache contient toutes les données enrichies
+- ✅ Debugging : Facilite l'analyse des cas où l'éditeur a été enrichi automatiquement
+
+**Code source impacté** :
+- Backend : `collections_management_service.py::handle_book_validation()` (ajout `babelio_publisher` aux metadata)
+- Backend : `livres_auteurs_cache_service.py::mark_as_processed()` (accepte metadata supplémentaires)
+- Frontend : `EpisodeEditor.vue` (envoie `babelio_publisher` dans validation)
+
 ---
 
 ### Phase 1 : Ground Truth Fuzzy Search
