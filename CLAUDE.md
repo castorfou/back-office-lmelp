@@ -1741,8 +1741,11 @@ BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) &
 curl "$BACKEND_URL/"
 
 # ✅ Test API avec query string (testé et validé)
+# ⚠️ Copie-colle exactement les lignes suivantes : aucun `\` devant `$`, aucun espace entre `$` et `(`
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
 curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq
+
+> ⚠️ **Important** : l'assignation doit être écrite exactement `BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)` sans espace entre `$` et `(` et sans échapper le `$`. La forme `BACKEND_URL=\$ (` produit l'erreur `syntax error near unexpected token '('` et laisse `curl` appeler `/api/...` sans hôte.
 
 # ✅ Validation d'endpoint avec données POST
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
@@ -1763,8 +1766,9 @@ curl -s "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/
 ### Pattern 2-étapes (si chaînage pose problème)
 ```bash
 # ✅ Fallback : Séparer en deux étapes
+# ⚠️ Aucune modification : pas de `\$`, pas d'espace avant `(`
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
-curl "$BACKEND_URL/api/endpoint"
+curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq '.[0]'
 ```
 
 ### ⚠️ Note Importante sur l'Échappement
