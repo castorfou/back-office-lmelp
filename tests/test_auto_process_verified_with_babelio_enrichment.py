@@ -40,9 +40,7 @@ def test_auto_process_enriched_books_updates_editeur():
     book_id = ObjectId(
         "68e47439f4ac0655e1de7d6f"  # pragma: allowlist secret
     )
-    episode_oid = (
-        "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
-    )
+    episode_oid = "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
     avis_critique_id = ObjectId(
         "68bddf38d79eae6a485abdaf"  # pragma: allowlist secret
     )
