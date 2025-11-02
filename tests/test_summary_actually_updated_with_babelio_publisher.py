@@ -49,8 +49,8 @@ class TestSummaryUpdatedWithBabelioPublisherInMongoDB:
         # Mock du MongoDB
         mock_mongodb = Mock()
         mock_mongodb.get_avis_critique_by_id.return_value = {
-            "_id": "507f1f77bcf86cd799439012",
-            "episode_oid": "68bd9ed3582cf994fb66f1d6",
+            "_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "episode_oid": "68bd9ed3582cf994fb66f1d6",  # pragma: allowlist secret
             "summary": original_summary,
         }
         mock_mongodb.create_author_if_not_exists.return_value = ObjectId()
@@ -62,9 +62,9 @@ class TestSummaryUpdatedWithBabelioPublisherInMongoDB:
 
         # Book data avec babelio_publisher enrichi
         book_data = {
-            "cache_id": "507f1f77bcf86cd799439011",
-            "avis_critique_id": "507f1f77bcf86cd799439012",
-            "episode_oid": "68bd9ed3582cf994fb66f1d6",
+            "cache_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "episode_oid": "68bd9ed3582cf994fb66f1d6",  # pragma: allowlist secret
             "auteur": "Emmanuel Carrère",
             "titre": "Kolkhoze",
             "editeur": "POL",  # Original du markdown
@@ -120,7 +120,9 @@ class TestSummaryUpdatedWithBabelioPublisherInMongoDB:
                     "\n❌ CRITICAL FAIL: Le summary n'a pas été mis à jour avec 'P.O.L.'!"
                 )
                 print(f"Summary reçu:\n{updated_summary}\n")
-                raise AssertionError("Le summary n'a pas été mis à jour avec l'éditeur enrichi")
+                raise AssertionError(
+                    "Le summary n'a pas été mis à jour avec l'éditeur enrichi"
+                )
 
             if "| POL |" in updated_summary:
                 print(

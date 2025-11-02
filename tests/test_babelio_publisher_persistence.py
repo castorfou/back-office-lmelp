@@ -34,10 +34,10 @@ def create_mocked_service():
     # Mock mongodb_service directement sur l'instance
     mock_mongodb = Mock()
     mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
-        "507f1f77bcf86cd799439014"
+        "507f1f77bcf86cd799439014"  # pragma: allowlist secret
     )
     mock_mongodb.create_book_if_not_exists.return_value = ObjectId(
-        "507f1f77bcf86cd799439015"
+        "507f1f77bcf86cd799439015"  # pragma: allowlist secret
     )
     mock_mongodb.update_book_validation.return_value = None
     mock_mongodb.update_avis_critique = Mock(return_value=True)
@@ -94,9 +94,9 @@ class TestBabelioPublisherPersistence:
         service = create_mocked_service()
 
         book_data = {
-            "cache_id": "507f1f77bcf86cd799439016",
-            "avis_critique_id": "507f1f77bcf86cd799439017",
-            "episode_oid": "507f1f77bcf86cd799439018",
+            "cache_id": "507f1f77bcf86cd799439016",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439017",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439018",  # pragma: allowlist secret
             "auteur": "Hannah Assouline",
             "titre": "Des visages et des mains",
             "editeur": "",  # Éditeur vide (transcription Whisper)
@@ -121,9 +121,15 @@ class TestBabelioPublisherPersistence:
             call_args = mock_mark_processed.call_args
 
             # Vérifier les arguments positionnels (cache_id, author_id, book_id)
-            assert call_args[0][0] == ObjectId("507f1f77bcf86cd799439016")  # cache_id
-            assert call_args[0][1] == ObjectId("507f1f77bcf86cd799439014")  # author_id
-            assert call_args[0][2] == ObjectId("507f1f77bcf86cd799439015")  # book_id
+            assert call_args[0][0] == ObjectId(  # pragma: allowlist secret
+                "507f1f77bcf86cd799439016"  # pragma: allowlist secret
+            )
+            assert call_args[0][1] == ObjectId(  # pragma: allowlist secret
+                "507f1f77bcf86cd799439014"  # pragma: allowlist secret
+            )
+            assert call_args[0][2] == ObjectId(  # pragma: allowlist secret
+                "507f1f77bcf86cd799439015"  # pragma: allowlist secret
+            )
 
             # ✅ VÉRIFIER QUE babelio_publisher est dans les metadata
             metadata = call_args[1].get("metadata", {})
@@ -141,9 +147,9 @@ class TestBabelioPublisherPersistence:
         service = create_mocked_service()
 
         book_data = {
-            "cache_id": "507f1f77bcf86cd799439016",
-            "avis_critique_id": "507f1f77bcf86cd799439017",
-            "episode_oid": "507f1f77bcf86cd799439018",
+            "cache_id": "507f1f77bcf86cd799439016",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439017",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439018",  # pragma: allowlist secret
             "auteur": "Hannah Assouline",
             "titre": "Des visages et des mains",
             "editeur": "",  # Éditeur vide
@@ -173,9 +179,9 @@ class TestBabelioPublisherPersistence:
         service = create_mocked_service()
 
         book_data = {
-            "cache_id": "507f1f77bcf86cd799439016",
-            "avis_critique_id": "507f1f77bcf86cd799439017",
-            "episode_oid": "507f1f77bcf86cd799439018",
+            "cache_id": "507f1f77bcf86cd799439016",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439017",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439018",  # pragma: allowlist secret
             "auteur": "Auteur Inconnu",
             "titre": "Titre vague",
             "editeur": "",
@@ -210,9 +216,9 @@ class TestBabelioPublisherPersistence:
         service = create_mocked_service()
 
         book_data = {
-            "cache_id": "507f1f77bcf86cd799439016",
-            "avis_critique_id": "507f1f77bcf86cd799439017",
-            "episode_oid": "507f1f77bcf86cd799439018",
+            "cache_id": "507f1f77bcf86cd799439016",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439017",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439018",  # pragma: allowlist secret
             "auteur": "Hannah Assouline",
             "titre": "Des visages et des mains",
             "editeur": "",

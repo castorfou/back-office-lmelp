@@ -92,12 +92,12 @@ class TestValidateSuggestionWithBabelioPublisher:
         """
         # Arrange
         cache_id = ObjectId("507f1f77bcf86cd799439011")  # pragma: allowlist secret
-        avis_critique_id = ObjectId(
-            "507f1f77bcf86cd799439012"
-        )  # pragma: allowlist secret
+        avis_critique_id = ObjectId(  # pragma: allowlist secret
+            "507f1f77bcf86cd799439012"  # pragma: allowlist secret
+        )
 
         validation_request = {
-            "cache_id": str(cache_id),
+            "cache_id": str(cache_id),  # pragma: allowlist secret
             "episode_oid": "68c707ad6e51b9428ab87e9e",  # pragma: allowlist secret
             "avis_critique_id": str(avis_critique_id),
             "auteur": "Emmanuel Carrère",

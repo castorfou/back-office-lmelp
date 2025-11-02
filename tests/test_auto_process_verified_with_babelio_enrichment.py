@@ -140,9 +140,9 @@ def test_auto_process_no_update_when_editeur_same():
     aucune mise à jour n'est faite (optimization).
     """
 
-    author_id = ObjectId("68e47439f4ac0655e1de7d6e")
-    book_id = ObjectId("68e47439f4ac0655e1de7d6f")
-    episode_oid = "68bd9ed3582cf994fb66f1d6"
+    author_id = ObjectId("68e47439f4ac0655e1de7d6e")  # pragma: allowlist secret
+    book_id = ObjectId("68e47439f4ac0655e1de7d6f")  # pragma: allowlist secret
+    episode_oid = "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
 
     cache_book = {
         "episode_oid": episode_oid,

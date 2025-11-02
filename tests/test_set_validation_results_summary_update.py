@@ -36,7 +36,7 @@ def test_red_set_validation_results_should_update_summary_with_babelio_publisher
 
     # Arrange
     avis_critique_id = str(ObjectId())
-    episode_oid = "68bd9ed3582cf994fb66f1d6"
+    episode_oid = "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
 
     original_summary = """## LIVRES
 | Emmanuel Carrère | Kolkhoze | POL |

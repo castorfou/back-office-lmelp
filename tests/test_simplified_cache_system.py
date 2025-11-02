@@ -180,9 +180,9 @@ class TestSimplifiedCacheSystem:
         WHEN: create_cache_entry() est appelé sans babelio_url ni babelio_publisher
         THEN: Ces champs ne sont PAS dans le document MongoDB (avantage NoSQL)
         """
-        avis_critique_id = ObjectId(
-            "68c718a16e51b9428ab88066"
-        )  # pragma: allowlist secret
+        avis_critique_id = ObjectId(  # pragma: allowlist secret
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )
         book_data = {
             "episode_oid": "68c707ad6e51b9428ab87e9e",  # pragma: allowlist secret
             "auteur": "Auteur Inconnu",
