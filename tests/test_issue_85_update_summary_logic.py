@@ -115,4 +115,6 @@ def test_red_update_summary_with_correction_called_with_babelio_publisher():
             print("   Summary update was SKIPPED!")
             print("\n   This is the BUG!")
             print("   The condition prevents the call when is_summary_corrected=True")
-            raise AssertionError("Summary update was skipped - Babelio enrichment ignored")
+            raise AssertionError(
+                "Summary update was skipped - Babelio enrichment ignored"
+            )
