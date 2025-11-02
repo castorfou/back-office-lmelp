@@ -113,7 +113,7 @@ class TestValidateSuggestionWithBabelioPublisher:
             patch(
                 "back_office_lmelp.app.collections_management_service"
             ) as mock_service,
-            patch("back_office_lmelp.app.livres_auteurs_cache_service") as mock_cache,
+            patch("back_office_lmelp.app.livres_auteurs_cache_service"),
         ):
             # Mock du service pour capturer les appels
             mock_service.handle_book_validation.return_value = {

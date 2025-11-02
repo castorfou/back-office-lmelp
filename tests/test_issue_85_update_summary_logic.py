@@ -107,7 +107,7 @@ def test_red_update_summary_with_correction_called_with_babelio_publisher():
                 else:
                     print("❌ RED: Summary does NOT contain 'P.O.L.'")
                     print("❌ Enrichment was NOT applied")
-                    assert False, "Babelio enrichment not in summary"
+                    raise AssertionError("Babelio enrichment not in summary")
             else:
                 print(f"❌ summary not in updates: {list(updates.keys())}")
         else:
@@ -115,4 +115,4 @@ def test_red_update_summary_with_correction_called_with_babelio_publisher():
             print("   Summary update was SKIPPED!")
             print("\n   This is the BUG!")
             print("   The condition prevents the call when is_summary_corrected=True")
-            assert False, "Summary update was skipped - Babelio enrichment ignored"
+            raise AssertionError("Summary update was skipped - Babelio enrichment ignored")

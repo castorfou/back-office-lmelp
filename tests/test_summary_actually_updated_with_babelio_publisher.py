@@ -82,7 +82,7 @@ class TestSummaryUpdatedWithBabelioPublisherInMongoDB:
             mock_cache.mark_summary_corrected.return_value = True
 
             # Act: Appeler le service de validation
-            result = service.handle_book_validation(book_data)
+            service.handle_book_validation(book_data)
 
             # Assert: Vérifier que update_avis_critique a été appelé
             assert mock_mongodb.update_avis_critique.called, (
@@ -120,7 +120,7 @@ class TestSummaryUpdatedWithBabelioPublisherInMongoDB:
                     "\n❌ CRITICAL FAIL: Le summary n'a pas été mis à jour avec 'P.O.L.'!"
                 )
                 print(f"Summary reçu:\n{updated_summary}\n")
-                assert False, "Le summary n'a pas été mis à jour avec l'éditeur enrichi"
+                raise AssertionError("Le summary n'a pas été mis à jour avec l'éditeur enrichi")
 
             if "| POL |" in updated_summary:
                 print(

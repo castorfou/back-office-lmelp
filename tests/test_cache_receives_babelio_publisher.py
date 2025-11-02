@@ -51,7 +51,7 @@ class TestCacheReceivesBabelioPublisher:
         }
 
         # Act: Appeler mark_as_processed avec babelio_publisher
-        result = service.mark_as_processed(
+        service.mark_as_processed(
             cache_id=cache_id,
             author_id=ObjectId(),
             book_id=ObjectId(),
@@ -93,6 +93,6 @@ class TestCacheReceivesBabelioPublisher:
             print("\n🔴 RED TEST ÉCHOUÉ: editeur a été écrasé!")
             print("   Le frontend reçoit editeur='P.O.L.' au lieu de editeur='POL'")
             print("   Les deux champs ne sont PAS distincts!")
-            assert False, (
+            raise AssertionError(
                 "❌ BUG CONFIRMÉ: editeur a été écrasé avec babelio_publisher!"
             )
