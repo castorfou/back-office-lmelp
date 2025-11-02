@@ -141,8 +141,9 @@ class TestValidationResultsAPI:
             mock_mongodb.create_book_if_not_exists.assert_called_once()
 
             # Vérifier que le livre a été marqué comme traité (mongo)
+            # Issue #85: mark_as_processed est appelé avec metadata (peut être vide si pas de babelio_publisher)
             mock_cache_service.mark_as_processed.assert_called_once_with(
-                cache_entry_id, author_id, book_id
+                cache_entry_id, author_id, book_id, metadata={}
             )
 
     def test_set_validation_results_should_not_auto_process_suggested_books(self):
@@ -196,3 +197,138 @@ class TestValidationResultsAPI:
             cache_call = mock_cache_service.create_cache_entry.call_args
             book_data = cache_call[0][1]
             assert book_data["status"] == "suggested"
+
+    def test_set_validation_results_should_transmit_babelio_enrichment_to_cache(self):
+        """Test TDD (Issue #85): L'endpoint doit transmettre les champs Babelio enrichis au cache."""
+        episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+        avis_critique_id = ObjectId(
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )  # pragma: allowlist secret
+
+        # Résultats de validation du frontend avec enrichissement Babelio (Issue #85)
+        validation_results = {
+            "episode_oid": episode_oid,
+            "avis_critique_id": str(avis_critique_id),
+            "books": [
+                {
+                    "auteur": "Carlos Gimenez",
+                    "titre": "Paracuellos, Intégrale",
+                    "editeur": "Audie-Fluide glacial",
+                    "programme": True,
+                    "validation_status": "verified",
+                    # Champs enrichis automatiquement par Babelio lors de l'extraction
+                    "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+                    "babelio_publisher": "Audie-Fluide glacial",
+                }
+            ],
+        }
+
+        with (
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+            patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+        ):
+            # Mock: cache et auto-processing
+            cache_entry_id = ObjectId(
+                "68d3eb092f32bb8c43063f91"  # pragma: allowlist secret
+            )  # pragma: allowlist secret
+            mock_cache_service.create_cache_entry.return_value = cache_entry_id
+            author_id = ObjectId("67a79b615b03b52d8c51db29")  # pragma: allowlist secret
+            book_id = ObjectId("68d3eb092f32bb8c43063f76")  # pragma: allowlist secret
+            mock_mongodb.create_author_if_not_exists.return_value = author_id
+            mock_mongodb.create_book_if_not_exists.return_value = book_id
+
+            # Act
+            response = self.client.post(
+                "/api/set-validation-results", json=validation_results
+            )
+
+            # Assert
+            assert response.status_code == 200
+
+            # Vérifier que les champs Babelio enrichis ont été transmis au cache (Issue #85)
+            cache_call = mock_cache_service.create_cache_entry.call_args
+            book_data = cache_call[0][1]  # book_data argument
+            assert "babelio_url" in book_data, "babelio_url doit être transmis au cache"
+            assert (
+                book_data["babelio_url"]
+                == "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880"
+            )
+            assert "babelio_publisher" in book_data, (
+                "babelio_publisher doit être transmis au cache"
+            )
+            assert book_data["babelio_publisher"] == "Audie-Fluide glacial"
+
+    def test_red_avis_critique_editeur_should_be_updated_with_babelio_publisher(self):
+        """RED Test (Issue #85): L'avis_critique doit être mis à jour avec babelio_publisher quand auto-processing."""
+        episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+        avis_critique_id = ObjectId(
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )  # pragma: allowlist secret
+
+        validation_results = {
+            "episode_oid": episode_oid,
+            "avis_critique_id": str(avis_critique_id),
+            "books": [
+                {
+                    "auteur": "Carlos Gimenez",
+                    "titre": "Paracuellos, Intégrale",
+                    "editeur": "Audie Fluide glacial",  # Transcription imparfaite sans trait d'union
+                    "programme": True,
+                    "validation_status": "verified",
+                    "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+                    "babelio_publisher": "Audie-Fluide glacial",  # Enrichissement Babelio avec trait d'union
+                }
+            ],
+        }
+
+        with (
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+            patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+        ):
+            # Setup mocks
+            cache_entry_id = ObjectId(
+                "68d3eb092f32bb8c43063f91"  # pragma: allowlist secret
+            )  # pragma: allowlist secret
+            mock_cache_service.create_cache_entry.return_value = cache_entry_id
+            author_id = ObjectId("67a79b615b03b52d8c51db29")  # pragma: allowlist secret
+            book_id = ObjectId("68d3eb092f32bb8c43063f76")  # pragma: allowlist secret
+            mock_mongodb.create_author_if_not_exists.return_value = author_id
+            mock_mongodb.create_book_if_not_exists.return_value = book_id
+
+            # Mock get_avis_critique_by_id pour retourner un avis avec summary
+            mock_mongodb.get_avis_critique_by_id.return_value = {
+                "_id": avis_critique_id,
+                "summary": "## LIVRES\n| Carlos Gimenez | Paracuellos, Intégrale | Audie Fluide glacial |\n",
+            }
+
+            # Appeler l'endpoint
+            response = self.client.post(
+                "/api/set-validation-results", json=validation_results
+            )
+            assert response.status_code == 200
+
+            # RED TEST: Vérifier que mongodb_service.update_avis_critique a été appelé
+            # avec le nouvel éditeur (babelio_publisher)
+            mock_mongodb.update_avis_critique.assert_called_once()
+            call_args = mock_mongodb.update_avis_critique.call_args[0]
+
+            # Vérifier que c'est bien l'avis_critique_id
+            assert call_args[0] == str(avis_critique_id)
+
+            # Vérifier que l'update dict contient editeur ET summary avec la valeur babelio_publisher
+            update_dict = call_args[1]
+            assert "editeur" in update_dict, (
+                "editeur doit être dans l'update de avis_critique"
+            )
+            assert update_dict["editeur"] == "Audie-Fluide glacial", (
+                f"avis_critique editeur doit être 'Audie-Fluide glacial' (Babelio), pas {update_dict.get('editeur')}"
+            )
+
+            # Issue #85: Vérifier que le summary est aussi mis à jour
+            assert "summary" in update_dict, (
+                "summary doit être mis à jour avec le nouvel éditeur Babelio"
+            )

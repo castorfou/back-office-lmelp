@@ -66,6 +66,12 @@ class LivresAuteursCacheService:
         if "suggested_title" in book_data and book_data["suggested_title"]:
             cache_entry["suggested_title"] = book_data["suggested_title"]
 
+        # Ajouter les enrichissements Babelio SEULEMENT si fournis (Issue #85)
+        if "babelio_url" in book_data and book_data["babelio_url"]:
+            cache_entry["babelio_url"] = book_data["babelio_url"]
+        if "babelio_publisher" in book_data and book_data["babelio_publisher"]:
+            cache_entry["babelio_publisher"] = book_data["babelio_publisher"]
+
         # Upsert dans la collection cache pour éviter les doublons
         cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
 
@@ -213,7 +219,11 @@ class LivresAuteursCacheService:
         return bool(result.modified_count > 0)
 
     def mark_as_processed(
-        self, cache_id: ObjectId, author_id: ObjectId, book_id: ObjectId
+        self,
+        cache_id: ObjectId,
+        author_id: ObjectId,
+        book_id: ObjectId,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """
         Marque une entrée comme traitée avec les références vers les collections finales.
@@ -222,16 +232,26 @@ class LivresAuteursCacheService:
             cache_id: ID de l'entrée de cache
             author_id: ID de l'auteur créé dans la collection auteurs
             book_id: ID du livre créé dans la collection livres
+            metadata: Métadonnées supplémentaires à persister (ex: babelio_publisher)
 
         Returns:
             True si mise à jour réussie, False sinon
         """
-        metadata = {
+        update_metadata = {
             "author_id": author_id,
             "book_id": book_id,
         }
 
-        return self.update_validation_status(cache_id, "mongo", metadata)
+        # Ajouter les métadonnées supplémentaires si fournies (Issue #85: babelio_publisher)
+        if metadata:
+            update_metadata.update(metadata)
+            # Issue #85: babelio_publisher reste SÉPARÉ de editeur
+            # Les deux champs coexistent:
+            # - editeur: valeur du markdown (ex: "POL")
+            # - babelio_publisher: enrichissement Babelio (ex: "P.O.L.")
+            # Le frontend affiche babelio_publisher s'il existe, sinon editeur
+
+        return self.update_validation_status(cache_id, "mongo", update_metadata)
 
     def mark_summary_corrected(self, cache_id: ObjectId) -> bool:
         """

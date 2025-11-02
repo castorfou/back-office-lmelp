@@ -93,10 +93,11 @@ class CollectionsManagementService:
                     avis_critiques_ids = [critical_review["_id"]]
 
                 # Créer le livre si il n'existe pas
+                # Issue #85: Utiliser babelio_publisher si disponible (source plus fiable)
                 book_data = {
                     "titre": validated_title,
                     "auteur_id": author_id,
-                    "editeur": book.get("editeur", ""),
+                    "editeur": book.get("babelio_publisher") or book.get("editeur", ""),
                     "episodes": [ObjectId(book["episode_oid"])],
                     "avis_critiques": avis_critiques_ids,
                 }
@@ -301,17 +302,36 @@ class CollectionsManagementService:
                     "validated",
                     validation_metadata,
                 )
+
+                # Issue #85: Préparer metadata pour le cache (persister babelio_publisher si présent)
+                cache_metadata = {}
+                if "babelio_publisher" in book_data and book_data["babelio_publisher"]:
+                    cache_metadata["babelio_publisher"] = book_data["babelio_publisher"]
+
                 # Marquer comme traité dans le cache (statut mongo)
-                livres_auteurs_cache_service.mark_as_processed(
-                    cache_id, author_id, book_id
-                )
+                # Issue #85: Passer metadata si enrichissement Babelio
+                if cache_metadata:
+                    livres_auteurs_cache_service.mark_as_processed(
+                        cache_id, author_id, book_id, metadata=cache_metadata
+                    )
+                else:
+                    livres_auteurs_cache_service.mark_as_processed(
+                        cache_id, author_id, book_id
+                    )
 
                 # Issue #67: Mise à jour du summary dans avis_critiques
                 avis_critique_id = book_data.get("avis_critique_id")
-                # Vérifier si le summary n'a pas déjà été corrigé (idempotence)
-                if (
-                    avis_critique_id
-                    and not livres_auteurs_cache_service.is_summary_corrected(cache_id)
+                # Issue #85: Déterminer s'il y a enrichissement Babelio (publisher différent)
+                has_babelio_enrichment = book_data.get(
+                    "babelio_publisher"
+                ) and book_data.get("babelio_publisher") != book_data.get("editeur")
+
+                # Mettre à jour le summary si:
+                # 1. C'est la première correction (not is_summary_corrected) OR
+                # 2. Il y a un enrichissement Babelio qui doit être appliqué
+                if avis_critique_id and (
+                    not livres_auteurs_cache_service.is_summary_corrected(cache_id)
+                    or has_babelio_enrichment
                 ):
                     self._update_summary_with_correction(
                         avis_critique_id=avis_critique_id,
@@ -320,6 +340,8 @@ class CollectionsManagementService:
                         corrected_author=author_name,
                         corrected_title=book_title,
                         cache_id=cache_id,
+                        original_publisher=book_data.get("editeur"),
+                        corrected_publisher=book_data.get("babelio_publisher"),
                     )
 
             return {
@@ -339,9 +361,13 @@ class CollectionsManagementService:
         corrected_author: str,
         corrected_title: str,
         cache_id: Any,
+        original_publisher: str | None = None,
+        corrected_publisher: str | None = None,
     ) -> None:
         """
         Met à jour le summary de l'avis critique avec les données corrigées (Issue #67).
+
+        Supporte optionnellement le remplacement de l'éditeur lors de l'enrichissement Babelio (Issue #85).
 
         Args:
             avis_critique_id: ID de l'avis critique
@@ -350,6 +376,8 @@ class CollectionsManagementService:
             corrected_author: Auteur corrigé
             corrected_title: Titre corrigé
             cache_id: ID de l'entrée dans le cache
+            original_publisher: Éditeur original (optionnel, pour enrichissement Babelio)
+            corrected_publisher: Éditeur corrigé (optionnel, pour enrichissement Babelio)
         """
         from ..services.livres_auteurs_cache_service import (
             livres_auteurs_cache_service,
@@ -360,10 +388,17 @@ class CollectionsManagementService:
         )
 
         try:
-            # Vérifier s'il y a réellement une correction à faire
-            if not should_update_summary(
+            # Vérifier s'il y a réellement une correction à faire (auteur/titre OU éditeur)
+            has_author_title_changes = should_update_summary(
                 original_author, original_title, corrected_author, corrected_title
-            ):
+            )
+            has_publisher_changes = (
+                original_publisher
+                and corrected_publisher
+                and original_publisher != corrected_publisher
+            )
+
+            if not has_author_title_changes and not has_publisher_changes:
                 # Pas de changement, marquer quand même comme corrigé pour éviter retraitement
                 livres_auteurs_cache_service.mark_summary_corrected(cache_id)
                 return
@@ -389,6 +424,8 @@ class CollectionsManagementService:
                 original_title=original_title,
                 corrected_author=corrected_author,
                 corrected_title=corrected_title,
+                original_publisher=original_publisher,
+                corrected_publisher=corrected_publisher,
             )
 
             updates["summary"] = updated_summary

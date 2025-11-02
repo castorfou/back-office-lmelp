@@ -95,7 +95,6 @@
     "mounts": [
         "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
-        "source=/etc/timezone,target=/etc/timezone,type=bind,consistency=cached,readonly",
         "source=/etc/localtime,target=/etc/localtime,type=bind,consistency=cached,readonly"
     ],
 

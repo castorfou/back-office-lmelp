@@ -109,6 +109,7 @@ class TestCacheIdNullBug:
             assert result["success"] is True
 
             # CRITICAL: Vérifier que mark_as_processed A été appelé avec cache_id valide
+            # Note: metadata n'est passé que s'il y a enrichissement Babelio
             mock_cache_service.mark_as_processed.assert_called_once_with(
                 cache_id, author_id, book_id
             )

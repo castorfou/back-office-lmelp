@@ -7,6 +7,8 @@ from typing import Any
 import openai
 from dotenv import load_dotenv
 
+from .babelio_service import babelio_service
+
 
 load_dotenv()
 
@@ -49,12 +51,13 @@ class BooksExtractionService:
         """
         Extrait les informations bibliographiques depuis les tableaux markdown des avis critiques.
         Parse les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES CRITIQUES".
+        Enrichit automatiquement chaque livre avec Babelio (babelio_url, babelio_publisher).
 
         Args:
             avis_critiques: Liste des avis critiques avec leurs summaries
 
         Returns:
-            Liste des livres extraits avec métadonnées (auteur/titre/éditeur)
+            Liste des livres extraits avec métadonnées (auteur/titre/éditeur + enrichissement Babelio)
         """
         if not avis_critiques:
             return []
@@ -88,7 +91,16 @@ class BooksExtractionService:
                     # Autres erreurs, continuer sans fallback
                     continue
 
-        return all_extracted_books
+        # Enrichir automatiquement chaque livre avec Babelio (Option 1: enrichissement en temps réel)
+        print(
+            f"🔍 [Babelio Auto-Enrichment] Début enrichissement de {len(all_extracted_books)} livres"
+        )
+        enriched_books = await self._enrich_books_with_babelio(all_extracted_books)
+        print(
+            f"✅ [Babelio Auto-Enrichment] Enrichissement terminé: {len(enriched_books)} livres"
+        )
+
+        return enriched_books
 
     async def _extract_books_from_single_review(
         self, avis_critique: dict[str, Any]
@@ -293,6 +305,62 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
 
         return books
 
+    async def _enrich_books_with_babelio(
+        self, books: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Enrichit automatiquement chaque livre avec Babelio (babelio_url, babelio_publisher).
+        Appelle verify_book() pour chaque livre et enrichit si confidence >= 0.90.
+
+        Args:
+            books: Liste des livres extraits
+
+        Returns:
+            Liste des livres enrichis avec babelio_url et babelio_publisher
+        """
+        enriched_books = []
+
+        for book in books:
+            enriched_book = book.copy()
+            titre = book.get("titre", "")
+            auteur = book.get("auteur", "")
+
+            try:
+                # Appeler Babelio verify_book()
+                print(f"  📖 Enrichissement: {auteur} - {titre}")
+                verification = await babelio_service.verify_book(titre, auteur)
+
+                # ✅ FIX Issue #85: Utiliser la vraie clé "confidence_score" de l'API (pas "confidence")
+                confidence = (
+                    verification.get("confidence_score", 0) if verification else 0
+                )
+                print(f"     → Confidence: {confidence:.2f}")
+
+                # Enrichir si confidence >= 0.90
+                if verification and confidence >= 0.90:
+                    # ✅ FIX Issue #85: L'API retourne "babelio_url" directement (pas "url")
+                    if verification.get("babelio_url"):
+                        enriched_book["babelio_url"] = verification["babelio_url"]
+                        print(f"     ✅ URL ajoutée: {verification['babelio_url']}")
+                    if verification.get("babelio_publisher"):
+                        enriched_book["babelio_publisher"] = verification[
+                            "babelio_publisher"
+                        ]
+                        print(
+                            f"     ✅ Publisher ajouté: {verification['babelio_publisher']}"
+                        )
+                else:
+                    print(f"     ❌ Confidence trop faible ({confidence:.2f} < 0.90)")
+
+            except Exception as e:
+                # En cas d'erreur Babelio (timeout, réseau, etc.), continuer sans enrichissement
+                # Le livre reste tel quel sans babelio_url/babelio_publisher
+                print(f"     ⚠️ Erreur Babelio: {e}")
+
+            enriched_books.append(enriched_book)
+
+        return enriched_books
+
     def format_books_for_display(
         self, books_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -373,6 +441,12 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                 simplified_book["suggested_author"] = book["suggested_author"]
             if "suggested_title" in book and book["suggested_title"]:
                 simplified_book["suggested_title"] = book["suggested_title"]
+
+            # Issue #85: Ajouter les enrichissements Babelio si disponibles
+            if "babelio_url" in book and book["babelio_url"]:
+                simplified_book["babelio_url"] = book["babelio_url"]
+            if "babelio_publisher" in book and book["babelio_publisher"]:
+                simplified_book["babelio_publisher"] = book["babelio_publisher"]
 
             simplified_books.append(simplified_book)
 

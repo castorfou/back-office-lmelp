@@ -899,6 +899,17 @@ class MongoDBService:
             )
             if existing_book:
                 book_id = ObjectId(existing_book["_id"])
+
+                # Issue #85: Si l'éditeur a changé (ex: enrichissement Babelio), mettre à jour
+                if existing_book.get("editeur") != book_data.get("editeur"):
+                    update_data = {
+                        "editeur": book_data["editeur"],
+                        "updated_at": datetime.now(),
+                    }
+                    self.livres_collection.update_one(
+                        {"_id": book_id}, {"$set": update_data}
+                    )
+
                 # S'assurer que l'auteur a la référence au livre existant
                 self._add_book_to_author(book_data["auteur_id"], book_id)
                 return book_id
@@ -935,6 +946,10 @@ class MongoDBService:
                 "validation_status": "pending",
                 "biblio_verification_status": status,
             }
+        elif status == "babelio_enriched":
+            # Issue #85: Livres enrichis par Babelio (avec babelio_publisher)
+            # Cherche dans tous les statuts qui ont babelio_publisher
+            query_filter = {"babelio_publisher": {"$exists": True, "$ne": None}}  # type: ignore[dict-item]
         else:
             # Statut inconnu, retourner une liste vide
             query_filter = {"validation_status": status}

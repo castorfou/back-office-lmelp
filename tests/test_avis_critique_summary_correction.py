@@ -562,3 +562,173 @@ class TestAvisCritiqueSummaryCorrection:
             # Assert
             # DOIT mettre à jour le summary
             assert service._mock_mongodb.update_avis_critique.called
+
+    def test_should_update_summary_with_babelio_publisher_enrichment(self):
+        """
+        GIVEN: Livre avec enrichissement babelio_publisher (éditeur corrigé)
+        WHEN: La fonction de persistence de l'enrichissement est appelée
+        THEN: Le markdown du summary doit être mis à jour avec le nouvel éditeur
+        AND: La mise à jour doit être persisted en MongoDB via update_avis_critique()
+
+        Issue #85: Support pour remplacer l'éditeur lors de l'enrichissement Babelio
+        """
+        # Arrange
+        service = create_mocked_service()
+
+        # Summary original avec éditeur incorrect
+        original_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 07 sept. 2025
+
+| Auteur | Titre | Éditeur | Avis détaillés |
+|--------|-------|---------|----------------|
+| Emmanuel Carrère | Kolkhoze | POL | Excellente critique |
+"""
+
+        # Book data avec enrichissement babelio_publisher
+        book_data = {
+            "cache_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "avis_critique_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439013",  # pragma: allowlist secret
+            "auteur": "Emmanuel Carrère",
+            "titre": "Kolkhoze",
+            "editeur": "POL",  # Valeur originale du markdown
+            "babelio_publisher": "P.O.L.",  # Éditeur enrichi par Babelio
+            "user_validated_author": "Emmanuel Carrère",  # Pas de correction d'auteur
+            "user_validated_title": "Kolkhoze",  # Pas de correction de titre
+        }
+
+        service._mock_mongodb.get_avis_critique_by_id.return_value = {
+            "_id": "507f1f77bcf86cd799439012",  # pragma: allowlist secret
+            "episode_oid": "507f1f77bcf86cd799439013",  # pragma: allowlist secret
+            "summary": original_summary,
+        }
+
+        # Patcher l'instance globale
+        patches = patch_cache_service()
+        with patches[0], patches[1], patches[2]:
+            # Act
+            service.handle_book_validation(book_data)
+
+            # Assert
+            # DOIT appeler update_avis_critique
+            assert service._mock_mongodb.update_avis_critique.called
+
+            # DOIT mettre à jour le summary avec le nouvel éditeur
+            call_args = service._mock_mongodb.update_avis_critique.call_args[0]
+            updated_summary = call_args[1]["summary"]
+
+            # Vérifier que l'éditeur enrichi est dans le markdown
+            assert "P.O.L." in updated_summary
+            # Vérifier que l'ancien éditeur n'est plus présent
+            assert "POL" not in updated_summary
+            # Vérifier que la ligne complète est correcte
+            assert "| Emmanuel Carrère | Kolkhoze | P.O.L. |" in updated_summary
+
+    def test_red_should_update_summary_with_babelio_publisher_even_when_already_corrected(
+        self,
+    ):
+        """
+        🔴 RED TEST: Issue #85 - CRITICAL PRODUCTION BUG
+
+        SCENARIO: L'enrichissement Babelio arrive APRÈS que le summary a déjà été corrigé.
+
+        Exemple réel:
+        1. Utilisateur valide le livre: "| Emmanuel Carrère | Kolkhoze | POL |"
+        2. Summary est marqué comme corrigé (is_summary_corrected = True)
+        3. PLUS TARD: Babelio API enrichit avec publisher "P.O.L."
+        4. ATTENDU: Summary doit être mis à jour avec "P.O.L."
+        5. RÉEL (BUG): Summary n'est PAS mis à jour car is_summary_corrected=True
+                      bloque l'appel à _update_summary_with_correction()
+
+        This test demonstrates the bug in handle_book_validation() lines 325-328:
+            if (
+                avis_critique_id
+                and not livres_auteurs_cache_service.is_summary_corrected(cache_id)  # ❌ WRONG!
+            ):
+                self._update_summary_with_correction(...)  # Skipped when already corrected
+
+        EXPECTED BEHAVIOR:
+        - If babelio_publisher is provided AND different from editeur,
+          _update_summary_with_correction() SHOULD BE CALLED
+          regardless of is_summary_corrected status
+        """
+        from bson import ObjectId
+
+        original_summary = """## LIVRES
+| Emmanuel Carrère | Kolkhoze | POL |
+"""
+
+        avis_critique_id = ObjectId()
+        cache_id = ObjectId()
+
+        service = create_mocked_service()
+        service._mock_mongodb.get_avis_critique_by_id.return_value = {
+            "_id": avis_critique_id,
+            "summary": original_summary,
+        }
+
+        book_data = {
+            "cache_id": str(cache_id),
+            "avis_critique_id": str(avis_critique_id),
+            "episode_oid": "507f1f77bcf86cd799439013",  # pragma: allowlist secret
+            "auteur": "Emmanuel Carrère",
+            "titre": "Kolkhoze",
+            "editeur": "POL",
+            "user_validated_author": "Emmanuel Carrère",  # Pas de correction
+            "user_validated_title": "Kolkhoze",  # Pas de correction
+            "user_validated_publisher": "POL",  # Pas de correction
+            "babelio_publisher": "P.O.L.",  # ✅ Enrichissement Babelio arrive
+            "babelio_url": "https://www.babelio.com/livres/Carrere-Kolkhoze/123456",
+        }
+
+        # ✅ KEY: is_summary_corrected = True (summary was already corrected before)
+        # This is the PRODUCTION SCENARIO
+        patches = patch_cache_service(is_already_corrected=True)
+
+        with patches[0], patches[1], patches[2]:
+            print("\n" + "=" * 80)
+            print("🔴 RED TEST: Babelio enrichment with is_summary_corrected=True")
+            print("=" * 80)
+            print("  is_summary_corrected(cache_id): True")
+            print("  babelio_publisher: 'P.O.L.'")
+            print("  original editeur: 'POL'")
+
+            # Act
+            service.handle_book_validation(book_data)
+
+            # Assert: This will FAIL due to the bug
+            # The condition blocks the call to _update_summary_with_correction()
+            print("\n📊 Checking if update_avis_critique was called...")
+
+            if service._mock_mongodb.update_avis_critique.called:
+                print("✅ update_avis_critique WAS called")
+                call_args = service._mock_mongodb.update_avis_critique.call_args[0]
+                updates = call_args[1]
+
+                if "summary" in updates:
+                    updated_summary = updates["summary"]
+                    print("✅ Summary was updated")
+
+                    if "| P.O.L. |" in updated_summary:
+                        print("✅ GREEN: Summary contains enriched publisher 'P.O.L.'")
+                        print("✅ Babelio enrichment was APPLIED!")
+                    else:
+                        print("❌ RED: Summary does NOT contain 'P.O.L.'")
+                        print("❌ Enrichment was NOT applied")
+                        print(f"\nActual summary:\n{updated_summary}")
+                        raise AssertionError("Babelio enrichment not in summary")
+                else:
+                    print(f"❌ summary not in updates: {list(updates.keys())}")
+                    raise AssertionError("Summary field not in update")
+            else:
+                print("❌ update_avis_critique was NOT called")
+                print("   Summary update was SKIPPED!")
+                print("\n   🐛 This is the BUG:")
+                print(
+                    "   The condition prevents the call when is_summary_corrected=True"
+                )
+                print("   But Babelio enrichment should still be applied!")
+                raise AssertionError(
+                    "Summary update was skipped - Babelio enrichment ignored. "
+                    "Bug: Condition in handle_book_validation() blocks update when "
+                    "is_summary_corrected=True, even if babelio_publisher is present"
+                )

@@ -27,7 +27,9 @@
       "Bash(/workspaces/back-office-lmelp/.claude/get-frontend-info.sh:*)",
       "Bash(/workspaces/back-office-lmelp/.claude/check-backend-freshness.sh:*)",
       "mcp__MongoDB__count",
-      "Bash(mcp__MongoDB__collection-schema:*)"
+      "Bash(mcp__MongoDB__collection-schema:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src python -m pytest:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

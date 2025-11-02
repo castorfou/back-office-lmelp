@@ -13,9 +13,13 @@ def replace_book_in_summary(
     original_title: str,
     corrected_author: str,
     corrected_title: str,
+    corrected_publisher: str | None = None,
+    original_publisher: str | None = None,
 ) -> str:
     """
     Remplace un livre dans le summary (tableaux markdown).
+
+    Peut remplacer l'auteur et le titre, et optionnellement l'éditeur.
 
     Args:
         summary: Le summary original contenant les tableaux markdown
@@ -23,12 +27,15 @@ def replace_book_in_summary(
         original_title: Titre à remplacer
         corrected_author: Nom d'auteur corrigé
         corrected_title: Titre corrigé
+        corrected_publisher: Éditeur corrigé (optionnel, pour enrichissement Babelio)
+        original_publisher: Éditeur original (obligatoire si corrected_publisher fourni)
 
     Returns:
         Summary avec le livre corrigé
 
     Note:
         Cette fonction préserve l'intégrité des tableaux markdown (pipes, newlines, etc.)
+        Issue #85: Support optionnel du remplacement de l'éditeur pour enrichissement Babelio
     """
     if not summary:
         return summary
@@ -37,6 +44,26 @@ def replace_book_in_summary(
     escaped_author = re.escape(original_author)
     escaped_title = re.escape(original_title)
 
+    # Cas 1: Remplacer auteur, titre ET éditeur
+    if corrected_publisher and original_publisher:
+        escaped_publisher = re.escape(original_publisher)
+
+        # Pattern pour matcher une ligne contenant auteur | titre | éditeur
+        # Format: | Auteur | Titre | Éditeur | ... |
+        pattern = rf"(\|[^\|]*){escaped_author}([^\|]*\|[^\|]*){escaped_title}([^\|]*\|[^\|]*){escaped_publisher}([^\|]*\|[^\n]*)"
+
+        def replacer(match: re.Match[str]) -> str:
+            before_author = match.group(1)
+            between_author_title = match.group(2)
+            between_title_publisher = match.group(3)
+            after_publisher = match.group(4)
+
+            return f"{before_author}{corrected_author}{between_author_title}{corrected_title}{between_title_publisher}{corrected_publisher}{after_publisher}"
+
+        updated_summary = re.sub(pattern, replacer, summary, count=1)
+        return updated_summary
+
+    # Cas 2: Remplacer seulement auteur et titre (backward compatibility)
     # Pattern pour matcher une ligne de tableau contenant l'auteur ET le titre
     # Format: | Auteur | Titre | ... |
     # On capture tout ce qui est avant l'auteur, entre auteur et titre, et après le titre
@@ -45,7 +72,7 @@ def replace_book_in_summary(
     )
 
     # Fonction de remplacement qui préserve tout sauf auteur et titre
-    def replacer(match: re.Match[str]) -> str:
+    def replacer_author_title(match: re.Match[str]) -> str:
         before_author = match.group(1)
         between = match.group(2)
         after_title = match.group(3)
@@ -55,7 +82,7 @@ def replace_book_in_summary(
         )
 
     # Remplacer la première occurrence (une ligne de tableau)
-    updated_summary = re.sub(pattern, replacer, summary, count=1)
+    updated_summary = re.sub(pattern, replacer_author_title, summary, count=1)
 
     return updated_summary
 

@@ -233,7 +233,9 @@
                 </td>
                 <td class="author-cell">{{ getDisplayedAuthor(book) }}</td>
                 <td class="title-cell">{{ getDisplayedTitle(book) }}</td>
-                <td class="publisher-cell">{{ book.editeur || '-' }}</td>
+                <td class="publisher-cell">
+                  {{ getDisplayedPublisher(book) || '-' }}
+                </td>
                 <td :class="['validation-cell', { 'validation-cell-expanded': !showYamlColumn }]">
                   <BiblioValidationCell
                     v-if="book.status !== 'mongo'"
@@ -473,6 +475,7 @@ import Navigation from '../components/Navigation.vue';
 import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
+import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
 
 export default {
   name: 'LivresAuteurs',
@@ -534,6 +537,8 @@ export default {
   selectedEpisodeFull: null,
   // Prevent re-entrant navigation while changing episode
   navLock: false,
+  // Issue #85: Prevent double loadBooksForEpisode during refreshEpisodeCache
+  isRefreshing: false,
 
     };
   },
@@ -709,6 +714,17 @@ export default {
     },
 
     /**
+     * Retourne l'éditeur à afficher selon le statut du livre
+     * Pour les livres mongo : utilise babelio_publisher si disponible (enrichissement Issue #85)
+     */
+    getDisplayedPublisher(book) {
+      if (book.status === 'mongo') {
+        return book.babelio_publisher || book.editeur;
+      }
+      return book.editeur;
+    },
+
+    /**
      * Récupère le statut de validation pour un livre
      */
     getValidationStatus(book) {
@@ -829,6 +845,16 @@ export default {
         // Récupérer SEULEMENT les livres de cet épisode (cache ou extraction)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
 
+        // Issue #85: Pré-remplir le cache de BiblioValidationService pour éviter un 2e appel API
+        // Ceci évite que autoValidateAndSendResults() déclenche un 2e enrichissement backend
+        BiblioValidationService._extractedBooksCache.set(
+          this.selectedEpisodeId,
+          this.books.map(livre => ({
+            author: livre.auteur,
+            title: livre.titre
+          }))
+        );
+
         // Si pas de statuts ou statuts temporaires → validation biblio + rechargement
         const needsValidation = this.books.some(book =>
           !book.status ||
@@ -837,10 +863,11 @@ export default {
 
         if (needsValidation) {
           // Auto-validation des livres avec BiblioValidationService et envoi au backend
+          // Note (Issue #85): autoValidateAndSendResults() met à jour le cache MongoDB
+          // avec les statuts de validation. On N'A PAS BESOIN de recharger les livres
+          // car le backend a déjà enrichi et mis en cache les données lors du 1er GET.
+          // Supprimer le 2e GET évite un enrichissement Babelio redondant (10 livres × 2 = 20 opérations au lieu de 10).
           await this.autoValidateAndSendResults();
-
-          // RECHARGER les livres depuis le cache avec les vrais statuts
-          this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
         }
 
         // Auto-processing automatique des livres verified en arrière-plan (non-bloquant)
@@ -863,6 +890,11 @@ export default {
      * Gère le changement d'épisode sélectionné
      */
     async onEpisodeChange() {
+      // Issue #85: Ignorer l'événement si on est en train de rafraîchir le cache
+      // pour éviter un double appel à loadBooksForEpisode()
+      if (this.isRefreshing) {
+        return;
+      }
       // Réinitialiser les filtres
       this.searchFilter = '';
       this.sortOrder = 'rating_desc';
@@ -924,14 +956,19 @@ export default {
       if (!this.selectedEpisodeId) return;
 
       try {
-        const result = await livresAuteursService.deleteCacheByEpisode(this.selectedEpisodeId);
-        console.log(`Cache supprimé : ${result.deleted_count} entrée(s)`);
+        // Issue #85: Bloquer onEpisodeChange pendant le refresh pour éviter double appel
+        this.isRefreshing = true;
+
+        await livresAuteursService.deleteCacheByEpisode(this.selectedEpisodeId);
 
         // Recharger les données après suppression du cache
         await this.loadBooksForEpisode();
       } catch (error) {
         console.error('Erreur lors de la suppression du cache:', error);
         this.error = 'Erreur lors du rafraîchissement du cache';
+      } finally {
+        // Issue #85: Débloquer onEpisodeChange après le refresh
+        this.isRefreshing = false;
       }
     },
 
@@ -1065,8 +1102,22 @@ export default {
           user_validated_publisher: this.validationForm.publisher
         };
 
-        // console.log('🔍 Structure book:', book);
-        // console.log('🚀 Données envoyées pour validation:', validationData);
+        // Issue #85: Transmettre babelio_url et babelio_publisher si le livre a été enrichi
+        console.log('🔍 [DEBUG Issue #85] Structure book COMPLETE:', JSON.stringify(book, null, 2));
+        if (book.babelio_url) {
+          validationData.babelio_url = book.babelio_url;
+          console.log('✅ babelio_url ajouté:', book.babelio_url);
+        } else {
+          console.log('❌ PAS de babelio_url dans book');
+        }
+        if (book.babelio_publisher) {
+          validationData.babelio_publisher = book.babelio_publisher;
+          console.log('✅ babelio_publisher ajouté:', book.babelio_publisher);
+        } else {
+          console.log('❌ PAS de babelio_publisher dans book');
+        }
+
+        console.log('🚀 Données FINALES envoyées pour validation:', JSON.stringify(validationData, null, 2));
         const result = await livresAuteursService.validateSuggestion(validationData);
 
         // Fermer le modal et recharger les données
@@ -1111,6 +1162,14 @@ export default {
           suggested_author: this.manualBookForm.author,
           suggested_title: this.manualBookForm.title
         };
+
+        // Issue #85: Transmettre babelio_url et babelio_publisher si le livre a été enrichi
+        if (book.babelio_url) {
+          validationData.babelio_url = book.babelio_url;
+        }
+        if (book.babelio_publisher) {
+          validationData.babelio_publisher = book.babelio_publisher;
+        }
 
         // Un seul appel unifié pour créer le livre ET mettre à jour le cache
         await livresAuteursService.validateSuggestion(validationData);
@@ -1183,27 +1242,15 @@ export default {
             // Convertir le résultat de validation au format backend
             let status = validationResult.status;
 
-
             // BiblioValidationService retourne 'corrected' mais backend attend 'suggestion'
             if (status === 'corrected') {
               status = 'suggestion';
             }
 
-            const bookForBackend = {
-              auteur: book.auteur,
-              titre: book.titre,
-              editeur: book.editeur || '',
-              programme: book.programme || false,
-              validation_status: status // 'verified', 'suggestion', 'not_found'
-            };
-
-            // Ajouter les suggestions si disponibles (elles sont dans data.suggested)
-            if (validationResult.data?.suggested?.author) {
-              bookForBackend.suggested_author = validationResult.data.suggested.author;
-            }
-            if (validationResult.data?.suggested?.title) {
-              bookForBackend.suggested_title = validationResult.data.suggested.title;
-            }
+            // Issue #85: Utiliser buildBookDataForBackend pour construire l'objet
+            // Cette fonction pure garantit que TOUS les champs sont transmis,
+            // y compris babelio_url et babelio_publisher (enrichissement automatique)
+            const bookForBackend = buildBookDataForBackend(book, validationResult, status);
 
             validatedBooks.push(bookForBackend);
 
@@ -1231,6 +1278,10 @@ export default {
           avis_critique_id: avis_critique_id,
           books: validatedBooks
         });
+
+        // Issue #85: Recharger les livres du cache pour afficher les enrichissements Babelio
+        // (le statut passe de "verified" à "mongo" et babelio_publisher devient visible)
+        await this.loadBooksForEpisode();
 
       } catch (error) {
         console.error('❌ Erreur auto-validation:', error);
