@@ -68,6 +68,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    isolate: false,
     threads: {
       singleThread: true
     }
