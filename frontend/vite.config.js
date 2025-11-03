@@ -67,6 +67,9 @@ export default defineConfig({
     }
   },
   test: {
-    environment: 'jsdom'
+    environment: 'jsdom',
+    threads: {
+      singleThread: true
+    }
   }
 })
