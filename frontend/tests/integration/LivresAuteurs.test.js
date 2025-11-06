@@ -8,6 +8,7 @@ import { mount } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import LivresAuteurs from '../../src/views/LivresAuteurs.vue';
 import { livresAuteursService, episodeService } from '../../src/services/api.js';
+import BiblioValidationService from '../../src/services/BiblioValidationService.js';
 
 // Mock du service API
 vi.mock('../../src/services/api.js', () => ({
@@ -134,6 +135,9 @@ describe('LivresAuteurs - Tests simplifiés', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Nettoyer le cache BiblioValidationService pour éviter les accumulations mémoire entre tests
+    BiblioValidationService._extractedBooksCache?.clear();
 
     // Créer un router de test
     router = createRouter({

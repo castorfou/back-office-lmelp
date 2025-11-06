@@ -845,16 +845,6 @@ export default {
         // Récupérer SEULEMENT les livres de cet épisode (cache ou extraction)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
 
-        // Issue #85: Pré-remplir le cache de BiblioValidationService pour éviter un 2e appel API
-        // Ceci évite que autoValidateAndSendResults() déclenche un 2e enrichissement backend
-        BiblioValidationService._extractedBooksCache.set(
-          this.selectedEpisodeId,
-          this.books.map(livre => ({
-            author: livre.auteur,
-            title: livre.titre
-          }))
-        );
-
         // Si pas de statuts ou statuts temporaires → validation biblio + rechargement
         const needsValidation = this.books.some(book =>
           !book.status ||
@@ -863,11 +853,12 @@ export default {
 
         if (needsValidation) {
           // Auto-validation des livres avec BiblioValidationService et envoi au backend
-          // Note (Issue #85): autoValidateAndSendResults() met à jour le cache MongoDB
-          // avec les statuts de validation. On N'A PAS BESOIN de recharger les livres
-          // car le backend a déjà enrichi et mis en cache les données lors du 1er GET.
-          // Supprimer le 2e GET évite un enrichissement Babelio redondant (10 livres × 2 = 20 opérations au lieu de 10).
           await this.autoValidateAndSendResults();
+
+          // RECHARGER les livres depuis le cache avec les vrais statuts
+          // CRITIQUE: Sans ce reload, this.books garde les anciens objets avec statuts temporaires
+          // ce qui déclenche des re-validations en cascade dans BiblioValidationCell (cause mémoire)
+          this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
         }
 
         // Auto-processing automatique des livres verified en arrière-plan (non-bloquant)
@@ -1278,10 +1269,6 @@ export default {
           avis_critique_id: avis_critique_id,
           books: validatedBooks
         });
-
-        // Issue #85: Recharger les livres du cache pour afficher les enrichissements Babelio
-        // (le statut passe de "verified" à "mongo" et babelio_publisher devient visible)
-        await this.loadBooksForEpisode();
 
       } catch (error) {
         console.error('❌ Erreur auto-validation:', error);
