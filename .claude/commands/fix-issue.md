@@ -3,15 +3,16 @@ Utilise une todo list pour garder la trace complète de ce travail, et être sû
 2. Create a feature branch from issue using `gh issue develop {issue_number}`, then immediately checkout to that branch locally with `git checkout {branch_name}` before starting any work. Ensure you're working on the feature branch and NOT on main.
 3. Comprends le problème décrit. And think deeply about the best approach to solve it
 4. Cherche les fichiers concernés dans le codebase
-5. Implémente la correction en TDD. Ecris d'abors les tests (qui echouent) puis le code
+5. Implémente la correction en TDD. Ecris d'abors les RED tests (qui echouent) puis le code
 6. Itere entre code et execution des tests jusqu'a une resolution complete des problemes
 7. Vérifie que tout passe (tests, lint, typecheck)
-8. Cree les modifications necessaires dans la doc utilisateur et la doc developpeur
-9. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 9) jusqu'à satisfaction
+8. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 9) jusqu'à satisfaction
+9. Appelle la slash-command interne de claude  `/stocke-memoire` pour garder une trace résumée des points saillants de ces apprentissages/modifications
 10. Met à jour README.md et CLAUDE.md si necessaire
-11.  Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
-12. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
-13. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
-14. Clos la todo list si elle est bien vide
-15. Repasse sur la branche main locale, et recupere les dernieres modifications
-16. Finis en appelant la slash-command interne de claude  `/stocke-memoire`
+11. Met à jour la documentation utilisateur et développeur, utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne.
+12. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
+13. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
+14. Demande à l'utilisateur si la feature est bien terminée ou s'il faut refaire une boucle complete (de 3 à 14) sur un sujet complémentaire.
+15. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
+16. Clos la todo list si elle est bien vide
+17. Repasse sur la branche main locale, et recupere les dernieres modifications
