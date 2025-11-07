@@ -257,7 +257,7 @@ verifyBook("Tant mieux", "Amélie Nothomb")
 // ✅ Pas besoin de fuzzy search, workflow terminé
 ```
 
-#### Enrichissement 3 : Scraping de l'Éditeur depuis Babelio (Issue #85)
+#### Enrichissement 3 : Scraping de l'Éditeur depuis Babelio
 
 **Objectif** : Enrichir automatiquement les réponses de `verifyBook()` avec l'éditeur du livre en scrapant les pages Babelio, afin d'éviter la saisie manuelle dans le modal de validation.
 

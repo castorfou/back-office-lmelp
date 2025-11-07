@@ -1914,8 +1914,9 @@ mcp__MongoDB__collection-storage-size --database "masque_et_la_plume" --collecti
 - **FastAPI**: Web framework with MongoDB integration
 - **Core**: pandas, numpy (data processing)
 - **Database**: MongoDB via motor/pymongo
+- **Web scraping**: beautifulsoup4, html5lib (Babelio publisher extraction)
 - **Documentation**: MkDocs with Material theme
-- **Development**: pytest, ruff, mypy, pre-commit
+- **Development**: pytest, ruff, mypy, pre-commit, types-beautifulsoup4
 
 ### Frontend Dependencies
 - **Vue.js 3**: Progressive framework with Composition API
