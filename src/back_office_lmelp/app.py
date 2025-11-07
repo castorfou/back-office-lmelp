@@ -21,6 +21,7 @@ from .services.collections_management_service import collections_management_serv
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
+from .services.radiofrance_service import RadioFranceService
 from .services.stats_service import stats_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
@@ -332,6 +333,76 @@ async def update_episode_title(episode_id: str, request: Request) -> dict[str, s
             raise HTTPException(status_code=400, detail="Échec de la mise à jour")
 
         return {"message": "Titre mis à jour avec succès"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/episodes/{episode_id}/fetch-page-url")
+async def fetch_episode_page_url(episode_id: str) -> dict[str, Any]:
+    """Fetch l'URL de la page RadioFrance pour un épisode et la persiste en DB.
+
+    Utilise RadioFranceService pour scraper RadioFrance et trouver l'URL de la page
+    de l'épisode à partir de son titre. L'URL trouvée est ensuite persistée dans le
+    champ episode_page_url de l'épisode.
+
+    Args:
+        episode_id: ID de l'épisode
+
+    Returns:
+        Dict avec episode_id, episode_page_url, et success
+
+    Raises:
+        404: Si l'épisode n'existe pas en DB ou si l'URL n'est pas trouvée sur RadioFrance
+        500: En cas d'erreur serveur
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Vérifier que l'épisode existe
+        episode_data = mongodb_service.get_episode_by_id(episode_id)
+        if not episode_data:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        # Récupérer le titre de l'épisode
+        episode_title = episode_data.get("titre", "")
+        if not episode_title:
+            raise HTTPException(status_code=400, detail="L'épisode n'a pas de titre")
+
+        # Chercher l'URL de la page sur RadioFrance
+        radiofrance_service = RadioFranceService()
+        episode_page_url = await radiofrance_service.search_episode_page_url(
+            episode_title
+        )
+
+        if not episode_page_url:
+            raise HTTPException(
+                status_code=404,
+                detail=f"URL de la page non trouvée sur RadioFrance pour: {episode_title[:50]}...",
+            )
+
+        # Persister l'URL en base de données
+        success = mongodb_service.update_episode(
+            episode_id, {"episode_page_url": episode_page_url}
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=500, detail="Échec de la mise à jour de l'épisode en base"
+            )
+
+        return {
+            "episode_id": episode_id,
+            "episode_page_url": episode_page_url,
+            "success": True,
+        }
+
     except HTTPException:
         raise
     except Exception as e:
