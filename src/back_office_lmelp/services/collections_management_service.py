@@ -437,10 +437,7 @@ class CollectionsManagementService:
             # Marquer comme corrigé dans le cache
             livres_auteurs_cache_service.mark_summary_corrected(cache_id)
 
-            print(f"✅ Summary mis à jour pour {corrected_author} - {corrected_title}")
-
-        except Exception as e:
-            print(f"❌ Erreur lors de la mise à jour du summary: {e}")
+        except Exception:
             # Propager l'erreur pour que le cleanup puisse la compter
             raise
 

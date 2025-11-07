@@ -92,13 +92,7 @@ class BooksExtractionService:
                     continue
 
         # Enrichir automatiquement chaque livre avec Babelio (Option 1: enrichissement en temps réel)
-        print(
-            f"🔍 [Babelio Auto-Enrichment] Début enrichissement de {len(all_extracted_books)} livres"
-        )
         enriched_books = await self._enrich_books_with_babelio(all_extracted_books)
-        print(
-            f"✅ [Babelio Auto-Enrichment] Enrichissement terminé: {len(enriched_books)} livres"
-        )
 
         return enriched_books
 
@@ -327,35 +321,27 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
 
             try:
                 # Appeler Babelio verify_book()
-                print(f"  📖 Enrichissement: {auteur} - {titre}")
                 verification = await babelio_service.verify_book(titre, auteur)
 
                 # ✅ FIX Issue #85: Utiliser la vraie clé "confidence_score" de l'API (pas "confidence")
                 confidence = (
                     verification.get("confidence_score", 0) if verification else 0
                 )
-                print(f"     → Confidence: {confidence:.2f}")
 
                 # Enrichir si confidence >= 0.90
                 if verification and confidence >= 0.90:
                     # ✅ FIX Issue #85: L'API retourne "babelio_url" directement (pas "url")
                     if verification.get("babelio_url"):
                         enriched_book["babelio_url"] = verification["babelio_url"]
-                        print(f"     ✅ URL ajoutée: {verification['babelio_url']}")
                     if verification.get("babelio_publisher"):
                         enriched_book["babelio_publisher"] = verification[
                             "babelio_publisher"
                         ]
-                        print(
-                            f"     ✅ Publisher ajouté: {verification['babelio_publisher']}"
-                        )
-                else:
-                    print(f"     ❌ Confidence trop faible ({confidence:.2f} < 0.90)")
 
-            except Exception as e:
+            except Exception:
                 # En cas d'erreur Babelio (timeout, réseau, etc.), continuer sans enrichissement
                 # Le livre reste tel quel sans babelio_url/babelio_publisher
-                print(f"     ⚠️ Erreur Babelio: {e}")
+                pass
 
             enriched_books.append(enriched_book)
 
