@@ -1,5 +1,6 @@
 - [Commands](#commands)
   - [resinstalle claude (apres rebuild devcontainer)](#resinstalle-claude-apres-rebuild-devcontainer)
+  - [dashboard usage claude](#dashboard-usage-claude)
   - [lancement backend - frontend](#lancement-backend---frontend)
   - [lancement des tests](#lancement-des-tests)
   - [les infos sur les services frontend - backend](#les-infos-sur-les-services-frontend---backend)
@@ -27,6 +28,10 @@ Toutes les commandes que je suis amene a lancer souvent dans le cadre de ce proj
 npm install -g @anthropic-ai/claude-code
 claude --resume
 ```
+
+## dashboard usage claude
+
+https://claude.ai/settings/usage
 
 ## lancement backend - frontend
 

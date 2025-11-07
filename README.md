@@ -151,10 +151,14 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées
 - 🎯 **Workflow complet** : De l'extraction des avis critiques jusqu'aux collections finales structurées
 
-#### Vérification Orthographique Babelio ⭐ **NOUVEAU**
+#### Vérification Orthographique Babelio
 - ✅ **Auteurs** : Vérification et correction automatique d'orthographe
 - 📚 **Livres** : Validation croisée titre/auteur avec base Babelio
 - 🔗 **Enrichissement** : Liens directs, métadonnées, popularité
+- 🏢 **Éditeur automatique** : Scraping et enrichissement de l'éditeur depuis Babelio
+  - Enrichissement automatique lors de l'extraction des livres
+  - Mise à jour des avis critiques avec l'éditeur vérifié
+  - Cache intelligent avec enrichissement différé si nécessaire
 - 🎯 **Interface dédiée** : http://localhost:5174/babelio-test
 - 🤖 **Tolérance aux fautes** : Corrections intelligentes (ex: "Houllebeck" → "Michel Houellebecq")
 

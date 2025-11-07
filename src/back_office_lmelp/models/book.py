@@ -47,16 +47,24 @@ class Book:
         Prépare les données d'un livre pour insertion MongoDB.
 
         Args:
-            data: Données du livre
+            data: Données du livre (peut inclure babelio_publisher)
 
         Returns:
             Dictionnaire formaté pour MongoDB
+
+        Note:
+            Issue #85: babelio_publisher est prioritaire sur editeur
+            (source plus fiable que la transcription)
         """
         now = datetime.now()
+
+        # Issue #85: Priorité à babelio_publisher si disponible
+        editeur = data.get("babelio_publisher") or data.get("editeur", "")
+
         return {
             "titre": data["titre"],
             "auteur_id": data["auteur_id"],
-            "editeur": data.get("editeur", ""),
+            "editeur": editeur,
             "episodes": data.get("episodes", []),
             "avis_critiques": data.get("avis_critiques", []),
             "created_at": now,

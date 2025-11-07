@@ -51,6 +51,34 @@ Le système combine **plusieurs sources** pour maximiser la fiabilité :
 
 **Priorité** : Les données de l'épisode (vérifiées par l'éditeur France Inter) sont prioritaires sur les corrections Babelio quand elles sont fiables.
 
+## Enrichissement automatique de l'éditeur
+
+Lors de l'extraction des livres depuis les avis critiques, le système enrichit automatiquement les données avec l'information d'éditeur provenant de Babelio.
+
+### Fonctionnement
+
+**Extraction automatique** :
+- Lorsqu'un livre est validé avec un score de confiance ≥ 0.90
+- Le système récupère automatiquement le nom de l'éditeur depuis la page Babelio
+- L'information est ajoutée au livre dans le cache
+
+**Mise à jour des avis critiques** :
+- Lorsqu'une correction d'auteur ou de titre est validée
+- Le résumé de l'avis critique est automatiquement mis à jour
+- L'éditeur Babelio remplace l'éditeur original si disponible
+
+**Enrichissement différé** :
+- Si un livre possède une URL Babelio mais pas d'éditeur
+- Le système récupère automatiquement l'éditeur lors du prochain chargement
+- Cette information est mise en cache pour éviter les requêtes répétées
+
+### Avantages
+
+- ✅ **Données complètes** : Éditeur automatiquement renseigné pour ~90% des livres
+- ✅ **Réduction saisie manuelle** : Moins de champs à compléter manuellement
+- ✅ **Qualité des données** : Source Babelio fiable et à jour
+- ✅ **Performance** : Cache intelligent évite les requêtes redondantes
+
 ## Cas d'usage typiques
 
 ### Utilisateur final (consultation)

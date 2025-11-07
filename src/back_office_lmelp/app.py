@@ -63,6 +63,9 @@ class BookValidationResult(BaseModel):
     validation_status: str  # 'verified' | 'suggested' | 'not_found'
     suggested_author: str | None = None
     suggested_title: str | None = None
+    # Issue #85: Champs d'enrichissement Babelio automatique
+    babelio_url: str | None = None
+    babelio_publisher: str | None = None
 
 
 class ValidationResultsRequest(BaseModel):
@@ -92,6 +95,8 @@ class ValidateSuggestionRequest(BaseModel):
     user_validated_author: str
     user_validated_title: str
     user_validated_publisher: str | None = None
+    babelio_publisher: str | None = None  # Issue #85: Enrichissement Babelio
+    babelio_url: str | None = None  # Issue #85: URL Babelio du livre
 
 
 class AddManualBookRequest(BaseModel):
@@ -594,6 +599,12 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
             if book_result.suggested_title:
                 book_data["suggested_title"] = book_result.suggested_title
 
+            # Issue #85: Ajouter les enrichissements Babelio si disponibles
+            if book_result.babelio_url:
+                book_data["babelio_url"] = book_result.babelio_url
+            if book_result.babelio_publisher:
+                book_data["babelio_publisher"] = book_result.babelio_publisher
+
             # Créer l'entrée cache
             from bson import ObjectId
 
@@ -617,10 +628,12 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                     )
 
                     # Créer livre en base
+                    # Issue #85: Utiliser babelio_publisher si disponible (source plus fiable)
+                    editeur_value = book_result.babelio_publisher or book_result.editeur
                     book_data_for_mongo = {
                         "titre": validated_title,
                         "auteur_id": author_id,
-                        "editeur": book_result.editeur,
+                        "editeur": editeur_value,
                         "episodes": [request.episode_oid],
                         "avis_critiques": [request.avis_critique_id],
                     }
@@ -628,10 +641,58 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                         book_data_for_mongo
                     )
 
-                    # Marquer comme traité (mongo)
+                    # Issue #85: Passer babelio_publisher en metadata pour écraser editeur dans le cache
+                    # C'est la source la plus fiable (enrichissement Babelio)
+                    cache_metadata = {}
+                    if book_result.babelio_publisher:
+                        cache_metadata["babelio_publisher"] = (
+                            book_result.babelio_publisher
+                        )
+
+                    # Marquer comme traité (mongo) avec metadata pour override cache editeur
                     livres_auteurs_cache_service.mark_as_processed(
-                        cache_entry_id, author_id, book_id
+                        cache_entry_id, author_id, book_id, metadata=cache_metadata
                     )
+
+                    # Issue #85: Mettre à jour l'avis_critique avec le nouvel éditeur enrichi par Babelio
+                    # Mettre à jour le summary markdown pour remplacer l'ancien éditeur par le nouvel
+                    if (
+                        book_result.babelio_publisher
+                        and book_result.babelio_publisher != book_result.editeur
+                    ):
+                        print(
+                            f"📝 [Issue #85] Updating avis_critique {request.avis_critique_id} with Babelio publisher={book_result.babelio_publisher}"
+                        )
+
+                        # Récupérer l'avis critique actuel pour accéder au summary
+                        avis_critique = mongodb_service.get_avis_critique_by_id(
+                            request.avis_critique_id
+                        )
+                        if avis_critique:
+                            # Importer la fonction pour mettre à jour le summary
+                            from .utils.summary_updater import replace_book_in_summary
+
+                            # Mettre à jour le summary markdown avec le nouvel éditeur
+                            original_summary = avis_critique.get("summary", "")
+                            updated_summary = replace_book_in_summary(
+                                summary=original_summary,
+                                original_author=book_result.auteur,
+                                original_title=book_result.titre,
+                                corrected_author=book_result.auteur,  # Pas de changement d'auteur
+                                corrected_title=book_result.titre,  # Pas de changement de titre
+                                original_publisher=book_result.editeur,
+                                corrected_publisher=book_result.babelio_publisher,
+                            )
+
+                            # Mettre à jour l'avis_critique avec le summary et l'éditeur mis à jour
+                            mongodb_service.update_avis_critique(
+                                request.avis_critique_id,
+                                {
+                                    "summary": updated_summary,
+                                    "editeur": book_result.babelio_publisher,
+                                },
+                            )
+                            print("   ✅ Summary and editeur updated in avis_critique")
 
                 except Exception as auto_processing_error:
                     # Ne pas faire échouer l'endpoint si l'auto-processing échoue

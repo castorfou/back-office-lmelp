@@ -11,6 +11,11 @@ export class BiblioValidationService {
     this.babelioService = dependencies.babelioService;
     this.localAuthorService = dependencies.localAuthorService;
     this.livresAuteursService = dependencies.livresAuteursService;
+
+    // Cache pour les livres extraits par épisode (Issue #85 - Performance)
+    // Évite les appels API redondants lors de la validation de plusieurs livres
+    // Key: episodeId, Value: Array<{author, title}>
+    this._extractedBooksCache = new Map();
   }
 
   /**
@@ -217,6 +222,7 @@ export class BiblioValidationService {
 
   /**
    * Récupère les livres extraits pour un épisode donné depuis le backend
+   * Utilise un cache pour éviter les appels API redondants (Issue #85 - Performance)
    * @param {string} episodeId - ID de l'épisode
    * @returns {Promise<Array>} Liste des livres extraits ({author, title})
    * @private
@@ -226,17 +232,39 @@ export class BiblioValidationService {
       return [];
     }
 
+    // Vérifier si les livres sont déjà en cache
+    if (this._extractedBooksCache.has(episodeId)) {
+      return this._extractedBooksCache.get(episodeId);
+    }
+
     try {
       const livresAuteurs = await this.livresAuteursService.getLivresAuteurs({ episode_oid: episodeId });
 
       // Transformer le format API {auteur, titre} en format {author, title}
-      return livresAuteurs.map(livre => ({
+      const transformedBooks = livresAuteurs.map(livre => ({
         author: livre.auteur,
         title: livre.titre
       }));
+
+      // Mettre en cache pour les prochains appels
+      this._extractedBooksCache.set(episodeId, transformedBooks);
+
+      return transformedBooks;
     } catch (error) {
       console.error(`Failed to fetch extracted books for episode ${episodeId}:`, error);
       return [];
+    }
+  }
+
+  /**
+   * Vide le cache des livres extraits (Issue #85 - Performance)
+   * @param {string|null} episodeId - ID de l'épisode à vider, ou null pour tout vider
+   */
+  clearExtractedBooksCache(episodeId = null) {
+    if (episodeId) {
+      this._extractedBooksCache.delete(episodeId);
+    } else {
+      this._extractedBooksCache.clear();
     }
   }
 

@@ -215,6 +215,59 @@ pre-commit run --all-files
 - **Progressive typing**: New code should include type hints
 - **Import resolution**: Use proper module imports for type checking
 
+#### CRITICAL: MyPy Type Stubs with Pre-commit
+
+**Problem**: When adding a new Python library that requires type stubs (e.g., `beautifulsoup4`), mypy in pre-commit may fail with `import-not-found` even if the types are installed in your local environment.
+
+**Root Cause**: Pre-commit runs mypy in an **isolated environment** with its own dependencies defined in `.pre-commit-config.yaml`. Installing type stubs via `pyproject.toml` or locally does NOT make them available to pre-commit's mypy.
+
+**❌ WRONG Solution (avoid this)**:
+```python
+# Don't use type: ignore to suppress the error
+from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+```
+
+**✅ CORRECT Solution (always do this)**:
+
+1. Add type stubs to **both** `pyproject.toml` dev dependencies AND `.pre-commit-config.yaml`:
+
+```toml
+# pyproject.toml
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "types-beautifulsoup4",  # ✅ For local mypy runs
+    ...
+]
+```
+
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/pre-commit/mirrors-mypy
+  hooks:
+    - id: mypy
+      additional_dependencies:
+        - types-beautifulsoup4  # ✅ For pre-commit mypy runs
+        ...
+```
+
+2. Reinstall pre-commit hooks to pick up new dependencies:
+```bash
+pre-commit clean
+pre-commit install
+```
+
+**Why this matters**:
+- Maintains type safety without suppressing errors
+- Ensures CI/CD and local environments have same type checking
+- Avoids accumulating `type: ignore` comments that hide real issues
+
+**Example from Issue #85**:
+- Added `beautifulsoup4` for scraping
+- Initial error: `Cannot find implementation or library stub for module named "bs4"`
+- Fixed by adding `types-beautifulsoup4` to both locations
+- Result: Clean type checking in both local and pre-commit environments
+
 #### Pre-commit Hook Enforcement
 The project uses pre-commit hooks that will **automatically block commits** if:
 - Ruff linting fails
@@ -818,6 +871,579 @@ def test_with_di():
 
 **Reference**: Issue #67 - Discovered this pattern after 12 failed test attempts with standard mocking approaches. This documentation serves as a critical reference for future test writing when dealing with singleton services.
 
+### Backend Testing - CRITICAL: Creating Mocks from Real API Responses
+
+**🚨 ABSOLUTE RULE 🚨**: When writing backend tests, **NEVER invent mock response structures**. **ALWAYS call the real API first** to capture the actual response format, then create your mocks based on that real structure.
+
+#### Why This is Critical
+
+Invented mocks can perfectly match buggy code, causing tests to pass while real code fails in production. This creates a dangerous false sense of security where your test suite validates incorrect behavior.
+
+**Real Example from Issue #85 - The Bug That Tests Didn't Catch:**
+
+```python
+# ❌ WRONG - Code reads wrong dictionary key
+# File: books_extraction_service.py:329
+confidence = verification.get("confidence", 0) if verification else 0  # ❌ Wrong key!
+
+# ❌ WRONG - Test mock uses invented structure that matches buggy code
+mock_babelio_response = {
+    "confidence": 0.95,  # ❌ Invented key (matches bug!)
+    "babelio_publisher": "Gallimard"
+}
+
+# What happens:
+# - Code reads verification.get("confidence", 0) → Gets 0.95 from mock ✅ Test passes
+# - Real API returns {"confidence_score": 0.95, ...} → Code gets 0 (default) ❌ Real code fails
+# - ALL BOOKS showed confidence: 0.00 in production despite tests passing!
+```
+
+**Real API Response (discovered via manual testing):**
+```json
+{
+  "status": "verified",
+  "original_title": "Paracuellos, Intégrale",
+  "babelio_suggestion_title": "Paracuellos, Intégrale",
+  "original_author": "Carlos Gimenez",
+  "babelio_suggestion_author": "Carlos Gimenez",
+  "confidence_score": 1.0,  // ✅ Real key is "confidence_score" NOT "confidence"
+  "babelio_data": {...},
+  "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+  "babelio_publisher": "Audie-Fluide glacial",
+  "error_message": null
+}
+```
+
+#### The Correct Process - ALWAYS Follow These Steps
+
+**Step 1: Call the Real API**
+
+Before writing any test, manually call the actual API endpoint to see what it really returns:
+
+```bash
+# Example: Testing Babelio verify_book()
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
+curl -X POST "$BACKEND_URL/api/verify-babelio" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "book", "title": "Paracuellos, Intégrale", "author": "Carlos Gimenez"}' | jq
+
+# Save the EXACT response structure
+```
+
+**Step 2: Capture the Complete Response**
+
+```python
+# Add temporary debug logging to see real responses
+print(f"DEBUG: Real API response: {json.dumps(verification, indent=2)}")
+```
+
+**Step 3: Create Mock Based on Real Structure**
+
+```python
+# ✅ CORRECT - Mock based on real API response
+mock_babelio_response = {
+    "status": "verified",
+    "original_title": "Paracuellos, Intégrale",
+    "babelio_suggestion_title": "Paracuellos, Intégrale",
+    "original_author": "Carlos Gimenez",
+    "babelio_suggestion_author": "Carlos Gimenez",
+    "confidence_score": 0.95,  # ✅ Real key from actual API
+    "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+    "babelio_publisher": "Gallimard",
+    "error_message": None
+}
+
+# Now code that reads confidence_score will work correctly:
+confidence = verification.get("confidence_score", 0)  # ✅ Correct key
+```
+
+**Step 4: Write Code That Works with Real Structure**
+
+```python
+# ✅ Code correctly reads the real API response structure
+async def _enrich_books_with_babelio(self, books: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched_books = []
+
+    for book in books:
+        enriched_book = book.copy()
+        verification = await babelio_service.verify_book(titre, auteur)
+
+        # ✅ CORRECT - Reads real key from API
+        confidence = verification.get("confidence_score", 0) if verification else 0
+
+        if verification and confidence >= 0.90:
+            if verification.get("babelio_url"):
+                enriched_book["babelio_url"] = verification["babelio_url"]
+            if verification.get("babelio_publisher"):
+                enriched_book["babelio_publisher"] = verification["babelio_publisher"]
+
+        enriched_books.append(enriched_book)
+
+    return enriched_books
+```
+
+#### Common Scenarios and How to Handle Them
+
+**Scenario 1: Testing a new service method**
+
+```python
+# ❌ WRONG - Guessing the response structure
+def test_new_feature():
+    mock_service.new_method.return_value = {
+        "result": "success",  # Guessing!
+        "data": {...}  # Making this up!
+    }
+
+# ✅ CORRECT - Call real API first
+# 1. Manually test the endpoint:
+#    curl "$BACKEND_URL/api/new-endpoint" | jq
+# 2. Capture real response
+# 3. Then create test:
+
+def test_new_feature():
+    # Mock based on REAL response seen in step 1
+    mock_service.new_method.return_value = {
+        "status": "success",  # ✅ Real key from API
+        "result": {...},      # ✅ Real structure from API
+        "metadata": {...}     # ✅ Real nested structure
+    }
+```
+
+**Scenario 2: Multiple response variations**
+
+```python
+# ✅ CORRECT - Test with multiple REAL response examples
+
+def test_high_confidence_response():
+    # From real API call with "Paracuellos, Intégrale"
+    mock_response = {
+        "status": "verified",
+        "confidence_score": 1.0,  # Real response
+        "babelio_url": "...",
+        "babelio_publisher": "Audie-Fluide glacial"
+    }
+
+def test_low_confidence_response():
+    # From real API call with partial title
+    mock_response = {
+        "status": "not_found",
+        "confidence_score": 0.45,  # Real response
+        "babelio_url": None,
+        "babelio_publisher": None,
+        "error_message": "No match found"
+    }
+```
+
+**Scenario 3: Error responses**
+
+```python
+# ✅ CORRECT - Trigger real errors to see structure
+
+# 1. Manually trigger error:
+#    curl "$BACKEND_URL/api/endpoint" -d '{"invalid": "data"}'
+# 2. Capture error response structure
+# 3. Mock based on real error:
+
+def test_error_handling():
+    mock_service.method.side_effect = Exception("Network timeout")  # Real error
+    # OR
+    mock_service.method.return_value = {
+        "status": "error",           # Real error structure
+        "error_message": "Timeout",  # Real error message format
+        "error_code": 504            # Real error code
+    }
+```
+
+#### Quick Checklist Before Writing Any Mock
+
+Before creating a mock in your test, verify:
+
+- [ ] Have I called the real API endpoint manually?
+- [ ] Have I captured the complete response structure (use `| jq` or `json.dumps(..., indent=2)`)?
+- [ ] Does my mock include ALL fields from the real response (not just what I think I need)?
+- [ ] Have I tested with multiple real examples (success, partial match, error cases)?
+- [ ] Have I documented where the mock structure came from (comment with curl command)?
+
+#### Documentation Pattern for Mocks
+
+```python
+def test_verify_book_high_confidence():
+    """
+    GIVEN: Book with exact match in Babelio database
+    WHEN: verify_book() is called
+    THEN: Returns confidence_score >= 0.90 with enriched data
+
+    Mock structure based on real API response:
+    curl -X POST "$BACKEND_URL/api/verify-babelio" \
+      -d '{"type": "book", "title": "Paracuellos, Intégrale", "author": "Carlos Gimenez"}'
+
+    Real response captured: 2025-01-15
+    """
+    # ✅ Mock based on documented real API call
+    mock_babelio_response = {
+        "status": "verified",
+        "confidence_score": 1.0,  # Real key from actual API
+        "babelio_url": "https://www.babelio.com/livres/Gimenez-Paracuellos-Integrale/112880",
+        "babelio_publisher": "Audie-Fluide glacial"
+    }
+```
+
+#### Why This Rule is Non-Negotiable
+
+1. **Prevents Silent Failures**: Tests that validate incorrect behavior are worse than no tests
+2. **Catches Integration Issues**: Real API structure changes won't match invented mocks
+3. **Documents Actual Behavior**: Mocks become living documentation of real API contracts
+4. **Saves Debug Time**: When production fails but tests pass, you know to check mock accuracy
+5. **Enforces TDD Discipline**: Can't write test before seeing real behavior
+
+#### What to Do If You Can't Call the Real API
+
+If the API endpoint doesn't exist yet (pure TDD):
+
+1. **Document the assumption clearly**:
+   ```python
+   # ⚠️ WARNING: Mock structure is ASSUMED, not from real API
+   # TODO: Update mock after first real API call
+   # Expected structure based on similar endpoint X
+   ```
+
+2. **Create ticket to validate mock** after implementation:
+   ```python
+   # TODO(Issue #XX): Validate mock against real API response
+   ```
+
+3. **Mark test as needing validation**:
+   ```python
+   @pytest.mark.needs_real_api_validation
+   def test_new_feature():
+       pass
+   ```
+
+4. **Update immediately** after real API is available
+
+#### Reference
+
+**Issue #85** - Discovered this critical rule the hard way:
+- All enrichment tests passed (5/5) ✅
+- Real enrichment failed 100% (0% success rate) ❌
+- Root cause: Mocks used `"confidence"` key, real API uses `"confidence_score"`
+- Impact: ALL books showed confidence 0.00 in production
+- Lesson: **NEVER invent mock structures, ALWAYS call real APIs first**
+
+**User's exact words:**
+> "là je ne suis pas d'accord avec l'approche. il faut ABSOLUMENT appeler les APIs pour creer les mocks"
+
+This rule is now a **non-negotiable requirement** for all backend testing in this project.
+
+### Backend Testing - Writing Proper TDD Tests with Mocks
+
+**CRITICAL**: When writing backend tests, ALWAYS use mocks for external dependencies (MongoDB, APIs, services). NEVER use real database connections or external API calls in unit tests.
+
+#### Why Mocking is Essential
+
+- **CI/CD Compatibility**: Tests must run in isolated environments without external dependencies
+- **Speed**: Mocked tests run in milliseconds instead of seconds
+- **Reliability**: No network failures, no database setup required
+- **Isolation**: Each test is independent and doesn't affect real data
+- **Reproducibility**: Same results every time, no flaky tests
+
+#### Anti-Pattern: Real Database Connections
+
+**❌ MAUVAIS - Tests avec connexion MongoDB réelle**
+
+```python
+# ❌ NE JAMAIS FAIRE CELA
+@pytest.mark.asyncio
+async def test_with_real_mongodb():
+    # Mauvais: Utilise la vraie connexion MongoDB
+    cache_collection = livres_auteurs_cache_service.mongodb_service.db["livresauteurs_cache"]
+
+    # Mauvais: Insère dans la vraie base de données
+    test_id = cache_collection.insert_one({
+        "auteur": "Albert Camus",
+        "titre": "L'Étranger",
+        "episode_oid": "test123"
+    }).inserted_id
+
+    # Mauvais: Appelle la vraie API Babelio
+    books = await service.get_books_by_episode_oid_async("test123")
+
+    # Problèmes:
+    # - Requiert MongoDB actif
+    # - Requiert connexion Internet
+    # - Pollution de la base de données
+    # - Tests lents et fragiles
+    # - Impossible en CI/CD
+```
+
+**Pourquoi c'est inacceptable:**
+1. Échoue en CI/CD (pas de MongoDB disponible)
+2. Pollue la base de données avec des données de test
+3. Dépend de services externes (Babelio API)
+4. Tests lents (attente réseau, I/O disque)
+5. Non reproductible (données changeantes)
+
+#### Correct Pattern: Full Mocking
+
+**✅ BON - Tests avec mocks complets**
+
+```python
+from unittest.mock import Mock, patch, AsyncMock
+from bson import ObjectId
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_when_url_without_publisher_should_scrape_and_update_cache():
+    """
+    Quand babelio_url présente sans publisher, scrape et update cache.
+    """
+    from back_office_lmelp.services.livres_auteurs_cache_service import (
+        LivresAuteursCacheService,
+    )
+
+    # Arrange - Données de test
+    test_id = ObjectId()
+    test_episode_oid = "68c707ad6e51b9428ab87e9e" # pragma: allowlist secret
+    cache_entry = {
+        "_id": test_id,
+        "auteur": "Albert Camus",
+        "titre": "L'Étranger",
+        "episode_oid": test_episode_oid,
+        "babelio_url": "https://www.babelio.com/livres/Camus-Letranger/3874",
+        # Pas de champ babelio_publisher (champ absent, pas None)
+    }
+
+    # Mock MongoDB collection
+    mock_collection = Mock()
+    mock_collection.find.return_value = [cache_entry]
+    mock_collection.update_one = Mock()  # Pour vérifier les appels
+
+    # Mock MongoDB service
+    service = LivresAuteursCacheService()
+    service.mongodb_service = Mock()
+    service.mongodb_service.get_collection.return_value = mock_collection
+
+    # Mock Babelio service (singleton importé localement)
+    with patch("back_office_lmelp.services.babelio_service.babelio_service") as mock_babelio:
+        mock_babelio.fetch_publisher_from_url = AsyncMock(return_value="Gallimard")
+
+        # Act
+        books = await service.get_books_by_episode_oid_async(test_episode_oid)
+
+        # Assert - Vérifier que fetch_publisher_from_url a été appelé
+        mock_babelio.fetch_publisher_from_url.assert_called_once_with(
+            "https://www.babelio.com/livres/Camus-Letranger/3874"
+        )
+
+        # Assert - Vérifier que update_one a été appelé pour persister
+        mock_collection.update_one.assert_called_once_with(
+            {"_id": test_id},
+            {"$set": {"babelio_publisher": "Gallimard"}}
+        )
+
+        # Assert - Vérifier le résultat retourné
+        assert len(books) == 1
+        assert books[0]["babelio_publisher"] == "Gallimard"
+```
+
+**Pourquoi c'est correct:**
+1. ✅ Aucune connexion MongoDB requise
+2. ✅ Aucun appel API externe
+3. ✅ Rapide (millisecondes)
+4. ✅ Fonctionne en CI/CD
+5. ✅ Vérifie la persistance via `update_one.assert_called_once_with(...)`
+6. ✅ Reproductible à 100%
+
+#### What to Mock in Backend Tests
+
+**Always mock these:**
+- ✅ MongoDB collections (`find`, `update_one`, `insert_one`, `delete_one`)
+- ✅ External API services (Babelio, Google Books, etc.)
+- ✅ Singleton services imported locally
+- ✅ File I/O operations
+- ✅ Network requests
+- ✅ Time-dependent functions (`datetime.now()`)
+
+**Never mock these:**
+- ❌ Pure functions (calculations, transformations)
+- ❌ The service under test itself
+- ❌ Simple data structures (dicts, lists)
+- ❌ Standard library utilities (unless I/O related)
+
+#### How to Verify Database Updates
+
+**CRITICAL**: Always verify that database updates are persisted by checking mock calls.
+
+```python
+# ✅ BON - Vérifier la persistance
+mock_collection.update_one.assert_called_once_with(
+    {"_id": test_id},  # Filter
+    {"$set": {"babelio_publisher": "Gallimard"}}  # Update
+)
+
+# ✅ BON - Vérifier plusieurs appels dans l'ordre
+assert mock_collection.update_one.call_count == 2
+first_call = mock_collection.update_one.call_args_list[0]
+assert first_call[0][0] == {"_id": test_id}  # Premier appel
+assert first_call[0][1] == {"$set": {"field1": "value1"}}
+
+# ❌ MAUVAIS - Ne vérifier que le retour de fonction
+books = await service.get_books(episode_oid)
+assert books[0]["publisher"] == "Gallimard"  # Pas de vérification de persistance!
+```
+
+#### Patching External Services Correctly
+
+**Pattern 1: Patching singleton services**
+
+```python
+# ✅ BON - Patch le singleton au bon endroit
+with patch("back_office_lmelp.services.babelio_service.babelio_service") as mock_babelio:
+    mock_babelio.verify_book = AsyncMock(return_value={
+        "status": "verified",
+        "babelio_url": "https://...",
+        "babelio_publisher": "Gallimard"
+    })
+
+    # Test code...
+```
+
+**Pattern 2: Multiple patches**
+
+```python
+# ✅ BON - Multiples patches avec parenthèses
+with (
+    patch("module.service1") as mock_service1,
+    patch("module.service2") as mock_service2,
+):
+    mock_service1.method.return_value = "value1"
+    mock_service2.method.return_value = "value2"
+
+    # Test code...
+```
+
+#### Testing Error Cases
+
+**Always test both success and error paths:**
+
+```python
+@pytest.mark.asyncio
+async def test_when_scraping_fails_should_log_error_and_continue():
+    """
+    Quand le scraping échoue, log l'erreur mais continue le traitement.
+    """
+    # Arrange
+    service = create_mocked_service()
+    cache_entry = {...}
+
+    mock_collection = Mock()
+    mock_collection.find.return_value = [cache_entry]
+    service.mongodb_service.get_collection.return_value = mock_collection
+
+    # Mock Babelio service pour lever une exception
+    with patch("back_office_lmelp.services.babelio_service.babelio_service") as mock_babelio:
+        mock_babelio.fetch_publisher_from_url = AsyncMock(
+            side_effect=Exception("Network error")
+        )
+
+        # Act - Ne doit pas lever d'exception
+        books = await service.get_books_by_episode_oid_async("episode123")
+
+        # Assert - Le livre est retourné sans publisher
+        assert len(books) == 1
+        assert "babelio_publisher" not in books[0]
+
+        # Assert - update_one n'a PAS été appelé (échec du scraping)
+        mock_collection.update_one.assert_not_called()
+```
+
+#### Common Mocking Mistakes
+
+**❌ Mistake 1: Patching the wrong import path**
+```python
+# ❌ Mauvais - Patch où le service est utilisé, pas où il est défini
+with patch("back_office_lmelp.services.cache_service.babelio_service"):
+    pass  # Ne fonctionne pas avec imports locaux
+
+# ✅ Bon - Patch à la source
+with patch("back_office_lmelp.services.babelio_service.babelio_service"):
+    pass
+```
+
+**❌ Mistake 2: Not using AsyncMock for async functions**
+```python
+# ❌ Mauvais - Mock au lieu de AsyncMock
+mock_service.async_method = Mock(return_value="value")  # Erreur!
+
+# ✅ Bon - AsyncMock pour fonctions async
+mock_service.async_method = AsyncMock(return_value="value")
+```
+
+**❌ Mistake 3: Not verifying side effects**
+```python
+# ❌ Mauvais - Oubli de vérifier update_one
+books = service.get_books("episode123")
+assert books[0]["publisher"] == "Gallimard"  # Vérifie uniquement le retour
+
+# ✅ Bon - Vérifie aussi la persistance
+mock_collection.update_one.assert_called_once()
+```
+
+**❌ Mistake 4: Using real ObjectIds when not needed**
+```python
+# ❌ Mauvais - Génère des ObjectIds différents à chaque test
+test_id = ObjectId()  # ID change à chaque exécution
+
+# ✅ Bon - Utilise des IDs fixes pour reproductibilité
+test_id = ObjectId("507f1f77bcf86cd799439011")
+```
+
+#### Unit Tests vs Integration Tests
+
+**Ratio recommandé: 90% unit tests (mocks), 10% integration tests (real DB)**
+
+**Unit Tests (mocks)**:
+- Test individual service methods
+- Fast execution (milliseconds)
+- Run in CI/CD without infrastructure
+- Use `Mock`, `AsyncMock`, `patch`
+- Example: `test_babelio_cache_enrichment.py`
+
+**Integration Tests (real DB)**:
+- Test full workflows across services
+- Slower execution (seconds)
+- Require MongoDB running
+- Use real database connections
+- Example: End-to-end API tests with TestClient
+
+**When to write integration tests:**
+- Testing complex multi-service workflows
+- Validating MongoDB aggregation pipelines
+- Testing transaction consistency
+- Verifying database indexes work correctly
+
+**When to write unit tests (mocks):**
+- Testing business logic
+- Testing error handling
+- Testing data transformations
+- Testing individual service methods
+- **Default choice for 90% of tests**
+
+#### Quick Checklist for Backend Tests
+
+Before committing tests, verify:
+- [ ] No real MongoDB connections (`mongodb_service` is mocked)
+- [ ] No external API calls (services are mocked)
+- [ ] Database updates verified via `mock_collection.update_one.assert_called_with(...)`
+- [ ] Both success and error cases tested
+- [ ] AsyncMock used for async functions
+- [ ] Correct patch path (source module, not usage module)
+- [ ] Tests run in <100ms (no network/disk I/O)
+- [ ] Tests pass in CI/CD environment
+
+**Reference**: Issue #85 - Learned this the hard way after initially writing tests with real MongoDB connections, which was completely wrong for CI/CD compatibility.
+
 ## Claude Code Auto-Discovery System
 
 ### Overview
@@ -1115,8 +1741,11 @@ BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) &
 curl "$BACKEND_URL/"
 
 # ✅ Test API avec query string (testé et validé)
+# ⚠️ Copie-colle exactement les lignes suivantes : aucun `\` devant `$`, aucun espace entre `$` et `(`
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
 curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq
+
+> ⚠️ **Important** : l'assignation doit être écrite exactement `BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)` sans espace entre `$` et `(` et sans échapper le `$`. La forme `BACKEND_URL=\$ (` produit l'erreur `syntax error near unexpected token '('` et laisse `curl` appeler `/api/...` sans hôte.
 
 # ✅ Validation d'endpoint avec données POST
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
@@ -1137,8 +1766,9 @@ curl -s "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/
 ### Pattern 2-étapes (si chaînage pose problème)
 ```bash
 # ✅ Fallback : Séparer en deux étapes
+# ⚠️ Aucune modification : pas de `\$`, pas d'espace avant `(`
 BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
-curl "$BACKEND_URL/api/endpoint"
+curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq '.[0]'
 ```
 
 ### ⚠️ Note Importante sur l'Échappement
@@ -1284,8 +1914,9 @@ mcp__MongoDB__collection-storage-size --database "masque_et_la_plume" --collecti
 - **FastAPI**: Web framework with MongoDB integration
 - **Core**: pandas, numpy (data processing)
 - **Database**: MongoDB via motor/pymongo
+- **Web scraping**: beautifulsoup4, html5lib (Babelio publisher extraction)
 - **Documentation**: MkDocs with Material theme
-- **Development**: pytest, ruff, mypy, pre-commit
+- **Development**: pytest, ruff, mypy, pre-commit, types-beautifulsoup4
 
 ### Frontend Dependencies
 - **Vue.js 3**: Progressive framework with Composition API

@@ -31,6 +31,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 import aiohttp
+from bs4 import BeautifulSoup
 
 
 logger = logging.getLogger(__name__)
@@ -443,6 +444,20 @@ class BabelioService:
 
             status = "verified" if confidence >= 0.90 else "corrected"
 
+            # Construire l'URL complète Babelio
+            babelio_url = self._build_full_url(best_book.get("url", ""))
+
+            # Enrichissement éditeur: scraper si confiance >= 0.90 (Issue #85)
+            babelio_publisher = None
+            if confidence >= 0.90 and babelio_url:
+                try:
+                    babelio_publisher = await self.fetch_publisher_from_url(babelio_url)
+                except Exception as e:
+                    # Erreur de scraping non fatale, on continue sans éditeur
+                    logger.debug(
+                        f"Impossible de scraper l'éditeur pour {babelio_url}: {e}"
+                    )
+
             return {
                 "status": status,
                 "original_title": title,
@@ -451,13 +466,65 @@ class BabelioService:
                 "babelio_suggestion_author": suggested_author,
                 "confidence_score": confidence,
                 "babelio_data": best_book,
-                "babelio_url": self._build_full_url(best_book.get("url", "")),
+                "babelio_url": babelio_url,
+                "babelio_publisher": babelio_publisher,
                 "error_message": None,
             }
 
         except Exception as e:
             logger.error(f"Erreur verify_book pour {title}/{author}: {e}")
             return self._create_book_error_result(title, author, str(e))
+
+    async def fetch_publisher_from_url(self, babelio_url: str) -> str | None:
+        """Scrape l'éditeur depuis une page Babelio.
+
+        Args:
+            babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
+
+        Returns:
+            Nom de l'éditeur ou None si non trouvé
+
+        Exemple:
+            publisher = await service.fetch_publisher_from_url(
+                "https://www.babelio.com/livres/Assouline-Des-visages-et-des-mains-150-portraits-decrivain/1635414"
+            )
+            # → "Herscher"
+
+        Note:
+            Utilise BeautifulSoup4 avec le sélecteur CSS:
+            a.tiny_links.dark[href*="/editeur/"]
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping éditeur: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Sélecteur CSS pour l'éditeur: lien avec classe tiny_links dark
+                # pointant vers /editeur/
+                editeur_link = soup.select_one('a.tiny_links.dark[href*="/editeur/"]')
+
+                if editeur_link:
+                    publisher: str = str(editeur_link.text).strip()
+                    logger.debug(f"Éditeur trouvé pour {babelio_url}: {publisher}")
+                    return publisher
+                else:
+                    logger.debug(f"Éditeur non trouvé pour {babelio_url}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
+            return None
 
     async def verify_publisher(self, publisher_name: str) -> dict[str, Any]:
         """Vérifie l'orthographe d'un nom d'éditeur.

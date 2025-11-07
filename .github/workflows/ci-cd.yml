@@ -111,6 +111,8 @@ jobs:
 
     - name: Run frontend tests
       run: cd frontend && npm test -- --run --reporter=verbose
+      env:
+        NODE_OPTIONS: --max-old-space-size=16384
 
   integration-tests:
     runs-on: ubuntu-latest
