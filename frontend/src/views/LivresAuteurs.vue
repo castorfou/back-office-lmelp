@@ -2412,7 +2412,7 @@ export default {
 .episode-info-container {
   display: flex;
   gap: 1.5rem;
-  align-items: flex-start;
+  align-items: center;
 }
 
 /* Issue #89: Logo RadioFrance cliquable */
