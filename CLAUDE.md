@@ -1728,96 +1728,71 @@ curl "$BACKEND_URL/api/stats" | jq
 
 ## Auto-Discovery Best Practices for API Testing
 
-### Pattern Optimal : Chaînage Auto-Discovery + API Call
+### ⚠️ CRITICAL: Claude Code Bash Tool Limitation
+
+**The `BACKEND_URL=$(...)` pattern with `&&` chaining does NOT work in Claude Code's Bash tool** due to `$` escaping issues. Use the `bash -c` pattern below instead.
+
+### Pattern Recommandé : bash -c avec Point-Virgule
+
 ```bash
-# ✅ MÉTHODE RECOMMANDÉE : Chaînage avec && (FONCTIONNE PARFAITEMENT)
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl -X POST "$BACKEND_URL/api/endpoint" \
-  -H "Content-Type: application/json" \
-  -d '{"data": "value"}'
+# ✅ MÉTHODE RECOMMANDÉE pour Claude Code : bash -c avec point-virgule
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/api/stats" 2>/dev/null | jq'
 
-# ✅ Health check automatique avec chaînage
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl "$BACKEND_URL/"
+# ✅ Health check
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/" 2>/dev/null'
 
-# ✅ Test API avec query string (testé et validé)
-# ⚠️ Copie-colle exactement les lignes suivantes : aucun `\` devant `$`, aucun espace entre `$` et `(`
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq
+# ✅ Test API avec query string
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq'
 
-> ⚠️ **Important** : l'assignation doit être écrite exactement `BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)` sans espace entre `$` et `(` et sans échapper le `$`. La forme `BACKEND_URL=\$ (` produit l'erreur `syntax error near unexpected token '('` et laisse `curl` appeler `/api/...` sans hôte.
+# ✅ POST avec données JSON
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl -X POST "$BACKEND_URL/api/endpoint" -H "Content-Type: application/json" -d "{\"data\": \"value\"}" 2>/dev/null | jq'
 
-# ✅ Validation d'endpoint avec données POST
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl "$BACKEND_URL/api/livres-auteurs/validate-suggestion" \
-  -H "Content-Type: application/json" \
-  -d '{"cache_id": "test"}' | jq
+# ✅ Vérifier le statut avant appel
+bash -c 'STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status); if [ "$STATUS" = "active" ]; then BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/api/test" 2>/dev/null; fi'
 ```
 
-### Pattern Alternatif : Substitution Directe
-```bash
-# ✅ Alternative compacte : Substitution directe (aussi validé)
-curl "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/endpoint"
+### Pourquoi ce Pattern Fonctionne
 
-# ✅ Avec JSON formatting
-curl -s "$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)/api/stats" | jq
-```
-
-### Pattern 2-étapes (si chaînage pose problème)
-```bash
-# ✅ Fallback : Séparer en deux étapes
-# ⚠️ Aucune modification : pas de `\$`, pas d'espace avant `(`
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
-curl -s "$BACKEND_URL/api/livres-auteurs?episode_oid=68c707ad6e51b9428ab87e9e" | jq '.[0]'
-```
-
-### ⚠️ Note Importante sur l'Échappement
-**Le chaînage fonctionne parfaitement en ligne de commande normale**. Si des erreurs d'échappement apparaissent dans certains environnements (interfaces, IDE, etc.), utiliser la substitution directe ou la méthode 2-étapes comme fallback.
-
-### Pattern Robuste : Validation + Fallback
-```bash
-# Vérifier que le backend est actif avant test
-BACKEND_STATUS=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --status)
-if [ "$BACKEND_STATUS" = "active" ]; then
-    BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url)
-    curl "$BACKEND_URL/api/test"
-else
-    echo "❌ Backend not running"
-    exit 1
-fi
-```
+- **bash -c '...'** : Lance un nouveau shell bash avec les guillemets simples préservant les caractères spéciaux
+- **Point-virgule `;`** : Sépare les commandes séquentielles (pas besoin de `&&`)
+- **Pas d'échappement** : Le `$()` reste intact dans le sous-shell
+- **2>/dev/null** : Supprime les messages de progression curl pour un output propre
 
 ### Anti-Patterns à Éviter
+
 ```bash
+# ❌ NE FONCTIONNE PAS : Chaînage avec && (erreur d'échappement)
+BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && curl "$BACKEND_URL/api/endpoint"
+# Erreur: syntax error near unexpected token '('
+
 # ❌ Hardcoder les ports (fragile)
 curl "http://localhost:54321/api/endpoint"
 
 # ❌ Deviner les ports (inefficace)
 curl "http://localhost:8000/api/endpoint" || curl "http://localhost:5000/api/endpoint"
-
-# ❌ Ne pas valider l'état du service
-curl "http://localhost:$RANDOM/api/endpoint"
 ```
 
 ### Workflow TDD avec Auto-Discovery
+
 ```bash
 # 1. Vérifier l'état des services
 /workspaces/back-office-lmelp/.claude/get-services-info.sh
 
 # 2. Tester le cas d'erreur (Red phase)
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl "$BACKEND_URL/api/validate" -d '{"invalid": null}' # → 422
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/api/validate" -H "Content-Type: application/json" -d "{\"invalid\": null}" 2>/dev/null' # → 422
 
 # 3. Après correction, tester le cas de succès (Green phase)
-BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url) && \
-curl "$BACKEND_URL/api/validate" -d '{"valid": "data"}' # → 200
+bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/api/validate" -H "Content-Type: application/json" -d "{\"valid\": \"data\"}" 2>/dev/null | jq' # → 200
 ```
 
-**Avantages** :
+### Avantages
+
+- ✅ Fonctionne de manière fiable dans Claude Code's Bash tool
+- ✅ Élimine 100% des erreurs d'échappement
 - ✅ Élimine 90% des erreurs "Connection refused"
 - ✅ S'adapte automatiquement aux changements de port
-- ✅ Tests plus robustes et maintenables
-- ✅ Workflow de debug plus efficace
+- ✅ Pattern unique et cohérent pour tous les appels API
+- ✅ Workflow de debug efficace
 
 ## MongoDB Database Operations
 

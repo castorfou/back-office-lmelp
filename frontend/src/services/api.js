@@ -205,6 +205,16 @@ export const episodeService = {
     });
     return response.data;
   },
+
+  /**
+   * Récupère automatiquement l'URL de la page RadioFrance de l'épisode
+   * @param {string} episodeId - ID de l'épisode
+   * @returns {Promise<Object>} Objet contenant l'URL de la page RadioFrance
+   */
+  async fetchEpisodePageUrl(episodeId) {
+    const response = await api.post(`/episodes/${episodeId}/fetch-page-url`);
+    return response.data;
+  },
 };
 
 /**

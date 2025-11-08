@@ -85,14 +85,33 @@
             <span class="toggle-label">Détails de l'épisode (titre et description)</span>
           </button>
           <div v-if="showEpisodeDetails" class="accordion-content">
-            <div class="episode-info">
-              <div class="info-section">
-                <strong>Titre :</strong>
-                <p class="episode-title">{{ episodeDisplayTitle }}</p>
-              </div>
-              <div class="info-section">
-                <strong>Description :</strong>
-                <p class="episode-description">{{ episodeDisplayDescription }}</p>
+            <div class="episode-info-container">
+              <!-- Logo RadioFrance cliquable à gauche -->
+              <a
+                v-if="selectedEpisodeFull && selectedEpisodeFull.episode_page_url"
+                :href="selectedEpisodeFull.episode_page_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="episode-logo-link"
+                title="Voir la page de l'épisode sur RadioFrance"
+              >
+                <img
+                  src="@/assets/le-masque-et-la-plume-logo.jpg"
+                  alt="Logo Le Masque et la Plume"
+                  class="episode-logo"
+                />
+              </a>
+
+              <!-- Informations de l'épisode à droite -->
+              <div class="episode-info">
+                <div class="info-section">
+                  <strong>Titre :</strong>
+                  <p class="episode-title">{{ episodeDisplayTitle }}</p>
+                </div>
+                <div class="info-section">
+                  <strong>Description :</strong>
+                  <p class="episode-description">{{ episodeDisplayDescription }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -903,6 +922,20 @@ export default {
       } catch (err) {
         // Ne pas bloquer l'UI si l'endpoint n'est pas disponible
         console.warn('Impossible de récupérer les détails complets de l\'épisode:', err.message || err);
+      }
+
+      // Issue #89: Fetch automatiquement l'URL de la page RadioFrance si elle n'existe pas encore
+      if (this.selectedEpisodeFull && !this.selectedEpisodeFull.episode_page_url) {
+        try {
+          const result = await episodeService.fetchEpisodePageUrl(this.selectedEpisodeId);
+          if (result.success && result.episode_page_url) {
+            // Mettre à jour l'épisode avec l'URL récupérée
+            this.selectedEpisodeFull.episode_page_url = result.episode_page_url;
+          }
+        } catch (err) {
+          // Ne pas bloquer l'UI si le fetch échoue (épisode non trouvé sur RadioFrance, etc.)
+          console.warn('Impossible de récupérer l\'URL de la page RadioFrance:', err.message || err);
+        }
       }
     },
 
@@ -2375,10 +2408,38 @@ export default {
   }
 }
 
+/* Issue #89: Container pour logo + infos épisode en layout horizontal */
+.episode-info-container {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Issue #89: Logo RadioFrance cliquable */
+.episode-logo-link {
+  flex-shrink: 0;
+  display: block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.episode-logo-link:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+.episode-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+}
+
 .episode-info {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  flex: 1;
 }
 
 .info-section {
