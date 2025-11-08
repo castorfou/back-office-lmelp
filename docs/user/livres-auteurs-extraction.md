@@ -43,6 +43,17 @@ Cet affichage permet de suivre rapidement la progression du traitement des livre
 ### Sélection d'épisode
 Commencez par choisir un épisode dans la liste déroulante "Choisir un épisode avec avis critiques". Seuls les épisodes ayant des avis critiques analysés sont disponibles.
 
+### Lien vers la page RadioFrance
+
+Lorsqu'un épisode est sélectionné, un logo cliquable "Le Masque et la Plume" apparaît dans la section "Détails de l'épisode" si la page officielle RadioFrance est disponible.
+
+**Fonctionnement** :
+- **Auto-détection** : L'URL de la page RadioFrance est automatiquement recherchée et sauvegardée
+- **Logo cliquable** : Cliquez sur le logo pour ouvrir la page officielle dans un nouvel onglet
+- **Accès rapide** : Permet de consulter l'épisode complet sur radiofrance.fr
+
+Cette fonctionnalité facilite l'accès à la source originale de l'émission pour vérifier les informations ou écouter l'épisode complet.
+
 ### Tri du tableau
 Cliquez sur les en-têtes de colonnes pour trier :
 - **Auteur** : tri alphabétique des noms d'auteurs
