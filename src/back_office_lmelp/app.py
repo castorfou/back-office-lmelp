@@ -1001,10 +1001,9 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
         livres_list = livres_search_result.get("livres", [])
         livres_total_count = livres_search_result.get("total_count", 0)
 
-        # Recherche dans les avis critiques (pour éditeurs et backup)
-        critical_reviews_results = (
-            mongodb_service.search_critical_reviews_for_authors_books(q, limit)
-        )
+        # Recherche dans les éditeurs
+        editeurs_search_result = mongodb_service.search_editeurs(q, limit)
+        editeurs_list = editeurs_search_result.get("editeurs", [])
 
         # Structure de la réponse - utilise les collections dédiées en priorité
         response = {
@@ -1014,7 +1013,7 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
                 "auteurs_total_count": auteurs_total_count,
                 "livres": livres_list,
                 "livres_total_count": livres_total_count,
-                "editeurs": critical_reviews_results["editeurs"],
+                "editeurs": editeurs_list,
                 "episodes": [
                     {
                         "titre": episode.get("titre_corrige")

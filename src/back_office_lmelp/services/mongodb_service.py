@@ -613,9 +613,6 @@ class MongoDBService:
             search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
 
             # 1. Recherche dans collection editeurs
-            total_count_editeurs = self.editeurs_collection.count_documents(
-                search_query
-            )
             editeurs_from_collection = list(
                 self.editeurs_collection.find(search_query).skip(offset).limit(limit)
             )
@@ -624,9 +621,6 @@ class MongoDBService:
             livres_search_query = {
                 "editeur": {"$regex": query_escaped, "$options": "i"}
             }
-            total_count_livres = self.livres_collection.count_documents(
-                livres_search_query
-            )
             livres_with_editeur = list(
                 self.livres_collection.find(livres_search_query)
                 .skip(offset)
@@ -652,8 +646,9 @@ class MongoDBService:
                     editeurs_set.add(editeur_nom)
                     results.append({"nom": editeur_nom})
 
-            # Total = somme des deux collections
-            total_count = total_count_editeurs + total_count_livres
+            # Total = nombre d'éditeurs UNIQUES après déduplication
+            # (pas la somme brute des deux collections)
+            total_count = len(editeurs_set)
 
             # Respecter la limite
             results = results[:limit]

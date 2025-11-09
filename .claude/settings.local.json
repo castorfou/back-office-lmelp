@@ -30,7 +30,8 @@
       "Bash(mcp__MongoDB__collection-schema:*)",
       "Bash(python -m pytest:*)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src python -m pytest:*)",
-      "Bash(uv run ruff check:*)"
+      "Bash(uv run ruff check:*)",
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

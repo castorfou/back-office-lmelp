@@ -376,13 +376,11 @@ class TestSearchService:
         # Configure le chaînage: find().skip().limit()
         mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
         mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
-        mongodb_service.editeurs_collection.count_documents.return_value = 1
 
         # Mock de la collection livres (vide)
         mock_cursor_livres = Mock()
         mock_cursor_livres.skip.return_value.limit.return_value = []
         self.mock_livres_collection.find.return_value = mock_cursor_livres
-        self.mock_livres_collection.count_documents.return_value = 0
 
         result = mongodb_service.search_editeurs("Gallimard", limit=10)
 
@@ -403,7 +401,6 @@ class TestSearchService:
         mock_cursor_editeurs = Mock()
         mock_cursor_editeurs.skip.return_value.limit.return_value = []
         mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
-        mongodb_service.editeurs_collection.count_documents.return_value = 0
 
         # Mock de la collection livres avec un livre ayant "Seuil" comme éditeur
         mock_livres = [
@@ -416,7 +413,6 @@ class TestSearchService:
         mock_cursor_livres = Mock()
         mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor_livres
-        self.mock_livres_collection.count_documents.return_value = 1
 
         result = mongodb_service.search_editeurs("Seuil", limit=10)
 
@@ -435,7 +431,6 @@ class TestSearchService:
         mock_cursor_editeurs = Mock()
         mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
         mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
-        mongodb_service.editeurs_collection.count_documents.return_value = 1
 
         # Mock de la collection livres avec "Gallimard" comme éditeur
         mock_livres = [
@@ -448,11 +443,56 @@ class TestSearchService:
         mock_cursor_livres = Mock()
         mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor_livres
-        self.mock_livres_collection.count_documents.return_value = 1
 
         result = mongodb_service.search_editeurs("Gallimard", limit=10)
 
         # Devrait combiner les deux sources et dédupliquer
         assert len(result["editeurs"]) == 1  # Dédupliqué
-        assert result["total_count"] == 2  # Total des deux collections
+        assert (
+            result["total_count"] == 1
+        )  # Nombre d'éditeurs UNIQUES après déduplication
+        assert result["editeurs"][0]["nom"] == "Gallimard"
+
+    def test_search_editeurs_total_count_matches_unique_publishers(self):
+        """
+        Test que total_count reflète le nombre d'éditeurs UNIQUES, pas la somme brute.
+        Bug #93: "gall" trouve 1 résultat mais affiche 3 pages (pagination incorrecte).
+        """
+        # Mock de la collection editeurs avec "Gallimard"
+        mongodb_service.editeurs_collection = Mock()
+        mock_editeurs = [
+            {"_id": "507f1f77bcf86cd799439020", "nom": "Gallimard", "livres": []}
+        ]
+        mock_cursor_editeurs = Mock()
+        mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
+
+        # Mock de la collection livres avec 3 livres ayant "Gallimard" comme éditeur
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439031",
+                "titre": "Livre 1",
+                "editeur": "Gallimard",
+            },
+            {
+                "_id": "507f1f77bcf86cd799439032",
+                "titre": "Livre 2",
+                "editeur": "Gallimard",
+            },
+            {
+                "_id": "507f1f77bcf86cd799439033",
+                "titre": "Livre 3",
+                "editeur": "Gallimard",
+            },
+        ]
+        mock_cursor_livres = Mock()
+        mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor_livres
+
+        result = mongodb_service.search_editeurs("gall", limit=10)
+
+        # Bug: total_count était 1 + 3 = 4, causant 3 pages au lieu de 1
+        # Fix: total_count doit être 1 (nombre d'éditeurs uniques)
+        assert len(result["editeurs"]) == 1
+        assert result["total_count"] == 1  # Pas 4 !
         assert result["editeurs"][0]["nom"] == "Gallimard"
