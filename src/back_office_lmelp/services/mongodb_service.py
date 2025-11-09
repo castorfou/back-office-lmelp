@@ -547,7 +547,7 @@ class MongoDBService:
     def search_livres(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans la collection livres."""
+        """Recherche textuelle dans la collection livres (champ titre uniquement)."""
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -557,13 +557,8 @@ class MongoDBService:
         try:
             query_escaped = query.strip()
 
-            # Recherche dans les champs titre et editeur
-            search_query = {
-                "$or": [
-                    {"titre": {"$regex": query_escaped, "$options": "i"}},
-                    {"editeur": {"$regex": query_escaped, "$options": "i"}},
-                ]
-            }
+            # Recherche uniquement dans le champ titre
+            search_query = {"titre": {"$regex": query_escaped, "$options": "i"}}
 
             # Compter le nombre total de résultats
             total_count = self.livres_collection.count_documents(search_query)
@@ -606,8 +601,8 @@ class MongoDBService:
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans la collection editeurs."""
-        if self.editeurs_collection is None:
+        """Recherche textuelle dans editeurs.nom ET livres.editeur."""
+        if self.editeurs_collection is None or self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
         if not query or len(query.strip()) == 0:
@@ -615,23 +610,53 @@ class MongoDBService:
 
         try:
             query_escaped = query.strip()
-
-            # Recherche dans le champ nom
             search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
 
-            # Compter le nombre total de résultats
-            total_count = self.editeurs_collection.count_documents(search_query)
-
-            # Récupérer les résultats avec skip et limit
-            editeurs = list(
+            # 1. Recherche dans collection editeurs
+            total_count_editeurs = self.editeurs_collection.count_documents(
+                search_query
+            )
+            editeurs_from_collection = list(
                 self.editeurs_collection.find(search_query).skip(offset).limit(limit)
             )
 
-            # Conversion ObjectId en string
+            # 2. Recherche dans livres.editeur
+            livres_search_query = {
+                "editeur": {"$regex": query_escaped, "$options": "i"}
+            }
+            total_count_livres = self.livres_collection.count_documents(
+                livres_search_query
+            )
+            livres_with_editeur = list(
+                self.livres_collection.find(livres_search_query)
+                .skip(offset)
+                .limit(limit)
+            )
+
+            # 3. Combiner et dédupliquer
+            editeurs_set = set()
             results = []
-            for editeur in editeurs:
+
+            # Ajouter éditeurs de la collection editeurs
+            for editeur in editeurs_from_collection:
                 editeur["_id"] = str(editeur["_id"])
-                results.append(editeur)
+                editeur_nom = editeur.get("nom")
+                if editeur_nom and editeur_nom not in editeurs_set:
+                    editeurs_set.add(editeur_nom)
+                    results.append(editeur)
+
+            # Ajouter éditeurs depuis livres.editeur
+            for livre in livres_with_editeur:
+                editeur_nom = livre.get("editeur")
+                if editeur_nom and editeur_nom not in editeurs_set:
+                    editeurs_set.add(editeur_nom)
+                    results.append({"nom": editeur_nom})
+
+            # Total = somme des deux collections
+            total_count = total_count_editeurs + total_count_livres
+
+            # Respecter la limite
+            results = results[:limit]
 
             return {"editeurs": results, "total_count": total_count}
         except Exception as e:
