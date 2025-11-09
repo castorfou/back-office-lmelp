@@ -240,6 +240,30 @@ export const searchService = {
     const response = await api.get('/search', { params });
     return response.data;
   },
+
+  /**
+   * Effectue une recherche avancée avec filtres et pagination
+   * @param {string} query - Terme de recherche (minimum 3 caractères)
+   * @param {Array<string>} entities - Liste des entités à rechercher (auteurs, livres, editeurs, episodes)
+   * @param {number} page - Numéro de page (commence à 1)
+   * @param {number} limit - Nombre de résultats par page (max 100)
+   * @returns {Promise<Object>} Résultats de recherche avec pagination
+   */
+  async advancedSearch(query, entities = [], page = 1, limit = 20) {
+    if (!query || query.trim().length < 3) {
+      throw new Error('La recherche nécessite au moins 3 caractères');
+    }
+
+    const params = { q: query.trim(), page, limit };
+
+    // Ajouter le paramètre entities si spécifié
+    if (entities && entities.length > 0) {
+      params.entities = entities.join(',');
+    }
+
+    const response = await api.get('/advanced-search', { params });
+    return response.data;
+  },
 };
 
 /**

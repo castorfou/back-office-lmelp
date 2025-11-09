@@ -91,6 +91,13 @@
           <h4 class="category-title">🎙️ ÉPISODES (0)</h4>
           <p class="empty-message">(aucun épisode contenant "{{ lastSearchQuery }}")</p>
         </div>
+
+        <!-- Lien vers recherche avancée -->
+        <div class="advanced-search-link">
+          <router-link :to="`/search?q=${encodeURIComponent(lastSearchQuery)}`" class="link-button">
+            🔍 Voir tous les résultats avec la recherche avancée →
+          </router-link>
+        </div>
       </div>
 
       <!-- Aucun résultat -->
@@ -99,6 +106,9 @@
         <h3>Aucun résultat trouvé</h3>
         <p>Aucun contenu ne correspond à votre recherche "{{ lastSearchQuery }}"</p>
         <p class="suggestion">Essayez avec d'autres mots-clés ou vérifiez l'orthographe.</p>
+        <router-link :to="`/search?q=${encodeURIComponent(lastSearchQuery)}`" class="link-button advanced-search-cta">
+          🔍 Essayer la recherche avancée
+        </router-link>
       </div>
     </div>
   </div>
@@ -619,6 +629,34 @@ export default {
 .suggestion {
   font-size: 0.9rem;
   color: #888;
+}
+
+.advanced-search-link {
+  padding: 1.5rem;
+  text-align: center;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+
+.link-button {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #667eea;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.link-button:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.advanced-search-cta {
+  margin-top: 1rem;
 }
 
 /* Responsive */

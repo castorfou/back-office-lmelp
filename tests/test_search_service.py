@@ -32,7 +32,8 @@ class TestSearchService:
         """Test que search_episodes retourne un dict avec episodes et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = []
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = []
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 0
 
@@ -56,7 +57,10 @@ class TestSearchService:
             }
         ]
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = mock_episodes
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = (
+            mock_episodes
+        )
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 1
 
@@ -124,9 +128,10 @@ class TestSearchService:
         # Mock de nombreux résultats
         mock_episodes = [{"_id": f"id{i}", "titre": f"Episode {i}"} for i in range(20)]
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = mock_episodes[
-            :5
-        ]  # MongoDB limite déjà
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = (
+            mock_episodes[:5]
+        )
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 20
 
@@ -211,7 +216,8 @@ class TestSearchService:
         """Test que search_auteurs retourne un dict avec auteurs et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = []
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
         self.mock_auteurs_collection.find.return_value = mock_cursor
         self.mock_auteurs_collection.count_documents.return_value = 0
 
@@ -229,7 +235,8 @@ class TestSearchService:
             {"_id": "507f1f77bcf86cd799439011", "nom": "Albert Camus", "livres": []}
         ]
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_auteurs
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_auteurs
         self.mock_auteurs_collection.find.return_value = mock_cursor
         self.mock_auteurs_collection.count_documents.return_value = 1
 
@@ -249,7 +256,8 @@ class TestSearchService:
         """Test que search_livres retourne un dict avec livres et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = []
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 0
 
@@ -272,7 +280,8 @@ class TestSearchService:
             }
         ]
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 1
 
@@ -293,7 +302,8 @@ class TestSearchService:
             }
         ]
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 1
 
@@ -326,7 +336,8 @@ class TestSearchService:
         }
 
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 1
         self.mock_auteurs_collection.find_one.return_value = mock_auteur

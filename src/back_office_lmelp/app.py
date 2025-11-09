@@ -1039,6 +1039,143 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/advanced-search", response_model=dict[str, Any])
+async def advanced_search(
+    q: str,
+    entities: str | None = None,
+    page: int = 1,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """
+    Recherche avancée avec filtres par entités et pagination.
+
+    Args:
+        q: Terme de recherche (minimum 3 caractères)
+        entities: Entités à rechercher (auteurs,livres,editeurs,episodes) séparées par virgule
+                 Si None, recherche dans toutes les entités
+        page: Numéro de page (commence à 1)
+        limit: Nombre de résultats par page (max 100)
+
+    Returns:
+        Résultats de recherche avec pagination et compteurs totaux
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation des paramètres
+    if len(q.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="La recherche nécessite au moins 3 caractères minimum",
+        )
+
+    if page < 1:
+        raise HTTPException(status_code=400, detail="Le numéro de page doit être >= 1")
+
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400, detail="La limite doit être entre 1 et 100"
+        )
+
+    # Parser les entités demandées
+    valid_entities = {"auteurs", "livres", "editeurs", "episodes"}
+    requested_entities = valid_entities.copy()  # Par défaut, toutes les entités
+
+    if entities:
+        requested_entities = {
+            entity.strip() for entity in entities.split(",") if entity.strip()
+        }
+        # Valider que les entités sont valides
+        invalid_entities = requested_entities - valid_entities
+        if invalid_entities:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Entité invalide: {', '.join(invalid_entities)}. "
+                f"Entités valides: {', '.join(valid_entities)}",
+            )
+
+    try:
+        # Calculer l'offset pour la pagination
+        offset = (page - 1) * limit
+
+        # Initialiser les résultats
+        results: dict[str, Any] = {
+            "auteurs": [],
+            "auteurs_total_count": 0,
+            "livres": [],
+            "livres_total_count": 0,
+            "editeurs": [],
+            "episodes": [],
+            "episodes_total_count": 0,
+        }
+
+        # Rechercher dans les entités demandées avec offset et limit
+        if "episodes" in requested_entities:
+            episodes_search_result = mongodb_service.search_episodes(q, limit, offset)
+            episodes_list = episodes_search_result.get("episodes", [])
+            results["episodes"] = [
+                {
+                    "titre": episode.get("titre_corrige") or episode.get("titre", ""),
+                    "description": episode.get("description_corrigee")
+                    or episode.get("description", ""),
+                    "date": episode.get("date", ""),
+                    "score": episode.get("score", 0),
+                    "match_type": episode.get("match_type", "none"),
+                    "search_context": episode.get("search_context", ""),
+                    "_id": episode.get("_id", ""),
+                }
+                for episode in episodes_list
+            ]
+            results["episodes_total_count"] = episodes_search_result.get(
+                "total_count", 0
+            )
+
+        if "auteurs" in requested_entities:
+            auteurs_search_result = mongodb_service.search_auteurs(q, limit, offset)
+            results["auteurs"] = auteurs_search_result.get("auteurs", [])
+            results["auteurs_total_count"] = auteurs_search_result.get("total_count", 0)
+
+        if "livres" in requested_entities:
+            livres_search_result = mongodb_service.search_livres(q, limit, offset)
+            results["livres"] = livres_search_result.get("livres", [])
+            results["livres_total_count"] = livres_search_result.get("total_count", 0)
+
+        if "editeurs" in requested_entities:
+            # Recherche dans les avis critiques pour les éditeurs
+            critical_reviews_results = (
+                mongodb_service.search_critical_reviews_for_authors_books(q, limit)
+            )
+            editeurs_list = critical_reviews_results["editeurs"]
+            # Appliquer la pagination en mémoire pour éditeurs (pas de méthode MongoDB)
+            paginated_editeurs = editeurs_list[offset : offset + limit]
+            results["editeurs"] = paginated_editeurs
+
+        # Calculer le nombre total de pages (basé sur la plus grande collection)
+        max_total = max(
+            results["episodes_total_count"],
+            results["auteurs_total_count"],
+            results["livres_total_count"],
+        )
+        total_pages = (max_total + limit - 1) // limit if max_total > 0 else 1
+
+        response = {
+            "query": q,
+            "results": results,
+            "pagination": {"page": page, "limit": limit, "total_pages": total_pages},
+        }
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 @app.post("/api/update-fixtures", response_model=dict[str, Any])
 async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
     """Met à jour les fixtures YAML avec les appels API capturés."""

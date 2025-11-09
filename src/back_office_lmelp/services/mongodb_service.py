@@ -385,7 +385,9 @@ class MongoDBService:
             print(f"Erreur lors de la récupération des statistiques: {e}")
             raise
 
-    def search_episodes(self, query: str, limit: int = 10) -> dict[str, Any]:
+    def search_episodes(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
         """Recherche textuelle dans les épisodes."""
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -416,11 +418,12 @@ class MongoDBService:
             # Compter le nombre total de résultats
             total_count = self.episodes_collection.count_documents(search_query)
 
-            # Récupérer seulement les premiers (limité pour affichage widget)
+            # Récupérer les résultats avec skip et limit
             episodes = list(
                 self.episodes_collection.find(search_query)
                 .sort([("date", -1)])
-                .limit(min(limit, 3))  # Maximum 3 pour le widget
+                .skip(offset)
+                .limit(limit)
             )
 
             # Conversion ObjectId simple - score minimal pour compatibility frontend
@@ -503,7 +506,9 @@ class MongoDBService:
             print(f"Erreur lors de la recherche dans les avis critiques: {e}")
             return {"auteurs": [], "livres": [], "editeurs": []}
 
-    def search_auteurs(self, query: str, limit: int = 10) -> dict[str, Any]:
+    def search_auteurs(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
         """Recherche textuelle dans la collection auteurs."""
         if self.auteurs_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -520,8 +525,10 @@ class MongoDBService:
             # Compter le nombre total de résultats
             total_count = self.auteurs_collection.count_documents(search_query)
 
-            # Récupérer les résultats limités
-            auteurs = list(self.auteurs_collection.find(search_query).limit(limit))
+            # Récupérer les résultats avec skip et limit
+            auteurs = list(
+                self.auteurs_collection.find(search_query).skip(offset).limit(limit)
+            )
 
             # Conversion ObjectId en string
             results = []
@@ -534,7 +541,9 @@ class MongoDBService:
             print(f"Erreur lors de la recherche d'auteurs: {e}")
             return {"auteurs": [], "total_count": 0}
 
-    def search_livres(self, query: str, limit: int = 10) -> dict[str, Any]:
+    def search_livres(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
         """Recherche textuelle dans la collection livres."""
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -556,8 +565,10 @@ class MongoDBService:
             # Compter le nombre total de résultats
             total_count = self.livres_collection.count_documents(search_query)
 
-            # Récupérer les résultats limités
-            livres = list(self.livres_collection.find(search_query).limit(limit))
+            # Récupérer les résultats avec skip et limit
+            livres = list(
+                self.livres_collection.find(search_query).skip(offset).limit(limit)
+            )
 
             # Conversion ObjectId en string et enrichissement avec nom auteur
             results = []

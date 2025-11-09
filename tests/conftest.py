@@ -23,14 +23,31 @@ def event_loop():
 @pytest.fixture
 def mock_mongodb_service():
     """Create a mock MongoDB service for tests."""
-    with patch(
-        "back_office_lmelp.services.mongodb_service.mongodb_service"
-    ) as mock_service:
-        mock_service.connect = MagicMock(return_value=True)
-        mock_service.disconnect = MagicMock()
-        mock_service.create_author_if_not_exists = MagicMock()
-        mock_service.create_book_if_not_exists = MagicMock()
-        yield mock_service
+    # Patch à la fois le service source ET les références dans app.py
+    with (
+        patch(
+            "back_office_lmelp.services.mongodb_service.mongodb_service"
+        ) as mock_service_source,
+        patch("back_office_lmelp.app.mongodb_service", mock_service_source),
+    ):
+        mock_service_source.connect = MagicMock(return_value=True)
+        mock_service_source.disconnect = MagicMock()
+        mock_service_source.create_author_if_not_exists = MagicMock()
+        mock_service_source.create_book_if_not_exists = MagicMock()
+        # Ajouter les méthodes de recherche pour l'endpoint advanced-search
+        mock_service_source.search_episodes = MagicMock(
+            return_value={"episodes": [], "total_count": 0}
+        )
+        mock_service_source.search_auteurs = MagicMock(
+            return_value={"auteurs": [], "total_count": 0}
+        )
+        mock_service_source.search_livres = MagicMock(
+            return_value={"livres": [], "total_count": 0}
+        )
+        mock_service_source.search_critical_reviews_for_authors_books = MagicMock(
+            return_value={"editeurs": []}
+        )
+        yield mock_service_source
 
 
 @pytest.fixture

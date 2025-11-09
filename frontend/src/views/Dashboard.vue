@@ -94,12 +94,15 @@
             <div class="function-arrow">→</div>
           </div>
 
-          <!-- Placeholder pour futures fonctions -->
-          <div class="function-card coming-soon">
+          <div
+            class="function-card clickable"
+            data-testid="function-advanced-search"
+            @click="navigateToAdvancedSearch"
+          >
             <div class="function-icon">🔎</div>
             <h3>Recherche avancée</h3>
             <p>Recherche avec filtres et critères spécifiques</p>
-            <div class="coming-soon-label">Bientôt disponible</div>
+            <div class="function-arrow">→</div>
           </div>
 
           <div class="function-card coming-soon">
@@ -228,6 +231,10 @@ export default {
 
     navigateToBabelioTest() {
       this.$router.push('/babelio-test');
+    },
+
+    navigateToAdvancedSearch() {
+      this.$router.push('/search');
     }
   }
 };
