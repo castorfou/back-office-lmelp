@@ -414,3 +414,54 @@ class TestAdvancedSearchResponse:
         # Champs de contexte de recherche
         assert "search_context" in episode
         assert "score" in episode
+
+    def test_advanced_search_editeurs_with_pagination(
+        self, client, mock_mongodb_service
+    ):
+        """
+        GIVEN: Une recherche d'éditeurs avec 30 résultats et limit=10
+        WHEN: Page 1 puis page 2 sont demandées
+        THEN: Page 2 contient des éditeurs différents de page 1
+        """
+        # Simuler 30 éditeurs
+        all_editeurs = [{"nom": f"Éditeur {i}"} for i in range(1, 31)]
+
+        # Page 1: éditeurs 1-10 (offset=0, limit=10)
+        mock_mongodb_service.search_editeurs.return_value = {
+            "editeurs": all_editeurs[:10],  # Retourne les 10 premiers
+            "total_count": 30,
+        }
+
+        response_page1 = client.get(
+            "/api/advanced-search?q=edit&entities=editeurs&page=1&limit=10"
+        )
+
+        assert response_page1.status_code == 200
+        data_page1 = response_page1.json()
+        # Devrait retourner éditeurs 1-10 (10 premiers)
+        assert len(data_page1["results"]["editeurs"]) == 10
+        assert data_page1["results"]["editeurs"][0]["nom"] == "Éditeur 1"
+        assert data_page1["results"]["editeurs"][9]["nom"] == "Éditeur 10"
+
+        # Page 2: éditeurs 11-20 (offset=10, limit=10)
+        mock_mongodb_service.search_editeurs.return_value = {
+            "editeurs": all_editeurs[10:20],  # Retourne les 10 suivants
+            "total_count": 30,
+        }
+
+        response_page2 = client.get(
+            "/api/advanced-search?q=edit&entities=editeurs&page=2&limit=10"
+        )
+
+        assert response_page2.status_code == 200
+        data_page2 = response_page2.json()
+        # Devrait retourner éditeurs 11-20 (10 suivants)
+        assert len(data_page2["results"]["editeurs"]) == 10
+        assert data_page2["results"]["editeurs"][0]["nom"] == "Éditeur 11"
+        assert data_page2["results"]["editeurs"][9]["nom"] == "Éditeur 20"
+
+        # Vérifier que page 2 est différente de page 1
+        assert (
+            data_page2["results"]["editeurs"][0]["nom"]
+            != data_page1["results"]["editeurs"][0]["nom"]
+        )

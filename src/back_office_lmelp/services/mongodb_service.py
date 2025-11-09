@@ -28,6 +28,7 @@ class MongoDBService:
         self.avis_critiques_collection: Collection | None = None
         self.auteurs_collection: Collection | None = None
         self.livres_collection: Collection | None = None
+        self.editeurs_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -40,6 +41,7 @@ class MongoDBService:
             self.avis_critiques_collection = self.db.avis_critiques
             self.auteurs_collection = self.db.auteurs
             self.livres_collection = self.db.livres
+            self.editeurs_collection = self.db.editeurs
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -50,6 +52,7 @@ class MongoDBService:
             self.avis_critiques_collection = None
             self.auteurs_collection = None
             self.livres_collection = None
+            self.editeurs_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -599,6 +602,41 @@ class MongoDBService:
         except Exception as e:
             print(f"Erreur lors de la recherche de livres: {e}")
             return {"livres": [], "total_count": 0}
+
+    def search_editeurs(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
+        """Recherche textuelle dans la collection editeurs."""
+        if self.editeurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"editeurs": [], "total_count": 0}
+
+        try:
+            query_escaped = query.strip()
+
+            # Recherche dans le champ nom
+            search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
+
+            # Compter le nombre total de résultats
+            total_count = self.editeurs_collection.count_documents(search_query)
+
+            # Récupérer les résultats avec skip et limit
+            editeurs = list(
+                self.editeurs_collection.find(search_query).skip(offset).limit(limit)
+            )
+
+            # Conversion ObjectId en string
+            results = []
+            for editeur in editeurs:
+                editeur["_id"] = str(editeur["_id"])
+                results.append(editeur)
+
+            return {"editeurs": results, "total_count": total_count}
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'éditeurs: {e}")
+            return {"editeurs": [], "total_count": 0}
 
     def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
         """Calcule le score de pertinence et le type de match - STRICT: terme doit être présent."""

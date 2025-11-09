@@ -1109,6 +1109,7 @@ async def advanced_search(
             "livres": [],
             "livres_total_count": 0,
             "editeurs": [],
+            "editeurs_total_count": 0,
             "episodes": [],
             "episodes_total_count": 0,
         }
@@ -1145,20 +1146,19 @@ async def advanced_search(
             results["livres_total_count"] = livres_search_result.get("total_count", 0)
 
         if "editeurs" in requested_entities:
-            # Recherche dans les avis critiques pour les éditeurs
-            critical_reviews_results = (
-                mongodb_service.search_critical_reviews_for_authors_books(q, limit)
+            # Recherche dans la collection editeurs
+            editeurs_search_result = mongodb_service.search_editeurs(q, limit, offset)
+            results["editeurs"] = editeurs_search_result.get("editeurs", [])
+            results["editeurs_total_count"] = editeurs_search_result.get(
+                "total_count", 0
             )
-            editeurs_list = critical_reviews_results["editeurs"]
-            # Appliquer la pagination en mémoire pour éditeurs (pas de méthode MongoDB)
-            paginated_editeurs = editeurs_list[offset : offset + limit]
-            results["editeurs"] = paginated_editeurs
 
         # Calculer le nombre total de pages (basé sur la plus grande collection)
         max_total = max(
             results["episodes_total_count"],
             results["auteurs_total_count"],
             results["livres_total_count"],
+            results["editeurs_total_count"],
         )
         total_pages = (max_total + limit - 1) // limit if max_total > 0 else 1
 

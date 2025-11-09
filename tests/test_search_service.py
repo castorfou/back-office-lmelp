@@ -347,3 +347,50 @@ class TestSearchService:
         assert len(result["livres"]) == 1
         assert "auteur_nom" in result["livres"][0]
         assert result["livres"][0]["auteur_nom"] == "Albert Camus"
+
+    def test_search_editeurs_method_exists(self):
+        """Test que la méthode search_editeurs existe."""
+        assert hasattr(mongodb_service, "search_editeurs")
+
+    def test_search_editeurs_returns_dict_with_results_and_count(self):
+        """Test que search_editeurs retourne un dict avec editeurs et total_count."""
+        # Mock des éditeurs
+        mongodb_service.editeurs_collection = Mock()
+        mock_cursor = Mock()
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor
+        mongodb_service.editeurs_collection.count_documents.return_value = 0
+
+        result = mongodb_service.search_editeurs("test", limit=10)
+
+        assert isinstance(result, dict)
+        assert "editeurs" in result
+        assert "total_count" in result
+        assert isinstance(result["editeurs"], list)
+        assert isinstance(result["total_count"], int)
+
+    def test_search_editeurs_finds_publisher_by_name(self):
+        """Test que search_editeurs trouve un éditeur par son nom."""
+        # Mock des éditeurs
+        mongodb_service.editeurs_collection = Mock()
+        mock_editeurs = [
+            {"_id": "507f1f77bcf86cd799439020", "nom": "Gallimard", "livres": []}
+        ]
+        mock_cursor = Mock()
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_editeurs
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor
+        mongodb_service.editeurs_collection.count_documents.return_value = 1
+
+        result = mongodb_service.search_editeurs("Gallimard", limit=10)
+
+        assert len(result["editeurs"]) > 0
+        assert result["total_count"] == 1
+        # Vérifier que _id est converti en string
+        assert isinstance(result["editeurs"][0]["_id"], str)
+
+    def test_search_editeurs_handles_empty_query(self):
+        """Test que search_editeurs gère les requêtes vides."""
+        result = mongodb_service.search_editeurs("", limit=10)
+        assert result == {"editeurs": [], "total_count": 0}
