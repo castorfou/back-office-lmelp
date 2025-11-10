@@ -12,6 +12,39 @@ This document provides in-depth guidance for Claude Code when working with this 
 
 ## Development Workflow Best Practices
 
+### Environment Setup
+
+**CRITICAL**: Activate the Python virtual environment once per bash session before running any Python tools:
+
+```bash
+source /workspaces/back-office-lmelp/.venv/bin/activate
+```
+
+**Why this matters:**
+- Enables direct use of `ruff`, `mypy`, `pytest`, `mkdocs` without `uv run` prefix
+- Ensures correct tool versions are used
+- Prevents "command not found" errors
+- Only needs to be done once per terminal session (not before each command)
+
+**Without activation:**
+```bash
+# ❌ Won't work - command not found
+ruff check .
+mypy src/
+
+# ✅ Works but verbose
+uv run ruff check .
+uv run mypy src/
+```
+
+**With activation:**
+```bash
+# ✅ Works directly after activation
+source /workspaces/back-office-lmelp/.venv/bin/activate
+ruff check .
+mypy src/
+```
+
 ### Command Execution Best Practices
 
 **IMPORTANT**: To avoid directory confusion when switching between backend/frontend:
