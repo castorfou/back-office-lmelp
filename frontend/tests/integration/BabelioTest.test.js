@@ -65,7 +65,7 @@ describe('BabelioTest - Tests d\'intégration', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('h1').text()).toBe('🔍 Recherche Babelio');
+    expect(wrapper.find('h1').text()).toBe('Recherche Babelio');
     expect(wrapper.text()).toContain('Testez la vérification orthographique des auteurs, livres et éditeurs');
   });
 
@@ -409,7 +409,7 @@ describe('BabelioTest - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('✍️ Test Auteur');
     expect(wrapper.text()).toContain('📚 Test Livre');
     expect(wrapper.text()).toContain('🏢 Test Éditeur');
-    expect(wrapper.text()).toContain('🔍 Résultats');
+    expect(wrapper.text()).toContain('Résultats');
   });
 
   it('est responsive sur petits écrans', async () => {
