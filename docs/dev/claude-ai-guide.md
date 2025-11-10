@@ -2,6 +2,62 @@
 
 This document provides in-depth guidance for Claude Code when working with this repository. For a quick reference guide, see [CLAUDE.md](https://github.com/castorfou/back-office-lmelp/blob/main/CLAUDE.md) in the project root.
 
+## Documentation Structure
+
+This project uses a two-tier documentation approach for Claude Code:
+
+### CLAUDE.md (Root - Quick Reference)
+**Purpose**: Fast, actionable reference for Claude Code during active development
+
+**Should contain:**
+- ✅ Essential commands (copy-paste ready)
+- ✅ Project structure overview
+- ✅ Key rules (what/how, not why)
+- ✅ Quick cheat sheets (auto-discovery, MongoDB, Git)
+- ✅ Links to detailed guide for more information
+
+**Should NOT contain:**
+- ❌ Long explanations or rationales
+- ❌ Detailed examples of anti-patterns
+- ❌ Historical context or issue references
+- ❌ Multiple solution alternatives
+
+**Target length**: 200-300 lines
+
+### docs/dev/claude-ai-guide.md (This File - Comprehensive Guide)
+**Purpose**: Deep reference for understanding patterns, rationales, and complex scenarios
+
+**Should contain:**
+- ✅ Detailed explanations of WHY rules exist
+- ✅ Complete examples with anti-patterns
+- ✅ Historical context and issue references (for learning)
+- ✅ Multiple approaches with tradeoffs
+- ✅ Troubleshooting guides and edge cases
+
+**Should NOT contain:**
+- ❌ Duplicate basic commands (already in CLAUDE.md)
+- ❌ Project overview (keep in CLAUDE.md)
+
+**Target approach**: Comprehensive, educational, no length limit
+
+### When to Update Which File
+
+**Update CLAUDE.md when:**
+- Adding/changing essential commands
+- Modifying project structure
+- Adding new critical rules
+- Updating tool versions or configurations
+
+**Update docs/dev/claude-ai-guide.md when:**
+- Discovering new testing patterns/pitfalls
+- Documenting complex scenarios (like Issue #67, #75, #85)
+- Adding detailed explanations for existing rules
+- Expanding on best practices with examples
+
+**Update both when:**
+- Adding a new critical workflow (brief in CLAUDE.md, detailed here)
+- Changing development environment setup
+
 ## Table of Contents
 
 - [Development Workflow Best Practices](#development-workflow-best-practices)
