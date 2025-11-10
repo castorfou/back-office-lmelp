@@ -39,7 +39,7 @@ const routes = [
     name: 'BabelioTest',
     component: BabelioTest,
     meta: {
-      title: 'Test Babelio - Back-office LMELP'
+      title: 'Recherche Babelio - Back-office LMELP'
     }
   },
   {
