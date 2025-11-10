@@ -827,13 +827,13 @@ class AddManualBookRequest:
 
 ---
 
-## Search API (Issue #49 + #68)
+## Search API
 
-**✨ NOUVEAU** - Moteur de recherche textuelle multi-collections
+Moteur de recherche textuelle multi-collections avec support de pagination et filtres avancés.
 
 ### GET /api/search
 
-Recherche textuelle dans les collections MongoDB (épisodes, auteurs, livres, éditeurs).
+Recherche textuelle simple dans les collections MongoDB (épisodes, auteurs, livres, éditeurs).
 
 #### Paramètres
 
@@ -919,15 +919,133 @@ curl "http://localhost:[PORT]/api/search?q=littérature"
 
 #### Notes techniques
 
-**Issue #49** (Implémentation initiale) :
+**Fonctionnalités** :
 - Moteur de recherche de base avec épisodes
 - Extraction de contexte (10 mots avant/après)
 - Surlignage frontend avec highlighting
-
-**Issue #68** (Extension) :
 - Recherche étendue aux collections dédiées `auteurs` et `livres`
 - Enrichissement automatique avec noms d'auteurs
 - Affichage format "auteur - titre" dans l'interface
+
+---
+
+### GET /api/advanced-search
+
+Recherche avancée avec filtres par entité et pagination complète.
+
+#### Paramètres
+
+- `q` (string, required) : Terme de recherche (minimum 3 caractères)
+- `entities` (string, optional) : Filtres séparés par virgules : `episodes,auteurs,livres,editeurs` (défaut: toutes)
+- `page` (int, optional) : Numéro de page (défaut: 1)
+- `limit` (int, optional) : Résultats par page (10, 20, 50, 100, défaut: 10)
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "query": "camus",
+  "filters": ["episodes", "auteurs", "livres", "editeurs"],
+  "page": 1,
+  "limit": 10,
+  "results": {
+    "auteurs": [
+      {
+        "id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+        "nom": "Albert Camus",
+        "livres": ["64f1234567890abcdef22222"]  // pragma: allowlist secret
+      }
+    ],
+    "auteurs_total_count": 1,
+    "livres": [
+      {
+        "id": "64f1234567890abcdef22222",  // pragma: allowlist secret
+        "titre": "L'Étranger",
+        "auteur_id": "64f1234567890abcdef11111",  // pragma: allowlist secret
+        "auteur_nom": "Albert Camus",
+        "editeur": "Gallimard",
+        "episodes": []
+      }
+    ],
+    "livres_total_count": 2,
+    "editeurs": [
+      {
+        "nom": "Gallimard"
+      }
+    ],
+    "editeurs_total_count": 1,
+    "episodes": [
+      {
+        "id": "64f1234567890abcdef44444",  // pragma: allowlist secret
+        "titre": "Épisode sur Camus",
+        "date": "2025-08-03T10:59:59.000+00:00",
+        "search_context": "...discussion sur Albert Camus et son œuvre majeure..."
+      }
+    ],
+    "episodes_total_count": 15
+  }
+}
+```
+
+**400 Bad Request**
+```json
+{
+  "detail": "Le paramètre 'q' est requis et doit contenir au moins 3 caractères"
+}
+```
+
+#### Fonctionnalités
+
+- ✅ **Filtres par entité** : Recherche ciblée sur une ou plusieurs catégories
+- ✅ **Pagination complète** : Navigation par page avec offset/limit
+- ✅ **Compteurs totaux** : `*_total_count` indique le nombre total de résultats
+- ✅ **Résultats limités** : Chaque catégorie respecte la limite par page
+- ✅ **Sources unifiées** : Éditeurs recherchés dans `editeurs.nom` + `livres.editeur` (dédupliqués)
+- ✅ **Recherche auteurs** : Regex case-insensitive sur `auteurs.nom`
+- ✅ **Recherche livres** : Regex sur `livres.titre` uniquement (pas `editeur`)
+- ✅ **Recherche éditeurs** : Multi-source avec déduplication automatique
+- ✅ **Recherche épisodes** : Regex sur titre/description/transcription avec extraction de contexte
+- ✅ **Enrichissement auteur** : Livres incluent automatiquement `auteur_nom` via lookup
+
+#### Exemples d'utilisation
+
+```bash
+# Recherche tous types avec pagination
+curl "http://localhost:[PORT]/api/advanced-search?q=camus&page=1&limit=10"
+
+# Recherche uniquement auteurs et livres
+curl "http://localhost:[PORT]/api/advanced-search?q=camus&entities=auteurs,livres"
+
+# Recherche éditeurs avec limite élevée
+curl "http://localhost:[PORT]/api/advanced-search?q=gallimard&entities=editeurs&limit=100"
+
+# Recherche page 2 des épisodes
+curl "http://localhost:[PORT]/api/advanced-search?q=littérature&entities=episodes&page=2&limit=20"
+```
+
+#### Notes techniques - Pagination des éditeurs
+
+**Problème résolu** : Les éditeurs sont recherchés dans deux sources :
+1. Collection `editeurs.nom`
+2. Champ `livres.editeur`
+
+**Déduplication** : Le compteur total reflète le nombre d'éditeurs **uniques** après déduplication :
+
+```python
+# Mauvais (ancien code) - causait pagination incorrecte
+total_count = total_count_editeurs + total_count_livres
+# Exemple : 1 + 3 = 4 → 3 pages affichées pour 1 résultat unique
+
+# Correct (code actuel) - compte les uniques
+total_count = len(editeurs_set)
+# Exemple : 1 → 1 page affichée pour 1 résultat unique
+```
+
+**Impact sur pagination** :
+- `editeurs_total_count` = nombre d'éditeurs uniques trouvés
+- Évite les doublons si un éditeur existe dans les deux sources
+- Pagination correcte basée sur les résultats réels affichés
 
 ---
 

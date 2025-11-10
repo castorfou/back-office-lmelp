@@ -32,7 +32,8 @@ class TestSearchService:
         """Test que search_episodes retourne un dict avec episodes et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = []
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = []
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 0
 
@@ -56,7 +57,10 @@ class TestSearchService:
             }
         ]
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = mock_episodes
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = (
+            mock_episodes
+        )
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 1
 
@@ -124,9 +128,10 @@ class TestSearchService:
         # Mock de nombreux résultats
         mock_episodes = [{"_id": f"id{i}", "titre": f"Episode {i}"} for i in range(20)]
         mock_cursor = Mock()
-        mock_cursor.sort.return_value.limit.return_value = mock_episodes[
-            :5
-        ]  # MongoDB limite déjà
+        # Configure le chaînage: find().sort().skip().limit()
+        mock_cursor.sort.return_value.skip.return_value.limit.return_value = (
+            mock_episodes[:5]
+        )
         self.mock_episodes_collection.find.return_value = mock_cursor
         self.mock_episodes_collection.count_documents.return_value = 20
 
@@ -211,7 +216,8 @@ class TestSearchService:
         """Test que search_auteurs retourne un dict avec auteurs et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = []
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
         self.mock_auteurs_collection.find.return_value = mock_cursor
         self.mock_auteurs_collection.count_documents.return_value = 0
 
@@ -229,7 +235,8 @@ class TestSearchService:
             {"_id": "507f1f77bcf86cd799439011", "nom": "Albert Camus", "livres": []}
         ]
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_auteurs
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_auteurs
         self.mock_auteurs_collection.find.return_value = mock_cursor
         self.mock_auteurs_collection.count_documents.return_value = 1
 
@@ -249,7 +256,8 @@ class TestSearchService:
         """Test que search_livres retourne un dict avec livres et total_count."""
         # Mock du retour de la collection
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = []
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 0
 
@@ -272,7 +280,8 @@ class TestSearchService:
             }
         ]
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 1
 
@@ -282,25 +291,21 @@ class TestSearchService:
         assert result["total_count"] == 1
         assert isinstance(result["livres"][0]["_id"], str)
 
-    def test_search_livres_finds_book_by_editeur(self):
-        """Test que search_livres trouve un livre par son éditeur."""
-        mock_livres = [
-            {
-                "_id": "507f1f77bcf86cd799439013",
-                "titre": "La Peste",
-                "auteur_id": "507f1f77bcf86cd799439011",
-                "editeur": "Gallimard",
-            }
-        ]
+    def test_search_livres_does_not_search_by_editeur(self):
+        """Test que search_livres ne cherche PAS dans le champ editeur."""
+        # Mock avec un livre ayant "Gallimard" comme éditeur mais pas dans le titre
+        mock_livres = []  # Aucun résultat attendu
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
-        self.mock_livres_collection.count_documents.return_value = 1
+        self.mock_livres_collection.count_documents.return_value = 0
 
         result = mongodb_service.search_livres("Gallimard", limit=10)
 
-        assert len(result["livres"]) > 0
-        assert result["total_count"] == 1
+        # Ne devrait PAS trouver de livres (on cherche uniquement dans le titre)
+        assert len(result["livres"]) == 0
+        assert result["total_count"] == 0
 
     def test_search_livres_handles_empty_query(self):
         """Test que search_livres gère les requêtes vides."""
@@ -326,7 +331,8 @@ class TestSearchService:
         }
 
         mock_cursor = Mock()
-        mock_cursor.limit.return_value = mock_livres
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
         self.mock_livres_collection.find.return_value = mock_cursor
         self.mock_livres_collection.count_documents.return_value = 1
         self.mock_auteurs_collection.find_one.return_value = mock_auteur
@@ -336,3 +342,157 @@ class TestSearchService:
         assert len(result["livres"]) == 1
         assert "auteur_nom" in result["livres"][0]
         assert result["livres"][0]["auteur_nom"] == "Albert Camus"
+
+    def test_search_editeurs_method_exists(self):
+        """Test que la méthode search_editeurs existe."""
+        assert hasattr(mongodb_service, "search_editeurs")
+
+    def test_search_editeurs_returns_dict_with_results_and_count(self):
+        """Test que search_editeurs retourne un dict avec editeurs et total_count."""
+        # Mock des éditeurs
+        mongodb_service.editeurs_collection = Mock()
+        mock_cursor = Mock()
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor.skip.return_value.limit.return_value = []
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor
+        mongodb_service.editeurs_collection.count_documents.return_value = 0
+
+        result = mongodb_service.search_editeurs("test", limit=10)
+
+        assert isinstance(result, dict)
+        assert "editeurs" in result
+        assert "total_count" in result
+        assert isinstance(result["editeurs"], list)
+        assert isinstance(result["total_count"], int)
+
+    def test_search_editeurs_finds_publisher_by_name(self):
+        """Test que search_editeurs trouve un éditeur par son nom."""
+        # Mock des éditeurs
+        mongodb_service.editeurs_collection = Mock()
+        mock_editeurs = [
+            {"_id": "507f1f77bcf86cd799439020", "nom": "Gallimard", "livres": []}
+        ]
+        mock_cursor_editeurs = Mock()
+        # Configure le chaînage: find().skip().limit()
+        mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
+
+        # Mock de la collection livres (vide)
+        mock_cursor_livres = Mock()
+        mock_cursor_livres.skip.return_value.limit.return_value = []
+        self.mock_livres_collection.find.return_value = mock_cursor_livres
+
+        result = mongodb_service.search_editeurs("Gallimard", limit=10)
+
+        assert len(result["editeurs"]) > 0
+        assert result["total_count"] == 1
+        # Vérifier que _id est converti en string
+        assert isinstance(result["editeurs"][0]["_id"], str)
+
+    def test_search_editeurs_handles_empty_query(self):
+        """Test que search_editeurs gère les requêtes vides."""
+        result = mongodb_service.search_editeurs("", limit=10)
+        assert result == {"editeurs": [], "total_count": 0}
+
+    def test_search_editeurs_finds_publisher_from_livres_collection(self):
+        """Test que search_editeurs trouve un éditeur depuis livres.editeur."""
+        # Mock de la collection editeurs (vide)
+        mongodb_service.editeurs_collection = Mock()
+        mock_cursor_editeurs = Mock()
+        mock_cursor_editeurs.skip.return_value.limit.return_value = []
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
+
+        # Mock de la collection livres avec un livre ayant "Seuil" comme éditeur
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439030",
+                "titre": "Un livre",
+                "editeur": "Seuil",
+            }
+        ]
+        mock_cursor_livres = Mock()
+        mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor_livres
+
+        result = mongodb_service.search_editeurs("Seuil", limit=10)
+
+        # Devrait trouver "Seuil" depuis la collection livres
+        assert len(result["editeurs"]) > 0
+        assert result["total_count"] == 1
+        assert result["editeurs"][0]["nom"] == "Seuil"
+
+    def test_search_editeurs_combines_both_collections(self):
+        """Test que search_editeurs combine editeurs.nom et livres.editeur."""
+        # Mock de la collection editeurs avec "Gallimard"
+        mongodb_service.editeurs_collection = Mock()
+        mock_editeurs = [
+            {"_id": "507f1f77bcf86cd799439020", "nom": "Gallimard", "livres": []}
+        ]
+        mock_cursor_editeurs = Mock()
+        mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
+
+        # Mock de la collection livres avec "Gallimard" comme éditeur
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439031",
+                "titre": "Un livre Gallimard",
+                "editeur": "Gallimard",
+            }
+        ]
+        mock_cursor_livres = Mock()
+        mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor_livres
+
+        result = mongodb_service.search_editeurs("Gallimard", limit=10)
+
+        # Devrait combiner les deux sources et dédupliquer
+        assert len(result["editeurs"]) == 1  # Dédupliqué
+        assert (
+            result["total_count"] == 1
+        )  # Nombre d'éditeurs UNIQUES après déduplication
+        assert result["editeurs"][0]["nom"] == "Gallimard"
+
+    def test_search_editeurs_total_count_matches_unique_publishers(self):
+        """
+        Test que total_count reflète le nombre d'éditeurs UNIQUES, pas la somme brute.
+        Bug #93: "gall" trouve 1 résultat mais affiche 3 pages (pagination incorrecte).
+        """
+        # Mock de la collection editeurs avec "Gallimard"
+        mongodb_service.editeurs_collection = Mock()
+        mock_editeurs = [
+            {"_id": "507f1f77bcf86cd799439020", "nom": "Gallimard", "livres": []}
+        ]
+        mock_cursor_editeurs = Mock()
+        mock_cursor_editeurs.skip.return_value.limit.return_value = mock_editeurs
+        mongodb_service.editeurs_collection.find.return_value = mock_cursor_editeurs
+
+        # Mock de la collection livres avec 3 livres ayant "Gallimard" comme éditeur
+        mock_livres = [
+            {
+                "_id": "507f1f77bcf86cd799439031",
+                "titre": "Livre 1",
+                "editeur": "Gallimard",
+            },
+            {
+                "_id": "507f1f77bcf86cd799439032",
+                "titre": "Livre 2",
+                "editeur": "Gallimard",
+            },
+            {
+                "_id": "507f1f77bcf86cd799439033",
+                "titre": "Livre 3",
+                "editeur": "Gallimard",
+            },
+        ]
+        mock_cursor_livres = Mock()
+        mock_cursor_livres.skip.return_value.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor_livres
+
+        result = mongodb_service.search_editeurs("gall", limit=10)
+
+        # Bug: total_count était 1 + 3 = 4, causant 3 pages au lieu de 1
+        # Fix: total_count doit être 1 (nombre d'éditeurs uniques)
+        assert len(result["editeurs"]) == 1
+        assert result["total_count"] == 1  # Pas 4 !
+        assert result["editeurs"][0]["nom"] == "Gallimard"

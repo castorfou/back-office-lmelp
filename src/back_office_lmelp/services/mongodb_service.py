@@ -28,6 +28,7 @@ class MongoDBService:
         self.avis_critiques_collection: Collection | None = None
         self.auteurs_collection: Collection | None = None
         self.livres_collection: Collection | None = None
+        self.editeurs_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -40,6 +41,7 @@ class MongoDBService:
             self.avis_critiques_collection = self.db.avis_critiques
             self.auteurs_collection = self.db.auteurs
             self.livres_collection = self.db.livres
+            self.editeurs_collection = self.db.editeurs
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -50,6 +52,7 @@ class MongoDBService:
             self.avis_critiques_collection = None
             self.auteurs_collection = None
             self.livres_collection = None
+            self.editeurs_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -385,7 +388,9 @@ class MongoDBService:
             print(f"Erreur lors de la récupération des statistiques: {e}")
             raise
 
-    def search_episodes(self, query: str, limit: int = 10) -> dict[str, Any]:
+    def search_episodes(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
         """Recherche textuelle dans les épisodes."""
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -416,11 +421,12 @@ class MongoDBService:
             # Compter le nombre total de résultats
             total_count = self.episodes_collection.count_documents(search_query)
 
-            # Récupérer seulement les premiers (limité pour affichage widget)
+            # Récupérer les résultats avec skip et limit
             episodes = list(
                 self.episodes_collection.find(search_query)
                 .sort([("date", -1)])
-                .limit(min(limit, 3))  # Maximum 3 pour le widget
+                .skip(offset)
+                .limit(limit)
             )
 
             # Conversion ObjectId simple - score minimal pour compatibility frontend
@@ -503,7 +509,9 @@ class MongoDBService:
             print(f"Erreur lors de la recherche dans les avis critiques: {e}")
             return {"auteurs": [], "livres": [], "editeurs": []}
 
-    def search_auteurs(self, query: str, limit: int = 10) -> dict[str, Any]:
+    def search_auteurs(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
         """Recherche textuelle dans la collection auteurs."""
         if self.auteurs_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -520,8 +528,10 @@ class MongoDBService:
             # Compter le nombre total de résultats
             total_count = self.auteurs_collection.count_documents(search_query)
 
-            # Récupérer les résultats limités
-            auteurs = list(self.auteurs_collection.find(search_query).limit(limit))
+            # Récupérer les résultats avec skip et limit
+            auteurs = list(
+                self.auteurs_collection.find(search_query).skip(offset).limit(limit)
+            )
 
             # Conversion ObjectId en string
             results = []
@@ -534,8 +544,10 @@ class MongoDBService:
             print(f"Erreur lors de la recherche d'auteurs: {e}")
             return {"auteurs": [], "total_count": 0}
 
-    def search_livres(self, query: str, limit: int = 10) -> dict[str, Any]:
-        """Recherche textuelle dans la collection livres."""
+    def search_livres(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
+        """Recherche textuelle dans la collection livres (champ titre uniquement)."""
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -545,19 +557,16 @@ class MongoDBService:
         try:
             query_escaped = query.strip()
 
-            # Recherche dans les champs titre et editeur
-            search_query = {
-                "$or": [
-                    {"titre": {"$regex": query_escaped, "$options": "i"}},
-                    {"editeur": {"$regex": query_escaped, "$options": "i"}},
-                ]
-            }
+            # Recherche uniquement dans le champ titre
+            search_query = {"titre": {"$regex": query_escaped, "$options": "i"}}
 
             # Compter le nombre total de résultats
             total_count = self.livres_collection.count_documents(search_query)
 
-            # Récupérer les résultats limités
-            livres = list(self.livres_collection.find(search_query).limit(limit))
+            # Récupérer les résultats avec skip et limit
+            livres = list(
+                self.livres_collection.find(search_query).skip(offset).limit(limit)
+            )
 
             # Conversion ObjectId en string et enrichissement avec nom auteur
             results = []
@@ -588,6 +597,66 @@ class MongoDBService:
         except Exception as e:
             print(f"Erreur lors de la recherche de livres: {e}")
             return {"livres": [], "total_count": 0}
+
+    def search_editeurs(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
+        """Recherche textuelle dans editeurs.nom ET livres.editeur."""
+        if self.editeurs_collection is None or self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"editeurs": [], "total_count": 0}
+
+        try:
+            query_escaped = query.strip()
+            search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
+
+            # 1. Recherche dans collection editeurs
+            editeurs_from_collection = list(
+                self.editeurs_collection.find(search_query).skip(offset).limit(limit)
+            )
+
+            # 2. Recherche dans livres.editeur
+            livres_search_query = {
+                "editeur": {"$regex": query_escaped, "$options": "i"}
+            }
+            livres_with_editeur = list(
+                self.livres_collection.find(livres_search_query)
+                .skip(offset)
+                .limit(limit)
+            )
+
+            # 3. Combiner et dédupliquer
+            editeurs_set = set()
+            results = []
+
+            # Ajouter éditeurs de la collection editeurs
+            for editeur in editeurs_from_collection:
+                editeur["_id"] = str(editeur["_id"])
+                editeur_nom = editeur.get("nom")
+                if editeur_nom and editeur_nom not in editeurs_set:
+                    editeurs_set.add(editeur_nom)
+                    results.append(editeur)
+
+            # Ajouter éditeurs depuis livres.editeur
+            for livre in livres_with_editeur:
+                editeur_nom = livre.get("editeur")
+                if editeur_nom and editeur_nom not in editeurs_set:
+                    editeurs_set.add(editeur_nom)
+                    results.append({"nom": editeur_nom})
+
+            # Total = nombre d'éditeurs UNIQUES après déduplication
+            # (pas la somme brute des deux collections)
+            total_count = len(editeurs_set)
+
+            # Respecter la limite
+            results = results[:limit]
+
+            return {"editeurs": results, "total_count": total_count}
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'éditeurs: {e}")
+            return {"editeurs": [], "total_count": 0}
 
     def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
         """Calcule le score de pertinence et le type de match - STRICT: terme doit être présent."""

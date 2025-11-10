@@ -8,6 +8,7 @@ Cette application permet de :
 - Consulter la liste des épisodes de podcast
 - Visualiser les descriptions originales et corrigées
 - Modifier et sauvegarder les descriptions d'épisodes
+- Rechercher dans toutes les collections avec filtres et pagination
 - Bénéficier de garde-fous mémoire pour éviter les crashes
 
 ## Architecture
@@ -34,6 +35,7 @@ Cette application permet de :
 - **[README.md](user/README.md)** : Guide de démarrage rapide
 - **[interface.md](user/interface.md)** : Guide complet de l'interface utilisateur
 - **[episodes.md](user/episodes.md)** : Gestion et édition des épisodes
+- **[advanced-search.md](user/advanced-search.md)** : Recherche avancée avec filtres et pagination
 - **[troubleshooting.md](user/troubleshooting.md)** : Résolution des problèmes courants
 
 ## Démarrage rapide

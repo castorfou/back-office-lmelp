@@ -7,6 +7,7 @@ import Dashboard from '../views/Dashboard.vue';
 import EpisodePage from '../views/EpisodePage.vue';
 import LivresAuteurs from '../views/LivresAuteurs.vue';
 import BabelioTest from '../views/BabelioTest.vue';
+import AdvancedSearch from '../views/AdvancedSearch.vue';
 
 const routes = [
   {
@@ -39,6 +40,14 @@ const routes = [
     component: BabelioTest,
     meta: {
       title: 'Test Babelio - Back-office LMELP'
+    }
+  },
+  {
+    path: '/search',
+    name: 'AdvancedSearch',
+    component: AdvancedSearch,
+    meta: {
+      title: 'Recherche avancée - Back-office LMELP'
     }
   }
 ];
