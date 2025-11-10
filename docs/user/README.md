@@ -64,8 +64,8 @@ L'interface comprend maintenant **deux pages principales** :
 │ ┌─────────────┐ ┌─────────────┐     │
 │ │📝 Episode - │ │🔍 Recherche │     │
 │ │  Modification│ │  avancée    │     │
-│ │  Titre/Desc.│ │ (bientôt)   │     │
-│ │    [→]      │ │             │     │
+│ │  Titre/Desc.│ │             │     │
+│ │    [→]      │ │    [→]      │     │
 │ └─────────────┘ └─────────────┘     │
 └─────────────────────────────────────┘
 ```
@@ -135,7 +135,7 @@ Le système utilise un fichier `.dev-ports.json` qui contient :
 #### Page d'accueil
 1. **Consultez** les statistiques générales en haut de page
 2. **Cliquez** sur "Episode - Modification Titre/Description" pour accéder à la gestion des épisodes
-3. Les autres fonctions seront disponibles dans les futures versions
+3. **Cliquez** sur "Recherche avancée" pour rechercher dans toutes les collections de données
 
 #### Navigation
 - **Depuis la page d'épisodes** : Cliquez sur "🏠 Accueil" pour revenir au tableau de bord
@@ -307,6 +307,7 @@ En cas de problème :
 
 - **[Guide de l'interface](interface.md)** : Détails sur chaque élément
 - **[Gestion des épisodes](episodes.md)** : Fonctionnalités avancées
+- **[Recherche avancée](advanced-search.md)** : Guide complet de la recherche avec filtres et pagination
 - **[Résolution de problèmes](troubleshooting.md)** : Solutions aux problèmes courants
 
 ### Contact support
