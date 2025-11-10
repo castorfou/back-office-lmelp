@@ -159,6 +159,7 @@
 <script>
 import { searchService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
+import { highlightSearchTermAccentInsensitive } from '../utils/textUtils.js';
 
 // Fonction debounce pour éviter trop de requêtes
 function debounce(func, delay) {
@@ -386,18 +387,8 @@ export default {
     },
 
     highlightSearchTerm(text) {
-      if (!text || !this.lastSearchQuery) return text || '';
-
-      const query = this.lastSearchQuery.trim();
-      if (query.length < 3) return text;
-
-      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escapedQuery})`, 'gi');
-
-      return text.replace(
-        regex,
-        '<strong style="background: #fff3cd; color: #856404; border-radius: 3px; font-weight: 700;">$1</strong>'
-      );
+      // Use accent-insensitive highlighting (Issue #92)
+      return highlightSearchTermAccentInsensitive(text, this.lastSearchQuery);
     }
   }
 };
