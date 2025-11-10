@@ -134,14 +134,14 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
 
-#### Extraction Livres et Auteurs ⭐ **NOUVEAU**
+#### Extraction Livres et Auteurs
 - 📚 **Extraction automatique** : Parse les tableaux markdown des avis critiques
 - 📋 **Interface tableau** : Colonnes triables (Auteur/Titre/Éditeur)
 - 🔍 **Recherche temps réel** : Filtrage par auteur, titre ou éditeur
 - 📊 **Deux sources** : "Livres discutés au programme" + "Coups de cœur des critiques"
 - 🎯 **Vue par épisode** : Sélection d'épisodes avec avis critiques
 
-#### Gestion des Collections ⭐ **NOUVEAU** (Issue #66)
+#### Gestion des Collections
 - 🏗️ **Architecture cache-first** : Collection `livresauteurs_cache` avec `LivresAuteursCacheService` TDD complet
 - 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
 - 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
@@ -189,7 +189,7 @@ export BABELIO_CACHE_LOG=1
 
 
 
-#### Moteur de Recherche Textuelle ⭐ **NOUVEAU** (Issues #49 + #68)
+#### Moteur de Recherche Textuelle
 - 🔍 **Recherche multi-collections** : Episodes, auteurs, livres, éditeurs
 - 📚 **Collections dédiées** : Recherche directe dans `auteurs` et `livres` MongoDB
 - 👤 **Enrichissement auteur** : Livres affichés avec format "Auteur - Titre"
@@ -198,6 +198,14 @@ export BABELIO_CACHE_LOG=1
 - 🖍️ **Surlignage** : Mise en évidence des termes recherchés
 - 📊 **Compteurs intelligents** : Format "📖 LIVRES (3/155)" (affichés/total)
 - 🔤 **Recherche exacte** : Insensible à la casse, regex MongoDB sur tous les champs
+
+#### Recherche Avancée
+- 🎯 **Filtres par entité** : Recherche ciblée (épisodes, auteurs, livres, éditeurs)
+- 📄 **Pagination complète** : Navigation par page avec sélecteur de limite (10/20/50/100)
+- 📊 **Compteurs totaux** : Affichage du nombre total de résultats par catégorie
+- ⚙️ **Sources unifiées** : Recherche éditeurs dans `editeurs.nom` + `livres.editeur` (dédupliqué)
+- 🔍 **Interface dédiée** : Page `/search` avec filtres interactifs
+- 📱 **Responsive** : Optimisée pour mobile et desktop
 
 ### API disponible
 
@@ -211,12 +219,12 @@ GET /api/episodes/{id}
 # Mettre à jour la description corrigée
 PUT /api/episodes/{id}
 
-# Extraction livres et auteurs ⭐ NOUVEAU
+# Extraction livres et auteurs
 GET /api/livres-auteurs           # Tous les livres extraits
 GET /api/livres-auteurs?episode_oid={id}  # Livres d'un épisode
 GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
 
-# Gestion des collections ⭐ NOUVEAU
+# Gestion des collections
 GET /api/livres-auteurs/statistics           # Statistiques des collections
 POST /api/livres-auteurs/auto-process-verified  # Traitement automatique des livres vérifiés
 GET /api/livres-auteurs/books/{status}       # Livres par statut (verified/suggested/not_found)
@@ -225,11 +233,12 @@ POST /api/livres-auteurs/add-manual-book     # Ajout manuel d'un livre not_found
 GET /api/authors                             # Tous les auteurs de la collection
 GET /api/books                               # Tous les livres de la collection
 
-# Vérification orthographique Babelio ⭐ NOUVEAU
+# Vérification orthographique Babelio
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
 
-# Recherche textuelle ⭐ NOUVEAU (Issues #49 + #68)
-GET /api/search?q={query}&limit={n}  # Recherche multi-collections (auteurs, livres, épisodes)
+# Recherche textuelle
+GET /api/search?q={query}&limit={n}              # Recherche simple multi-collections
+GET /api/advanced-search?q={query}&entities={...}&page={n}&limit={m}  # Recherche avec filtres et pagination
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/
