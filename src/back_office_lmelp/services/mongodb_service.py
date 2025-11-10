@@ -512,7 +512,16 @@ class MongoDBService:
     def search_auteurs(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans la collection auteurs."""
+        """Recherche textuelle insensible aux accents dans la collection auteurs.
+
+        Args:
+            query: Terme de recherche (ex: "carrere" trouvera "Carrère")
+            limit: Nombre maximum de résultats à retourner
+            offset: Offset pour la pagination
+
+        Returns:
+            Dict avec clés "auteurs" (liste de résultats) et "total_count"
+        """
         if self.auteurs_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -520,10 +529,15 @@ class MongoDBService:
             return {"auteurs": [], "total_count": 0}
 
         try:
-            query_escaped = query.strip()
+            from ..utils.text_utils import create_accent_insensitive_regex
 
-            # Recherche dans le champ nom
-            search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
+            query_stripped = query.strip()
+
+            # Créer un regex insensible aux accents (Issue #92)
+            regex_pattern = create_accent_insensitive_regex(query_stripped)
+
+            # Recherche dans le champ nom avec regex insensible aux accents
+            search_query = {"nom": {"$regex": regex_pattern, "$options": "i"}}
 
             # Compter le nombre total de résultats
             total_count = self.auteurs_collection.count_documents(search_query)
@@ -547,7 +561,16 @@ class MongoDBService:
     def search_livres(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans la collection livres (champ titre uniquement)."""
+        """Recherche textuelle insensible aux accents dans la collection livres.
+
+        Args:
+            query: Terme de recherche (ex: "emonet" trouvera "Émonet")
+            limit: Nombre maximum de résultats à retourner
+            offset: Offset pour la pagination
+
+        Returns:
+            Dict avec clés "livres" (liste de résultats) et "total_count"
+        """
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -555,10 +578,15 @@ class MongoDBService:
             return {"livres": [], "total_count": 0}
 
         try:
-            query_escaped = query.strip()
+            from ..utils.text_utils import create_accent_insensitive_regex
 
-            # Recherche uniquement dans le champ titre
-            search_query = {"titre": {"$regex": query_escaped, "$options": "i"}}
+            query_stripped = query.strip()
+
+            # Créer un regex insensible aux accents (Issue #92)
+            regex_pattern = create_accent_insensitive_regex(query_stripped)
+
+            # Recherche uniquement dans le champ titre avec regex insensible aux accents
+            search_query = {"titre": {"$regex": regex_pattern, "$options": "i"}}
 
             # Compter le nombre total de résultats
             total_count = self.livres_collection.count_documents(search_query)
@@ -601,7 +629,16 @@ class MongoDBService:
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans editeurs.nom ET livres.editeur."""
+        """Recherche textuelle insensible aux accents dans editeurs.nom ET livres.editeur.
+
+        Args:
+            query: Terme de recherche (ex: "flammarion")
+            limit: Nombre maximum de résultats à retourner
+            offset: Offset pour la pagination
+
+        Returns:
+            Dict avec clés "editeurs" (liste de résultats) et "total_count"
+        """
         if self.editeurs_collection is None or self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -609,8 +646,14 @@ class MongoDBService:
             return {"editeurs": [], "total_count": 0}
 
         try:
-            query_escaped = query.strip()
-            search_query = {"nom": {"$regex": query_escaped, "$options": "i"}}
+            from ..utils.text_utils import create_accent_insensitive_regex
+
+            query_stripped = query.strip()
+
+            # Créer un regex insensible aux accents (Issue #92)
+            regex_pattern = create_accent_insensitive_regex(query_stripped)
+
+            search_query = {"nom": {"$regex": regex_pattern, "$options": "i"}}
 
             # 1. Recherche dans collection editeurs
             editeurs_from_collection = list(
@@ -619,7 +662,7 @@ class MongoDBService:
 
             # 2. Recherche dans livres.editeur
             livres_search_query = {
-                "editeur": {"$regex": query_escaped, "$options": "i"}
+                "editeur": {"$regex": regex_pattern, "$options": "i"}
             }
             livres_with_editeur = list(
                 self.livres_collection.find(livres_search_query)

@@ -88,8 +88,10 @@
             data-testid="function-babelio-test"
             @click="navigateToBabelioTest"
           >
-            <div class="function-icon">🔍</div>
-            <h3>Test Babelio</h3>
+            <div class="function-icon">
+              <img :src="babelioIcon" alt="Babelio" class="function-icon-img" />
+            </div>
+            <h3>Recherche Babelio</h3>
             <p>Vérification orthographique des auteurs, livres et éditeurs via Babelio</p>
             <div class="function-arrow">→</div>
           </div>
@@ -127,6 +129,7 @@
 <script>
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
+import babelioSymbol from '../assets/babelio-symbol.svg';
 
 export default {
   name: 'Dashboard',
@@ -151,6 +154,7 @@ export default {
         couples_suggested_pas_en_base: null,
         couples_not_found_pas_en_base: null
       },
+      babelioIcon: babelioSymbol,
       loading: true,
       error: null
     };
@@ -362,6 +366,12 @@ export default {
 .function-icon {
   font-size: 3rem;
   margin-bottom: 1rem;
+}
+
+.function-icon-img {
+  width: 3rem;
+  height: auto;
+  display: inline-block;
 }
 
 .function-card h3 {

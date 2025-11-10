@@ -1,11 +1,14 @@
 <template>
   <div class="babelio-test">
-    <Navigation page-title="Test Babelio" />
+    <Navigation page-title="Recherche Babelio" />
 
     <main class="test-content">
       <!-- Bandeau d'information -->
       <section class="info-banner">
-        <h1>🔍 Test du service Babelio</h1>
+        <h1 class="info-banner__title">
+          <img :src="babelioIcon" alt="Babelio" class="babelio-icon" />
+          Recherche Babelio
+        </h1>
         <p>
           Testez la vérification orthographique des auteurs, livres et éditeurs via l'API Babelio.
           Ce service permet de corriger automatiquement les fautes de frappe et d'obtenir les informations officielles.
@@ -142,7 +145,10 @@
             <p>Entrez le nom d'un éditeur pour vérifier l'orthographe et obtenir le nom officiel.</p>
           </div>
           <div class="guide-item">
-            <h3>🔍 Résultats</h3>
+            <h3 class="guide-item__title">
+              <img :src="babelioIcon" alt="Babelio" class="babelio-icon--small" />
+              Résultats
+            </h3>
             <p>Chaque test retourne un objet JSON avec : la correction suggérée, le niveau de confiance, et les données trouvées sur Babelio.</p>
           </div>
         </div>
@@ -154,6 +160,7 @@
 <script>
 import Navigation from '../components/Navigation.vue';
 import axios from 'axios';
+import babelioSymbol from '../assets/babelio-symbol.svg';
 
 export default {
   name: 'BabelioTest',
@@ -185,6 +192,7 @@ export default {
         book: false,
         publisher: false
       },
+      babelioIcon: babelioSymbol,
       error: null
     };
   },
@@ -280,10 +288,33 @@ export default {
   margin-bottom: 2rem;
 }
 
-.info-banner h1 {
+.info-banner__title {
   font-size: 2.5rem;
   margin-bottom: 1rem;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.babelio-icon {
+  width: 2.5rem;
+  height: auto;
+}
+
+.guide-item__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.babelio-icon--small {
+  width: 1.5rem;
+  height: auto;
 }
 
 .info-banner p {
@@ -473,8 +504,12 @@ export default {
     padding: 1.5rem;
   }
 
-  .info-banner h1 {
+  .info-banner__title {
     font-size: 2rem;
+  }
+
+  .babelio-icon {
+    width: 2rem;
   }
 
   .test-forms {
@@ -493,8 +528,12 @@ export default {
 }
 
 @media (max-width: 480px) {
-  .info-banner h1 {
+  .info-banner__title {
     font-size: 1.5rem;
+  }
+
+  .babelio-icon {
+    width: 1.75rem;
   }
 
   .info-banner p {

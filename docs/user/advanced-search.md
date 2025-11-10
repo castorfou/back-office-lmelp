@@ -73,7 +73,10 @@ Sur la page d'accueil, cliquez sur la carte **"Recherche avancée"** dans la sec
 2. **Minimum 3 caractères** requis
 3. **Appuyez sur Entrée** ou cliquez sur l'icône de recherche 🔍
 
-📋 *La recherche est insensible à la casse : "CAMUS", "camus" et "Camus" donneront les mêmes résultats*
+📋 *La recherche est insensible à la casse ET aux accents :*
+- *"CAMUS", "camus" et "Camus" donnent les mêmes résultats*
+- *"carre", "carrere" et "Carrère" donnent les mêmes résultats*
+- *"etranger" et "L'Étranger" donnent les mêmes résultats*
 
 #### Exemples de recherches
 
@@ -176,6 +179,32 @@ Exemple pour la recherche "camus" :
 - **10 mots après** le terme
 
 ## Fonctionnalités avancées
+
+### Recherche insensible aux accents
+
+La recherche fonctionne automatiquement sans tenir compte des accents, facilitant la saisie et élargissant les résultats :
+
+**Comment ça marche** :
+- Vous tapez "carre" → trouve "Emmanuel Carrère", "Carreau", "carré"
+- Vous tapez "emonet" → trouve "Simone Émonet"
+- Vous tapez "francois" → trouve "François", "Francois"
+
+**Avantages** :
+- ✅ **Pas besoin de taper les accents** : Gagnez du temps
+- ✅ **Plus de résultats** : Ne manquez aucun résultat à cause d'une différence d'accent
+- ✅ **Fonctionne dans les deux sens** : Vous pouvez taper avec ou sans accents
+- ✅ **Highlighting intelligent** : Les termes trouvés sont surlignés même s'ils ont des accents différents
+
+**Exemple pratique** :
+```
+Recherche : "etranger"
+Résultats trouvés :
+- L'Étranger (Albert Camus)
+- Étrangers à nous-mêmes (Julia Kristeva)
+- Un étranger sur la terre (Philip Pullman)
+```
+
+💡 *Cette fonctionnalité s'applique à toutes les recherches : recherche simple ET recherche avancée*
 
 ### Compteurs totaux vs résultats affichés
 
@@ -283,19 +312,6 @@ Le terme de recherche doit contenir au moins 3 caractères.
 ```
 
 ## Limitations connues
-
-### Recherche par accents
-
-**Comportement actuel** :
-- La recherche est **sensible aux accents**
-- "carre" ne trouve **pas** "Carrère"
-- "carrere" ne trouve **pas** "Carrère"
-
-**Workaround** :
-- Essayez plusieurs variantes orthographiques
-- Utilisez des termes sans accents si possible
-
-**Futur** : L'implémentation d'une recherche insensible aux accents est prévue (nécessite des collations MongoDB avancées ou normalisation Unicode).
 
 ### Performance avec grands résultats
 

@@ -116,6 +116,7 @@
 
 <script>
 import { searchService } from '../services/api.js';
+import { highlightSearchTermAccentInsensitive } from '../utils/textUtils.js';
 
 // Fonction debounce simple pour éviter d'ajouter lodash comme dépendance
 function debounce(func, delay) {
@@ -245,21 +246,8 @@ export default {
     },
 
     highlightSearchTerm(text) {
-      if (!text || !this.lastSearchQuery) return text || '';
-
-      const query = this.lastSearchQuery.trim();
-      if (query.length < 3) return text;
-
-      console.log('Highlighting term:', query, 'in text:', text);
-
-      // Échapper les caractères spéciaux de regex et créer une regex insensible à la casse
-      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escapedQuery})`, 'gi');
-
-      const result = text.replace(regex, '<strong style="background: #fff3cd; color: #856404; border-radius: 3px; font-weight: 700;">$1</strong>');
-      console.log('Highlighting result:', result);
-
-      return result;
+      // Use accent-insensitive highlighting (Issue #92)
+      return highlightSearchTermAccentInsensitive(text, this.lastSearchQuery);
     },
 
 
