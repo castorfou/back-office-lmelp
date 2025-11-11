@@ -1201,6 +1201,61 @@ async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+# Nouveaux endpoints pour l'Issue #96 - Pages de visualisation Auteur et Livre
+
+
+@app.get("/api/auteur/{auteur_id}", response_model=dict[str, Any])
+async def get_auteur_detail(auteur_id: str) -> dict[str, Any]:
+    """Récupère les détails d'un auteur avec la liste de ses livres (Issue #96 - Phase 1).
+
+    Args:
+        auteur_id: ID de l'auteur (MongoDB ObjectId)
+
+    Returns:
+        Dict avec auteur_id, nom, nombre_oeuvres, et livres triés alphabétiquement
+
+    Raises:
+        404: Si l'auteur n'existe pas
+        400: Si l'ID est invalide
+        500: En cas d'erreur serveur
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation du format ObjectId
+    if len(auteur_id) != 24:
+        raise HTTPException(
+            status_code=400,
+            detail="Format d'ID invalide. L'ID doit être un ObjectId MongoDB (24 caractères hexadécimaux)",
+        )
+
+    try:
+        from bson import ObjectId
+
+        # Vérifier que c'est un ObjectId valide
+        ObjectId(auteur_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail="Format d'ID invalide. L'ID doit être un ObjectId MongoDB valide",
+        ) from e
+
+    try:
+        auteur_data = mongodb_service.get_auteur_with_livres(auteur_id)
+        if not auteur_data:
+            raise HTTPException(status_code=404, detail="Auteur non trouvé")
+
+        return auteur_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Nouveaux endpoints pour l'Issue #66 - Gestion des collections auteurs/livres
 
 

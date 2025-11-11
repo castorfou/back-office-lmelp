@@ -626,6 +626,78 @@ class MongoDBService:
             print(f"Erreur lors de la recherche de livres: {e}")
             return {"livres": [], "total_count": 0}
 
+    def get_auteur_with_livres(self, auteur_id: str) -> dict[str, Any] | None:
+        """Récupère un auteur avec la liste de ses livres (Issue #96 - Phase 1).
+
+        Args:
+            auteur_id: ID de l'auteur (MongoDB ObjectId en string)
+
+        Returns:
+            Dict avec auteur_id, nom, nombre_oeuvres, et livres (triés alphabétiquement)
+            None si l'auteur n'existe pas
+        """
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Agrégation MongoDB pour joindre l'auteur avec ses livres
+            pipeline: list[dict[str, Any]] = [
+                # Match l'auteur par ID
+                {"$match": {"_id": ObjectId(auteur_id)}},
+                # Lookup pour récupérer les livres de cet auteur
+                {
+                    "$lookup": {
+                        "from": "livres",
+                        "localField": "_id",
+                        "foreignField": "auteur_id",
+                        "as": "livres",
+                    }
+                },
+                # Projection pour formater les données
+                {
+                    "$project": {
+                        "_id": 1,
+                        "nom": 1,
+                        "livres": {
+                            "_id": 1,
+                            "titre": 1,
+                            "editeur": 1,
+                        },
+                    }
+                },
+            ]
+
+            result = list(self.auteurs_collection.aggregate(pipeline))
+
+            if not result:
+                return None
+
+            auteur_data = result[0]
+
+            # Trier les livres par ordre alphabétique du titre
+            livres = sorted(auteur_data.get("livres", []), key=lambda x: x["titre"])
+
+            # Formater les livres pour le frontend
+            livres_formatted = [
+                {
+                    "livre_id": str(livre["_id"]),
+                    "titre": livre["titre"],
+                    "editeur": livre.get("editeur", ""),
+                }
+                for livre in livres
+            ]
+
+            return {
+                "auteur_id": str(auteur_data["_id"]),
+                "nom": auteur_data["nom"],
+                "nombre_oeuvres": len(livres_formatted),
+                "livres": livres_formatted,
+            }
+
+        except Exception as e:
+            print(f"Erreur lors de la récupération de l'auteur {auteur_id}: {e}")
+            return None
+
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
