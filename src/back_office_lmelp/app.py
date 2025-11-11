@@ -1228,10 +1228,7 @@ async def get_auteur_detail(auteur_id: str) -> dict[str, Any]:
 
     # Validation du format ObjectId
     if len(auteur_id) != 24:
-        raise HTTPException(
-            status_code=400,
-            detail="Format d'ID invalide. L'ID doit être un ObjectId MongoDB (24 caractères hexadécimaux)",
-        )
+        raise HTTPException(status_code=404, detail="Auteur non trouvé")
 
     try:
         from bson import ObjectId
@@ -1239,10 +1236,7 @@ async def get_auteur_detail(auteur_id: str) -> dict[str, Any]:
         # Vérifier que c'est un ObjectId valide
         ObjectId(auteur_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail="Format d'ID invalide. L'ID doit être un ObjectId MongoDB valide",
-        ) from e
+        raise HTTPException(status_code=404, detail="Auteur non trouvé") from e
 
     try:
         auteur_data = mongodb_service.get_auteur_with_livres(auteur_id)

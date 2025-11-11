@@ -8,6 +8,7 @@ import EpisodePage from '../views/EpisodePage.vue';
 import LivresAuteurs from '../views/LivresAuteurs.vue';
 import BabelioTest from '../views/BabelioTest.vue';
 import AdvancedSearch from '../views/AdvancedSearch.vue';
+import AuteurDetail from '../views/AuteurDetail.vue';
 
 const routes = [
   {
@@ -48,6 +49,14 @@ const routes = [
     component: AdvancedSearch,
     meta: {
       title: 'Recherche avancée - Back-office LMELP'
+    }
+  },
+  {
+    path: '/auteur/:id',
+    name: 'AuteurDetail',
+    component: AuteurDetail,
+    meta: {
+      title: 'Détail Auteur - Back-office LMELP'
     }
   }
 ];

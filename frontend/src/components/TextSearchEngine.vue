@@ -45,8 +45,11 @@
         <div v-if="results.auteurs.length > 0" class="result-category">
           <h4 class="category-title">👤 AUTEURS ({{ results.auteurs.length }})</h4>
           <ul class="result-list">
-            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item">
-              <span class="result-name" v-html="highlightSearchTerm(auteur.nom)"></span>
+            <li v-for="auteur in results.auteurs" :key="`auteur-${auteur.nom}`" class="result-item clickable-item">
+              <router-link :to="`/auteur/${auteur._id}`" class="result-link">
+                <span class="result-name" v-html="highlightSearchTerm(auteur.nom)"></span>
+                <span class="result-arrow">→</span>
+              </router-link>
             </li>
           </ul>
         </div>
@@ -522,6 +525,46 @@ export default {
 
 .result-item:last-child {
   margin-bottom: 0;
+}
+
+.result-item.clickable-item {
+  padding: 0;
+  background: none;
+  transition: transform 0.2s ease;
+}
+
+.result-item.clickable-item:hover {
+  transform: translateX(4px);
+  background: none;
+}
+
+.result-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.result-link:hover {
+  background: #e9ecef;
+}
+
+.result-arrow {
+  color: #667eea;
+  font-size: 1.2rem;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.result-link:hover .result-arrow {
+  opacity: 1;
 }
 
 .result-name {

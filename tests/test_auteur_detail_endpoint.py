@@ -109,5 +109,6 @@ class TestGetAuteurDetail:
         # WHEN: On appelle GET /api/auteur/{invalid_id}
         response = client.get(f"/api/auteur/{invalid_id}")
 
-        # THEN: On reçoit une erreur 400 ou 422
-        assert response.status_code in [400, 422]
+        # THEN: On reçoit une erreur 404 avec un message simple
+        assert response.status_code == 404
+        assert "Auteur non trouvé" in response.json()["detail"]
