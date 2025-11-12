@@ -1075,6 +1075,7 @@ export default {
 
       // Pré-remplir le formulaire avec les suggestions (modifiables par l'utilisateur)
       const suggestion = this.validationSuggestions.get(this.getBookKey(book));
+
       this.validationForm = {
         author: book.suggested_author || suggestion?.author || book.auteur,
         title: book.suggested_title || suggestion?.title || book.titre,

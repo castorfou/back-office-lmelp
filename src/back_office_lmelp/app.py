@@ -855,7 +855,9 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
         import re
 
         # Extraire segments entre guillemets (priorité haute - titres potentiels)
-        quoted_segments = re.findall(r'"([^"]+)"', full_text)
+        quoted_segments_raw = re.findall(r'"([^"]+)"', full_text)
+        # Issue #96: Nettoyer les sauts de ligne dans les segments extraits
+        quoted_segments = [" ".join(seg.split()) for seg in quoted_segments_raw]
 
         # NOUVEAU : Extraire n-grams de différentes tailles (Issue #76)
         # Pour détecter les titres multi-mots comme "L'invention de Tristan"
