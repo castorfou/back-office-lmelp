@@ -9,6 +9,7 @@ import LivresAuteurs from '../views/LivresAuteurs.vue';
 import BabelioTest from '../views/BabelioTest.vue';
 import AdvancedSearch from '../views/AdvancedSearch.vue';
 import AuteurDetail from '../views/AuteurDetail.vue';
+import LivreDetail from '../views/LivreDetail.vue';
 
 const routes = [
   {
@@ -57,6 +58,14 @@ const routes = [
     component: AuteurDetail,
     meta: {
       title: 'Détail Auteur - Back-office LMELP'
+    }
+  },
+  {
+    path: '/livre/:id',
+    name: 'LivreDetail',
+    component: LivreDetail,
+    meta: {
+      title: 'Détail Livre - Back-office LMELP'
     }
   }
 ];

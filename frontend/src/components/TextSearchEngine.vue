@@ -58,8 +58,11 @@
         <div v-if="results.livres.length > 0" class="result-category">
           <h4 class="category-title">📚 LIVRES ({{ results.livres.length }})</h4>
           <ul class="result-list">
-            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item">
-              <span class="result-name" v-html="highlightSearchTerm(formatLivreDisplay(livre))"></span>
+            <li v-for="livre in results.livres" :key="`livre-${livre.titre}`" class="result-item clickable-item">
+              <router-link :to="`/livre/${livre._id}`" class="result-link">
+                <span class="result-name" v-html="highlightSearchTerm(formatLivreDisplay(livre))"></span>
+                <span class="result-arrow">→</span>
+              </router-link>
             </li>
           </ul>
         </div>

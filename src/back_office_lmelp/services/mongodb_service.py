@@ -698,6 +698,173 @@ class MongoDBService:
             print(f"Erreur lors de la récupération de l'auteur {auteur_id}: {e}")
             return None
 
+    def get_livre_with_episodes(self, livre_id: str) -> dict[str, Any] | None:
+        """Récupère un livre avec ses informations et la liste des épisodes (Issue #96 - Phase 2).
+
+        Args:
+            livre_id: ID du livre (MongoDB ObjectId en string)
+
+        Returns:
+            Dict avec livre_id, titre, auteur_id, auteur_nom, editeur, nombre_episodes,
+            et episodes (triés par date décroissante, avec champ programme pour chaque épisode)
+            None si le livre n'existe pas
+        """
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # Agrégation MongoDB pour joindre le livre avec son auteur et ses épisodes
+            pipeline: list[dict[str, Any]] = [
+                # Match le livre par ID
+                {"$match": {"_id": ObjectId(livre_id)}},
+                # Lookup pour récupérer l'auteur
+                {
+                    "$lookup": {
+                        "from": "auteurs",
+                        "localField": "auteur_id",
+                        "foreignField": "_id",
+                        "as": "auteur",
+                    }
+                },
+                # Lookup pour récupérer les épisodes
+                # Les épisodes sont stockés comme un tableau de strings dans livre.episodes
+                {
+                    "$lookup": {
+                        "from": "episodes",
+                        "let": {"episode_ids": "$episodes", "livre_id": "$_id"},
+                        "pipeline": [
+                            {
+                                "$match": {
+                                    "$expr": {
+                                        "$in": [
+                                            {"$toString": "$_id"},
+                                            "$$episode_ids",
+                                        ]
+                                    }
+                                }
+                            },
+                            # Lookup pour récupérer le champ programme depuis livresauteurs_cache
+                            {
+                                "$lookup": {
+                                    "from": "livresauteurs_cache",
+                                    "let": {"episode_oid": {"$toString": "$_id"}},
+                                    "pipeline": [
+                                        {
+                                            "$match": {
+                                                "$expr": {
+                                                    "$and": [
+                                                        {
+                                                            "$eq": [
+                                                                "$episode_oid",
+                                                                "$$episode_oid",
+                                                            ]
+                                                        },
+                                                        {
+                                                            "$eq": [
+                                                                "$book_id",
+                                                                "$$livre_id",
+                                                            ]
+                                                        },
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "$project": {
+                                                "programme": 1,
+                                            }
+                                        },
+                                    ],
+                                    "as": "cache_data",
+                                }
+                            },
+                            {
+                                "$project": {
+                                    "_id": 1,
+                                    "titre": 1,
+                                    "date": 1,
+                                    "programme": {
+                                        "$cond": {
+                                            "if": {
+                                                "$gt": [{"$size": "$cache_data"}, 0]
+                                            },
+                                            "then": {
+                                                "$arrayElemAt": [
+                                                    "$cache_data.programme",
+                                                    0,
+                                                ]
+                                            },
+                                            "else": None,
+                                        }
+                                    },
+                                }
+                            },
+                        ],
+                        "as": "episodes_data",
+                    }
+                },
+                # Projection pour formater les données
+                {
+                    "$project": {
+                        "_id": 1,
+                        "titre": 1,
+                        "auteur_id": 1,
+                        "editeur": 1,
+                        "auteur": 1,
+                        "episodes_data": 1,
+                    }
+                },
+            ]
+
+            result = list(self.livres_collection.aggregate(pipeline))
+
+            if not result:
+                return None
+
+            livre_data = result[0]
+
+            # Récupérer le nom de l'auteur
+            auteur_nom = ""
+            if livre_data.get("auteur") and len(livre_data["auteur"]) > 0:
+                auteur_nom = livre_data["auteur"][0].get("nom", "")
+
+            # Trier les épisodes par date (plus récent d'abord)
+            episodes = livre_data.get("episodes_data", [])
+            episodes_sorted = sorted(
+                episodes,
+                key=lambda x: x.get("date", ""),
+                reverse=True,
+            )
+
+            # Formater les épisodes pour le frontend
+            episodes_formatted = [
+                {
+                    "episode_id": str(episode["_id"]),
+                    "titre": episode.get("titre", ""),
+                    "date": (
+                        episode["date"].strftime("%Y-%m-%d")
+                        if isinstance(episode.get("date"), datetime)
+                        else str(episode.get("date", ""))[:10]
+                    ),
+                    "programme": episode.get("programme"),
+                }
+                for episode in episodes_sorted
+            ]
+
+            return {
+                "livre_id": str(livre_data["_id"]),
+                "titre": livre_data["titre"],
+                "auteur_id": str(livre_data["auteur_id"]),
+                "auteur_nom": auteur_nom,
+                "editeur": livre_data.get("editeur", ""),
+                "nombre_episodes": len(episodes_formatted),
+                "episodes": episodes_formatted,
+            }
+
+        except Exception as e:
+            print(f"Erreur lors de la récupération du livre {livre_id}: {e}")
+            return None
+
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
@@ -1094,15 +1261,40 @@ class MongoDBService:
             if existing_book:
                 book_id = ObjectId(existing_book["_id"])
 
+                # Préparer les mises à jour
+                update_ops: dict[str, Any] = {}
+
                 # Issue #85: Si l'éditeur a changé (ex: enrichissement Babelio), mettre à jour
                 if existing_book.get("editeur") != book_data.get("editeur"):
-                    update_data = {
+                    update_ops["$set"] = {
                         "editeur": book_data["editeur"],
                         "updated_at": datetime.now(),
                     }
-                    self.livres_collection.update_one(
-                        {"_id": book_id}, {"$set": update_data}
-                    )
+
+                # Issue #96 Bug Fix: Ajouter les nouveaux épisodes/avis_critiques avec $addToSet
+                # $addToSet évite les doublons automatiquement
+                addtoset_ops: dict[str, Any] = {}
+
+                if book_data.get("episodes"):
+                    # Ajouter chaque épisode individuellement pour éviter les doublons
+                    for episode_id in book_data["episodes"]:
+                        if episode_id:  # Vérifier que l'ID n'est pas vide
+                            addtoset_ops.setdefault("episodes", {"$each": []})
+                            addtoset_ops["episodes"]["$each"].append(episode_id)
+
+                if book_data.get("avis_critiques"):
+                    # Ajouter chaque avis_critique individuellement pour éviter les doublons
+                    for avis_id in book_data["avis_critiques"]:
+                        if avis_id:  # Vérifier que l'ID n'est pas vide
+                            addtoset_ops.setdefault("avis_critiques", {"$each": []})
+                            addtoset_ops["avis_critiques"]["$each"].append(avis_id)
+
+                if addtoset_ops:
+                    update_ops["$addToSet"] = addtoset_ops
+
+                # Appliquer les mises à jour si nécessaire
+                if update_ops:
+                    self.livres_collection.update_one({"_id": book_id}, update_ops)
 
                 # S'assurer que l'auteur a la référence au livre existant
                 self._add_book_to_author(book_data["auteur_id"], book_id)

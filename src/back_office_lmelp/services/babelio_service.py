@@ -426,10 +426,27 @@ class BabelioService:
                 }
 
             # Extraire titre et auteur suggérés
-            suggested_title = best_book.get("titre", title)
-            suggested_author = self._format_author_name(
-                best_book.get("prenoms"), best_book.get("nom")
+            # Nettoyer les sauts de ligne et espaces multiples (Issue #96)
+            suggested_title_raw = best_book.get("titre", title)
+            suggested_title = (
+                " ".join(suggested_title_raw.split()) if suggested_title_raw else title
             )
+
+            # Nettoyer les sauts de ligne dans les champs auteur avant formatage
+            prenoms_raw = best_book.get("prenoms")
+            nom_raw = best_book.get("nom")
+            prenoms_clean = " ".join(str(prenoms_raw).split()) if prenoms_raw else None
+            nom_clean = " ".join(str(nom_raw).split()) if nom_raw else None
+
+            suggested_author = self._format_author_name(prenoms_clean, nom_clean)
+
+            # Nettoyer aussi les données brutes pour éviter les newlines dans babelio_data
+            babelio_data_clean = {}
+            for key, value in best_book.items():
+                if isinstance(value, str):
+                    babelio_data_clean[key] = " ".join(value.split())
+                else:
+                    babelio_data_clean[key] = value
 
             # Score basé sur le titre principalement
             title_confidence = self._calculate_similarity(title, suggested_title)
@@ -465,7 +482,7 @@ class BabelioService:
                 "original_author": author,
                 "babelio_suggestion_author": suggested_author,
                 "confidence_score": confidence,
-                "babelio_data": best_book,
+                "babelio_data": babelio_data_clean,
                 "babelio_url": babelio_url,
                 "babelio_publisher": babelio_publisher,
                 "error_message": None,
@@ -515,7 +532,12 @@ class BabelioService:
                 editeur_link = soup.select_one('a.tiny_links.dark[href*="/editeur/"]')
 
                 if editeur_link:
-                    publisher: str = str(editeur_link.text).strip()
+                    # Nettoyer les sauts de ligne et espaces multiples
+                    # (le HTML peut contenir des <br> ou des retours à la ligne)
+                    publisher_raw: str = str(editeur_link.text)
+                    publisher = " ".join(
+                        publisher_raw.split()
+                    )  # Split + join pour nettoyer
                     logger.debug(f"Éditeur trouvé pour {babelio_url}: {publisher}")
                     return publisher
                 else:
