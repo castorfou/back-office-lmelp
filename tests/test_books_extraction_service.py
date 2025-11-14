@@ -452,3 +452,38 @@ class TestBooksExtractionService:
         assert "note_moyenne" not in book
         assert "nb_critiques" not in book
         assert "coups_de_coeur" not in book
+
+    def test_simplified_format_includes_book_and_author_ids(self, books_service):
+        """Test TDD (Issue #96): book_id et author_id doivent être retournés pour les liens clickables."""
+        from bson import ObjectId
+
+        books_data = [
+            {
+                "episode_oid": "6865f995a1418e3d7c63d076",  # pragma: allowlist secret
+                "auteur": "Test Auteur",
+                "titre": "Test Livre",
+                "editeur": "Test Éditeur",
+                "programme": True,
+                "status": "mongo",
+                # Issue #96: Ces champs doivent être présents dans la sortie
+                "book_id": ObjectId(
+                    "68e2c3ba1391489c77ccdee2"  # pragma: allowlist secret
+                ),
+                "author_id": ObjectId(
+                    "68e2c3ba1391489c77ccdee1"  # pragma: allowlist secret
+                ),
+            }
+        ]
+
+        result = books_service.format_books_for_simplified_display(books_data)
+
+        assert len(result) == 1
+        book = result[0]
+
+        # Issue #96: book_id et author_id doivent être présents (convertis en string)
+        assert "book_id" in book
+        assert "author_id" in book
+        assert book["book_id"] == "68e2c3ba1391489c77ccdee2"  # pragma: allowlist secret
+        assert (
+            book["author_id"] == "68e2c3ba1391489c77ccdee1"
+        )  # pragma: allowlist secret

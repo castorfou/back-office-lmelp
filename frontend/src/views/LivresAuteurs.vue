@@ -250,8 +250,30 @@
                   <!-- Empty when no flag -->
                   <span v-else class="status-icon empty" aria-hidden="true"></span>
                 </td>
-                <td class="author-cell">{{ getDisplayedAuthor(book) }}</td>
-                <td class="title-cell">{{ getDisplayedTitle(book) }}</td>
+                <td class="author-cell">
+                  <!-- Issue #96: Lien cliquable vers page auteur si ID disponible -->
+                  <router-link
+                    v-if="book.auteur_id"
+                    :to="`/auteur/${book.auteur_id}`"
+                    class="clickable-link"
+                    data-test="author-link"
+                  >
+                    {{ getDisplayedAuthor(book) }}
+                  </router-link>
+                  <span v-else>{{ getDisplayedAuthor(book) }}</span>
+                </td>
+                <td class="title-cell">
+                  <!-- Issue #96: Lien cliquable vers page livre si ID disponible -->
+                  <router-link
+                    v-if="book._id"
+                    :to="`/livre/${book._id}`"
+                    class="clickable-link"
+                    data-test="title-link"
+                  >
+                    {{ getDisplayedTitle(book) }}
+                  </router-link>
+                  <span v-else>{{ getDisplayedTitle(book) }}</span>
+                </td>
                 <td class="publisher-cell">
                   {{ getDisplayedPublisher(book) || '-' }}
                 </td>
@@ -1595,6 +1617,17 @@ export default {
 .title-cell {
   font-weight: 600;
   color: #333;
+}
+
+/* Issue #96: Style pour les liens cliquables - inherit le style parent */
+.clickable-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.clickable-link:hover {
+  text-decoration: underline;
 }
 
 .publisher-cell {
