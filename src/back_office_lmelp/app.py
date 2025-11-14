@@ -855,7 +855,9 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
         import re
 
         # Extraire segments entre guillemets (priorité haute - titres potentiels)
-        quoted_segments = re.findall(r'"([^"]+)"', full_text)
+        quoted_segments_raw = re.findall(r'"([^"]+)"', full_text)
+        # Issue #96: Nettoyer les sauts de ligne dans les segments extraits
+        quoted_segments = [" ".join(seg.split()) for seg in quoted_segments_raw]
 
         # NOUVEAU : Extraire n-grams de différentes tailles (Issue #76)
         # Pour détecter les titres multi-mots comme "L'invention de Tristan"
@@ -1197,6 +1199,101 @@ async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
             "added_cases": result.added_cases,
             "updated_cases": result.updated_cases,
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+# Nouveaux endpoints pour l'Issue #96 - Pages de visualisation Auteur et Livre
+
+
+@app.get("/api/auteur/{auteur_id}", response_model=dict[str, Any])
+async def get_auteur_detail(auteur_id: str) -> dict[str, Any]:
+    """Récupère les détails d'un auteur avec la liste de ses livres (Issue #96 - Phase 1).
+
+    Args:
+        auteur_id: ID de l'auteur (MongoDB ObjectId)
+
+    Returns:
+        Dict avec auteur_id, nom, nombre_oeuvres, et livres triés alphabétiquement
+
+    Raises:
+        404: Si l'auteur n'existe pas
+        400: Si l'ID est invalide
+        500: En cas d'erreur serveur
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation du format ObjectId
+    if len(auteur_id) != 24:
+        raise HTTPException(status_code=404, detail="Auteur non trouvé")
+
+    try:
+        from bson import ObjectId
+
+        # Vérifier que c'est un ObjectId valide
+        ObjectId(auteur_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Auteur non trouvé") from e
+
+    try:
+        auteur_data = mongodb_service.get_auteur_with_livres(auteur_id)
+        if not auteur_data:
+            raise HTTPException(status_code=404, detail="Auteur non trouvé")
+
+        return auteur_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/livre/{livre_id}", response_model=dict[str, Any])
+async def get_livre_detail(livre_id: str) -> dict[str, Any]:
+    """Récupère les détails d'un livre avec la liste de ses épisodes (Issue #96 - Phase 2).
+
+    Args:
+        livre_id: ID du livre (MongoDB ObjectId)
+
+    Returns:
+        Dict avec livre_id, titre, auteur_id, auteur_nom, editeur, nombre_episodes,
+        et episodes triés par date décroissante
+
+    Raises:
+        404: Si le livre n'existe pas
+        500: En cas d'erreur serveur
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation du format ObjectId
+    if len(livre_id) != 24:
+        raise HTTPException(status_code=404, detail="Livre non trouvé")
+
+    try:
+        from bson import ObjectId
+
+        # Vérifier que c'est un ObjectId valide
+        ObjectId(livre_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Livre non trouvé") from e
+
+    try:
+        livre_data = mongodb_service.get_livre_with_episodes(livre_id)
+        if not livre_data:
+            raise HTTPException(status_code=404, detail="Livre non trouvé")
+
+        return livre_data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

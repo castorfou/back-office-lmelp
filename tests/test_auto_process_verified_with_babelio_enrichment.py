@@ -136,8 +136,9 @@ def test_auto_process_enriched_books_updates_editeur():
 
 def test_auto_process_no_update_when_editeur_same():
     """
-    Vérifier que quand l'éditeur du cache et de livres est identique,
-    aucune mise à jour n'est faite (optimization).
+    Vérifier que quand l'éditeur du cache et de livres est identique ET que
+    l'épisode existe déjà dans episodes array, update_one est appelé avec
+    $addToSet (qui ne modifiera rien grâce à la déduplication automatique).
     """
 
     author_id = ObjectId("68e47439f4ac0655e1de7d6e")  # pragma: allowlist secret
@@ -158,7 +159,7 @@ def test_auto_process_no_update_when_editeur_same():
         "titre": "Test Book",
         "auteur_id": author_id,
         "editeur": "Gallimard",  # Déjà correct
-        "episodes": [episode_oid],
+        "episodes": [episode_oid],  # Épisode déjà présent
     }
 
     mongodb_service = MongoDBService()
@@ -189,5 +190,11 @@ def test_auto_process_no_update_when_editeur_same():
         # Act
         service.auto_process_verified_books()
 
-        # Assert: update_one ne doit PAS être appelé quand les éditeurs sont identiques
-        mock_livres_collection.update_one.assert_not_called()
+        # Assert: Issue #96 Fix - update_one EST appelé pour ajouter l'épisode avec $addToSet
+        # MongoDB ne créera pas de doublon grâce à $addToSet
+        mock_livres_collection.update_one.assert_called_once()
+        call_args = mock_livres_collection.update_one.call_args[0]
+        assert call_args[0] == {"_id": book_id}
+        # Vérifier que $addToSet est utilisé pour éviter les doublons
+        assert "$addToSet" in call_args[1]
+        assert "episodes" in call_args[1]["$addToSet"]

@@ -55,6 +55,7 @@ nav:
     - Démarrage rapide: user/README.md
     - Gestion des épisodes: user/episodes.md
     - Recherche avancée: user/advanced-search.md
+    - Pages de détail: user/detail-pages.md
     - Vérification Babelio: user/babelio-verification.md
     - Correction automatique résumés: user/automatic-summary-correction.md
     - Résolution de problèmes: user/troubleshooting.md

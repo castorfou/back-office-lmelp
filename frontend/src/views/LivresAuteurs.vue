@@ -250,8 +250,30 @@
                   <!-- Empty when no flag -->
                   <span v-else class="status-icon empty" aria-hidden="true"></span>
                 </td>
-                <td class="author-cell">{{ getDisplayedAuthor(book) }}</td>
-                <td class="title-cell">{{ getDisplayedTitle(book) }}</td>
+                <td class="author-cell">
+                  <!-- Issue #96: Lien cliquable vers page auteur si ID disponible -->
+                  <router-link
+                    v-if="book.author_id"
+                    :to="`/auteur/${book.author_id}`"
+                    class="clickable-link"
+                    data-test="author-link"
+                  >
+                    {{ getDisplayedAuthor(book) }}
+                  </router-link>
+                  <span v-else>{{ getDisplayedAuthor(book) }}</span>
+                </td>
+                <td class="title-cell">
+                  <!-- Issue #96: Lien cliquable vers page livre si ID disponible -->
+                  <router-link
+                    v-if="book.book_id"
+                    :to="`/livre/${book.book_id}`"
+                    class="clickable-link"
+                    data-test="title-link"
+                  >
+                    {{ getDisplayedTitle(book) }}
+                  </router-link>
+                  <span v-else>{{ getDisplayedTitle(book) }}</span>
+                </td>
                 <td class="publisher-cell">
                   {{ getDisplayedPublisher(book) || '-' }}
                 </td>
@@ -676,6 +698,17 @@ export default {
 
   async mounted() {
     await this.loadEpisodesWithReviews();
+
+    // Issue #96: Support pour lien direct vers un épisode via ?episode=<id>
+    const episodeIdFromUrl = this.$route?.query?.episode;
+    if (episodeIdFromUrl && this.episodesWithReviews) {
+      const episodeExists = this.episodesWithReviews.find(ep => ep.id === episodeIdFromUrl);
+      if (episodeExists) {
+        this.selectedEpisodeId = episodeIdFromUrl;
+        await this.onEpisodeChange();
+      }
+    }
+
     // Keyboard navigation for episode select (left / right)
     // prevent default browser navigation when using arrows and avoid races
     this._onKeydown = async (e) => {
@@ -1075,6 +1108,7 @@ export default {
 
       // Pré-remplir le formulaire avec les suggestions (modifiables par l'utilisateur)
       const suggestion = this.validationSuggestions.get(this.getBookKey(book));
+
       this.validationForm = {
         author: book.suggested_author || suggestion?.author || book.auteur,
         title: book.suggested_title || suggestion?.title || book.titre,
@@ -1583,6 +1617,17 @@ export default {
 .title-cell {
   font-weight: 600;
   color: #333;
+}
+
+/* Issue #96: Style pour les liens cliquables - inherit le style parent */
+.clickable-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.clickable-link:hover {
+  text-decoration: underline;
 }
 
 .publisher-cell {

@@ -232,6 +232,46 @@ La recherche éditeurs combine plusieurs sources de données :
 
 **Résultat** : Vous voyez tous les éditeurs uniques, qu'ils soient dans la collection dédiée ou extraits des métadonnées de livres.
 
+### Navigation vers pages de détail
+
+Les résultats de recherche pour **Auteurs** et **Livres** sont clickables et permettent d'accéder aux pages de détail correspondantes :
+
+#### Auteurs clickables
+
+Cliquez sur le nom d'un auteur dans les résultats pour accéder à sa **page détail** :
+
+- **Vue complète** : Tous les livres de cet auteur
+- **Tri alphabétique** : Livres classés par ordre alphabétique
+- **Navigation** : Liens vers les pages livre individuelles
+
+**Exemple** :
+```
+✍️ Auteurs (1 résultat)
+───────────────────────────
+• Albert Camus (3 livres)  ← clickable
+```
+
+→ Clic sur "Albert Camus" → Page détail avec liste complète de ses livres
+
+#### Livres clickables
+
+Cliquez sur un titre de livre pour accéder à sa **page détail** :
+
+- **Informations complètes** : Auteur, éditeur, nombre d'épisodes
+- **Liste des épisodes** : Tous les épisodes mentionnant ce livre
+- **Navigation** : Lien vers validation bibliographique avec épisode pré-sélectionné
+
+**Exemple** :
+```
+📚 Livres (2 résultats)
+───────────────────────────
+• L'Étranger - Albert Camus (Gallimard)  ← clickable
+```
+
+→ Clic sur "L'Étranger" → Page détail avec liste des épisodes
+
+📖 *Pour plus de détails, voir [Pages de Détail Auteur et Livre](detail-pages.md)*
+
 ### Cas particuliers
 
 #### Recherche sans résultats

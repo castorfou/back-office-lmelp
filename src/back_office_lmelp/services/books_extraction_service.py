@@ -434,6 +434,20 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
             if "babelio_publisher" in book and book["babelio_publisher"]:
                 simplified_book["babelio_publisher"] = book["babelio_publisher"]
 
+            # Issue #96: Ajouter book_id et author_id pour les liens clickables
+            if "book_id" in book and book["book_id"]:
+                # Convertir ObjectId en string si nécessaire
+                book_id_value = book["book_id"]
+                simplified_book["book_id"] = (
+                    str(book_id_value) if book_id_value else None
+                )
+            if "author_id" in book and book["author_id"]:
+                # Convertir ObjectId en string si nécessaire
+                author_id_value = book["author_id"]
+                simplified_book["author_id"] = (
+                    str(author_id_value) if author_id_value else None
+                )
+
             simplified_books.append(simplified_book)
 
         return simplified_books
