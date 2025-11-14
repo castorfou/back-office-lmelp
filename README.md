@@ -207,6 +207,14 @@ export BABELIO_CACHE_LOG=1
 - 🔍 **Interface dédiée** : Page `/search` avec filtres interactifs
 - 📱 **Responsive** : Optimisée pour mobile et desktop
 
+#### Pages de Détail Auteur et Livre
+- 👤 **Page auteur** : `/auteur/:id` - Vue détaillée d'un auteur avec tous ses livres triés alphabétiquement
+- 📖 **Page livre** : `/livre/:id` - Vue détaillée d'un livre avec liste des épisodes où il est mentionné
+- 🔗 **Navigation inter-pages** : Liens clickables depuis recherche simple/avancée vers pages détail
+- 🎯 **Liens depuis biblio validation** : Auteurs et titres clickables dans la page `/livres-auteurs`
+- 🔄 **Liens épisodes** : Navigation directe depuis un livre vers validation biblio avec épisode pré-sélectionné
+- 📍 **URL parameters** : Support `/livres-auteurs?episode=<id>` pour sélection automatique
+
 ### API disponible
 
 ```bash
@@ -235,6 +243,10 @@ GET /api/books                               # Tous les livres de la collection
 
 # Vérification orthographique Babelio
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
+
+# Pages de détail (Issue #96)
+GET /api/auteur/{id}              # Détails d'un auteur avec ses livres
+GET /api/livre/{id}               # Détails d'un livre avec ses épisodes
 
 # Recherche textuelle
 GET /api/search?q={query}&limit={n}              # Recherche simple multi-collections

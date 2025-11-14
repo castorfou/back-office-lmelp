@@ -145,6 +145,10 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 1. **Mock external dependencies** (MongoDB, APIs, services) - NO real database connections in unit tests
 2. **Create mocks from real API responses** - NEVER invent mock structures
+   - ❌ BAD: `const mock = { _id: '123', user_name: 'John' }` (invented)
+   - ✅ GOOD: First check real API/MongoDB, then copy exact structure
+   - Example: `curl $API_URL/endpoint | jq '.[0]'` or `mcp__MongoDB__find --collection "..." --limit 1`
+   - **Why critical**: Tests can pass with invented mocks but fail in production (see Issue #96)
 3. **Use helper function pattern** for services with complex dependencies
 4. **Patch singleton instances** directly when using local imports
 5. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
