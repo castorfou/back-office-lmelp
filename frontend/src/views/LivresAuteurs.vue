@@ -253,8 +253,8 @@
                 <td class="author-cell">
                   <!-- Issue #96: Lien cliquable vers page auteur si ID disponible -->
                   <router-link
-                    v-if="book.auteur_id"
-                    :to="`/auteur/${book.auteur_id}`"
+                    v-if="book.author_id"
+                    :to="`/auteur/${book.author_id}`"
                     class="clickable-link"
                     data-test="author-link"
                   >
@@ -265,8 +265,8 @@
                 <td class="title-cell">
                   <!-- Issue #96: Lien cliquable vers page livre si ID disponible -->
                   <router-link
-                    v-if="book._id"
-                    :to="`/livre/${book._id}`"
+                    v-if="book.book_id"
+                    :to="`/livre/${book.book_id}`"
                     class="clickable-link"
                     data-test="title-link"
                   >

@@ -55,8 +55,8 @@ describe('LivresAuteurs - Liens vers pages détail (Issue #96)', () => {
 
     const mockBooks = [
       {
-        _id: 'livre1',
-        auteur_id: 'auteur1',
+        book_id: 'livre1',
+        author_id: 'auteur1',
         auteur: 'Auteur Test',
         titre: 'Livre Test',
         editeur: 'Editeur Test',
