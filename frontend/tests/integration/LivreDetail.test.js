@@ -168,9 +168,9 @@ describe('LivreDetail - Tests d\'intégration', () => {
     const episodeLinks = wrapper.findAll('[data-test="episode-link"]');
     expect(episodeLinks).toHaveLength(2);
 
-    // Vérifier que les liens pointent vers les bonnes routes
-    expect(episodeLinks[0].attributes('href')).toBe('/episode/68e841e6066cb40c25d5d286');
-    expect(episodeLinks[1].attributes('href')).toBe('/episode/68e841e6066cb40c25d5d287');
+    // Issue #96: Vérifier que les liens pointent vers /livres-auteurs avec le bon episode_id
+    expect(episodeLinks[0].attributes('href')).toBe('/livres-auteurs?episode=68e841e6066cb40c25d5d286');
+    expect(episodeLinks[1].attributes('href')).toBe('/livres-auteurs?episode=68e841e6066cb40c25d5d287');
   });
 
   it('should display loading state while fetching data', async () => {

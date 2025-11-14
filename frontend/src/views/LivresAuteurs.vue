@@ -676,6 +676,17 @@ export default {
 
   async mounted() {
     await this.loadEpisodesWithReviews();
+
+    // Issue #96: Support pour lien direct vers un épisode via ?episode=<id>
+    const episodeIdFromUrl = this.$route?.query?.episode;
+    if (episodeIdFromUrl && this.episodesWithReviews) {
+      const episodeExists = this.episodesWithReviews.find(ep => ep.id === episodeIdFromUrl);
+      if (episodeExists) {
+        this.selectedEpisodeId = episodeIdFromUrl;
+        await this.onEpisodeChange();
+      }
+    }
+
     // Keyboard navigation for episode select (left / right)
     // prevent default browser navigation when using arrows and avoid races
     this._onKeydown = async (e) => {

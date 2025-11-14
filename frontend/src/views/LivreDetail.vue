@@ -77,8 +77,9 @@
               </span>
             </div>
             <div class="episode-info">
+              <!-- Issue #96: Lien vers la validation biblio de cet épisode -->
               <router-link
-                :to="`/episode/${episode.episode_id}`"
+                :to="`/livres-auteurs?episode=${episode.episode_id}`"
                 class="episode-title-link"
                 data-test="episode-link"
               >
