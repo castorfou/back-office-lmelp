@@ -827,6 +827,116 @@ class AddManualBookRequest:
 
 ---
 
+## Detail Pages API (Issue #96)
+
+Endpoints pour récupérer les informations détaillées d'un auteur ou d'un livre avec leurs relations.
+
+### GET /api/auteur/{auteur_id}
+
+Récupère les détails d'un auteur avec tous ses livres.
+
+#### Paramètres
+
+- `auteur_id` (path, required): ObjectId MongoDB de l'auteur (24 caractères hexadécimaux)
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "nom": "Albert Camus",
+  "nombre_livres": 3,
+  "livres": [
+    {
+      "_id": "68e2c3ba1391489c77ccdee2",  // pragma: allowlist secret
+      "titre": "L'Étranger",
+      "editeur": "Gallimard",
+      "nombre_episodes": 2
+    },
+    {
+      "_id": "68e2c3ba1391489c77ccdee3",  // pragma: allowlist secret
+      "titre": "La Peste",
+      "editeur": "Gallimard",
+      "nombre_episodes": 1
+    }
+  ]
+}
+```
+
+**Notes**:
+- Les livres sont triés alphabétiquement par titre
+- Utilise une agrégation MongoDB avec `$lookup` pour joindre les collections `auteurs` et `livres`
+
+**400 Bad Request** - ID invalide
+```json
+{
+  "detail": "auteur_id must be a valid MongoDB ObjectId (24 hex characters)"
+}
+```
+
+**404 Not Found** - Auteur non trouvé
+```json
+{
+  "detail": "Author not found"
+}
+```
+
+### GET /api/livre/{livre_id}
+
+Récupère les détails d'un livre avec tous les épisodes où il est mentionné.
+
+#### Paramètres
+
+- `livre_id` (path, required): ObjectId MongoDB du livre (24 caractères hexadécimaux)
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "_id": "68e2c3ba1391489c77ccdee2",  // pragma: allowlist secret
+  "titre": "L'Étranger",
+  "auteur_nom": "Albert Camus",
+  "auteur_id": "68e2c3ba1391489c77ccdee1",  // pragma: allowlist secret
+  "editeur": "Gallimard",
+  "nombre_episodes": 2,
+  "episodes": [
+    {
+      "episode_id": "68c707ad6e51b9428ab87e9e",  // pragma: allowlist secret
+      "titre": "Les nouvelles pages du polar",
+      "date": "2025-01-12",
+      "programme": true
+    },
+    {
+      "episode_id": "68c707ad6e51b9428ab87e9f",  // pragma: allowlist secret
+      "titre": "Spécial rentrée littéraire",
+      "date": "2024-09-05",
+      "programme": false
+    }
+  ]
+}
+```
+
+**Notes**:
+- Les épisodes incluent un flag `programme` indiquant si le livre était au programme (true) ou coup de cœur (false)
+- Utilise une agrégation MongoDB avec `$lookup` pour joindre les collections
+
+**400 Bad Request** - ID invalide
+```json
+{
+  "detail": "livre_id must be a valid MongoDB ObjectId (24 hex characters)"
+}
+```
+
+**404 Not Found** - Livre non trouvé
+```json
+{
+  "detail": "Book not found"
+}
+```
+
+---
+
 ## Search API
 
 Moteur de recherche textuelle multi-collections avec support de pagination et filtres avancés.
