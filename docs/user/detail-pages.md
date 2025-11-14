@@ -1,0 +1,294 @@
+# Pages de Détail Auteur et Livre
+
+Les pages de détail permettent de consulter toutes les informations relatives à un auteur ou à un livre, avec navigation directe vers les contenus associés.
+
+## Accès aux pages de détail
+
+### Depuis la recherche
+
+Les résultats de recherche (simple ou avancée) proposent des liens clickables :
+
+- **Auteur** : Cliquez sur le nom d'un auteur pour accéder à sa page détail
+- **Livre** : Cliquez sur le titre d'un livre pour accéder à sa page détail
+
+### Depuis la validation bibliographique
+
+Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres validés (status "mongo") sont clickables :
+
+- **Colonne Auteur** : Cliquez pour voir tous les livres de cet auteur
+- **Colonne Titre** : Cliquez pour voir tous les épisodes mentionnant ce livre
+
+### Navigation directe
+
+- **Page auteur** : `http://localhost:5173/auteur/{id}`
+- **Page livre** : `http://localhost:5173/livre/{id}`
+
+## Page Détail Auteur
+
+### Vue d'ensemble
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🏠 Accueil                                                   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  ✍️ Auteur : Albert Camus                                   │
+│  📚 3 livres                                                 │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Livres de cet auteur (triés alphabétiquement) :            │
+│                                                              │
+│  📖 L'Étranger                                               │
+│      📅 2 épisodes                                           │
+│                                                              │
+│  📖 La Peste                                                 │
+│      📅 1 épisode                                            │
+│                                                              │
+│  📖 Le Premier Homme                                         │
+│      📅 1 épisode                                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Informations affichées
+
+- **Nom de l'auteur** : Affiché en haut de page
+- **Nombre de livres** : Total des livres de cet auteur dans la base
+- **Liste des livres** : Triée alphabétiquement par titre
+- **Nombre d'épisodes** : Pour chaque livre, nombre d'épisodes où il est mentionné
+
+### Actions disponibles
+
+- **Cliquer sur un livre** : Accès à la page détail de ce livre
+- **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
+
+## Page Détail Livre
+
+### Vue d'ensemble
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🏠 Accueil                                                   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  📖 L'Étranger                                               │
+│  ✍️ Auteur : Albert Camus                                   │
+│  🏢 Éditeur : Gallimard                                      │
+│  📅 Mentionné dans 2 épisodes                                │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Épisodes :                                                  │
+│                                                              │
+│  📺 Les nouvelles pages du polar                            │
+│      📅 12/01/2025                                           │
+│      ⭐ Au programme                                         │
+│                                                              │
+│  📺 Spécial rentrée littéraire                              │
+│      📅 05/09/2024                                           │
+│      💙 Coup de cœur                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Informations affichées
+
+- **Titre du livre** : Affiché en haut de page
+- **Auteur** : Nom de l'auteur (clickable)
+- **Éditeur** : Maison d'édition
+- **Nombre d'épisodes** : Total des mentions dans les émissions
+- **Liste des épisodes** : Tous les épisodes mentionnant ce livre
+  - Titre de l'épisode
+  - Date de diffusion
+  - Type de mention (Au programme / Coup de cœur)
+
+### Actions disponibles
+
+- **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
+- **Cliquer sur un épisode** : Navigation vers la validation bibliographique avec l'épisode pré-sélectionné
+- **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
+
+## Liens directs vers validation bibliographique
+
+### Depuis la page livre
+
+Lorsque vous cliquez sur un épisode depuis la page détail d'un livre, vous êtes redirigé vers :
+
+```
+/livres-auteurs?episode={episode_id}
+```
+
+**Comportement** :
+- La page de validation bibliographique s'ouvre
+- L'épisode est **automatiquement sélectionné**
+- Vous pouvez immédiatement consulter ou valider les livres de cet épisode
+
+**Cas d'usage** :
+1. Vous consultez un livre qui vous intéresse
+2. Vous voyez qu'il a été mentionné dans un épisode spécifique
+3. Vous cliquez sur l'épisode
+4. Vous arrivez directement sur la validation bibliographique de cet épisode
+5. Vous pouvez vérifier les autres livres mentionnés dans le même épisode
+
+### URL avec paramètre d'épisode
+
+Vous pouvez créer des liens directs vers un épisode spécifique :
+
+```
+http://localhost:5173/livres-auteurs?episode={episode_id}
+```
+
+**Exemple** :
+```
+http://localhost:5173/livres-auteurs?episode=68c707ad6e51b9428ab87e9e
+```
+
+Ce lien ouvrira automatiquement l'épisode correspondant dans l'interface de validation.
+
+## États d'affichage
+
+### Chargement
+
+Pendant le chargement des données :
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Chargement en cours...                                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Erreur
+
+En cas d'erreur (auteur/livre non trouvé, problème réseau) :
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ❌ Erreur lors du chargement                                │
+│  L'auteur demandé n'existe pas                               │
+│                                                              │
+│  [← Retour]                                                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Aucune donnée
+
+Si un auteur n'a pas de livres ou un livre n'a pas d'épisodes :
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ℹ️ Aucun livre trouvé pour cet auteur                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Navigation inter-pages
+
+### Flux de navigation complet
+
+```mermaid
+graph LR
+    A[Recherche] -->|Clic auteur| B[Page Auteur]
+    A -->|Clic livre| C[Page Livre]
+    B -->|Clic livre| C
+    C -->|Clic auteur| B
+    C -->|Clic épisode| D[Validation Biblio]
+    D -->|Clic auteur| B
+    D -->|Clic titre| C
+```
+
+### Exemple de parcours utilisateur
+
+1. **Recherche** : Vous recherchez "Camus" dans la recherche avancée
+2. **Page auteur** : Vous cliquez sur "Albert Camus" → page auteur avec tous ses livres
+3. **Page livre** : Vous cliquez sur "L'Étranger" → page livre avec tous les épisodes
+4. **Validation** : Vous cliquez sur un épisode → validation bibliographique de cet épisode
+5. **Retour** : Vous pouvez cliquer sur l'auteur ou le titre pour revenir aux pages détail
+
+## Différences avec la validation bibliographique
+
+| Fonctionnalité | Pages détail | Validation biblio |
+|----------------|--------------|-------------------|
+| **Objectif** | Consultation | Validation/Correction |
+| **Filtrage** | Par auteur/livre | Par épisode |
+| **Édition** | ❌ Lecture seule | ✅ Édition possible |
+| **Liens clickables** | ✅ Auteurs et livres | ✅ Auteurs et livres (mongo uniquement) |
+| **Vue globale** | ✅ Tous les livres d'un auteur | ❌ Un épisode à la fois |
+
+## Cas d'usage
+
+### Consulter tous les livres d'un auteur
+
+**Scénario** : Vous voulez voir combien de livres de Virginie Despentes sont dans la base.
+
+1. Recherchez "Despentes" dans la recherche simple ou avancée
+2. Cliquez sur "Virginie Despentes"
+3. → Page auteur avec la liste complète de ses livres
+
+### Trouver tous les épisodes mentionnant un livre
+
+**Scénario** : Vous voulez savoir quand "La Peste" a été discuté.
+
+1. Recherchez "La Peste" dans la recherche
+2. Cliquez sur le livre "La Peste - Albert Camus"
+3. → Page livre avec tous les épisodes mentionnant ce titre
+
+### Valider les livres d'un épisode spécifique
+
+**Scénario** : Vous consultez un livre et voulez valider l'épisode où il a été mentionné.
+
+1. Depuis la page livre, cliquez sur l'épisode
+2. → Validation bibliographique avec l'épisode pré-sélectionné
+3. Vous pouvez immédiatement vérifier et corriger les données
+
+## Avantages
+
+### Pour la consultation
+
+- **Vue globale** : Tous les livres d'un auteur en un coup d'œil
+- **Contexte complet** : Tous les épisodes mentionnant un livre
+- **Navigation fluide** : Liens clickables entre toutes les entités
+
+### Pour la validation
+
+- **Accès direct** : Navigation vers validation avec épisode pré-sélectionné
+- **Workflow efficace** : Consultation → Validation en un clic
+- **Traçabilité** : Retour facile aux pages détail depuis la validation
+
+## Dépannage
+
+### Les liens ne sont pas clickables
+
+**Problème** : Les auteurs/titres apparaissent en texte simple sans lien.
+
+**Cause** : Seuls les livres validés (status "mongo") ont des liens clickables.
+
+**Solution** :
+- Dans la validation bibliographique : Validez d'abord le livre
+- Une fois validé, les liens apparaîtront automatiquement
+
+### Erreur "Auteur non trouvé"
+
+**Problème** : Message d'erreur lors de l'accès à une page auteur.
+
+**Causes possibles** :
+- L'ID de l'auteur n'existe pas dans la base
+- L'auteur a été supprimé
+- URL incorrecte
+
+**Solution** :
+- Retournez à la recherche et utilisez les liens proposés
+- Vérifiez que l'URL est correcte
+
+### L'épisode ne se sélectionne pas automatiquement
+
+**Problème** : En cliquant sur un épisode depuis une page livre, l'épisode n'est pas pré-sélectionné.
+
+**Cause** : L'ID de l'épisode n'existe plus ou est incorrect.
+
+**Solution** :
+- Rafraîchissez la page
+- Sélectionnez manuellement l'épisode dans la liste déroulante
+- Signalez le problème si récurrent
+
+## Voir aussi
+
+- [Recherche Avancée](advanced-search.md) - Pour trouver des auteurs et livres
+- [Validation Bibliographique](livres-auteurs-extraction.md) - Pour valider les données
+- [Interface Générale](interface.md) - Vue d'ensemble de l'application
