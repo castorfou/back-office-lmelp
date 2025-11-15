@@ -21,7 +21,7 @@ repos:
 
   # Ruff - Linter et formateur Python moderne
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.4
+    rev: v0.14.5
     hooks:
       # Linting avec ruff (remplace flake8, isort, etc.)
       - id: ruff
