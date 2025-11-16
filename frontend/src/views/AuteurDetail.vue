@@ -98,8 +98,8 @@ export default {
 
       try {
         const auteurId = this.$route.params.id;
-        const backendUrl = window.BACKEND_URL || 'http://localhost:54321';
-        const response = await axios.get(`${backendUrl}/api/auteur/${auteurId}`);
+        // Issue #103: Utiliser une URL relative pour bénéficier du proxy Vite
+        const response = await axios.get(`/api/auteur/${auteurId}`);
         this.auteur = response.data;
       } catch (err) {
         console.error('Erreur lors du chargement de l\'auteur:', err);
