@@ -366,6 +366,5 @@ Activer les alertes Portainer pour :
 
 ## Prochaines étapes
 
-- [Configuration Synology Reverse Proxy](../deployment/synology-reverse-proxy.md)
 - [Guide de mise à jour](update-guide.md)
 - [Troubleshooting avancé](troubleshooting.md)
