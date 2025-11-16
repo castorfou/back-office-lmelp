@@ -241,4 +241,24 @@ describe('AuteurDetail - Tests d\'intégration', () => {
       expect.stringContaining('/api/auteur/68e841e6066cb40c25d5d282')
     );
   });
+
+  it('should use relative URL to leverage Vite proxy (Issue #103)', async () => {
+    // GIVEN: L'API est mockée
+    axios.get.mockResolvedValueOnce({ data: mockAuteurData });
+
+    // WHEN: Le composant est monté
+    wrapper = mount(AuteurDetail, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await flushPromises();
+
+    // THEN: L'API est appelée avec une URL relative (pas d'URL absolue avec localhost)
+    const callUrl = axios.get.mock.calls[0][0];
+    expect(callUrl).toBe('/api/auteur/68e841e6066cb40c25d5d282');
+    expect(callUrl).not.toContain('http://');
+    expect(callUrl).not.toContain('localhost');
+  });
 });

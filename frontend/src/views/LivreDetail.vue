@@ -128,8 +128,8 @@ export default {
 
       try {
         const livreId = this.$route.params.id;
-        const backendUrl = window.BACKEND_URL || 'http://localhost:54321';
-        const response = await axios.get(`${backendUrl}/api/livre/${livreId}`);
+        // Issue #103: Utiliser une URL relative pour bénéficier du proxy Vite
+        const response = await axios.get(`/api/livre/${livreId}`);
         this.livre = response.data;
       } catch (err) {
         console.error('Erreur lors du chargement du livre:', err);
