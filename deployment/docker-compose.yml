@@ -1,0 +1,92 @@
+# Back-Office LMELP - Déploiement Production (MongoDB externe)
+# Pour se connecter à une instance MongoDB existante sur l'hôte ou le réseau
+
+services:
+  backend:
+    image: ghcr.io/castorfou/lmelp-backend:latest
+    container_name: lmelp-backend
+    restart: unless-stopped
+
+    # Note: env_file is not used for Git Repository deployment
+    # Variables are passed via Portainer's .env file upload
+    environment:
+      # MongoDB connection - IMPORTANT: Configurer selon votre environnement
+      #
+      # Pour NAS avec MongoDB dans conteneur existant :
+      #   MONGODB_URL: mongodb://mongo:27017/masque_et_la_plume
+      #
+      # Pour PC avec MongoDB sur l'hôte (localhost) :
+      #   - Linux: MONGODB_URL: mongodb://172.17.0.1:27017/masque_et_la_plume
+      #   - Mac: MONGODB_URL: mongodb://host.docker.internal:27017/masque_et_la_plume
+      #   - Windows: MONGODB_URL: mongodb://host.docker.internal:27017/masque_et_la_plume
+      #
+      # Pour MongoDB distant :
+      #   MONGODB_URL: mongodb://<adresse-ip>:27017/masque_et_la_plume
+      #
+      # ← Modifiez cette ligne ou uploadez un fichier .env dans Portainer
+      MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017/masque_et_la_plume}
+
+      # Application settings
+      ENVIRONMENT: production
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+
+    # Note: Pas de depends_on car MongoDB est externe
+    # Note: Pas de network personnalisé si MongoDB est sur bridge par défaut
+
+    # Networks section removed - using default bridge network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  frontend:
+    image: ghcr.io/castorfou/lmelp-frontend:latest
+    container_name: lmelp-frontend
+    restart: unless-stopped
+
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+    depends_on:
+      - backend
+
+    # Networks section removed - using default bridge network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+# Networks section removed - using default bridge network
+# All services will be on the default bridge network
+# If MongoDB is in a custom network, create a user-defined bridge network instead

@@ -1,0 +1,67 @@
+# Docker Compose pour tester les images de la branche claude
+services:
+  backend:
+    image: ghcr.io/castorfou/lmelp-backend:claude-add-i18n-support-01Wde9UjCQ1Te7PqJBvjiB6N
+    container_name: lmelp-backend
+    restart: unless-stopped
+
+    environment:
+      MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017/masque_et_la_plume}
+      ENVIRONMENT: production
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+
+    networks:
+      - lmelp-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    image: ghcr.io/castorfou/lmelp-frontend:claude-add-i18n-support-01Wde9UjCQ1Te7PqJBvjiB6N
+    container_name: lmelp-frontend
+    restart: unless-stopped
+
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+    depends_on:
+      - backend
+
+    networks:
+      - lmelp-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  lmelp-network:
+    driver: bridge
+    # Pour dev local, on crée un réseau dédié
+    # Pour production/NAS, utilisez external: true dans docker-compose.prod.yml
