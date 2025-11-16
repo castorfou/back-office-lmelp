@@ -72,3 +72,9 @@ nav:
     - Développement: dev/development.md
     - Déploiement: dev/deployment.md
     - Sécurité: dev/security.md
+  - 🐳 Déploiement Docker:
+    - Architecture Docker: deployment/docker-setup.md
+    - Guide Portainer: deployment/portainer-guide.md
+    - Guide de mise à jour: deployment/update-guide.md
+    - Tests et validation: deployment/testing-guide.md
+    - Troubleshooting: deployment/troubleshooting.md

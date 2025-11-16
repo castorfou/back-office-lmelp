@@ -353,6 +353,64 @@ code .
 - **EpisodeEditor** : 12 tests (édition, sauvegarde, validation)
 - **HomePage** : 7 tests d'intégration (flux complets)
 
+## 🐳 Déploiement Docker
+
+L'application est packagée sous forme de conteneurs Docker pour un déploiement simplifié sur NAS Synology ou tout environnement Docker.
+
+### Architecture de déploiement
+
+```
+Internet → Application Portal (HTTPS)
+         ↓
+    Frontend Container (nginx)
+         ↓
+    Backend Container (FastAPI)
+         ↓
+    MongoDB Container (existant)
+```
+
+### Images Docker disponibles
+
+Les images sont automatiquement buildées via GitHub Actions et disponibles sur GitHub Container Registry :
+
+- **Backend** : `ghcr.io/castorfou/lmelp-backend:latest`
+- **Frontend** : `ghcr.io/castorfou/lmelp-frontend:latest`
+
+Tags disponibles : `latest`, `v1.0.0`, `v1.1.0`, etc.
+
+### Déploiement rapide
+
+```bash
+# Utiliser docker-compose
+cd docker
+docker-compose -f docker-compose.prod.yml up -d
+
+# Accéder à l'application
+http://localhost:8080
+```
+
+### Documentation complète
+
+Pour un guide détaillé incluant :
+- Configuration Portainer et webhook pour auto-déploiement
+- Configuration reverse proxy Synology
+- Procédures de mise à jour et rollback
+- Tests et validation
+- Troubleshooting
+
+Consulter la [documentation de déploiement](https://castorfou.github.io/back-office-lmelp/deployment/docker-setup/).
+
+### CI/CD Pipeline
+
+Chaque push sur `main` ou tag `v*` déclenche automatiquement :
+
+1. ✅ Tests (backend + frontend)
+2. 🐳 Build des images Docker
+3. 📦 Publish sur ghcr.io
+4. 🚀 Déploiement automatique via webhook Portainer (optionnel)
+
+Temps total : ~10-15 minutes de commit à production.
+
 ## 📋 Roadmap
 
 ### MVP 0 ✅ **TERMINÉ**
