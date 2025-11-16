@@ -36,7 +36,7 @@ docker network inspect bridge | grep mongo -A 10
 1. Dans le menu latéral : **Stacks** → **Add stack**
 2. **Name**: `lmelp-back-office`
 3. **Build method**: Web editor
-4. Copier le contenu de `docker/docker-compose.prod.yml`
+4. Copier le contenu de `docker/deployment/docker-compose.yml`
 
 ```yaml
 version: '3.8'

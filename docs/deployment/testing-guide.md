@@ -14,7 +14,7 @@
 
 ```bash
 # Depuis la racine du projet
-docker build -f docker/backend/Dockerfile -t lmelp-backend:test .
+docker build -f docker/build/backend/Dockerfile -t lmelp-backend:test .
 
 # Vérifier la taille de l'image
 docker images | grep lmelp-backend
@@ -26,7 +26,7 @@ docker images | grep lmelp-backend
 
 ```bash
 # Depuis la racine du projet
-docker build -f docker/frontend/Dockerfile -t lmelp-frontend:test .
+docker build -f docker/build/frontend/Dockerfile -t lmelp-frontend:test .
 
 # Vérifier la taille de l'image
 docker images | grep lmelp-frontend

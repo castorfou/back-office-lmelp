@@ -5,18 +5,22 @@ Bienvenue dans la documentation du Back-Office LMELP, une application web pour l
 ## Vue d'ensemble
 
 Cette application permet de :
+
 - Consulter la liste des épisodes de podcast
-- Visualiser les descriptions originales et corrigées
-- Modifier et sauvegarder les descriptions d'épisodes
-- Rechercher dans toutes les collections avec filtres et pagination
-- Bénéficier de garde-fous mémoire pour éviter les crashes
+-
+- Visualiser/Modifier les titres/descriptions (on conserve les versions originales et modifiees) des episodes
+-
+- Corriger les auteurs / livres / edtiteurs issus des avis ctitiques
+-
+- Rechercher dans les auteurs, livres, editeurs et episodes
+-
 
 ## Architecture
 
 - **Backend** : FastAPI avec garde-fous mémoire intégrés
 - **Frontend** : Vue.js avec surveillance mémoire automatique
 - **Base de données** : MongoDB
-- **Environnement** : Docker devcontainer avec uv
+- **Environnement** : Docker devcontainer avec uv pour le developpement, image docker pour le deploiement (pour installation PC ou Nas)
 
 ## Documentation
 
@@ -45,22 +49,29 @@ Cette application permet de :
 - Ou Python 3.11+ avec uv
 
 ### Lancement
-```bash
-# Backend (port 54321 ou autre si inutilise)
-python -m back_office_lmelp.app
 
-# Frontend (port 5173)
-cd frontend && npm run dev
+en mode developpement
+
+```bash
+# Lancement backend + frontend
+./scripts/start-dev.sh
 
 # Documentation locale (port 8000)
 mkdocs serve
 ```
 
-### Accès
+en mode image docker
+
+voir instructions dans `docker/deployment/README.md`
+
+### Accès developpemet
 - **Application** : http://localhost:5173
 - **API Backend** : http://localhost:54322
 - **Documentation API** : http://localhost:54322/docs
 - **Documentation MkDocs** : http://localhost:8000 (local) | [GitHub Pages](https://castorfou.github.io/back-office-lmelp/) (production)
+
+### Acces image docker
+- **Application** : http://localhost:8080
 
 ## Fonctionnalités principales
 

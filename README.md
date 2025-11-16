@@ -382,8 +382,8 @@ Tags disponibles : `latest`, `v1.0.0`, `v1.1.0`, etc.
 
 ```bash
 # Utiliser docker-compose
-cd docker
-docker-compose -f docker-compose.prod.yml up -d
+cd docker/deployment
+docker compose up -d
 
 # Accéder à l'application
 http://localhost:8080
