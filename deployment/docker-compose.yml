@@ -34,8 +34,7 @@ services:
     # Note: Pas de depends_on car MongoDB est externe
     # Note: Pas de network personnalisé si MongoDB est sur bridge par défaut
 
-    networks:
-      - lmelp-network
+    # Networks section removed - using default bridge network
 
     deploy:
       resources:
