@@ -64,6 +64,7 @@ nav:
     - Architecture: dev/architecture.md
     - API Reference: dev/api.md
     - Guide Claude AI: dev/claude-ai-guide.md
+    - Workflow de développement: dev/development-workflow.md
     - Validation Bibliographique: dev/biblio-verification-flow.md
     - Traitement données biblio: dev/bibliographic-data-processing.md
     - Ramasse-miettes summaries: dev/summary-garbage-collector.md

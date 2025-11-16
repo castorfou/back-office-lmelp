@@ -185,10 +185,10 @@ Le backup MongoDB est géré **séparément** par la configuration NAS existante
 ### Configuration application
 
 Les fichiers de configuration Docker sont versionnés dans Git :
-- `docker/docker-compose.prod.yml`
-- `docker/backend/Dockerfile`
-- `docker/frontend/Dockerfile`
-- `docker/frontend/nginx.conf`
+- `docker/deployment/docker-compose.yml` - Configuration de déploiement
+- `docker/build/backend/Dockerfile` - Build backend (CI/CD)
+- `docker/build/frontend/Dockerfile` - Build frontend (CI/CD)
+- `docker/build/frontend/nginx.conf` - Configuration nginx frontend
 
 ## Logs
 
