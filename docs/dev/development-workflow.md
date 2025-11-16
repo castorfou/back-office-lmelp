@@ -219,7 +219,7 @@ git push origin --delete feature/ma-nouvelle-fonctionnalite
    - Value: URL copiée
 4. Le workflow GitHub Actions triggera automatiquement le webhook après chaque build
 
-Le webhook est déjà configuré dans [`.github/workflows/docker-publish.yml`](../../.github/workflows/docker-publish.yml#L143-L158).
+Le webhook est configuré dans `.github/workflows/docker-publish.yml` (à la racine du projet).
 
 ## Troubleshooting
 
@@ -345,10 +345,10 @@ environment:
 
 ## Ressources
 
-- [Guide Docker complet](../../docker/README.md)
+- **Guide Docker complet** : `docker/README.md` (à la racine du projet)
 - [Guide Portainer](../deployment/portainer-guide.md)
 - [CI/CD GitHub Actions](../deployment/docker-setup.md#ci-cd-github-actions)
-- [CLAUDE.md - Vue d'ensemble projet](../../CLAUDE.md)
+- **CLAUDE.md** : `CLAUDE.md` (à la racine du projet - vue d'ensemble)
 
 ## Résumé du cycle complet
 

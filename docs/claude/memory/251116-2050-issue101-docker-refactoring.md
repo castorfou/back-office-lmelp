@@ -517,10 +517,10 @@ git commit -m "..." # Retry, maintenant ça passe
 
 - **Issue GitHub** : [#101](https://github.com/castorfou/back-office-lmelp/issues/101)
 - **Pull Request** : À créer
-- **Documentation Docker** : [docker/README.md](../../docker/README.md)
-- **Guide Portainer** : [docs/deployment/portainer-guide.md](../deployment/portainer-guide.md)
-- **Testing Guide** : [docs/deployment/testing-guide.md](../deployment/testing-guide.md)
-- **Workflow CI/CD** : [.github/workflows/docker-publish.yml](../../.github/workflows/docker-publish.yml)
+- **Documentation Docker** : `docker/README.md` (à la racine du projet)
+- **Guide Portainer** : [docs/deployment/portainer-guide.md](../../deployment/portainer-guide.md)
+- **Testing Guide** : [docs/deployment/testing-guide.md](../../deployment/testing-guide.md)
+- **Workflow CI/CD** : `.github/workflows/docker-publish.yml` (à la racine du projet)
 
 ## 📚 Documentation Créée/Mise à Jour
 
