@@ -180,11 +180,13 @@ Vérifier dans Portainer que la stack se redéploie (pull des dernières images)
 
 1. Accéder au repository GitHub : `https://github.com/castorfou/back-office-lmelp`
 2. **Settings** → **Secrets and variables** → **Actions**
-3. Onglet **Variables**
-4. Cliquer **New repository variable**
+3. Onglet **Secrets**
+4. Cliquer **New repository secret**
 5. **Name**: `PORTAINER_WEBHOOK_URL`
-6. **Value**: Coller l'URL du webhook Portainer
-7. Cliquer **Add variable**
+6. **Secret**: Coller l'URL du webhook Portainer
+7. Cliquer **Add secret**
+
+**Note** : On utilise un **secret** plutôt qu'une variable pour des raisons de sécurité, car l'URL du webhook donne accès au déploiement de votre stack.
 
 ### Tester le déploiement automatique
 
