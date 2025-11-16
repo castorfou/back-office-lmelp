@@ -41,20 +41,43 @@ MONGODB_URL=mongodb://host.docker.internal:27017/masque_et_la_plume
 MONGODB_URL=mongodb://192.168.1.100:27017/masque_et_la_plume
 ```
 
-#### 2. Déployer dans Portainer
+#### 2. Créer un Personal Access Token GitHub (une seule fois)
+
+Cette étape est nécessaire pour déployer via Git Repository dans Portainer.
+
+**Création du token :**
+
+1. Aller sur : https://github.com/settings/tokens/new
+2. **Note** : "Portainer back-office-lmelp deployment"
+3. **Expiration** : No expiration (ou selon vos préférences de sécurité)
+4. **Scopes** : Cocher **`repo`** (Full control of private repositories)
+   - Même si le repo est public, ce scope est requis par Portainer
+5. Cliquer **Generate token**
+6. **Copier le token** (vous ne pourrez plus le voir après)
+
+⚠️ **Conservez ce token en sécurité** - Il donne accès à vos repositories GitHub
+
+#### 3. Déployer dans Portainer
 
 **Option A : Via Git Repository (RECOMMANDÉ)**
 
+Cette méthode permet les mises à jour automatiques via webhook ou pull manuel.
+
 1. Portainer → **Stacks** → **Add stack**
 2. **Name** : `lmelp-back-office`
-3. **Build method** : Git Repository
-4. **Repository URL** : `https://github.com/castorfou/back-office-lmelp`
-5. **Repository reference** : `refs/heads/main`
-6. **Compose path** : `deployment/docker-compose.yml`
-7. **Environment variables** :
+3. **Build method** : **Repository**
+4. **Authentication** : **On**
+   - **Username** : votre_username_github
+   - **Personal Access Token** : coller le token créé à l'étape 2
+5. **Repository URL** : `https://github.com/castorfou/back-office-lmelp`
+6. **Repository reference** : `refs/heads/main`
+   - ⚠️ Important : bien utiliser le format `refs/heads/main` (voir Troubleshooting)
+7. **Compose path** : `deployment/docker-compose.yml`
+8. **Environment variables** :
    - ✅ Cocher "Load variables from .env file"
-   - Upload votre fichier `.env`
-8. Cliquer **Deploy the stack**
+   - Cliquer **Upload** et sélectionner votre fichier `.env`
+   - Portainer chargera automatiquement toutes les variables
+9. Cliquer **Deploy the stack**
 
 **Option B : Via Web Editor**
 
@@ -67,7 +90,7 @@ MONGODB_URL=mongodb://192.168.1.100:27017/masque_et_la_plume
    - Upload votre fichier `.env`
 6. Cliquer **Deploy the stack**
 
-#### 3. Vérifier le déploiement
+#### 4. Vérifier le déploiement
 
 **Statut des conteneurs :**
 ```bash
@@ -86,7 +109,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 http://<nas-ip>:8080
 ```
 
-#### 4. Configurer reverse proxy Synology (optionnel)
+#### 5. Configurer reverse proxy Synology (optionnel)
 
 DSM → **Control Panel** → **Login Portal** → **Advanced** → **Reverse Proxy**
 
@@ -140,6 +163,46 @@ Pour revenir à une version précédente :
 4. Cliquer **Update**
 
 ## 🐛 Troubleshooting
+
+### Erreur "reference not found" lors du déploiement Git Repository
+
+**Symptôme :**
+```
+Unable to clone git repository: failed to clone git repository: reference not found
+```
+
+**Cause :** La référence de branche est mal saisie dans Portainer.
+
+**Solution :** Vérifiez le champ **Repository reference** dans Portainer :
+
+- ✅ **Correct** : `refs/heads/main` (ou `refs/heads/nom-de-votre-branche`)
+- ❌ **Incorrect** :
+  - `main` (sans préfixe `refs/heads/`)
+  - `ref/heads/main` (faute de frappe : `ref` au lieu de `refs`)
+  - `refs/head/main` (faute de frappe : `head` au lieu de `heads`)
+
+**Exemples de références valides :**
+- Branche main : `refs/heads/main`
+- Branche de développement : `refs/heads/feature/ma-branche`
+- Tag : `refs/tags/v1.0.0`
+
+**Astuce** : Copiez-collez la référence depuis cette documentation pour éviter les erreurs de frappe.
+
+### Erreur "manifest unknown" (image non trouvée)
+
+**Symptôme :**
+```
+Error response from daemon: manifest for ghcr.io/castorfou/lmelp-backend:latest not found
+```
+
+**Cause :** Les images Docker n'ont pas encore été publiées sur GitHub Container Registry.
+
+**Solution :**
+1. Vérifier que le workflow GitHub Actions a bien été exécuté : https://github.com/castorfou/back-office-lmelp/actions
+2. S'assurer que les packages sont publics :
+   - Backend : https://github.com/castorfou/back-office-lmelp/pkgs/container/lmelp-backend
+   - Frontend : https://github.com/castorfou/back-office-lmelp/pkgs/container/lmelp-frontend
+3. Si les packages existent mais sont privés, les rendre publics dans les settings du package
 
 ### Backend ne se connecte pas à MongoDB
 
@@ -196,6 +259,40 @@ docker network inspect bridge
 # 3. Re-pull les images
 docker pull ghcr.io/castorfou/lmelp-backend:latest
 docker pull ghcr.io/castorfou/lmelp-frontend:latest
+```
+
+### Port 8080 déjà utilisé
+
+**Symptôme :**
+```
+Error: bind: address already in use
+```
+
+**Cause :** Un autre service utilise déjà le port 8080.
+
+**Solutions :**
+
+**Option 1 : Modifier le port dans .env (recommandé)**
+```bash
+# Dans votre fichier .env
+FRONTEND_PORT=8081  # Ou tout autre port disponible
+```
+
+Puis redéployer la stack dans Portainer.
+
+**Option 2 : Modifier directement dans docker-compose.yml**
+```yaml
+ports:
+  - "8081:80"  # Utiliser le port 8081 à la place
+```
+
+**Trouver quel processus utilise le port :**
+```bash
+# Linux/Mac
+lsof -i :8080
+
+# Arrêter le processus si nécessaire
+sudo kill <PID>
 ```
 
 ## 📚 Documentation complète
