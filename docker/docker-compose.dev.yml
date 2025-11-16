@@ -62,5 +62,6 @@ services:
 
 networks:
   lmelp-network:
-    external: true
-    name: ${DOCKER_NETWORK:-bridge}
+    driver: bridge
+    # Pour dev local, on crée un réseau dédié
+    # Pour production/NAS, utilisez external: true dans docker-compose.prod.yml
