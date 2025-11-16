@@ -66,8 +66,7 @@ services:
     depends_on:
       - backend
 
-    networks:
-      - lmelp-network
+    # Networks section removed - using default bridge network
 
     deploy:
       resources:
