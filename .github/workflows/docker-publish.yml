@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - claude/add-i18n-support-01Wde9UjCQ1Te7PqJBvjiB6N
     tags:
       - 'v*'
   workflow_dispatch:
