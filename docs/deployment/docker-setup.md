@@ -166,7 +166,7 @@ Actuellement, MongoDB n'a pas d'authentification (accès localhost uniquement). 
 1. Créer un secret dans Portainer pour le mot de passe MongoDB
 2. Modifier `MONGODB_URL` pour inclure les credentials :
    ```
-   mongodb://username:password@mongo:27017/masque_et_la_plume
+  mongodb://username:password@mongo:27017/masque_et_la_plume # pragma: allowlist secret
    ```
 
 ### Headers de sécurité

@@ -424,8 +424,7 @@ pymongo.errors.OperationFailure: Authentication failed
 Solutions :
 ```bash
 # Si MongoDB a l'authentification activée, mettre à jour MONGODB_URL
-MONGODB_URL=mongodb://username:password@mongo:27017/masque_et_la_plume
-```
+MONGODB_URL=mongodb://username:password@mongo:27017/masque_et_la_plume # pragma: allowlist secret
 
 **3. Database not found**
 
