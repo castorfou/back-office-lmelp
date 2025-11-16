@@ -65,7 +65,8 @@ mkdocs.yml
 .pre-commit-config.yaml
 .cruft.json
 .mcp.json
-pyproject.toml
+# pyproject.toml - NEEDED for Docker build (uv dependency installation)
+# uv.lock - NEEDED for Docker build (uv dependency installation)
 package.json
 
 # Logs
