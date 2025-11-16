@@ -48,24 +48,24 @@ const response = await axios.get(`/api/livre/${livreId}`);
 
 ### Code modifié
 
-1. **[frontend/src/views/LivreDetail.vue:131-132](../../frontend/src/views/LivreDetail.vue#L131-L132)**
+1. **`frontend/src/views/LivreDetail.vue` (lignes 131-132)**
    - Suppression de la variable `backendUrl`
    - Utilisation d'URL relative `/api/livre/${livreId}`
    - Commentaire explicatif avec référence à l'issue
 
-2. **[frontend/src/views/AuteurDetail.vue:101-102](../../frontend/src/views/AuteurDetail.vue#L101-L102)**
+2. **`frontend/src/views/AuteurDetail.vue` (lignes 101-102)**
    - Suppression de la variable `backendUrl`
    - Utilisation d'URL relative `/api/auteur/${auteurId}`
    - Commentaire explicatif avec référence à l'issue
 
 ### Tests ajoutés (TDD)
 
-3. **[frontend/tests/integration/LivreDetail.test.js:272-290](../../frontend/tests/integration/LivreDetail.test.js#L272-L290)**
+3. **`frontend/tests/integration/LivreDetail.test.js` (lignes 272-290)**
    - Nouveau test : `should use relative URL to leverage Vite proxy (Issue #103)`
    - Vérifie que l'URL appelée est exactement `/api/livre/{id}`
    - Vérifie l'absence de `http://` et `localhost`
 
-4. **[frontend/tests/integration/AuteurDetail.test.js:245-263](../../frontend/tests/integration/AuteurDetail.test.js#L245-L263)**
+4. **`frontend/tests/integration/AuteurDetail.test.js` (lignes 245-263)**
    - Nouveau test : `should use relative URL to leverage Vite proxy (Issue #103)`
    - Vérifie que l'URL appelée est exactement `/api/auteur/{id}`
    - Vérifie l'absence de `http://` et `localhost`
