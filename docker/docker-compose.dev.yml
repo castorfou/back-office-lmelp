@@ -1,17 +1,12 @@
+# Docker Compose pour tester les images de la branche claude
 services:
   backend:
-    image: ghcr.io/castorfou/lmelp-backend:latest
+    image: ghcr.io/castorfou/lmelp-backend:claude-add-i18n-support-01Wde9UjCQ1Te7PqJBvjiB6N
     container_name: lmelp-backend
     restart: unless-stopped
 
     environment:
-      # MongoDB connection - Configurable via .env
-      # Défaut : mongodb://mongo:27017/masque_et_la_plume
-      # Mac/Windows : mongodb://host.docker.internal:27017/masque_et_la_plume
-      # Distant : mongodb://<ip>:27017/masque_et_la_plume
       MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017/masque_et_la_plume}
-
-      # Application settings
       ENVIRONMENT: production
       API_HOST: 0.0.0.0
       API_PORT: 8000
@@ -19,7 +14,6 @@ services:
     networks:
       - lmelp-network
 
-    # Resource limits
     deploy:
       resources:
         limits:
@@ -37,7 +31,7 @@ services:
       start_period: 10s
 
   frontend:
-    image: ghcr.io/castorfou/lmelp-frontend:latest
+    image: ghcr.io/castorfou/lmelp-frontend:claude-add-i18n-support-01Wde9UjCQ1Te7PqJBvjiB6N
     container_name: lmelp-frontend
     restart: unless-stopped
 
@@ -50,7 +44,6 @@ services:
     networks:
       - lmelp-network
 
-    # Resource limits
     deploy:
       resources:
         limits:
@@ -71,5 +64,3 @@ networks:
   lmelp-network:
     external: true
     name: ${DOCKER_NETWORK:-bridge}
-    # Connexion au réseau où se trouve MongoDB
-    # Défaut : bridge (réseau Docker par défaut)

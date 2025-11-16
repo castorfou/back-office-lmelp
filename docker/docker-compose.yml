@@ -1,6 +1,8 @@
 services:
   backend:
-    image: ghcr.io/castorfou/lmelp-backend:latest
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
     container_name: lmelp-backend
     restart: unless-stopped
 
@@ -37,7 +39,9 @@ services:
       start_period: 10s
 
   frontend:
-    image: ghcr.io/castorfou/lmelp-frontend:latest
+    build:
+      context: ..
+      dockerfile: docker/frontend/Dockerfile
     container_name: lmelp-frontend
     restart: unless-stopped
 

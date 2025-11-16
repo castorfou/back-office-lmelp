@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Back-Office LMELP - Déploiement Production (MongoDB externe)
 # Pour se connecter à une instance MongoDB existante sur l'hôte ou le réseau
 
