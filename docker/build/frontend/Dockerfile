@@ -27,7 +27,7 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY docker/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/build/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port
 EXPOSE 80
