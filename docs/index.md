@@ -7,13 +7,13 @@ Bienvenue dans la documentation du Back-Office LMELP, une application web pour l
 Cette application permet de :
 
 - Consulter la liste des épisodes de podcast
--
+
 - Visualiser/Modifier les titres/descriptions (on conserve les versions originales et modifiees) des episodes
--
+
 - Corriger les auteurs / livres / edtiteurs issus des avis ctitiques
--
+
 - Rechercher dans les auteurs, livres, editeurs et episodes
--
+
 
 ## Architecture
 
