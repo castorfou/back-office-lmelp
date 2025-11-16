@@ -87,9 +87,6 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
-networks:
-  lmelp-network:
-    external: true
-    name: ${DOCKER_NETWORK:-bridge}
-    # Connexion au réseau Docker où se trouve MongoDB
-    # Par défaut : bridge (réseau Docker standard)
+# Networks section removed - using default bridge network
+# All services will be on the default bridge network
+# If MongoDB is in a custom network, create a user-defined bridge network instead
