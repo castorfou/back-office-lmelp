@@ -7,9 +7,9 @@ services:
     restart: unless-stopped
 
     environment:
-      # MongoDB connection - Configurable via .env
-      # Défaut : mongodb://mongo:27017/masque_et_la_plume
-      # Mac/Windows : mongodb://host.docker.internal:27017/masque_et_la_plume
+      # MongoDB connection - Configurer selon votre environnement
+      # Linux/NAS avec conteneur mongo existant : mongodb://mongo:27017/masque_et_la_plume
+      # Mac/Windows avec MongoDB sur hôte : mongodb://host.docker.internal:27017/masque_et_la_plume
       # Distant : mongodb://<ip>:27017/masque_et_la_plume
       MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017/masque_et_la_plume}
 
@@ -21,7 +21,6 @@ services:
     networks:
       - lmelp-network
 
-    # Resource limits
     deploy:
       resources:
         limits:
@@ -52,7 +51,6 @@ services:
     networks:
       - lmelp-network
 
-    # Resource limits
     deploy:
       resources:
         limits:
@@ -73,5 +71,4 @@ networks:
   lmelp-network:
     external: true
     name: ${DOCKER_NETWORK:-bridge}
-    # Connexion au réseau où se trouve MongoDB
-    # Défaut : bridge (réseau Docker par défaut)
+    # Connexion au réseau où se trouve le conteneur MongoDB existant
