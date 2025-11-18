@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Background -->
+  <rect width="100" height="100" fill="#C41E3A" rx="20"/>
+
+  <!-- Theater mask outline - minimalist style -->
+  <g transform="translate(30, 20)">
+    <!-- Mask shape - simplified comedy mask -->
+    <path d="M 20 5 Q 10 5 5 15 Q 3 20 5 25 Q 7 30 12 32 Q 15 33 20 33 Q 25 33 28 32 Q 33 30 35 25 Q 37 20 35 15 Q 30 5 20 5 Z"
+          fill="#FFD700"
+          stroke="#2C1810"
+          stroke-width="1.5"/>
+
+    <!-- Eyes - simple curves for happy expression -->
+    <path d="M 13 15 Q 15 13 17 15" fill="none" stroke="#2C1810" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M 23 15 Q 25 13 27 15" fill="none" stroke="#2C1810" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Mouth - smile -->
+    <path d="M 13 23 Q 20 27 27 23" fill="none" stroke="#2C1810" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Elegant feather/plume -->
+  <g transform="translate(50, 45)">
+    <!-- Feather shaft -->
+    <line x1="5" y1="35" x2="15" y2="0" stroke="#F5F5F5" stroke-width="2"/>
+
+    <!-- Feather barbs - left side -->
+    <path d="M 7 30 Q 2 28 7 25" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 9 23 Q 4 21 9 18" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 11 16 Q 6 14 11 11" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 13 9 Q 8 7 13 4" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+
+    <!-- Feather barbs - right side -->
+    <path d="M 7 30 Q 12 28 7 25" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 9 23 Q 14 21 9 18" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 11 16 Q 16 14 11 11" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+    <path d="M 13 9 Q 18 7 13 4" fill="#E8E8E8" stroke="none" opacity="0.9"/>
+  </g>
+
+  <!-- Database cylinder icon - subtle in corner -->
+  <g transform="translate(10, 70)">
+    <!-- Top ellipse -->
+    <ellipse cx="10" cy="0" rx="8" ry="3" fill="#4FC3F7" stroke="#0288D1" stroke-width="1"/>
+    <!-- Cylinder sides -->
+    <line x1="2" y1="0" x2="2" y2="12" stroke="#0288D1" stroke-width="1"/>
+    <line x1="18" y1="0" x2="18" y2="12" stroke="#0288D1" stroke-width="1"/>
+    <rect x="2" y="0" width="16" height="12" fill="#29B6F6" stroke="none"/>
+    <!-- Bottom ellipse -->
+    <ellipse cx="10" cy="12" rx="8" ry="3" fill="#4FC3F7" stroke="#0288D1" stroke-width="1"/>
+    <!-- Data indicator lines -->
+    <line x1="4" y1="4" x2="16" y2="4" stroke="#0288D1" stroke-width="0.5" opacity="0.5"/>
+    <line x1="4" y1="7" x2="16" y2="7" stroke="#0288D1" stroke-width="0.5" opacity="0.5"/>
+    <line x1="4" y1="10" x2="16" y2="10" stroke="#0288D1" stroke-width="0.5" opacity="0.5"/>
+  </g>
+
+  <!-- Optional: "BO" text for Back-Office -->
+  <text x="75" y="23" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FFD700" opacity="0.9">BO</text>
+</svg>
