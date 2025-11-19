@@ -16,6 +16,8 @@
     - [2. Verify the duplicate episode exists](#2-verify-the-duplicate-episode-exists)
     - [3. Delete the duplicate episode (June 29, 2025)](#3-delete-the-duplicate-episode-june-29-2025)
     - [4. Verify it's deleted (should return 404)](#4-verify-its-deleted-should-return-404)
+  - [messages d'erreur](#messages-derreur)
+    - [git push - fatal: Could not read from remote repository.](#git-push---fatal-could-not-read-from-remote-repository)
 
 
 # Commands
@@ -173,6 +175,12 @@ uv pip install -e .
 uv lock # pour generer le lockfile
 ```
 
+pour les paquets de dev (par exemple pillow pour resizer les icones)
+
+```bash
+uv pip install -e .[dev]
+```
+
 ## mettre à jour l'env nodejs
 
 Les packages se declarent dans `frontend/package.json`
@@ -244,3 +252,21 @@ curl -X DELETE "$BACKEND_URL/api/episodes/6865f995a1418e3d7c63d076" | jq
 
 ### 4. Verify it's deleted (should return 404)
 curl "$BACKEND_URL/api/episodes/6865f995a1418e3d7c63d076"
+
+
+## messages d'erreur
+
+### git push - fatal: Could not read from remote repository.
+
+```bash
+$ git push
+ERROR: no healthy upstream
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+```
+
+j'ai deja eu ce probleme, c'etait un probleme cote github.com
+
+Un site utile pour monitorer les services de github : https://www.githubstatus.com/
