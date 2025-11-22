@@ -86,7 +86,7 @@ describe('MasquerEpisodes - Affichage et fonctionnalités (Issue #107)', () => {
     expect(wrapper.text()).toContain('Titre')
     expect(wrapper.text()).toContain('Durée')
     expect(wrapper.text()).toContain('Date')
-    expect(wrapper.text()).toContain('Statut')
+    expect(wrapper.text()).toContain('Visibilité')
 
     // THEN: Les 3 épisodes doivent être affichés
     expect(wrapper.text()).toContain('Episode visible')
