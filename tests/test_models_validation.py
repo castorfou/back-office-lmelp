@@ -158,6 +158,7 @@ class TestEpisodeModel:
             "titre": "Summary Episode",
             "date": "2024-02-10T09:15:00",
             "type": "news",
+            "duree": None,
             "masked": False,  # Issue #107: Champ masked ajouté
         }
 
@@ -185,6 +186,7 @@ class TestEpisodeModel:
             "titre": "No Date Summary",
             "date": None,
             "type": "test",
+            "duree": None,
             "masked": False,  # Issue #107: Champ masked ajouté
         }
 
@@ -202,6 +204,7 @@ class TestEpisodeModel:
             "titre": "",
             "date": None,
             "type": "",
+            "duree": None,
             "masked": False,  # Issue #107: Champ masked ajouté
         }
 
@@ -226,6 +229,7 @@ class TestEpisodeModel:
             "titre": "Justine Lévy, Antoine Wauters, Alice Ferney",  # Version corrigée affichée
             "date": "2024-08-24T09:00:00",
             "type": "livres",
+            "duree": None,
             "masked": False,  # Issue #107: Champ masked ajouté
         }
 
