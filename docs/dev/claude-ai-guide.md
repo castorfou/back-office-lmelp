@@ -2,6 +2,14 @@
 
 This document provides in-depth guidance for Claude Code when working with this repository. For a quick reference guide, see [CLAUDE.md](https://github.com/castorfou/back-office-lmelp/blob/main/CLAUDE.md) in the project root.
 
+
+## Prompt is too long
+
+Dans ce cas, juste appeler `/compact`
+
+![alt text](image.png)
+
+
 ## Documentation Structure
 
 This project uses a two-tier documentation approach for Claude Code:
