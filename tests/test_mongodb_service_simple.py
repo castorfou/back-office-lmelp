@@ -128,7 +128,16 @@ class TestMongoDBServiceSimple:
 
         # Assert - Vérifier que la projection inclut titre_corrige
         mongodb_service.episodes_collection.find.assert_called_once_with(
-            {}, {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1}
+            {"masked": {"$ne": True}},
+            {
+                "titre": 1,
+                "titre_corrige": 1,
+                "date": 1,
+                "type": 1,
+                "duree": 1,
+                "masked": 1,
+                "_id": 1,
+            },
         )
 
         # Assert - Vérifier que le résultat contient bien titre_corrige
