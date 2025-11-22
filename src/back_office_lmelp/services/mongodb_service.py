@@ -162,6 +162,20 @@ class MongoDBService:
                 f"Suppression de {avis_delete_result.deleted_count} avis critiques pour l'épisode {episode_id}"
             )
 
+            # 1.5 Supprimer le cache livres-auteurs lié (Issue #107 - Fix ghost stats)
+            try:
+                cache_collection = self.get_collection("livresauteurs_cache")
+                cache_delete_result = cache_collection.delete_many(
+                    {"episode_oid": episode_id}
+                )
+                print(
+                    f"Suppression de {cache_delete_result.deleted_count} entrées de cache pour l'épisode {episode_id}"
+                )
+            except Exception as e:
+                print(
+                    f"Erreur lors de la suppression du cache pour l'épisode {episode_id}: {e}"
+                )
+
             # 2. Retirer les références à l'épisode des livres (episodes est un tableau de strings)
             livres_update_result = self.livres_collection.update_many(
                 {"episodes": episode_id}, {"$pull": {"episodes": episode_id}}
