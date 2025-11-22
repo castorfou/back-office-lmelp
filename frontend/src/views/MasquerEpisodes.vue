@@ -96,7 +96,7 @@ export default {
     const error = ref(null)
     const searchFilter = ref('')
     const currentSortField = ref('date')
-    const sortAscending = ref(false) // Date desc par défaut (plus récent en premier)
+    const sortAscending = ref(true) // Date desc par défaut (plus récent en premier)
 
     /**
      * Charge tous les épisodes (masqués et visibles)
