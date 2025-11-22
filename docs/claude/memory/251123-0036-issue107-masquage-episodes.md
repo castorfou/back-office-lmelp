@@ -906,7 +906,7 @@ it('should display masquer episodes card when masked episodes exist', async () =
    # NOT: result.modified_count > 0       # ❌ Fails if already in desired state
    ```
 
-**Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns)
+**Details**: See [FastAPI Route Patterns](../../dev/claude-ai-guide.md#fastapi-route-patterns)
 ```
 
 #### 22. **docs/dev/api.md** (+42 lignes)
@@ -939,7 +939,7 @@ Calling `/api/episodes/all` will match the first route with `episode_id="all"`, 
 
 **Why**: `modified_count` is 0 when the document is already in the desired state. REST APIs should be idempotent: calling the same operation twice should succeed both times.
 
-**See**: [Claude AI Development Guide - FastAPI Route Patterns](claude-ai-guide.md#fastapi-route-patterns) for detailed explanations and testing strategies.
+**See**: [Claude AI Development Guide - FastAPI Route Patterns](../../dev/claude-ai-guide.md#fastapi-route-patterns) for detailed explanations and testing strategies.
 ```
 
 #### 23. **docs/dev/claude-ai-guide.md** (+114 lignes)
