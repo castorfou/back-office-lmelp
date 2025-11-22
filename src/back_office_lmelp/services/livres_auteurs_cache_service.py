@@ -317,6 +317,7 @@ class LivresAuteursCacheService:
             "couples_en_base": 0,
             "couples_suggested_pas_en_base": 0,
             "couples_not_found_pas_en_base": 0,
+            "livres_uniques": 0,
         }
 
         # Traiter les statistiques par statut unifié
@@ -330,6 +331,14 @@ class LivresAuteursCacheService:
                 stats["couples_suggested_pas_en_base"] = count
             elif status == "not_found":
                 stats["couples_not_found_pas_en_base"] = count
+
+        # Compter les livres uniques réellement en base (collection livres)
+        try:
+            livres_collection = self.mongodb_service.get_collection("livres")
+            stats["livres_uniques"] = livres_collection.count_documents({})
+        except Exception as e:
+            print(f"Erreur lors du comptage des livres uniques: {e}")
+            stats["livres_uniques"] = 0
 
         # Récupérer les IDs des épisodes masqués
         episodes_collection = self.mongodb_service.get_collection("episodes")

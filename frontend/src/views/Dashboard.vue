@@ -47,7 +47,7 @@
             <div class="stat-label">Avis critiques analysés</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...' }}</div>
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.livres_uniques !== undefined) ? collectionsStatistics.livres_uniques : ((collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...') }}</div>
             <div class="stat-label">Livres en base</div>
           </div>
           <div class="stat-card">
