@@ -54,6 +54,7 @@ nav:
   - 👤 Guide utilisateur:
     - Démarrage rapide: user/README.md
     - Gestion des épisodes: user/episodes.md
+    - Masquage des épisodes: user/episode-masking.md
     - Recherche avancée: user/advanced-search.md
     - Pages de détail: user/detail-pages.md
     - Vérification Babelio: user/babelio-verification.md

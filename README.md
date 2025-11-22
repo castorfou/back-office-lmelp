@@ -134,6 +134,15 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
 
+#### Masquage des Épisodes
+- 🚫 **Gestion de visibilité** : Masquer/afficher les épisodes sans les supprimer
+- 📊 **Tableau complet** : Vue de tous les épisodes (masqués et visibles)
+- ⏱️ **Tri par durée** : Colonnes triables (Titre, Durée, Date, Visibilité)
+- 🔍 **Filtrage temps réel** : Recherche par titre ou date
+- 👁️ **Toggle visuel** : Boutons avec icônes (👁️ visible / 🚫 masqué)
+- 📈 **Impact statistiques** : Épisodes masqués exclus automatiquement des totaux
+- 🎯 **Filtrage automatique** : Épisodes masqués cachés de toutes les vues publiques
+
 #### Extraction Livres et Auteurs
 - 📚 **Extraction automatique** : Parse les tableaux markdown des avis critiques
 - 📋 **Interface tableau** : Colonnes triables (Auteur/Titre/Éditeur)
