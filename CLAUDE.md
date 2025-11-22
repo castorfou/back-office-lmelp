@@ -159,6 +159,26 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 2. **Prefer `mockResolvedValueOnce`** over persistent `mockImplementation`
 3. **Watch for mock pollution**: Closures in `mockImplementation` persist across tests
 
+### FastAPI Best Practices
+
+**CRITICAL**: Two common patterns that cause production bugs:
+
+1. **Route Order Matters** - Specific routes MUST come BEFORE parametric routes:
+   ```python
+   @app.get("/api/episodes/all")        # ✅ Specific FIRST
+   @app.get("/api/episodes/{id}")       # ✅ Parametric AFTER
+   ```
+   ❌ Wrong order causes `/api/episodes/all` to match `{id}="all"` → 404 error
+
+2. **REST Idempotence** - Use `matched_count` not `modified_count` for MongoDB updates:
+   ```python
+   result = collection.update_one({"_id": id}, {"$set": {"field": value}})
+   return bool(result.matched_count > 0)  # ✅ Idempotent
+   # NOT: result.modified_count > 0       # ❌ Fails if already in desired state
+   ```
+
+**Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns) in developer guide.
+
 ## Auto-Discovery System
 
 ### Service Discovery Commands

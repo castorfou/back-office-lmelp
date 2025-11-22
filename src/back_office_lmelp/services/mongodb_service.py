@@ -66,15 +66,29 @@ class MongoDBService:
             raise Exception("Connexion MongoDB non établie")
         return self.db[collection_name]
 
-    def get_all_episodes(self) -> list[dict[str, Any]]:
-        """Récupère tous les épisodes avec tri par date décroissante."""
+    def get_all_episodes(self, include_masked: bool = False) -> list[dict[str, Any]]:
+        """Récupère tous les épisodes avec tri par date décroissante.
+
+        Args:
+            include_masked: Si False (défaut), exclut les épisodes masqués.
+                          Si True, inclut tous les épisodes.
+
+        Returns:
+            Liste des épisodes
+        """
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
         try:
+            # Issue #107: Filtrer les épisodes masqués par défaut
+            query_filter: dict[str, Any] = {}
+            if not include_masked:
+                query_filter["masked"] = {"$ne": True}
+
             episodes = list(
                 self.episodes_collection.find(
-                    {}, {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1}
+                    query_filter,
+                    {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1},
                 ).sort([("date", -1)])
             )
 
@@ -207,6 +221,35 @@ class MongoDBService:
     def update_episode_title(self, episode_id: str, titre_corrige: str) -> bool:
         """Met à jour le titre corrigé d'un épisode."""
         return self.update_episode(episode_id, {"titre_corrige": titre_corrige})
+
+    def update_episode_masked_status(self, episode_id: str, masked: bool) -> bool:
+        """Met à jour le statut masked d'un épisode (Issue #107).
+
+        Cette méthode est idempotente : elle retourne True si l'épisode existe,
+        même s'il est déjà dans l'état demandé (principe REST).
+
+        Args:
+            episode_id: ID de l'épisode
+            masked: True pour masquer, False pour afficher
+
+        Returns:
+            True si l'épisode existe (même si déjà dans l'état voulu), False sinon
+        """
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            result = self.episodes_collection.update_one(
+                {"_id": ObjectId(episode_id)},
+                {"$set": {"masked": masked}},
+            )
+            # Utilise matched_count au lieu de modified_count pour l'idempotence
+            return bool(result.matched_count > 0)
+        except Exception as e:
+            print(
+                f"Erreur lors de la mise à jour du statut masked de l'épisode {episode_id}: {e}"
+            )
+            return False
 
     def insert_episode(self, episode_data: dict[str, Any]) -> str:
         """Insère un nouvel épisode."""

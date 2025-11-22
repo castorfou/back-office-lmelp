@@ -21,6 +21,8 @@ class Episode:
         self.description_corrigee: str | None = data.get("description_corrigee")
         self.titre_corrige: str | None = data.get("titre_corrige")
         self.transcription: str | None = data.get("transcription")
+        # Issue #107: Champ pour masquer les épisodes
+        self.masked: bool = data.get("masked", False)
 
     def to_dict(self) -> dict[str, Any]:
         """Convertit l'épisode en dictionnaire pour l'API."""
@@ -37,6 +39,8 @@ class Episode:
             "description_corrigee": self.description_corrigee,
             "titre_corrige": self.titre_corrige,
             "transcription": self.transcription,
+            # Issue #107: Champ masked
+            "masked": self.masked,
         }
 
     def to_summary_dict(self) -> dict[str, Any]:
@@ -46,4 +50,6 @@ class Episode:
             "titre": self.titre,  # Maintenant contient directement la version corrigée
             "date": self.date.isoformat() if self.date else None,
             "type": self.type,
+            # Issue #107: Champ masked
+            "masked": self.masked,
         }

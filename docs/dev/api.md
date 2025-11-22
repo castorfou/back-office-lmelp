@@ -1,5 +1,47 @@
 # Documentation API - Back-Office LMELP
 
+## FastAPI Best Practices
+
+### Route Order - CRITICAL
+
+**IMPORTANT**: In FastAPI, route definition order matters. Specific routes MUST be defined BEFORE parametric routes.
+
+**❌ Wrong (causes bugs)**:
+```python
+@app.get("/api/episodes/{episode_id}")  # Parametric FIRST → WRONG
+@app.get("/api/episodes/all")           # Specific AFTER → BUG
+```
+
+Calling `/api/episodes/all` will match the first route with `episode_id="all"`, causing a 404 error.
+
+**✅ Correct**:
+```python
+@app.get("/api/episodes/all")           # Specific FIRST → CORRECT
+@app.get("/api/episodes/{episode_id}")  # Parametric AFTER → CORRECT
+```
+
+### REST Idempotence with MongoDB
+
+**IMPORTANT**: Use `matched_count` instead of `modified_count` for idempotent operations.
+
+**❌ Wrong (non-idempotent)**:
+```python
+result = collection.update_one({"_id": id}, {"$set": {"field": value}})
+return bool(result.modified_count > 0)  # Fails if already in desired state
+```
+
+**✅ Correct (idempotent)**:
+```python
+result = collection.update_one({"_id": id}, {"$set": {"field": value}})
+return bool(result.matched_count > 0)  # Success if document exists
+```
+
+**Why**: `modified_count` is 0 when the document is already in the desired state. REST APIs should be idempotent: calling the same operation twice should succeed both times.
+
+**See**: [Claude AI Development Guide - FastAPI Route Patterns](claude-ai-guide.md#fastapi-route-patterns) for detailed explanations and testing strategies.
+
+---
+
 ## Base URL
 
 **Découverte automatique de port** (depuis Issue #13) :
