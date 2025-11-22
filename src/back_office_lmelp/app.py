@@ -618,6 +618,11 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
             episode_data = mongodb_service.get_episode_by_id(episode_oid)
             if episode_data:
                 episode = Episode(episode_data)
+
+                # Issue #107: Filtrer les épisodes masqués
+                if episode.masked:
+                    continue
+
                 episode_dict = episode.to_summary_dict()
 
                 # Ajouter l'avis_critique_id correspondant à cet épisode
