@@ -197,7 +197,8 @@ class TestCorrectStatusValues:
             assert stats["avis_critiques_analyses"] == 42
             assert isinstance(stats["avis_critiques_analyses"], int)
 
-            # Vérifier que distinct a été appelé sur 'avis_critique_id'
+            # Vérifier que distinct a été appelé sur 'avis_critique_id' avec le filtre pour exclure les épisodes masqués
+            # Note: masked_episode_oids est vide car episodes_collection.find n'est pas mocké pour retourner des résultats
             mock_mongodb.get_collection.return_value.distinct.assert_any_call(
-                "avis_critique_id"
+                "avis_critique_id", {"episode_oid": {"$nin": []}}
             )

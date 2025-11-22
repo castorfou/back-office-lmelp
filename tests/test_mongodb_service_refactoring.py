@@ -176,6 +176,9 @@ class TestMongoDBServiceRefactoring:
         # Mock pour aggregate (dernière date de mise à jour)
         self.mock_collection.aggregate.return_value = [{"date": "2025-09-15"}]
 
+        # Mock pour find (récupération des épisodes masqués)
+        self.mock_collection.find.return_value = []
+
         # Appel de la méthode
         result = self.service.get_statistics()
 
