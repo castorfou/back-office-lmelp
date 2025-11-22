@@ -27,6 +27,10 @@
             <div class="stat-label">Épisodes au total</div>
           </div>
           <div class="stat-card">
+            <div class="stat-value">{{ statistics.maskedEpisodes !== null ? statistics.maskedEpisodes : '...' }}</div>
+            <div class="stat-label">Épisodes masqués</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ statistics.episodesWithCorrectedTitles !== null ? statistics.episodesWithCorrectedTitles : '...' }}</div>
             <div class="stat-label">Titres corrigés</div>
           </div>
@@ -153,6 +157,7 @@ export default {
     return {
       statistics: {
         totalEpisodes: null,
+        maskedEpisodes: null,
         episodesWithCorrectedTitles: null,
         episodesWithCorrectedDescriptions: null,
         criticalReviews: null,
@@ -209,6 +214,7 @@ export default {
         // Garder les valeurs '...' en cas d'erreur
         this.statistics = {
           totalEpisodes: '--',
+          maskedEpisodes: '--',
           episodesWithCorrectedTitles: '--',
           episodesWithCorrectedDescriptions: '--',
           criticalReviews: '--',

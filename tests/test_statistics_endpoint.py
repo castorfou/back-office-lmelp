@@ -30,6 +30,7 @@ class TestStatisticsEndpoint:
         # Données de test
         mock_stats_data = {
             "total_episodes": 142,
+            "masked_episodes_count": 5,
             "episodes_with_corrected_titles": 37,
             "episodes_with_corrected_descriptions": 45,
             "critical_reviews_count": 28,
@@ -46,6 +47,7 @@ class TestStatisticsEndpoint:
         data = response.json()
 
         assert data["totalEpisodes"] == 142
+        assert data["maskedEpisodes"] == 5
         assert data["episodesWithCorrectedTitles"] == 37
         assert data["episodesWithCorrectedDescriptions"] == 45
         assert data["criticalReviews"] == 28
@@ -58,6 +60,7 @@ class TestStatisticsEndpoint:
         """Test avec une base de données vide."""
         mock_stats_data = {
             "total_episodes": 0,
+            "masked_episodes_count": 0,
             "episodes_with_corrected_titles": 0,
             "episodes_with_corrected_descriptions": 0,
             "critical_reviews_count": 0,
@@ -72,6 +75,7 @@ class TestStatisticsEndpoint:
         data = response.json()
 
         assert data["totalEpisodes"] == 0
+        assert data["maskedEpisodes"] == 0
         assert data["episodesWithCorrectedTitles"] == 0
         assert data["episodesWithCorrectedDescriptions"] == 0
         assert data["criticalReviews"] == 0
@@ -94,6 +98,7 @@ class TestStatisticsEndpoint:
         """Test que l'endpoint fonctionne avec la vraie vérification mémoire."""
         mock_stats_data = {
             "total_episodes": 10,
+            "masked_episodes_count": 2,
             "episodes_with_corrected_titles": 5,
             "episodes_with_corrected_descriptions": 3,
             "critical_reviews_count": 12,

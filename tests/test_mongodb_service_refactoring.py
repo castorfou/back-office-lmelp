@@ -163,7 +163,8 @@ class TestMongoDBServiceRefactoring:
         """Test que les statistiques utilisent la nouvelle logique."""
         # Mock des données pour les statistiques
         self.mock_collection.count_documents.side_effect = [
-            100,  # total_episodes
+            100,  # total_episodes (visible)
+            5,  # masked_episodes_count
             15,  # episodes avec titre_origin (donc corrigés)
             25,  # episodes avec description_origin (donc corrigées)
         ]
@@ -180,12 +181,14 @@ class TestMongoDBServiceRefactoring:
 
         # Vérifications
         assert result["total_episodes"] == 100
+        assert result["masked_episodes_count"] == 5
         assert result["episodes_with_corrected_titles"] == 15
         assert result["episodes_with_corrected_descriptions"] == 25
 
         # Vérifier que les bonnes requêtes ont été appelées
         expected_calls = [
-            {},  # total episodes
+            {"masked": {"$ne": True}},  # total episodes (visible)
+            {"masked": True},  # masked episodes
             {"titre_origin": {"$ne": None, "$exists": True}},  # titres corrigés
             {
                 "description_origin": {"$ne": None, "$exists": True}

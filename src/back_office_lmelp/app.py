@@ -495,6 +495,7 @@ async def get_statistics() -> dict[str, Any]:
         # Transformer les clés pour correspondre au format frontend
         return {
             "totalEpisodes": stats_data["total_episodes"],
+            "maskedEpisodes": stats_data["masked_episodes_count"],
             "episodesWithCorrectedTitles": stats_data["episodes_with_corrected_titles"],
             "episodesWithCorrectedDescriptions": stats_data[
                 "episodes_with_corrected_descriptions"

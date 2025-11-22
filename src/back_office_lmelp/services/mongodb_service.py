@@ -390,8 +390,15 @@ class MongoDBService:
             raise Exception("Connexion MongoDB non établie")
 
         try:
-            # Total des épisodes
-            total_episodes = self.episodes_collection.count_documents({})
+            # Total des épisodes (visibles uniquement)
+            total_episodes = self.episodes_collection.count_documents(
+                {"masked": {"$ne": True}}
+            )
+
+            # Nombre d'épisodes masqués
+            masked_episodes_count = self.episodes_collection.count_documents(
+                {"masked": True}
+            )
 
             # Épisodes avec titres corrigés (maintenant dans titre_origin)
             episodes_with_corrected_titles = self.episodes_collection.count_documents(
@@ -430,6 +437,7 @@ class MongoDBService:
 
             return {
                 "total_episodes": total_episodes,
+                "masked_episodes_count": masked_episodes_count,
                 "episodes_with_corrected_titles": episodes_with_corrected_titles,
                 "episodes_with_corrected_descriptions": episodes_with_corrected_descriptions,
                 "critical_reviews_count": critical_reviews_count,
