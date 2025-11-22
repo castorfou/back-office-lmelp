@@ -14,6 +14,7 @@ class Episode:
         self.date: datetime | None = data.get("date")
         self.type: str = data.get("type") or ""
         self.description: str = data.get("description") or ""
+        self.duree: int | None = data.get("duree")
         # Nouveaux champs pour stocker les versions originales
         self.titre_origin: str | None = data.get("titre_origin")
         self.description_origin: str | None = data.get("description_origin")
@@ -50,6 +51,7 @@ class Episode:
             "titre": self.titre,  # Maintenant contient directement la version corrigée
             "date": self.date.isoformat() if self.date else None,
             "type": self.type,
+            "duree": self.duree,
             # Issue #107: Champ masked
             "masked": self.masked,
         }

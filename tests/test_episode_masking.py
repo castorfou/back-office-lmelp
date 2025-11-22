@@ -267,3 +267,44 @@ class TestEpisodeModel:
         # Assert
         assert "masked" in result
         assert result["masked"] is True
+
+    def test_episode_to_summary_dict_includes_duree(self):
+        """Test que to_summary_dict() inclut le champ duree (Issue #107)."""
+        # Arrange
+        data = {
+            "_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "titre": "Episode avec duree",
+            "date": None,
+            "type": "livre",
+            "description": "Description",
+            "duree": 2763,  # Durée en secondes
+            "masked": False,
+        }
+        episode = Episode(data)
+
+        # Act
+        result = episode.to_summary_dict()
+
+        # Assert
+        assert "duree" in result
+        assert result["duree"] == 2763
+
+    def test_episode_to_summary_dict_with_duree_none(self):
+        """Test que to_summary_dict() gère duree=None."""
+        # Arrange
+        data = {
+            "_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "titre": "Episode sans duree",
+            "date": None,
+            "type": "livre",
+            "description": "Description",
+            "masked": False,
+        }
+        episode = Episode(data)
+
+        # Act
+        result = episode.to_summary_dict()
+
+        # Assert
+        assert "duree" in result
+        assert result["duree"] is None

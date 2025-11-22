@@ -107,6 +107,17 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-masquer-episodes"
+            @click="navigateToMasquerEpisodes"
+          >
+            <div class="function-icon">👁️</div>
+            <h3>Masquer les Épisodes</h3>
+            <p>Gérer la visibilité des épisodes (masquer/afficher)</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div class="function-card coming-soon">
             <div class="function-icon">📊</div>
             <h3>Rapports et analyses</h3>
@@ -239,6 +250,10 @@ export default {
 
     navigateToAdvancedSearch() {
       this.$router.push('/search');
+    },
+
+    navigateToMasquerEpisodes() {
+      this.$router.push('/masquer-episodes');
     }
   }
 };

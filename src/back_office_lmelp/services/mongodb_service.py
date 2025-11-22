@@ -88,7 +88,15 @@ class MongoDBService:
             episodes = list(
                 self.episodes_collection.find(
                     query_filter,
-                    {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1},
+                    {
+                        "titre": 1,
+                        "titre_corrige": 1,
+                        "date": 1,
+                        "type": 1,
+                        "duree": 1,
+                        "masked": 1,
+                        "_id": 1,
+                    },
                 ).sort([("date", -1)])
             )
 
