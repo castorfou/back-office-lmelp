@@ -412,8 +412,16 @@ class MongoDBService:
                 )
             )
 
-            # Nombre total d'avis critiques
-            critical_reviews_count = self.avis_critiques_collection.count_documents({})
+            # Nombre total d'avis critiques (excluant les épisodes masqués)
+            # Récupérer les IDs des épisodes masqués
+            masked_episodes = list(
+                self.episodes_collection.find({"masked": True}, {"_id": 1})
+            )
+            masked_episode_oids = [str(ep["_id"]) for ep in masked_episodes]
+
+            critical_reviews_count = self.avis_critiques_collection.count_documents(
+                {"episode_oid": {"$nin": masked_episode_oids}}
+            )
 
             # Dernière date de mise à jour (basée sur l'épisode le plus récent)
             # Utilisation de l'aggregation pour trouver la plus récente date

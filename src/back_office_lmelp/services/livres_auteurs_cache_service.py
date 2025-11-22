@@ -331,13 +331,21 @@ class LivresAuteursCacheService:
             elif status == "not_found":
                 stats["couples_not_found_pas_en_base"] = count
 
+        # Récupérer les IDs des épisodes masqués
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        masked_episodes = list(episodes_collection.find({"masked": True}, {"_id": 1}))
+        masked_episode_oids = [str(ep["_id"]) for ep in masked_episodes]
+
         # Compter les avis critiques analysés (nombre d'avis_critique_id distincts dans le cache)
-        treated_avis_ids = cache_collection.distinct("avis_critique_id")
+        # Exclure les épisodes masqués
+        treated_avis_ids = cache_collection.distinct(
+            "avis_critique_id", {"episode_oid": {"$nin": masked_episode_oids}}
+        )
         stats["avis_critiques_analyses"] = len(treated_avis_ids)
 
         # Ajouter les épisodes non traités (réutilise le calcul ci-dessus)
         stats["episodes_non_traites"] = self._get_untreated_count_with_treated_ids(
-            treated_avis_ids
+            treated_avis_ids, masked_episode_oids
         )
 
         return stats
@@ -349,30 +357,52 @@ class LivresAuteursCacheService:
         Returns:
             Nombre d'avis critiques non traités
         """
-        # Compter le total d'avis critiques
-        avis_collection = self.mongodb_service.get_collection("avis_critiques")
-        total_avis = avis_collection.count_documents({})
+        # Récupérer les IDs des épisodes masqués
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        masked_episodes = list(episodes_collection.find({"masked": True}, {"_id": 1}))
+        masked_episode_oids = [str(ep["_id"]) for ep in masked_episodes]
 
-        # Compter les avis critiques distincts dans le cache
+        # Compter le total d'avis critiques (excluant les épisodes masqués)
+        avis_collection = self.mongodb_service.get_collection("avis_critiques")
+        total_avis = avis_collection.count_documents(
+            {"episode_oid": {"$nin": masked_episode_oids}}
+        )
+
+        # Compter les avis critiques distincts dans le cache (excluant les épisodes masqués)
         cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
-        treated_avis_ids = cache_collection.distinct("avis_critique_id")
+        treated_avis_ids = cache_collection.distinct(
+            "avis_critique_id", {"episode_oid": {"$nin": masked_episode_oids}}
+        )
         treated_count = len(treated_avis_ids)
 
         return int(total_avis - treated_count)
 
-    def _get_untreated_count_with_treated_ids(self, treated_avis_ids: list) -> int:
+    def _get_untreated_count_with_treated_ids(
+        self, treated_avis_ids: list, masked_episode_oids: list | None = None
+    ) -> int:
         """
         Compte les avis critiques non encore traités (optimisé avec IDs déjà calculés).
 
         Args:
             treated_avis_ids: Liste des avis_critique_id déjà traités
+            masked_episode_oids: Liste des OIDs d'épisodes masqués (optionnel)
 
         Returns:
             Nombre d'avis critiques non traités
         """
-        # Compter le total d'avis critiques
+        if masked_episode_oids is None:
+            # Récupérer les IDs des épisodes masqués si non fournis
+            episodes_collection = self.mongodb_service.get_collection("episodes")
+            masked_episodes = list(
+                episodes_collection.find({"masked": True}, {"_id": 1})
+            )
+            masked_episode_oids = [str(ep["_id"]) for ep in masked_episodes]
+
+        # Compter le total d'avis critiques (excluant les épisodes masqués)
         avis_collection = self.mongodb_service.get_collection("avis_critiques")
-        total_avis = avis_collection.count_documents({})
+        total_avis = avis_collection.count_documents(
+            {"episode_oid": {"$nin": masked_episode_oids}}
+        )
 
         # Utiliser la liste déjà calculée
         treated_count = len(treated_avis_ids)

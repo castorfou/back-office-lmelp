@@ -243,11 +243,39 @@ describe('MasquerEpisodes - Affichage et fonctionnalités (Issue #107)', () => {
     await flushPromises()
 
     // WHEN: On clique sur l'en-tête "Date" pour trier
+    // Note: Le tri par défaut est déjà sur la date (descendant).
+    // Un clic va donc inverser l'ordre pour devenir ascendant (plus ancien en premier).
     const dateHeader = wrapper.find('[data-test="sort-date"]')
     await dateHeader.trigger('click')
     await flushPromises()
 
-    // THEN: Les épisodes doivent être triés par date (plus récent en premier)
+    // THEN: Les épisodes doivent être triés par date (plus ancien en premier)
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].text()).toContain('Episode 1') // 2024-11-08
+    expect(rows[1].text()).toContain('Episode 3') // 2024-11-09
+    expect(rows[2].text()).toContain('Episode 2') // 2024-11-10
+  })
+
+  it('should sort episodes by date descending by default', async () => {
+    // GIVEN: Des épisodes avec différentes dates
+    const mockEpisodes = [
+      { id: 'ep1', titre: 'Episode 1', date: '2024-11-08T09:59:39', duree: 2000, type: 'livre', masked: false },
+      { id: 'ep2', titre: 'Episode 2', date: '2024-11-10T09:59:39', duree: 1800, type: 'livre', masked: false },
+      { id: 'ep3', titre: 'Episode 3', date: '2024-11-09T09:59:39', duree: 1900, type: 'livre', masked: false }
+    ]
+
+    episodeService.getAllEpisodesIncludingMasked.mockResolvedValue(mockEpisodes)
+
+    await router.push('/masquer-episodes')
+    const wrapper = mount(MasquerEpisodes, {
+      global: {
+        plugins: [router]
+      }
+    })
+
+    await flushPromises()
+
+    // THEN: Les épisodes doivent être triés par date (plus récent en premier) par défaut
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].text()).toContain('Episode 2') // 2024-11-10
     expect(rows[1].text()).toContain('Episode 3') // 2024-11-09
