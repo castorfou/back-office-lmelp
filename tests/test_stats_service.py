@@ -85,11 +85,13 @@ class TestStatsService:
             "couples_not_found_pas_en_base": 1,
             "avis_critiques_analyses": 38,
             "episodes_non_traites": 10,
+            "livres_uniques": 0,
         }
 
         expected_summary = """📊 STATISTIQUES CACHE LIVRES/AUTEURS
 
-🚀 Auto-traités (en base) : 3
+🚀 Auto-traités (en base) : 3 (couples)
+📚 Livres uniques         : 0
 ⏳ En attente validation  : 10
    ├─ 💡 Suggestions      : 4
    ├─ ❌ Non trouvés      : 1

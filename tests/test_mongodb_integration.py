@@ -123,7 +123,16 @@ class TestMongoDBService:
         assert result[0]["_id"] == "507f1f77bcf86cd799439011"
         assert result[1]["_id"] == "507f1f77bcf86cd799439012"
         mock_collection.find.assert_called_once_with(
-            {}, {"titre": 1, "titre_corrige": 1, "date": 1, "type": 1, "_id": 1}
+            {"masked": {"$ne": True}},
+            {
+                "titre": 1,
+                "titre_corrige": 1,
+                "date": 1,
+                "type": 1,
+                "duree": 1,
+                "masked": 1,
+                "_id": 1,
+            },
         )
 
     def test_get_all_episodes_no_connection(self, mongodb_service):

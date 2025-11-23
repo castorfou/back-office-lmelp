@@ -216,6 +216,27 @@ async def get_episodes() -> list[dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/episodes/all", response_model=list[dict[str, Any]])
+async def get_all_episodes_including_masked() -> list[dict[str, Any]]:
+    """Récupère tous les épisodes y compris les masqués (Issue #107).
+
+    Cette route est utilisée par la page de gestion des épisodes masqués.
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        episodes_data = mongodb_service.get_all_episodes(include_masked=True)
+        episodes = [Episode(data).to_summary_dict() for data in episodes_data]
+        return episodes
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 @app.get("/api/episodes/{episode_id}", response_model=dict[str, Any])
 async def get_episode(episode_id: str) -> dict[str, Any]:
     """Récupère un épisode par son ID."""
@@ -409,6 +430,55 @@ async def fetch_episode_page_url(episode_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.patch("/api/episodes/{episode_id}/masked")
+async def update_episode_masked(episode_id: str, request: Request) -> dict[str, Any]:
+    """Met à jour le statut masked d'un épisode (Issue #107).
+
+    Args:
+        episode_id: ID de l'épisode
+        request: Corps de la requête contenant {"masked": true/false}
+
+    Returns:
+        Dict avec message de succès
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        # Lire le body de la requête
+        body = await request.json()
+        masked = body.get("masked")
+
+        if masked is None:
+            raise HTTPException(status_code=400, detail="Le champ 'masked' est requis")
+
+        if not isinstance(masked, bool):
+            raise HTTPException(
+                status_code=400, detail="Le champ 'masked' doit être un booléen"
+            )
+
+        # Vérifier que l'épisode existe
+        episode_data = mongodb_service.get_episode_by_id(episode_id)
+        if not episode_data:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        # Mettre à jour le statut
+        success = mongodb_service.update_episode_masked_status(episode_id, masked)
+        if not success:
+            raise HTTPException(status_code=400, detail="Échec de la mise à jour")
+
+        action = "masqué" if masked else "rendu visible"
+        return {"message": f"Épisode {action} avec succès"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 @app.get("/api/statistics", response_model=dict[str, Any])
 async def get_statistics() -> dict[str, Any]:
     """Récupère les statistiques de l'application."""
@@ -425,6 +495,7 @@ async def get_statistics() -> dict[str, Any]:
         # Transformer les clés pour correspondre au format frontend
         return {
             "totalEpisodes": stats_data["total_episodes"],
+            "maskedEpisodes": stats_data["masked_episodes_count"],
             "episodesWithCorrectedTitles": stats_data["episodes_with_corrected_titles"],
             "episodesWithCorrectedDescriptions": stats_data[
                 "episodes_with_corrected_descriptions"
@@ -547,6 +618,11 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
             episode_data = mongodb_service.get_episode_by_id(episode_oid)
             if episode_data:
                 episode = Episode(episode_data)
+
+                # Issue #107: Filtrer les épisodes masqués
+                if episode.masked:
+                    continue
+
                 episode_dict = episode.to_summary_dict()
 
                 # Ajouter l'avis_critique_id correspondant à cet épisode

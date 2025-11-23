@@ -99,7 +99,8 @@ class StatsService:
 
         summary = f"""📊 STATISTIQUES CACHE LIVRES/AUTEURS
 
-🚀 Auto-traités (en base) : {stats.get("couples_en_base", 0)}
+🚀 Auto-traités (en base) : {stats.get("couples_en_base", 0)} (couples)
+📚 Livres uniques         : {stats.get("livres_uniques", 0)}
 ⏳ En attente validation  : {total_en_attente}
    ├─ 💡 Suggestions      : {stats.get("couples_suggested_pas_en_base", 0)}
    ├─ ❌ Non trouvés      : {stats.get("couples_not_found_pas_en_base", 0)}

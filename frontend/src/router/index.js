@@ -10,6 +10,7 @@ import BabelioTest from '../views/BabelioTest.vue';
 import AdvancedSearch from '../views/AdvancedSearch.vue';
 import AuteurDetail from '../views/AuteurDetail.vue';
 import LivreDetail from '../views/LivreDetail.vue';
+import MasquerEpisodes from '../views/MasquerEpisodes.vue';
 
 const routes = [
   {
@@ -66,6 +67,14 @@ const routes = [
     component: LivreDetail,
     meta: {
       title: 'Détail Livre - Back-office LMELP'
+    }
+  },
+  {
+    path: '/masquer-episodes',
+    name: 'MasquerEpisodes',
+    component: MasquerEpisodes,
+    meta: {
+      title: 'Masquer les Épisodes - Back-office LMELP'
     }
   }
 ];

@@ -27,6 +27,10 @@
             <div class="stat-label">Épisodes au total</div>
           </div>
           <div class="stat-card">
+            <div class="stat-value">{{ statistics.maskedEpisodes !== null ? statistics.maskedEpisodes : '...' }}</div>
+            <div class="stat-label">Épisodes masqués</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ statistics.episodesWithCorrectedTitles !== null ? statistics.episodesWithCorrectedTitles : '...' }}</div>
             <div class="stat-label">Titres corrigés</div>
           </div>
@@ -43,7 +47,7 @@
             <div class="stat-label">Avis critiques analysés</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...' }}</div>
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.livres_uniques !== undefined) ? collectionsStatistics.livres_uniques : ((collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...') }}</div>
             <div class="stat-label">Livres en base</div>
           </div>
           <div class="stat-card">
@@ -107,6 +111,17 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-masquer-episodes"
+            @click="navigateToMasquerEpisodes"
+          >
+            <div class="function-icon">👁️</div>
+            <h3>Masquer les Épisodes</h3>
+            <p>Gérer la visibilité des épisodes (masquer/afficher)</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div class="function-card coming-soon">
             <div class="function-icon">📊</div>
             <h3>Rapports et analyses</h3>
@@ -142,6 +157,7 @@ export default {
     return {
       statistics: {
         totalEpisodes: null,
+        maskedEpisodes: null,
         episodesWithCorrectedTitles: null,
         episodesWithCorrectedDescriptions: null,
         criticalReviews: null,
@@ -198,6 +214,7 @@ export default {
         // Garder les valeurs '...' en cas d'erreur
         this.statistics = {
           totalEpisodes: '--',
+          maskedEpisodes: '--',
           episodesWithCorrectedTitles: '--',
           episodesWithCorrectedDescriptions: '--',
           criticalReviews: '--',
@@ -239,6 +256,10 @@ export default {
 
     navigateToAdvancedSearch() {
       this.$router.push('/search');
+    },
+
+    navigateToMasquerEpisodes() {
+      this.$router.push('/masquer-episodes');
     }
   }
 };

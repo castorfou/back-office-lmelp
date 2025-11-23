@@ -2,6 +2,14 @@
 
 This document provides in-depth guidance for Claude Code when working with this repository. For a quick reference guide, see [CLAUDE.md](https://github.com/castorfou/back-office-lmelp/blob/main/CLAUDE.md) in the project root.
 
+
+## Prompt is too long
+
+Dans ce cas, juste appeler `/compact`
+
+![alt text](image.png)
+
+
 ## Documentation Structure
 
 This project uses a two-tier documentation approach for Claude Code:
@@ -826,6 +834,112 @@ Before committing tests, verify:
 - [ ] Tests pass in CI/CD environment
 
 **Reference**: Issue #85 - Learned this the hard way after initially writing tests with real MongoDB connections, which was completely wrong for CI/CD compatibility.
+
+## FastAPI Route Patterns
+
+### Route Order - CRITICAL Pattern
+
+**CRITICAL**: In FastAPI, route order matters. Specific routes MUST be defined BEFORE parametric routes.
+
+#### The Problem
+
+FastAPI matches routes in **definition order**. When you define:
+
+```python
+@app.get("/api/episodes/{episode_id}")  # Parametric route
+async def get_episode(episode_id: str):
+    ...
+
+@app.get("/api/episodes/all")  # Specific route
+async def get_all_episodes():
+    ...
+```
+
+Calling `/api/episodes/all` will match the first route with `episode_id="all"`, causing unexpected behavior.
+
+#### The Solution
+
+Always define specific routes BEFORE parametric routes:
+
+```python
+@app.get("/api/episodes/all")  # Specific route FIRST
+async def get_all_episodes():
+    ...
+
+@app.get("/api/episodes/{episode_id}")  # Parametric route AFTER
+async def get_episode(episode_id: str):
+    ...
+```
+
+#### Why Unit Tests Don't Catch This
+
+- Unit tests typically call functions directly or use `TestClient` with exact URLs
+- They don't test **route matching order** or **pattern conflicts**
+- This is a **routing-level integration issue**, not a unit-level issue
+
+#### How to Detect This Issue
+
+**Option 1: Manual Testing**
+```bash
+curl /api/episodes/all  # Should return list, not 404
+```
+
+**Option 2: Integration Tests** (recommended for future)
+```python
+def test_specific_routes_before_parametric():
+    """Verify route order to prevent matching conflicts."""
+    response = client.get("/api/episodes/all")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)  # Not an error object
+```
+
+**Option 3: Route Order Verification Test**
+```python
+def test_route_definition_order():
+    """Verify specific routes defined before parametric ones."""
+    routes = [r for r in app.routes if hasattr(r, 'path')]
+    all_index = next(i for i, r in enumerate(routes)
+                     if r.path == "/api/episodes/all")
+    id_index = next(i for i, r in enumerate(routes)
+                    if r.path == "/api/episodes/{episode_id}")
+    assert all_index < id_index, "Specific route must come before parametric"
+```
+
+### REST API Idempotence Pattern
+
+**CRITICAL**: PATCH/PUT operations should be idempotent following REST principles.
+
+#### MongoDB Update Behavior
+
+When using `collection.update_one()`:
+- `matched_count`: Number of documents matched by the filter (0 or 1)
+- `modified_count`: Number of documents actually modified (0 or 1)
+
+If a document is already in the desired state, `modified_count = 0` even though the operation succeeded.
+
+#### Wrong Pattern (Non-Idempotent)
+
+```python
+result = collection.update_one({"_id": id}, {"$set": {"masked": False}})
+return bool(result.modified_count > 0)  # ❌ Fails if already False
+```
+
+This returns `False` when trying to unmask an already unmasked episode, treating a successful idempotent operation as a failure.
+
+#### Correct Pattern (Idempotent)
+
+```python
+result = collection.update_one({"_id": id}, {"$set": {"masked": False}})
+return bool(result.matched_count > 0)  # ✅ Success if document exists
+```
+
+This returns `True` as long as the document exists, regardless of whether it was modified.
+
+#### Why This Matters
+
+REST APIs should be idempotent: calling the same operation multiple times should have the same effect as calling it once, without errors.
+
+**Example**: Calling `PATCH /episodes/{id}/masked` with `{"masked": false}` twice should succeed both times, not fail on the second call.
 
 ## Documentation Guidelines
 

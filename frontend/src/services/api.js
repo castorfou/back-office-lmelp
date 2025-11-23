@@ -206,6 +206,28 @@ export const episodeService = {
     return response.data;
   },
 
+  // ========== NOUVEAUX ENDPOINTS POUR ISSUE #107 ==========
+
+  /**
+   * Récupère tous les épisodes y compris les masqués
+   * @returns {Promise<Array>} Liste de tous les épisodes (masqués et visibles)
+   */
+  async getAllEpisodesIncludingMasked() {
+    const response = await api.get('/episodes/all');
+    return response.data;
+  },
+
+  /**
+   * Met à jour le statut masked d'un épisode
+   * @param {string} episodeId - ID de l'épisode
+   * @param {boolean} masked - Nouveau statut masked (true = masqué, false = visible)
+   * @returns {Promise<Object>} Résultat de la mise à jour
+   */
+  async updateEpisodeMaskedStatus(episodeId, masked) {
+    const response = await api.patch(`/episodes/${episodeId}/masked`, { masked });
+    return response.data;
+  },
+
   /**
    * Récupère automatiquement l'URL de la page RadioFrance de l'épisode
    * @param {string} episodeId - ID de l'épisode

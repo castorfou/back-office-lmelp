@@ -40,6 +40,7 @@ describe('Dashboard - Tests d\'intégration', () => {
 
   const mockStatistics = {
     totalEpisodes: 142,
+    maskedEpisodes: 5,
     episodesWithCorrectedTitles: 37,
     episodesWithCorrectedDescriptions: 45,
     criticalReviews: 28,
@@ -144,6 +145,22 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('28'); // Critical reviews count
     // Vérifier que le libellé correspondant est présent
     expect(wrapper.text()).toMatch(/avis.*critique/i); // Should contain text related to critical reviews
+  });
+
+  it('affiche le nombre d\'épisodes masqués', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(wrapper.text()).toContain('5'); // Masked episodes count
+    expect(wrapper.text()).toMatch(/épisodes.*masqués/i);
   });
 
   it('affiche la fonction Episode - Modification Titre/Description comme cliquable', async () => {
