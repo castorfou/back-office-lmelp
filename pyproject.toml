@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "cruft",
     "pre-commit",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
