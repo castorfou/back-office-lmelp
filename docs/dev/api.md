@@ -148,8 +148,8 @@ Récupère un épisode spécifique par son ID.
 #### Exemple de requête
 
 ```bash
-# Remplacez [PORT] par le port affiché au démarrage du backend
-curl -X GET "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f"
+# Remplacez <PORT> par le port affiché au démarrage du backend
+curl -X GET "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f"
 ```
 
 ---
@@ -208,8 +208,8 @@ Guillaume Gault
 #### Exemple de requête
 
 ```bash
-# Remplacez [PORT] par le port affiché au démarrage du backend
-curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f" \
+# Remplacez <PORT> par le port affiché au démarrage du backend
+curl -X PUT "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f" \
   -H "Content-Type: text/plain" \
   -d "Nouvelle description corrigée avec passages à la ligne"
 ```
@@ -274,8 +274,8 @@ Les nouveaux livres de Simon Chevrier, Sylvain Tesson et Gaël Octavia
 #### Exemple de requête
 
 ```bash
-# Remplacez [PORT] par le port affiché au démarrage du backend
-curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title" \
+# Remplacez <PORT> par le port affiché au démarrage du backend
+curl -X PUT "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f/title" \
   -H "Content-Type: text/plain" \
   -d "Nouveau titre corrigé et plus lisible"
 ```
@@ -332,8 +332,8 @@ Cette opération effectue une suppression en cascade :
 #### Exemple de requête
 
 ```bash
-# Remplacez [PORT] par le port affiché au démarrage du backend
-curl -X DELETE "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"
+# Remplacez <PORT> par le port affiché au démarrage du backend
+curl -X DELETE "http://localhost:<PORT>/api/episodes/680c97e15a667de306e42042"
 ```
 
 #### Avertissements
@@ -351,10 +351,10 @@ curl -X DELETE "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"
 mongodump --db masque_et_la_plume --out /backup/$(date +%Y-%m-%d)
 
 # 2. Supprimer l'épisode
-curl -X DELETE "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"
+curl -X DELETE "http://localhost:<PORT>/api/episodes/680c97e15a667de306e42042"
 
 # 3. Vérifier la suppression
-curl "http://localhost:[PORT]/api/episodes/680c97e15a667de306e42042"  # Devrait retourner 404
+curl "http://localhost:<PORT>/api/episodes/680c97e15a667de306e42042"  # Devrait retourner 404
 ```
 
 ---
@@ -436,19 +436,19 @@ def to_dict(self) -> dict[str, Any]:
 # Consultez d'abord les logs backend pour connaître le port utilisé
 # Exemple : "🚀 Démarrage du serveur sur 0.0.0.0:54324"
 
-# Lister les épisodes (remplacez [PORT])
-curl -X GET "http://localhost:[PORT]/api/episodes"
+# Lister les épisodes (remplacez <PORT>)
+curl -X GET "http://localhost:<PORT>/api/episodes"
 
 # Récupérer un épisode
-curl -X GET "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f"
+curl -X GET "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f"
 
 # Mettre à jour une description
-curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f" \
+curl -X PUT "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f" \
   -H "Content-Type: text/plain" \
   -d "Description corrigée"
 
 # Mettre à jour un titre
-curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title" \
+curl -X PUT "http://localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f/title" \
   -H "Content-Type: text/plain" \
   -d "Nouveau titre corrigé"
 ```
@@ -459,17 +459,17 @@ curl -X PUT "http://localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title
 # Consultez les logs backend pour connaître le port (ex: 54324)
 
 # Lister les épisodes
-http GET localhost:[PORT]/api/episodes
+http GET localhost:<PORT>/api/episodes
 
 # Récupérer un épisode
-http GET localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f
+http GET localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f
 
 # Mettre à jour une description
-echo "Description corrigée" | http PUT localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f \
+echo "Description corrigée" | http PUT localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f \
   Content-Type:text/plain
 
 # Mettre à jour un titre
-echo "Nouveau titre corrigé" | http PUT localhost:[PORT]/api/episodes/68a3911df8b628e552fdf11f/title \
+echo "Nouveau titre corrigé" | http PUT localhost:<PORT>/api/episodes/68a3911df8b628e552fdf11f/title \
   Content-Type:text/plain
 ```
 
@@ -477,11 +477,11 @@ echo "Nouveau titre corrigé" | http PUT localhost:[PORT]/api/episodes/68a3911df
 
 FastAPI génère automatiquement une documentation interactive :
 
-- **Swagger UI** : http://localhost:[PORT]/docs
-- **ReDoc** : http://localhost:[PORT]/redoc
-- **OpenAPI Schema** : http://localhost:[PORT]/openapi.json
+- **Swagger UI** : http://localhost:<PORT>/docs
+- **ReDoc** : http://localhost:<PORT>/redoc
+- **OpenAPI Schema** : http://localhost:<PORT>/openapi.json
 
-*Remplacez [PORT] par le port affiché au démarrage du backend*
+*Remplacez <PORT> par le port affiché au démarrage du backend*
 
 ## CORS Configuration
 
@@ -611,19 +611,19 @@ Vérifie et corrige l'orthographe des auteurs, livres et éditeurs.
 
 ```bash
 # Vérifier un auteur
-http POST localhost:[PORT]/api/verify-babelio \
+http POST localhost:<PORT>/api/verify-babelio \
   type=author name="Michel Houellebecq"
 
 # Vérifier un livre
-http POST localhost:[PORT]/api/verify-babelio \
+http POST localhost:<PORT>/api/verify-babelio \
   type=book title="Le Petit Prince" author="Antoine de Saint-Exupéry"
 
 # Vérifier un éditeur
-http POST localhost:[PORT]/api/verify-babelio \
+http POST localhost:<PORT>/api/verify-babelio \
   type=publisher name="Gallimard"
 
 # Test avec faute d'orthographe
-http POST localhost:[PORT]/api/verify-babelio \
+http POST localhost:<PORT>/api/verify-babelio \
   type=author name="Houllebeck"
 ```
 
@@ -1057,16 +1057,16 @@ Recherche textuelle simple dans les collections MongoDB (épisodes, auteurs, liv
 
 ```bash
 # Recherche d'auteur
-curl "http://localhost:[PORT]/api/search?q=camus&limit=10"
+curl "http://localhost:<PORT>/api/search?q=camus&limit=10"
 
 # Recherche de livre
-curl "http://localhost:[PORT]/api/search?q=étranger"
+curl "http://localhost:<PORT>/api/search?q=étranger"
 
 # Recherche d'éditeur
-curl "http://localhost:[PORT]/api/search?q=gallimard"
+curl "http://localhost:<PORT>/api/search?q=gallimard"
 
 # Recherche dans épisodes
-curl "http://localhost:[PORT]/api/search?q=littérature"
+curl "http://localhost:<PORT>/api/search?q=littérature"
 ```
 
 #### Notes techniques
@@ -1164,16 +1164,16 @@ Recherche avancée avec filtres par entité et pagination complète.
 
 ```bash
 # Recherche tous types avec pagination
-curl "http://localhost:[PORT]/api/advanced-search?q=camus&page=1&limit=10"
+curl "http://localhost:<PORT>/api/advanced-search?q=camus&page=1&limit=10"
 
 # Recherche uniquement auteurs et livres
-curl "http://localhost:[PORT]/api/advanced-search?q=camus&entities=auteurs,livres"
+curl "http://localhost:<PORT>/api/advanced-search?q=camus&entities=auteurs,livres"
 
 # Recherche éditeurs avec limite élevée
-curl "http://localhost:[PORT]/api/advanced-search?q=gallimard&entities=editeurs&limit=100"
+curl "http://localhost:<PORT>/api/advanced-search?q=gallimard&entities=editeurs&limit=100"
 
 # Recherche page 2 des épisodes
-curl "http://localhost:[PORT]/api/advanced-search?q=littérature&entities=episodes&page=2&limit=20"
+curl "http://localhost:<PORT>/api/advanced-search?q=littérature&entities=episodes&page=2&limit=20"
 ```
 
 #### Notes techniques - Pagination des éditeurs

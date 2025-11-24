@@ -1,0 +1,15 @@
+title: 👨‍💻 Documentation technique
+nav:
+  - Vue d'ensemble: README.md
+  - Architecture: architecture.md
+  - API Reference: api.md
+  - Guide Claude AI: claude-ai-guide.md
+  - Workflow de développement: development-workflow.md
+  - Validation Bibliographique: biblio-verification-flow.md
+  - Traitement données biblio: bibliographic-data-processing.md
+  - Ramasse-miettes summaries: summary-garbage-collector.md
+  - Tests Validation Biblio: validation-biblio-tests.md
+  - Base de données: database.md
+  - Développement: development.md
+  - Déploiement: deployment.md
+  - Sécurité: security.md

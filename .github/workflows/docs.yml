@@ -1,12 +1,22 @@
-name: Deploy MkDocs to GitHub Pages
+name: 📚 Deploy Documentation
 
 on:
   push:
-    branches: [ main, fix-issue-5-setup-mkdocs-github-pages, 31-permettre-laffichage-des-diagrammes-darchitecture-dans-la-doc-developpeur ]
-    paths: [ 'docs/**', 'mkdocs.yml' ]
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'pyproject.toml'
+      - 'README.md'
   pull_request:
-    branches: [ main ]
-    paths: [ 'docs/**', 'mkdocs.yml' ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'pyproject.toml'
+      - 'README.md'
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: read
@@ -19,40 +29,48 @@ concurrency:
 
 jobs:
   build:
+    name: 🏗️ Build documentation
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for git info plugin
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: 🐍 Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v2
+      - name: 🐍 Set up Python
+        run: uv python install 3.11
 
-    - name: Install docs dependencies
-      run: uv sync --extra dev
+      - name: 📦 Install dependencies
+        run: uv sync --extra dev
 
-    - name: Build MkDocs
-      run: uv run mkdocs build --strict
+      - name: 🏗️ Build MkDocs site
+        run: uv run mkdocs build --strict
 
-    - name: Setup Pages
-      uses: actions/configure-pages@v4
+      - name: 📋 Setup Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v4
 
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: 'site'
+      - name: 📤 Upload artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './site'
 
   deploy:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/31-permettre-laffichage-des-diagrammes-darchitecture-dans-la-doc-developpeur' || (github.event_name == 'pull_request' && github.head_ref == 'fix-issue-5-setup-mkdocs-github-pages')
+    name: 🚀 Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

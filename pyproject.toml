@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "cruft",
     "pre-commit",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -48,16 +49,20 @@ dev = [
     "mypy",
     "types-psutil",
     "types-beautifulsoup4",
+    "pillow",
     "mkdocs>=1.5.0",
-    "mkdocs-material>=9.0.0",
-    "mkdocs-mermaid2-plugin>=1.0.0",
-    "pymdown-extensions>=10.0.0",
-    "pillow"
+    "mkdocs-material>=9.4.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    "click==8.2.1", # https://github.com/mkdocs/mkdocs/issues/4032
+    "mkdocstrings[python]",
+    "mkdocs-include-markdown-plugin",
+    "mkdocs-awesome-pages-plugin",
+    "pymdown-extensions"
 ]
 
 [project.urls]
 Homepage = "https://github.com/castor_fou/back-office-lmelp"
-Documentation = "https://github.com/castor_fou/back-office-lmelp#readme"
+Documentation = "https://castor_fou.github.io/back-office-lmelp"
 Repository = "https://github.com/castor_fou/back-office-lmelp.git"
 Issues = "https://github.com/castor_fou/back-office-lmelp/issues"
 

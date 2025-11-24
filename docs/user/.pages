@@ -1,0 +1,10 @@
+title: 👤 Guide utilisateur
+nav:
+  - Démarrage rapide: README.md
+  - Gestion des épisodes: episodes.md
+  - Masquage des épisodes: episode-masking.md
+  - Recherche avancée: advanced-search.md
+  - Pages de détail: detail-pages.md
+  - Vérification Babelio: babelio-verification.md
+  - Correction automatique résumés: automatic-summary-correction.md
+  - Résolution de problèmes: troubleshooting.md
