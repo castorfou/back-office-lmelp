@@ -8,40 +8,36 @@ from pathlib import Path
 class TestMkDocsMermaidConfiguration:
     """Test MkDocs configuration for Mermaid diagram support."""
 
-    def test_mkdocs_yml_contains_mermaid_plugin(self):
-        """Test that mkdocs.yml includes the mermaid2 plugin."""
+    def test_mkdocs_yml_has_native_mermaid_configuration(self):
+        """Test that mkdocs.yml has native Mermaid configuration via superfences."""
         mkdocs_path = Path(__file__).parent.parent / "mkdocs.yml"
 
         with open(mkdocs_path, encoding="utf-8") as f:
             content = f.read()
 
-        # Check for mermaid2 plugin in raw content to avoid YAML parsing issues
-        assert "plugins:" in content, "mkdocs.yml should have a 'plugins' section"
-        assert "- mermaid2" in content, (
-            "mkdocs.yml should include mermaid2 plugin in the plugins list"
-        )
-
-    def test_mkdocs_yml_has_superfences_mermaid_extension(self):
-        """Test that mkdocs.yml has pymdownx.superfences configured for Mermaid."""
-        mkdocs_path = Path(__file__).parent.parent / "mkdocs.yml"
-
-        with open(mkdocs_path, encoding="utf-8") as f:
-            content = f.read()
-
-        # Check for superfences configuration in raw content
-        # Note: We simplified the superfences config, so it may not have custom_fences
+        # Check for superfences configuration
         assert "pymdownx.superfences" in content, (
             "mkdocs.yml should have pymdownx.superfences extension"
         )
 
-        # Optional: Check for mermaid if custom_fences exist
-        if "custom_fences:" in content:
-            assert "name: mermaid" in content, (
-                "custom_fences should have mermaid fence configured"
-            )
-        assert "markdown_extensions:" in content, (
-            "mkdocs.yml should have markdown_extensions"
-        )
+        # Check for custom_fences configuration for mermaid
+        assert "custom_fences:" in content, "Should have custom_fences configured"
+        assert "name: mermaid" in content, "Should have mermaid fence configured"
+        assert "class: mermaid" in content, "Should have mermaid class configured"
+        assert (
+            "format: !!python/name:pymdownx.superfences.fence_code_format" in content
+        ), "Should have correct format for mermaid fence"
+
+    def test_mkdocs_yml_has_superfences_mermaid_extension(self):
+        """Test that mkdocs.yml has pymdownx.superfences configured for Mermaid."""
+        # This test is now redundant with test_mkdocs_yml_has_native_mermaid_configuration
+        # but we keep it for backward compatibility of test names if needed,
+        # or we can just let it pass or remove it.
+        # For now, I will just make it pass by calling the other one or doing a simple check.
+        mkdocs_path = Path(__file__).parent.parent / "mkdocs.yml"
+        with open(mkdocs_path, encoding="utf-8") as f:
+            content = f.read()
+        assert "pymdownx.superfences" in content
 
     def test_mkdocs_build_succeeds(self):
         """Test that mkdocs build command succeeds with current configuration."""
