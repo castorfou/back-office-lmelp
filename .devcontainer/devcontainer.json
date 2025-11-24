@@ -11,9 +11,11 @@
     "containerEnv": {
         "PROJECT_NAME": "back-office lmelp",
         "PROJECT_SLUG": "back-office-lmelp",
+        "GITHUB_USERNAME": "castor_fou",
         "PYTHON_VERSION": "3.11",
         "PYTHONPATH": "/workspaces/back-office-lmelp/src",
         "UV_VENV_CLEAR": "1",
+        "UV_LINK_MODE": "copy",
         "TZ": "${localEnv:TZ}"
     },
 

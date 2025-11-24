@@ -115,7 +115,7 @@ npm run dev
 **Accès :**
 - Application : http://localhost:5173
 - API Backend : Consultez les logs pour le port (ex: http://localhost:54324)
-- API Docs : http://localhost:[PORT]/docs (remplacez [PORT])
+- API Docs : http://localhost:<PORT>/docs (remplacez <PORT>)
 
 ## Commandes de développement
 

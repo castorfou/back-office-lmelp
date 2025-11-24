@@ -1,0 +1,5 @@
+/* Custom color for all table headers in MkDocs Material */
+.md-typeset table th {
+  background: #52796f;
+  color: #fff;
+}

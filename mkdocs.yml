@@ -13,6 +13,15 @@ theme:
     - scheme: default
       primary: blue
       accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.tabs
     - navigation.sections
@@ -20,63 +29,41 @@ theme:
     - navigation.top
     - search.highlight
     - search.share
+    - toc.follow
+    - content.code.annotate
     - content.code.copy
-
-plugins:
-  - search:
-      lang: fr
-  - mermaid2
 
 markdown_extensions:
   - admonition
+  - codehilite
   - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:mermaid2.fence_mermaid
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - tables
-  - attr_list
-  - def_list
-  - footnotes
-  - meta
   - toc:
       permalink: true
+  - attr_list
+  - md_in_html
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __spam
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.emoji
+  - pymdownx.magiclink
 
-nav:
-  - Accueil: index.md
-  - 👤 Guide utilisateur:
-    - Démarrage rapide: user/README.md
-    - Gestion des épisodes: user/episodes.md
-    - Masquage des épisodes: user/episode-masking.md
-    - Recherche avancée: user/advanced-search.md
-    - Pages de détail: user/detail-pages.md
-    - Vérification Babelio: user/babelio-verification.md
-    - Correction automatique résumés: user/automatic-summary-correction.md
-    - Résolution de problèmes: user/troubleshooting.md
-  - 👨‍💻 Documentation technique:
-    - Vue d'ensemble: dev/README.md
-    - Architecture: dev/architecture.md
-    - API Reference: dev/api.md
-    - Guide Claude AI: dev/claude-ai-guide.md
-    - Workflow de développement: dev/development-workflow.md
-    - Validation Bibliographique: dev/biblio-verification-flow.md
-    - Traitement données biblio: dev/bibliographic-data-processing.md
-    - Ramasse-miettes summaries: dev/summary-garbage-collector.md
-    - Tests Validation Biblio: dev/validation-biblio-tests.md
-    - Base de données: dev/database.md
-    - Développement: dev/development.md
-    - Déploiement: dev/deployment.md
-    - Sécurité: dev/security.md
-  - 🐳 Déploiement Docker:
-    - Architecture Docker: deployment/docker-setup.md
-    - Guide Portainer: deployment/portainer-guide.md
-    - Guide de mise à jour: deployment/update-guide.md
-    - Tests et validation: deployment/testing-guide.md
-    - Troubleshooting: deployment/troubleshooting.md
+plugins:
+  - search
+  - awesome-pages
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - overrides.css/custom-table-header.css
