@@ -131,14 +131,22 @@ healthcheck:
 ```
 
 ### Frontend
+
+The frontend provides a dedicated `/health` endpoint for healthchecks. This endpoint:
+- Returns `200 OK` with body `OK`
+- Is not logged to nginx access logs (avoids log pollution)
+- Is optimized for Docker healthcheck requests
+
 ```yaml
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost/"]
+  test: ["CMD", "curl", "-f", "http://localhost/health"]
   interval: 30s
   timeout: 10s
   retries: 3
   start_period: 5s
 ```
+
+**Note**: The `/health` endpoint was introduced to reduce log noise from frequent healthcheck requests. See [testing guide](../docker/build/frontend/TESTING.md) for verification procedures.
 
 ## Limites de ressources
 

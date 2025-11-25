@@ -58,6 +58,26 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 docker inspect --format='{{json .State.Health}}' lmelp-backend | jq
 ```
 
+### Vérifier les logs sans pollution healthcheck
+
+Le frontend utilise un endpoint `/health` dédié qui n'est pas loggé. Pour vérifier que les logs sont propres :
+
+```bash
+# Voir les derniers logs frontend
+docker logs --tail 50 lmelp-frontend
+
+# Les logs ne devraient PAS contenir de lignes comme :
+# 127.0.0.1 - - [date] "GET /health HTTP/1.1" 200 2 "-" "curl/..."
+
+# Les logs devraient contenir uniquement les vraies requêtes utilisateur
+# Exemple de log valide (requête réelle) :
+# 192.168.1.100 - - [date] "GET / HTTP/1.1" 200 915 ...
+```
+
+Si vous voyez des requêtes `/health` dans les logs, vérifiez que :
+1. La configuration nginx est bien déployée (avec `access_log off` pour `/health`)
+2. Le healthcheck Docker utilise bien `/health` et non `/`
+
 ## Problèmes courants
 
 ### Backend ne démarre pas
