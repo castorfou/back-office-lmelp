@@ -4,6 +4,7 @@
   - [lancement backend - frontend](#lancement-backend---frontend)
   - [lancement des tests](#lancement-des-tests)
   - [les infos sur les services frontend - backend](#les-infos-sur-les-services-frontend---backend)
+  - [Les commandes `gh`](#les-commandes-gh)
   - ["Failed to add the ECDSA host key ..." - maj du ssh known\_host](#failed-to-add-the-ecdsa-host-key----maj-du-ssh-known_host)
   - [reseau port utilise](#reseau-port-utilise)
   - [voir la todo de claude code](#voir-la-todo-de-claude-code)
@@ -96,6 +97,17 @@ curl -s "$BACKEND_URL/openapi_reduced.json" | jq
 
 
 cf dans `CLAUDE.md` tous les usages possibles
+
+
+## Les commandes `gh`
+
+valider une pull request
+
+```bash
+# ex avec pull request 114
+# ca merge, en un commit, delete la branche de travail, repasse sur main et fait le pull : propre
+gh pr merge 114 --squash --delete-branch
+```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
 
