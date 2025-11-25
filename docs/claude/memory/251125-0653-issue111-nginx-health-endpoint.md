@@ -26,7 +26,7 @@ Les logs nginx du conteneur frontend sont pollués par les healthchecks Docker (
 
 ### 1. Configuration Nginx
 
-**Fichier**: [docker/build/frontend/nginx.conf](docker/build/frontend/nginx.conf:14-19)
+**Fichier**: `docker/build/frontend/nginx.conf` (lines 14-19)
 
 ```nginx
 # Health check endpoint (not logged)
@@ -39,7 +39,7 @@ location /health {
 
 ### 2. Script de Test
 
-**Fichier**: [docker/build/frontend/test-health-endpoint.sh](docker/build/frontend/test-health-endpoint.sh)
+**Fichier**: `docker/build/frontend/test-health-endpoint.sh`
 
 Script shell automatisé pour vérifier :
 - `/health` retourne 200 OK avec body "OK"
@@ -48,7 +48,7 @@ Script shell automatisé pour vérifier :
 
 ### 3. Documentation
 
-**Fichier**: [docker/build/frontend/TESTING.md](docker/build/frontend/TESTING.md)
+**Fichier**: `docker/build/frontend/TESTING.md`
 
 Guide complet avec :
 - Tests automatisés et manuels

@@ -146,7 +146,7 @@ healthcheck:
   start_period: 5s
 ```
 
-**Note**: The `/health` endpoint was introduced to reduce log noise from frequent healthcheck requests. See [testing guide](../docker/build/frontend/TESTING.md) for verification procedures.
+**Note**: The `/health` endpoint was introduced to reduce log noise from frequent healthcheck requests. See `docker/build/frontend/TESTING.md` for verification procedures.
 
 ## Limites de ressources
 
