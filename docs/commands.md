@@ -101,12 +101,17 @@ cf dans `CLAUDE.md` tous les usages possibles
 
 ## Les commandes `gh`
 
-valider une pull request
+Créer et checkout branche depuis issue #5
 
 ```bash
-# ex avec pull request 114
-# ca merge, en un commit, delete la branche de travail, repasse sur main et fait le pull : propre
-gh pr merge 114 --squash --delete-branch
+gh issue develop 5 --checkout
+```
+
+Merger pull request #5, checkout main
+
+```bash
+# ca merge, squah commit, delete la branche de travail, repasse sur main et fait le pull : propre, carre dans l'axe
+gh pr merge 5 --squash --delete-branch
 ```
 
 ## "Failed to add the ECDSA host key ..." - maj du ssh known_host
