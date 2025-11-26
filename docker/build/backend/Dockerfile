@@ -46,9 +46,9 @@ ENV MONGODB_URL=mongodb://mongo:27017/masque_et_la_plume
 # Expose port
 EXPOSE ${API_PORT}
 
-# Healthcheck
+# Healthcheck (Issue #115: Use dedicated /health endpoint)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${API_PORT}/ || exit 1
+    CMD curl -f http://localhost:${API_PORT}/health || exit 1
 
-# Run the application
-CMD uvicorn back_office_lmelp.app:app --host ${API_HOST} --port ${API_PORT}
+# Run the application (Issue #115: Use main() to configure access_log=False)
+CMD ["python", "-m", "back_office_lmelp.app"]
