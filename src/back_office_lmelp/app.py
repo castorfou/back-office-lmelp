@@ -1,5 +1,6 @@
 """Application FastAPI principale."""
 
+import logging
 import os
 import socket
 from collections.abc import AsyncGenerator
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 from rapidfuzz import fuzz
 from thefuzz import process
 
+from .middleware import EnrichedLoggingMiddleware
 from .models.episode import Episode
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_service import babelio_service
@@ -161,6 +163,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure logging for enriched access logs (Issue #115)
+access_logger = logging.getLogger("back_office_lmelp.access")
+access_logger.setLevel(logging.INFO)
+# Add console handler if not already present
+if not access_logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    access_logger.addHandler(console_handler)
+    access_logger.propagate = False  # Éviter la duplication avec le logger root
+
 
 # Configuration CORS pour le frontend
 def get_cors_configuration():
@@ -191,11 +203,25 @@ def get_cors_configuration():
 cors_config = get_cors_configuration()
 app.add_middleware(CORSMiddleware, **cors_config)
 
+# Add enriched logging middleware (Issue #115)
+app.add_middleware(EnrichedLoggingMiddleware)
+
 
 @app.get("/")
 async def root() -> dict[str, str]:
     """Point d'entrée de l'API."""
     return {"message": "Back-office LMELP API", "version": "0.1.0"}
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Health check endpoint for Docker healthchecks (Issue #115).
+
+    This endpoint is designed for automated monitoring and Docker healthchecks.
+    It returns a simple status without database connectivity check to keep
+    response time minimal and avoid polluting logs.
+    """
+    return {"status": "ok"}
 
 
 @app.get("/api/episodes", response_model=list[dict[str, Any]])
