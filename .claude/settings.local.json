@@ -31,7 +31,8 @@
       "Bash(python -m pytest:*)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src python -m pytest:*)",
       "Bash(uv run ruff check:*)",
-      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)"
+      "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)",
+      "Bash(gh auth:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -197,6 +197,7 @@ module = [
     "openai.*",
     "aiohttp.*",
     "pydantic.*",
+    "starlette.*",
 ]
 ignore_missing_imports = true
 
@@ -208,6 +209,11 @@ ignore_errors = true
 # Configuration pour app.py (ignore BaseModel subclassing issue)
 [[tool.mypy.overrides]]
 module = "back_office_lmelp.app"
+disable_error_code = ["misc"]
+
+# Configuration pour middleware (ignore BaseHTTPMiddleware subclassing issue)
+[[tool.mypy.overrides]]
+module = "back_office_lmelp.middleware.*"
 disable_error_code = ["misc"]
 
 # Temporary overrides to ignore missing type stubs for optional third-party modules
