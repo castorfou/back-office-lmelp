@@ -22,7 +22,7 @@ INFO:     127.0.0.1:50936 - "GET / HTTP/1.1" 200 OK
 
 ### 1. Endpoint `/health` dédié
 
-**Fichier**: [app.py:204-212](src/back_office_lmelp/app.py#L204-L212)
+**Fichier**: `src/back_office_lmelp/app.py` (lignes 204-212)
 
 ```python
 @app.get("/health")
@@ -43,7 +43,7 @@ async def health() -> dict[str, str]:
 
 ### 2. Middleware de logging enrichi
 
-**Fichier**: [middleware/logging_middleware.py](src/back_office_lmelp/middleware/logging_middleware.py)
+**Fichier**: `src/back_office_lmelp/middleware/logging_middleware.py`
 
 Nouveau module avec un middleware FastAPI custom qui :
 - **Filtre automatiquement `/health`** du logging (pas de pollution)
@@ -63,15 +63,15 @@ Nouveau module avec un middleware FastAPI custom qui :
 
 ### 3. Configuration du logger
 
-**Fichier**: [app.py:165-173](src/back_office_lmelp/app.py#L165-L173)
+**Fichier**: `src/back_office_lmelp/app.py` (lignes 165-173)
 
 Configuration explicite du logger `back_office_lmelp.access` avec un handler console pour afficher les logs dans stdout.
 
 ### 4. Tests complets
 
 **Nouveaux fichiers** :
-- [tests/test_health_endpoint.py](tests/test_health_endpoint.py) : 4 tests pour `/health`
-- [tests/test_logging_middleware.py](tests/test_logging_middleware.py) : 7 tests pour le middleware
+- `tests/test_health_endpoint.py` : 4 tests pour `/health`
+- `tests/test_logging_middleware.py` : 7 tests pour le middleware
 
 **Coverage** : 96% sur le middleware, tous les tests passent (585 passed)
 
