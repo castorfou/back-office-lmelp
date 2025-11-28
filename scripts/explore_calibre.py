@@ -14,14 +14,24 @@ Usage:
 
 Ou avec variable d'environnement:
     CALIBRE_LIBRARY_PATH="/chemin/vers/Calibre Library" python scripts/explore_calibre.py
+
+Le script charge automatiquement le fichier .env à la racine du projet.
 """
 
 import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 def main():
+    # Charger les variables d'environnement depuis .env
+    dotenv_path = Path(__file__).parent.parent / ".env"
+    if dotenv_path.exists():
+        load_dotenv(dotenv_path)
+        print(f"✅ Fichier .env chargé depuis {dotenv_path}\n")
+
     # Récupérer le chemin de la bibliothèque
     if len(sys.argv) > 1:
         library_path = sys.argv[1]

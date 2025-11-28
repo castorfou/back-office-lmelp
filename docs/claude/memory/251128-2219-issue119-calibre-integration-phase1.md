@@ -1,8 +1,9 @@
 # Issue #119 - Intégration Calibre Phase 1
 
 **Date**: 2024-11-28
+**Dernière mise à jour**: 2025-11-28 (session 2)
 **Branche**: `119-integrer-calibre-dans-back-office-lmelp`
-**Statut**: Phase de planification et documentation complétée, implémentation en cours
+**Statut**: Configuration devcontainer en cours - En attente de rebuild
 
 ## Contexte
 
@@ -297,6 +298,115 @@ services:
       - CALIBRE_LIBRARY_PATH=/calibre
 ```
 
+## Session 2 - Configuration installation Calibre (2025-11-28)
+
+### Problème identifié
+Lors de la tentative d'exécution du script `explore_calibre.py`, erreur :
+```
+ModuleNotFoundError: No module named 'calibre.library'
+```
+
+**Cause** : Le package PyPI `calibre` (v0.5.0) n'est **PAS** le vrai Calibre. C'est un package différent sans l'API `calibre.library`.
+
+### Actions effectuées
+
+#### 1. Modification script d'exploration ✅
+**Fichier** : [scripts/explore_calibre.py](../../../scripts/explore_calibre.py)
+
+Ajout du chargement automatique de `.env` :
+```python
+from dotenv import load_dotenv
+
+def main():
+    # Charger les variables d'environnement depuis .env
+    dotenv_path = Path(__file__).parent.parent / ".env"
+    if dotenv_path.exists():
+        load_dotenv(dotenv_path)
+        print(f"✅ Fichier .env chargé depuis {dotenv_path}\n")
+```
+
+#### 2. Configuration devcontainer pour installer Calibre ✅
+**Fichier** : [.devcontainer/postCreateCommand.sh](../../../.devcontainer/postCreateCommand.sh)
+
+Ajout de la fonction `install_calibre()` :
+```bash
+# Installation de Calibre
+install_calibre() {
+    echo "Installation de Calibre..."
+
+    # Installer Calibre via apt
+    sudo apt-get install -y -qq calibre
+
+    # Vérifier l'installation
+    if command -v calibre &> /dev/null; then
+        echo "✅ Calibre installé ($(calibre --version | head -n1))"
+    else
+        echo "⚠️  Calibre non installé correctement"
+    fi
+
+    echo "Installation de Calibre terminée"
+}
+```
+
+Ajout dans l'ordre d'exécution :
+```bash
+# Exécution des étapes
+update_system
+ensure_uv
+install_calibre        # ← NOUVEAU
+create_python_environment
+setup_node
+setup_git
+```
+
+#### 3. Suppression du faux package calibre ✅
+```bash
+uv remove calibre
+```
+
+Le package PyPI `calibre==0.5.0` a été supprimé de `pyproject.toml`.
+
+### État actuel
+
+**⏸️ EN ATTENTE DE REBUILD DEVCONTAINER**
+
+Pour que Calibre soit installé, il faut reconstruire le devcontainer :
+- Commande VS Code : **F1 → "Dev Containers: Rebuild Container"**
+- Le script `postCreateCommand.sh` installera Calibre via `apt-get install calibre`
+
+### Après le rebuild
+
+Une fois le rebuild terminé, les étapes suivantes seront :
+
+1. **Vérifier l'installation de Calibre** :
+   ```bash
+   calibre --version
+   python -c "from calibre.library import db; print('✅ API Calibre accessible')"
+   ```
+
+2. **Exécuter le script d'exploration** :
+   ```bash
+   python scripts/explore_calibre.py
+   ```
+
+3. **Analyser la sortie** pour comprendre :
+   - Structure de la bibliothèque Calibre réelle
+   - Colonnes personnalisées disponibles
+   - Taux de livres avec ISBN
+   - Champs utilisables pour l'intégration
+
+4. **Adapter l'implémentation** selon les données réelles découvertes
+
+### Points importants pour la suite
+
+#### Installation Calibre
+- ✅ Calibre sera installé **au niveau système** via apt (pas via pip/uv)
+- ✅ L'API Python de Calibre (`calibre.library.db`) sera accessible
+- ✅ Pas besoin de dépendance dans `pyproject.toml`
+
+#### Dépendances Python
+Le vrai Calibre s'installe avec ses propres modules Python. Pas besoin de l'ajouter dans `pyproject.toml`.
+
 ## État de la todo list
 
 ### Complété ✅
@@ -305,12 +415,17 @@ services:
 3. Documentation vision (user + dev)
 4. Configuration devcontainer et .env
 5. Script d'exploration Calibre
+6. **[NOUVEAU]** Modification script pour charger .env automatiquement
+7. **[NOUVEAU]** Configuration installation Calibre dans devcontainer
+8. **[NOUVEAU]** Suppression faux package calibre PyPI
 
 ### En cours 🔄
-- Compréhension problème et spécifications (attente exploration réelle)
+- **[BLOQUÉ]** Rebuild devcontainer nécessaire pour installer Calibre
 
 ### À faire 📋
-- Exécuter script exploration
+- **[APRÈS REBUILD]** Vérifier installation Calibre
+- **[APRÈS REBUILD]** Exécuter script exploration
+- Analyser structure bibliothèque réelle
 - Recherche fichiers concernés codebase
 - Implémentation TDD (tests + code)
 - Itération tests/code
@@ -356,12 +471,31 @@ mypy src/back_office_lmelp/services/calibre_service.py
 
 ## Notes importantes
 
-1. **Rebuild devcontainer nécessaire** pour activer montage `/calibre`
-2. **Chemin Calibre hôte**: `/home/guillaume/Calibre Library` → `/calibre` dans container
-3. **Lecture seule obligatoire** pour sécurité
-4. **Tests avec données réelles** avant mocks pour éviter erreurs production
-5. **Phase 1 uniquement**: Pas de synchronisation MongoDB dans cette issue
+1. **✅ FAIT** : Configuration devcontainer pour installer Calibre
+2. **⏸️ BLOQUÉ** : Rebuild devcontainer nécessaire pour que Calibre soit installé
+3. **Chemin Calibre hôte**: `/home/guillaume/Calibre Library` → `/calibre` dans container
+4. **Lecture seule obligatoire** pour sécurité
+5. **Tests avec données réelles** avant mocks pour éviter erreurs production
+6. **Phase 1 uniquement**: Pas de synchronisation MongoDB dans cette issue
+7. **Installation Calibre** : Via apt système, pas PyPI (le package PyPI n'est pas le bon)
 
 ---
 
-**APRÈS REBUILD**: Exécuter `python scripts/explore_calibre.py` pour analyser la structure réelle avant de continuer l'implémentation.
+## 🚀 PROCHAINE SESSION - Actions immédiates
+
+**APRÈS REBUILD DEVCONTAINER** :
+
+1. **Vérifier installation Calibre** :
+   ```bash
+   calibre --version
+   python -c "from calibre.library import db; print('✅ API Calibre accessible')"
+   ```
+
+2. **Exécuter script exploration** :
+   ```bash
+   python scripts/explore_calibre.py
+   ```
+
+3. **Analyser la sortie** et adapter l'implémentation selon la structure réelle
+
+4. **Commencer l'implémentation TDD** (backend service + tests)
