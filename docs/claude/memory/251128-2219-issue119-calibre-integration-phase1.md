@@ -407,7 +407,178 @@ Une fois le rebuild terminé, les étapes suivantes seront :
 #### Dépendances Python
 Le vrai Calibre s'installe avec ses propres modules Python. Pas besoin de l'ajouter dans `pyproject.toml`.
 
-## État de la todo list
+## Session 3 - Exploration bibliothèque Calibre réelle (2025-11-28)
+
+### Installation Calibre vérifiée ✅
+
+Après rebuild du devcontainer :
+- ✅ Calibre 5.12 installé au niveau système
+- ✅ Répertoire `/calibre` monté correctement
+- ✅ API Calibre accessible via `calibre-debug`
+
+### Problème: Montage lecture seule
+
+**Erreur** :
+```
+[Errno 30] Read-only file system: '/calibre/calibre_test_case_sensitivity.txt'
+```
+
+**Cause** : Calibre essaie d'écrire un fichier de test même en mode `read_only=True`.
+
+**Solution** : Copier temporairement la bibliothèque vers `/tmp` pour l'exploration.
+
+### Corrections du script explore_calibre.py
+
+#### 1. Import conditionnel de dotenv ✅
+```python
+try:
+    from dotenv import load_dotenv
+    HAS_DOTENV = True
+except ImportError:
+    HAS_DOTENV = False
+```
+
+#### 2. Mode lecture seule ✅
+```python
+library = db(library_path, read_only=True)
+```
+
+#### 3. Utilisation correcte de l'API ✅
+- Méthode : `library.all_ids()` au lieu de `library.all_book_ids()`
+- Métadonnées : `library.get_metadata(book_id, index_is_id=True)` obligatoire
+
+### Exploration réussie ✅
+
+**Commande utilisée** :
+```bash
+cp -r /calibre /tmp/calibre_temp
+CALIBRE_LIBRARY_PATH=/tmp/calibre_temp calibre-debug scripts/explore_calibre.py
+```
+
+### Résultats de l'exploration
+
+#### Statistiques générales
+- 📚 **943 livres** au total
+- 📊 **36.6% avec ISBN** (345 livres)
+- ⭐ **35.8% avec notes** (338 livres)
+- 🏷️ **96.9% avec tags** (914 livres)
+- 🏷️ **336 tags uniques**
+
+#### Colonnes personnalisées (3)
+1. **`#paper`** (bool) - Livre au format papier
+2. **`#read`** (bool) - **Marqueur "Lu"** ✅
+3. **`#text`** (comments) - **Commentaires personnels** (notes, date lecture, avis)
+
+#### Tags utiles découverts
+- **Tags personnels** : `camille`, `guillaume`, `lu`
+- **Tags LMELP** : `lmelp_hubert_arthus`, `lmelp_olivia_de_lamberterie`, `lmelp_230514`
+- **Thèmes** : `roman noir`, `angoisse`, `Historical`, etc.
+
+#### Champs standards utilisables
+- ✅ `title`, `authors` - Affichage et recherche
+- ✅ `isbn` - Liaison MongoDB/Babelio (mais seulement 36.6%)
+- ✅ `rating` - Comparaison avec critiques LMELP
+- ✅ `tags` - Catégorisation riche (96.9% des livres)
+- ✅ `publisher`, `pubdate` - Métadonnées enrichies
+- ✅ `series`, `comments` - Informations complémentaires
+
+### Points clés pour l'implémentation
+
+#### 1. Gestion du faible taux d'ISBN (36.6%)
+⚠️ **CRITIQUE** : Seulement 36.6% des livres ont un ISBN.
+
+**Solution** : Implémenter un matching fuzzy Titre+Auteur pour lier avec MongoDB/Babelio.
+
+#### 2. Accès à la base Calibre
+
+**Problème** : Le montage lecture seule empêche l'API Calibre standard.
+
+**Solutions possibles** :
+1. **Copier la DB à la volée** (solution temporaire utilisée)
+2. **Accès direct SQLite** (plus performant, bypass API Calibre)
+3. **Montage lecture-écriture** avec permissions restreintes
+
+**Recommandation** : Utiliser **accès direct SQLite** en production pour éviter les problèmes de permissions et améliorer les performances.
+
+#### 3. Colonnes personnalisées parfaites pour le besoin
+
+La colonne `#read` correspond exactement au besoin "Lu (oui/non)" de l'issue #119 !
+
+La colonne `#text` peut contenir les notes, dates de lecture et avis personnels.
+
+### Prochaines étapes
+
+#### 1. Décision technique : Méthode d'accès à Calibre
+
+Choisir entre :
+- **Option A** : API Calibre via `calibre-debug` (authentique mais contraintes)
+- **Option B** : Accès direct SQLite `metadata.db` (performant, lecture seule native)
+
+**Recommandation** : **Option B (SQLite direct)** car :
+- ✅ Lecture seule native
+- ✅ Pas de problème de permissions
+- ✅ Plus performant
+- ✅ Structure DB Calibre bien documentée
+- ❌ Moins "officiel" mais suffisant pour lecture seule
+
+#### 2. Implémentation backend (TDD)
+
+**Tests à écrire (RED)** :
+```python
+# tests/test_calibre_service.py
+- test_calibre_service_available_when_env_set()
+- test_calibre_service_unavailable_when_no_env()
+- test_calibre_service_unavailable_when_path_invalid()
+- test_get_all_books_with_pagination()
+- test_get_book_by_id()
+- test_get_books_filtered_by_read_status()
+- test_get_custom_columns()
+- test_isbn_matching()
+- test_fuzzy_matching_title_author()
+
+# tests/test_calibre_router.py
+- test_calibre_status_available()
+- test_calibre_status_unavailable()
+- test_get_books_when_unavailable_returns_503()
+- test_get_books_with_pagination()
+- test_get_books_filtered_by_read()
+```
+
+#### 3. Structure backend à créer
+
+```python
+# src/back_office_lmelp/services/calibre_service.py
+class CalibreService:
+    def __init__(self):
+        self._available = self._check_availability()
+
+    def is_available(self) -> bool
+    def get_all_books(self, limit, offset, read_filter) -> List[CalibreBook]
+    def get_book(self, book_id) -> CalibreBook | None
+    def get_custom_columns(self) -> Dict
+    def count_books(self) -> int
+
+# src/back_office_lmelp/models/calibre_models.py
+class CalibreBook(BaseModel):
+    id: int
+    title: str
+    authors: List[str]
+    isbn: str | None
+    rating: int | None
+    tags: List[str]
+    publisher: str | None
+    pubdate: datetime | None
+    series: str | None
+    read: bool | None  # from #read column
+    comments: str | None  # from #text column
+
+# src/back_office_lmelp/routers/calibre_router.py
+@router.get("/api/calibre/status")
+@router.get("/api/calibre/books")
+@router.get("/api/calibre/books/{id}")
+```
+
+## État de la todo list (session 3)
 
 ### Complété ✅
 1. Récupération détails issue #119
@@ -415,87 +586,44 @@ Le vrai Calibre s'installe avec ses propres modules Python. Pas besoin de l'ajou
 3. Documentation vision (user + dev)
 4. Configuration devcontainer et .env
 5. Script d'exploration Calibre
-6. **[NOUVEAU]** Modification script pour charger .env automatiquement
-7. **[NOUVEAU]** Configuration installation Calibre dans devcontainer
-8. **[NOUVEAU]** Suppression faux package calibre PyPI
+6. Modification script pour charger .env automatiquement
+7. Configuration installation Calibre dans devcontainer
+8. Suppression faux package calibre PyPI
+9. **[NOUVEAU]** Rebuild devcontainer réussi
+10. **[NOUVEAU]** Vérification installation Calibre
+11. **[NOUVEAU]** Correction script explore_calibre.py (dotenv optionnel, read_only, index_is_id)
+12. **[NOUVEAU]** Exploration complète bibliothèque Calibre réelle
 
-### En cours 🔄
-- **[BLOQUÉ]** Rebuild devcontainer nécessaire pour installer Calibre
-
-### À faire 📋
-- **[APRÈS REBUILD]** Vérifier installation Calibre
-- **[APRÈS REBUILD]** Exécuter script exploration
-- Analyser structure bibliothèque réelle
+### Prochaines étapes 📋
+- **[DÉCISION]** Choisir méthode d'accès (API Calibre vs SQLite direct)
 - Recherche fichiers concernés codebase
-- Implémentation TDD (tests + code)
-- Itération tests/code
+- Implémentation TDD backend (service + models + router)
+- Implémentation frontend (CalibreView + route)
+- Tests backend et frontend
 - Vérification checks (tests, lint, mypy)
 - Validation utilisateur
-- Mise à jour README/CLAUDE.md
-- Mise à jour documentation
-- Commit + push
-- Vérification CI/CD
-- Confirmation feature complète
-- Pull request
-- Retour sur main
-
-## Commandes utiles
-
-### Exploration Calibre
-```bash
-python scripts/explore_calibre.py
-```
-
-### Tests backend
-```bash
-PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/test_calibre* -v
-```
-
-### Tests frontend
-```bash
-cd /workspaces/back-office-lmelp/frontend && npm test -- CalibreView
-```
-
-### Linting
-```bash
-ruff check src/back_office_lmelp/services/calibre_service.py
-mypy src/back_office_lmelp/services/calibre_service.py
-```
-
-## Ressources
-
-- **Documentation utilisateur**: [docs/user/calibre-integration.md](../../user/calibre-integration.md)
-- **Documentation développeur**: [docs/dev/calibre-integration.md](../calibre-integration.md)
-- **Script exploration**: [scripts/explore_calibre.py](../../../scripts/explore_calibre.py)
-- **Issue GitHub**: #119
-
-## Notes importantes
-
-1. **✅ FAIT** : Configuration devcontainer pour installer Calibre
-2. **⏸️ BLOQUÉ** : Rebuild devcontainer nécessaire pour que Calibre soit installé
-3. **Chemin Calibre hôte**: `/home/guillaume/Calibre Library` → `/calibre` dans container
-4. **Lecture seule obligatoire** pour sécurité
-5. **Tests avec données réelles** avant mocks pour éviter erreurs production
-6. **Phase 1 uniquement**: Pas de synchronisation MongoDB dans cette issue
-7. **Installation Calibre** : Via apt système, pas PyPI (le package PyPI n'est pas le bon)
+- Documentation mise à jour
+- Commit + push + PR
 
 ---
 
-## 🚀 PROCHAINE SESSION - Actions immédiates
+## 🚀 PROCHAINE SESSION - Décision architecturale
 
-**APRÈS REBUILD DEVCONTAINER** :
+**QUESTION CRITIQUE à décider** :
 
-1. **Vérifier installation Calibre** :
-   ```bash
-   calibre --version
-   python -c "from calibre.library import db; print('✅ API Calibre accessible')"
-   ```
+Méthode d'accès à la bibliothèque Calibre :
+1. **API Calibre officielle** (`calibre-debug` + `from calibre.library import db`)
+   - ✅ Authentique, supporté
+   - ❌ Problèmes permissions lecture seule
+   - ❌ Nécessite copie temporaire
 
-2. **Exécuter script exploration** :
-   ```bash
-   python scripts/explore_calibre.py
-   ```
+2. **Accès direct SQLite** (`sqlite3` + `metadata.db`)
+   - ✅ Lecture seule native
+   - ✅ Plus performant
+   - ✅ Pas de problème permissions
+   - ❌ Moins "officiel"
+   - ❌ Dépend de la structure interne Calibre
 
-3. **Analyser la sortie** et adapter l'implémentation selon la structure réelle
+**Recommandation** : **Option 2 (SQLite direct)** pour simplicité et performance.
 
-4. **Commencer l'implémentation TDD** (backend service + tests)
+Une fois la décision prise, commencer l'implémentation TDD du backend.

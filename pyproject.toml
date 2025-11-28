@@ -218,7 +218,7 @@ disable_error_code = ["misc"]
 
 # Temporary overrides to ignore missing type stubs for optional third-party modules
 [[tool.mypy.overrides]]
-module = ["yaml", "thefuzz"]
+module = ["yaml", "thefuzz", "pydantic"]
 ignore_missing_imports = true
 
 # Configuration tests
