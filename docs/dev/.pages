@@ -10,6 +10,7 @@ nav:
   - Ramasse-miettes summaries: summary-garbage-collector.md
   - Tests Validation Biblio: validation-biblio-tests.md
   - Base de données: database.md
+  - Calibre: calibre-integration.md
   - Développement: development.md
   - Déploiement: deployment.md
   - Sécurité: security.md

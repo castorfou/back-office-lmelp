@@ -7,4 +7,5 @@ nav:
   - Pages de détail: detail-pages.md
   - Vérification Babelio: babelio-verification.md
   - Correction automatique résumés: automatic-summary-correction.md
+  - Integration Calibre: calibre-integration.md
   - Résolution de problèmes: troubleshooting.md
