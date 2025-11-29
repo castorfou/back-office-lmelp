@@ -1,6 +1,7 @@
 title: 🐳 Déploiement Docker
 nav:
   - Architecture Docker: docker-setup.md
+  - Configuration Calibre: calibre-setup.md
   - Guide Portainer: portainer-guide.md
   - Guide de mise à jour: update-guide.md
   - Tests et validation: testing-guide.md
