@@ -134,7 +134,7 @@ Vous devriez voir :
 
 ### Erreur : "Calibre non disponible"
 
-**Symptôme** : Message d'erreur dans l'interface web : "Calibre non disponible - CALIBRE_LIBRARY_PATH not configured"
+**Symptôme** : Message d'erreur dans l'interface web : "Bibliothèque Calibre non trouvée"
 
 **Solutions** :
 
@@ -143,7 +143,8 @@ Vous devriez voir :
    ```bash
    ls -l "/volume1/books/Calibre Library/metadata.db"
    ```
-3. Redéployez la stack après modification du `.env`
+3. Vérifiez que le volume est bien monté dans le conteneur (le dossier `/calibre` doit exister et contenir `metadata.db`).
+4. Redéployez la stack après modification du `.env`
 
 ### Erreur : "Permission denied"
 

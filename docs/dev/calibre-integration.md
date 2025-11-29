@@ -37,9 +37,8 @@ L'intégration Calibre permet d'accéder à une bibliothèque Calibre comme sour
 ### Principe de conception
 
 **Activation conditionnelle** : Le service Calibre n'est instancié que si :
-1. Variable `CALIBRE_LIBRARY_PATH` définie
-2. Chemin accessible et valide
-3. Base Calibre (`metadata.db`) présente et lisible
+1. Dossier `/calibre` détecté
+2. Base Calibre (`metadata.db`) présente et lisible
 
 **Isolation des sources** : Les services MongoDB et Calibre sont indépendants. L'indisponibilité de Calibre n'affecte pas MongoDB.
 
@@ -128,7 +127,7 @@ src/back_office_lmelp/
 │   └── calibre_models.py        # Modèles Pydantic pour Calibre (nouveau)
 ├── routers/
 │   └── calibre_router.py        # Routes API Calibre (nouveau)
-└── config.py                    # Configuration (ajout CALIBRE_LIBRARY_PATH)
+└── config.py                    # Configuration (détection /calibre)
 ```
 
 ### Configuration
@@ -145,7 +144,10 @@ class Settings(BaseSettings):
     database_name: str = "masque_et_la_plume"
 
     # Nouvelle configuration Calibre
-    calibre_library_path: Optional[str] = None
+    @property
+    def calibre_library_path(self) -> Optional[str]:
+        # Retourne "/calibre" si présent
+        ...
 
     class Config:
         env_file = ".env"
@@ -160,9 +162,6 @@ settings = Settings()
 # MongoDB
 MONGODB_URL=mongodb://localhost:27017
 DATABASE_NAME=masque_et_la_plume
-
-# Calibre (optionnel)
-CALIBRE_LIBRARY_PATH=/home/guillaume/Calibre Library
 ```
 
 ### Service Calibre
@@ -187,7 +186,7 @@ class CalibreService:
     def _check_availability(self):
         """Vérifie si Calibre est accessible"""
         if not self.library_path:
-            logger.warning("CALIBRE_LIBRARY_PATH not set")
+            logger.warning("Calibre library not found at /calibre")
             return
 
         try:
@@ -323,7 +322,7 @@ async def get_calibre_status():
     else:
         return CalibreStatus(
             available=False,
-            message="Calibre integration disabled (CALIBRE_LIBRARY_PATH not set or invalid)"
+            message="Calibre integration disabled (Library not found at /calibre)"
         )
 
 @router.get("/books", response_model=List[CalibreBook])
@@ -643,9 +642,8 @@ services:
     build: .
     environment:
       - MONGODB_URL=mongodb://mongodb:27017
-      - CALIBRE_LIBRARY_PATH=/calibre-library
     volumes:
-      - /home/guillaume/Calibre Library:/calibre-library:ro
+      - /home/guillaume/Calibre Library:/calibre:ro
     ports:
       - "54321:54321"
 

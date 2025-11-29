@@ -81,7 +81,7 @@ class TestCalibreServiceInitialization:
 
     @patch("back_office_lmelp.services.calibre_service.settings")
     def test_service_not_available_when_no_library_path(self, mock_settings):
-        """Service non disponible si CALIBRE_LIBRARY_PATH non définie."""
+        """Service non disponible si bibliothèque non trouvée."""
         mock_settings.calibre_library_path = None
         mock_settings.calibre_virtual_library_tag = None
 
@@ -90,7 +90,7 @@ class TestCalibreServiceInitialization:
         assert not service.is_available()
         status = service.get_status()
         assert not status.available
-        assert "CALIBRE_LIBRARY_PATH" in status.error
+        assert "Bibliothèque Calibre non trouvée" in status.error
 
     @patch("back_office_lmelp.services.calibre_service.settings")
     def test_service_not_available_when_path_does_not_exist(self, mock_settings):

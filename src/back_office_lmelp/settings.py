@@ -26,9 +26,17 @@ class Settings:
         """
         Chemin vers la bibliothèque Calibre.
 
-        Si non défini ou vide, l'intégration Calibre est désactivée.
+        Vérifie si /calibre existe et contient metadata.db.
+        Si c'est le cas, retourne "/calibre".
+        Sinon, l'intégration Calibre est désactivée.
         """
-        return os.environ.get("CALIBRE_LIBRARY_PATH") or None
+        default_path = "/calibre"
+        if os.path.isdir(default_path) and os.path.isfile(
+            os.path.join(default_path, "metadata.db")
+        ):
+            return default_path
+
+        return None
 
     @property
     def calibre_virtual_library_tag(self) -> str | None:
