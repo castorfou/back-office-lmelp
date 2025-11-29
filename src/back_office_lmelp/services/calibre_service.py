@@ -66,12 +66,12 @@ class CalibreService:
         Returns:
             True si disponible, False sinon
         """
-        # Vérifier la variable d'environnement
+        # Vérifier la configuration
         library_path_str = settings.calibre_library_path
 
         if not library_path_str:
-            self._error = "Variable CALIBRE_LIBRARY_PATH non définie"
-            logger.info("Calibre non configuré (CALIBRE_LIBRARY_PATH manquant)")
+            self._error = "Bibliothèque Calibre non trouvée dans /calibre"
+            logger.info("Calibre non configuré (/calibre/metadata.db manquant)")
             return False
 
         # Vérifier le chemin

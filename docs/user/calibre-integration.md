@@ -99,8 +99,8 @@ Une fois les données synchronisées, fonctionnalités planifiées :
 
 L'intégration Calibre n'est active que si :
 
-1. ✅ Variable d'environnement `CALIBRE_LIBRARY_PATH` définie
-2. ✅ Base de données Calibre accessible au chemin indiqué
+1. ✅ Le volume Docker est monté sur `/calibre`
+2. ✅ Base de données Calibre (`metadata.db`) accessible dans ce dossier
 3. ✅ Bibliothèque Calibre valide et lisible
 
 Si ces conditions ne sont pas remplies, la fonctionnalité reste invisible dans l'interface.
@@ -179,27 +179,22 @@ Dans la page de **recherche avancée**, nouveau champ :
 
 ## Configuration
 
-### Variable d'environnement
+### Montage du volume
+
+L'application détecte automatiquement la bibliothèque Calibre si elle est montée dans le dossier `/calibre`.
 
 ```bash
-# Développement local
-export CALIBRE_LIBRARY_PATH="/home/guillaume/Calibre Library"
-
 # Docker (docker-compose.yml)
-environment:
-  - CALIBRE_LIBRARY_PATH=/calibre-library
-
-# Docker volume mount
 volumes:
-  - /home/guillaume/Calibre Library:/calibre-library:ro
+  - /home/guillaume/Calibre Library:/calibre:ro
 ```
 
 ### Validation au démarrage
 
 Au démarrage, l'application :
 
-1. Vérifie l'existence de `CALIBRE_LIBRARY_PATH`
-2. Teste l'accès à la base Calibre (`metadata.db`)
+1. Vérifie l'existence du dossier `/calibre` et du fichier `metadata.db`
+2. Teste l'accès à la base Calibre
 3. Valide la structure de la bibliothèque
 4. Active/désactive l'intégration en conséquence
 
@@ -215,7 +210,7 @@ ou
 
 ```
 [WARNING] Calibre integration: DISABLED
-[WARNING] CALIBRE_LIBRARY_PATH not set
+[WARNING] Calibre library not found in /calibre
 ```
 
 ## Métadonnées Calibre utilisées
