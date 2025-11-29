@@ -34,20 +34,32 @@ capture_port_from_output() {
     local port_var="${service_name}_PORT"
     local host_var="${service_name}_HOST"
 
-    # Give the service time to start and output port information
-    sleep 3
+    # For backend, wait for unified port discovery file to be created (with retry logic)
+    if [[ "$service_name" == "BACKEND" ]]; then
+        local max_attempts=15  # 15 seconds total
+        local attempt=0
 
-    # Try to extract port from process output/logs
-    # For backend, check if unified port discovery file was created
-    if [[ "$service_name" == "BACKEND" ]] && [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
-        local backend_port=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('port', ''))")
-        local backend_host=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('host', ''))")
-        if [[ -n "$backend_port" && -n "$backend_host" ]]; then
-            eval "${port_var}=$backend_port"
-            eval "${host_var}=$backend_host"
-            log "Detected $service_name on $backend_host:$backend_port"
-            return 0
-        fi
+        while [[ $attempt -lt $max_attempts ]]; do
+            if [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
+                local backend_port=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('port', ''))" 2>/dev/null)
+                local backend_host=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('host', ''))" 2>/dev/null)
+
+                if [[ -n "$backend_port" && -n "$backend_host" ]]; then
+                    eval "${port_var}=$backend_port"
+                    eval "${host_var}=$backend_host"
+                    log "Detected $service_name on $backend_host:$backend_port (after ${attempt}s)"
+                    return 0
+                fi
+            fi
+
+            sleep 1
+            attempt=$((attempt + 1))
+        done
+
+        warn "Backend port discovery file not found after ${max_attempts}s"
+        warn "Backend may still be starting - check logs"
+        # Don't return error to avoid stopping script with set -e
+        return 0
     fi
 
     # For frontend, try to detect from common ports or process
@@ -106,20 +118,63 @@ print(f"📡 Unified port discovery file created: {port_file}")
 EOF
 }
 
+# Function to kill process group (including children)
+kill_process_group() {
+    local pid=$1
+    local name=$2
+
+    # Get process group ID
+    local pgid=$(ps -o pgid= -p $pid 2>/dev/null | tr -d ' ')
+
+    if [[ -n $pgid ]]; then
+        # Kill entire process group (negative PGID)
+        kill -TERM -$pgid 2>/dev/null || true
+        log "Signal TERM envoyé au groupe de processus $name (PGID: $pgid)"
+    else
+        # Fallback to killing just the process
+        kill -TERM $pid 2>/dev/null || true
+    fi
+}
+
+# Function to wait for process to exit with timeout
+wait_for_process() {
+    local pid=$1
+    local name=$2
+    local timeout=5
+    local elapsed=0
+
+    while kill -0 $pid 2>/dev/null && [[ $elapsed -lt $timeout ]]; do
+        sleep 0.5
+        elapsed=$((elapsed + 1))
+    done
+
+    # Force kill if still running (kill entire process group)
+    if kill -0 $pid 2>/dev/null; then
+        warn "$name (PID: $pid) ne répond pas - force kill du groupe"
+        local pgid=$(ps -o pgid= -p $pid 2>/dev/null | tr -d ' ')
+        if [[ -n $pgid ]]; then
+            kill -9 -$pgid 2>/dev/null || true
+        else
+            kill -9 $pid 2>/dev/null || true
+        fi
+        sleep 0.5
+    fi
+}
+
 # Function to clean up processes on exit
 cleanup() {
     log "Arrêt des processus..."
 
     if [[ -n $BACKEND_PID ]]; then
         log "Arrêt du backend (PID: $BACKEND_PID)"
-        kill -TERM $BACKEND_PID 2>/dev/null || true
-        wait $BACKEND_PID 2>/dev/null || true
+        kill_process_group $BACKEND_PID "Backend"
+        wait_for_process $BACKEND_PID "Backend"
     fi
 
     if [[ -n $FRONTEND_PID ]]; then
         log "Arrêt du frontend (PID: $FRONTEND_PID)"
-        kill -TERM $FRONTEND_PID 2>/dev/null || true
-        wait $FRONTEND_PID 2>/dev/null || true
+        kill_process_group $FRONTEND_PID "Frontend"
+        wait_for_process $FRONTEND_PID "Frontend"
     fi
 
     # Clean up unified discovery file
@@ -128,7 +183,7 @@ cleanup() {
         log "🧹 Unified port discovery file cleaned up"
     fi
 
-    log "Processus arrêtés proprement"
+    log "✅ Processus arrêtés proprement"
     exit 0
 }
 
@@ -146,6 +201,12 @@ if [[ ! -d "$PROJECT_ROOT/frontend/node_modules" ]]; then
     warn "Les dépendances frontend ne sont pas installées"
     log "Installation des dépendances frontend..."
     cd "$PROJECT_ROOT/frontend" && npm ci
+fi
+
+# Clean up old port discovery file to avoid stale data
+if [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
+    log "🧹 Nettoyage du fichier de découverte des ports précédent..."
+    rm -f "$PROJECT_ROOT/.dev-ports.json"
 fi
 
 log "Démarrage du backend et du frontend..."
@@ -175,8 +236,8 @@ log "Frontend démarré (PID: $FRONTEND_PID)"
 # Capture frontend port information
 capture_port_from_output "FRONTEND" "$FRONTEND_PID"
 
-# Create unified port discovery file
-write_unified_port_discovery "$BACKEND_PORT" "$BACKEND_HOST" "$BACKEND_PID" "$FRONTEND_PORT" "$FRONTEND_HOST" "$FRONTEND_PID"
+# Note: The backend writes .dev-ports.json automatically, so we don't overwrite it here
+# We just log the detected information
 
 log "Backend et frontend démarrés avec succès!"
 log "📍 Backend: ${BACKEND_HOST:-unknown}:${BACKEND_PORT:-unknown}"

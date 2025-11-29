@@ -5,11 +5,14 @@ nav:
   - API Reference: api.md
   - Guide Claude AI: claude-ai-guide.md
   - Workflow de développement: development-workflow.md
+  - Script de démarrage: start-dev-script.md
   - Validation Bibliographique: biblio-verification-flow.md
   - Traitement données biblio: bibliographic-data-processing.md
   - Ramasse-miettes summaries: summary-garbage-collector.md
   - Tests Validation Biblio: validation-biblio-tests.md
   - Base de données: database.md
+  - Calibre: calibre-integration.md
+  - Calibre db schema: calibre-db-schema.md
   - Développement: development.md
   - Déploiement: deployment.md
   - Sécurité: security.md

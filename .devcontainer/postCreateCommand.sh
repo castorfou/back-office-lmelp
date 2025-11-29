@@ -60,6 +60,22 @@ create_python_environment() {
     echo "Environnement Python configuré"
 }
 
+# Installation de Calibre
+install_calibre() {
+    echo "Installation de Calibre..."
+
+    # Installer Calibre via apt
+    sudo apt-get install -y -qq calibre
+
+    # Vérifier l'installation
+    if command -v calibre &> /dev/null; then
+        echo "✅ Calibre installé ($(calibre --version | head -n1))"
+    else
+        echo "⚠️  Calibre non installé correctement"
+    fi
+
+    echo "Installation de Calibre terminée"
+}
 
 # Configuration Node.js et npm
 setup_node() {
@@ -202,6 +218,7 @@ Features: ruff, mypy, pre-commit hooks"
 # Exécution des étapes
 update_system
 ensure_uv
+install_calibre
 create_python_environment
 setup_node
 setup_git

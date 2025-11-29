@@ -19,6 +19,7 @@ Nettoyer et corriger les données des épisodes du Masque et la Plume, en partic
 - **Backend** : FastAPI + Python 3.11
 - **Frontend** : Vue.js 3 + Vite
 - **Base de données** : MongoDB (collection `masque_et_la_plume`)
+- **Intégration Calibre** : Accès SQLite lecture seule (optionnel)
 - **Tests** : pytest (backend) + Vitest (frontend)
 
 ### Structure du projet
@@ -216,6 +217,16 @@ export BABELIO_CACHE_LOG=1
 - 🔍 **Interface dédiée** : Page `/search` avec filtres interactifs
 - 📱 **Responsive** : Optimisée pour mobile et desktop
 
+#### Intégration Calibre
+- 📚 **Bibliothèque personnelle** : Accès à votre collection Calibre existante
+- 🔍 **Recherche avec highlighting** : Termes de recherche surlignés en jaune
+- 🏷️ **Filtres intelligents** : Tous / Lus / Non lus
+- 📊 **Tri flexible** : Par date, titre ou auteur (A→Z / Z→A)
+- ∞ **Infinite scroll** : Chargement progressif des livres
+- 🔐 **Lecture seule** : Accès sécurisé sans modification de votre bibliothèque
+- 🎯 **Bibliothèque virtuelle** : Support des tags pour filtrage (ex: afficher uniquement tag "guillaume")
+- 📖 **Métadonnées complètes** : Auteurs, éditeur, ISBN, note, tags, colonnes personnalisées (#read, #paper, #text)
+
 #### Pages de Détail Auteur et Livre
 - 👤 **Page auteur** : `/auteur/:id` - Vue détaillée d'un auteur avec tous ses livres triés alphabétiquement
 - 📖 **Page livre** : `/livre/:id` - Vue détaillée d'un livre avec liste des épisodes où il est mentionné
@@ -260,6 +271,11 @@ GET /api/livre/{id}               # Détails d'un livre avec ses épisodes
 # Recherche textuelle
 GET /api/search?q={query}&limit={n}              # Recherche simple multi-collections
 GET /api/advanced-search?q={query}&entities={...}&page={n}&limit={m}  # Recherche avec filtres et pagination
+
+# Calibre (Issue #119)
+GET /api/calibre/status           # Statut de l'intégration Calibre
+GET /api/calibre/statistics       # Statistiques de la bibliothèque
+GET /api/calibre/books            # Liste des livres (pagination, tri, filtres)
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/

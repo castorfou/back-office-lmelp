@@ -19,6 +19,7 @@ from .models.episode import Episode
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
+from .services.calibre_service import calibre_service
 from .services.collections_management_service import collections_management_service
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
@@ -529,6 +530,74 @@ async def get_statistics() -> dict[str, Any]:
             "criticalReviews": stats_data["critical_reviews_count"],
             "lastUpdateDate": stats_data["last_update_date"],
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+# ========== ENDPOINTS CALIBRE ==========
+
+
+@app.get("/api/calibre/status")
+async def get_calibre_status() -> dict[str, Any]:
+    """Récupère le statut de l'intégration Calibre."""
+    try:
+        status = calibre_service.get_status()
+        return status.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/calibre/books")
+async def get_calibre_books(
+    limit: int = 50,
+    offset: int = 0,
+    read_filter: bool | None = None,
+    search: str | None = None,
+) -> dict[str, Any]:
+    """Récupère la liste des livres Calibre."""
+    try:
+        books_list = calibre_service.get_books(
+            limit=limit, offset=offset, read_filter=read_filter, search=search
+        )
+        return books_list.model_dump()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/calibre/books/{book_id}")
+async def get_calibre_book(book_id: int) -> dict[str, Any]:
+    """Récupère les détails d'un livre Calibre."""
+    try:
+        book = calibre_service.get_book(book_id)
+        if book is None:
+            raise HTTPException(status_code=404, detail=f"Livre {book_id} non trouvé")
+        return book.model_dump()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/calibre/authors")
+async def get_calibre_authors(
+    limit: int = 100, offset: int = 0
+) -> list[dict[str, Any]]:
+    """Récupère la liste des auteurs Calibre."""
+    try:
+        authors = calibre_service.get_authors(limit=limit, offset=offset)
+        return [author.model_dump() for author in authors]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/calibre/statistics")
+async def get_calibre_statistics() -> dict[str, Any]:
+    """Récupère les statistiques de la bibliothèque Calibre."""
+    try:
+        stats = calibre_service.get_statistics()
+        return stats.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 

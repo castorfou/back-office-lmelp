@@ -21,7 +21,7 @@ repos:
 
   # Ruff - Linter et formateur Python moderne
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.6
+    rev: v0.14.7
     hooks:
       # Linting avec ruff (remplace flake8, isort, etc.)
       - id: ruff
@@ -47,6 +47,7 @@ repos:
           - types-requests           # Types pour requests
           - rapidfuzz                 # Fuzzy string matching
           - types-beautifulsoup4      # Types pour BeautifulSoup (Issue #85)
+          - pydantic                  # Pydantic models with proper type inference
         args: [--config-file=pyproject.toml]
 
   # Sécurité - Détection de secrets et vulnérabilités
