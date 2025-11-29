@@ -7,7 +7,7 @@ This file provides quick guidance to Claude Code (claude.ai/code) when working w
 ## Project Overview
 
 Full-stack application for managing database related to lmelp project:
-- **Backend**: Python FastAPI with MongoDB integration
+- **Backend**: Python FastAPI with MongoDB integration + Calibre SQLite (optional)
 - **Frontend**: Vue.js 3 SPA with Vite build system
 - **Environment**: VS Code devcontainers (Docker-based)
 - **Dual toolchains**: uv (Python) + npm (Node.js)

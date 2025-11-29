@@ -33,27 +33,32 @@ L'application travaille avec trois sources de données complémentaires :
 - **Calibre** : Votre bibliothèque personnelle avec vos lectures, notes et appréciations
 - **Babelio** : Service externe pour enrichir et normaliser les métadonnées bibliographiques
 
-## Évolution de l'intégration
+## Fonctionnement actuel
 
-### Phase 1 : Accès direct (Issue #119)
+### Accès direct en lecture seule
 
-Dans un premier temps, Calibre est traité comme une **seconde source de données** indépendante :
+Calibre est traité comme une **seconde source de données** indépendante :
 
-- Interrogation directe de la base Calibre
-- Affichage des livres de votre collection
+- Interrogation directe de `metadata.db` via SQLite
+- Affichage des livres avec infinite scroll
 - Visualisation de vos notes et appréciations
-- Pas de synchronisation avec MongoDB
+- Recherche temps réel avec highlighting en jaune
+- Filtres par statut de lecture (Tous / Lus / Non lus)
+- Tri flexible (date d'ajout, titre, auteur)
+- Support bibliothèques virtuelles (filtre par tag Calibre)
 
 **Avantages** :
-- Mise en place rapide
 - Pas de duplication de données
 - Source de vérité unique (Calibre)
+- Accès lecture seule sécurisé
+- Déploiement simple via Docker
 
-**Limites** :
-- Pas de corrélation avec les critiques LMELP
-- Recherche limitée à chaque source séparément
+**Caractéristiques** :
+- Pas de synchronisation avec MongoDB
+- Interface dédiée `/calibre` accessible depuis le dashboard
+- Fonctionne en parallèle de MongoDB sans interférence
 
-### Phase 2 : Synchronisation vers MongoDB (future)
+### Évolution future : Synchronisation vers MongoDB
 
 À terme, les données Calibre seront **rapatriées vers MongoDB** :
 
@@ -79,9 +84,9 @@ continue   métadonnées      avec LMELP
 - **Résolution de conflits** : Gérer les livres présents dans les deux sources
 - **Qualité des données** : Normaliser les noms d'auteurs et titres
 
-### Phase 3 : Comparaison et analyse (future)
+### Évolution future : Comparaison et analyse
 
-Une fois les données synchronisées, nouvelles fonctionnalités :
+Une fois les données synchronisées, fonctionnalités planifiées :
 
 - **Comparaison d'appréciations** : Vos notes vs notes des critiques LMELP
 - **Analyse de corrélation** : Statistiques sur vos convergences/divergences
@@ -121,20 +126,28 @@ Nouvelle page accessible depuis l'accueil :
 └─────────────────────────────────────┘
 ```
 
-**Colonnes affichées** :
+**Informations affichées** :
 
-- **Auteur** : Auteur(s) du livre
-- **Livre** : Titre du livre
-- **Lu** : Oui/Non (basé sur vos données Calibre)
-- **Note** : Votre appréciation si livre lu
-- **Tags** : Mots-clés associés
-- **Date de lecture** : Quand vous avez terminé le livre
+- **Titre** : Titre du livre (termes de recherche surlignés en jaune)
+- **Auteur(s)** : Auteur(s) du livre (termes de recherche surlignés en jaune)
+- **Éditeur** : Maison d'édition
+- **ISBN** : Numéro ISBN
+- **Note** : Votre appréciation (sur 5 étoiles)
+- **Tags** : Mots-clés Calibre
+- **Statut de lecture** : Lu/Non lu (colonne personnalisée #read)
 
-**Format de présentation** :
+**Fonctionnalités interactives** :
 
-- Tableau paginé similaire à la page "Livres-Auteurs"
-- Tri par colonnes
-- Recherche et filtres
+- **Recherche temps réel** : Filtrage par titre ou auteur (minimum 3 caractères)
+  - Highlighting automatique des termes recherchés en jaune
+  - Insensible aux accents (ex: "celine" trouve "Céline")
+- **Filtres de statut** : Tous / Lus / Non lus
+- **Tri dynamique** :
+  - Derniers ajoutés (défaut)
+  - Titre A→Z / Z→A
+  - Auteur A→Z / Z→A
+- **Infinite scroll** : Chargement progressif de 50 livres à la fois
+- **Statistiques** : Total livres, livres lus, pourcentage de lecture
 
 ### Recherche avancée étendue
 
@@ -242,7 +255,7 @@ ou
 
 ### Comparer vos appréciations avec celles des critiques
 
-**Phase 2/3 uniquement** (après synchronisation) :
+**Fonctionnalité planifiée** (nécessite synchronisation MongoDB) :
 
 1. Rechercher un livre présent dans les deux sources
 2. Voir votre note Calibre à côté des notes LMELP
@@ -268,32 +281,23 @@ ou
 - **Logs détaillés** : Traçabilité des opérations Calibre
 - **Gestion d'erreurs** : Désactivation gracieuse si Calibre inaccessible
 
-## Roadmap
+## Fonctionnalités planifiées
 
-### ✅ Phase 1 (Issue #119) - Accès direct
+### Synchronisation vers MongoDB
 
-- [x] Configuration variable d'environnement
-- [x] Connexion à la base Calibre
-- [x] Page dédiée avec liste des livres
-- [x] Extension recherche avancée
-- [ ] Tests unitaires
-- [ ] Documentation technique
+- Service de synchronisation Calibre → MongoDB
+- Appels Babelio pour nettoyage métadonnées
+- Détection des nouveaux livres (sync incrémentielle)
+- Interface de gestion de la synchronisation
+- Logs et monitoring sync
 
-### 🔄 Phase 2 (future) - Synchronisation
+### Analyse et comparaison
 
-- [ ] Service de synchronisation Calibre → MongoDB
-- [ ] Appels Babelio pour nettoyage métadonnées
-- [ ] Détection des nouveaux livres (sync incrémentielle)
-- [ ] Interface de gestion de la synchronisation
-- [ ] Logs et monitoring sync
-
-### 📅 Phase 3 (future) - Analyse
-
-- [ ] Comparaison notes personnelles vs critiques
-- [ ] Statistiques de corrélation
-- [ ] Graphiques de divergence
-- [ ] Recommandations basées sur profil
-- [ ] Export des analyses
+- Comparaison notes personnelles vs critiques LMELP
+- Statistiques de corrélation
+- Graphiques de divergence
+- Recommandations basées sur profil
+- Export des analyses
 
 ## Questions fréquentes
 
@@ -303,7 +307,7 @@ Non, actuellement l'application ne supporte qu'une seule bibliothèque Calibre p
 
 ### Les modifications dans Calibre sont-elles immédiatement visibles ?
 
-En Phase 1, un rechargement de la page est nécessaire. En Phase 2, la synchronisation sera périodique (configurable).
+Actuellement, un rechargement de la page est nécessaire pour voir les changements. La synchronisation automatique pourra être ajoutée ultérieurement.
 
 ### Que se passe-t-il si Calibre n'est pas accessible ?
 
@@ -313,9 +317,29 @@ L'intégration Calibre est simplement désactivée. Les fonctionnalités MongoDB
 
 Non, seule la **bibliothèque Calibre** (le dossier contenant `metadata.db`) doit être accessible. Calibre Desktop n'a pas besoin d'être installé.
 
+L'application utilise SQLite (built-in Python) pour lire directement `metadata.db` sans nécessiter l'installation de Calibre.
+
+### Comment activer Calibre en production (Docker) ?
+
+Voir le guide complet de [Configuration Calibre en Production](../deployment/calibre-setup.md).
+
+**En résumé** :
+
+1. Définir `CALIBRE_HOST_PATH` dans le fichier `.env` (chemin de votre bibliothèque Calibre sur l'hôte)
+2. Optionnel : Définir `CALIBRE_VIRTUAL_LIBRARY_TAG` pour filtrer par tag (ex: "guillaume")
+3. Redéployer la stack Docker via Portainer
+
+**Exemple .env** :
+```bash
+CALIBRE_HOST_PATH=/volume1/books/Calibre Library
+CALIBRE_VIRTUAL_LIBRARY_TAG=guillaume
+```
+
+Le volume est monté en **lecture seule** (`:ro`) pour éviter toute modification de votre bibliothèque.
+
 ### Puis-je modifier mes notes Calibre depuis back-office-lmelp ?
 
-Pas en Phase 1 (lecture seule). Cette fonctionnalité pourra être ajoutée ultérieurement selon les besoins.
+Non, l'accès est en lecture seule. Cette fonctionnalité pourra être ajoutée ultérieurement selon les besoins.
 
 ---
 

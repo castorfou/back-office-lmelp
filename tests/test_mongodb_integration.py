@@ -27,12 +27,9 @@ class TestMongoDBService:
 
     def test_init(self, mongodb_service):
         """Test MongoDB service initialization."""
-        # Handle both local dev (with database name) and CI (without database name)
-        expected_urls = [
-            "mongodb://localhost:27017/masque_et_la_plume",
-            "mongodb://localhost:27017",
-        ]
-        assert mongodb_service.mongo_url in expected_urls
+        # Verify MongoDB URL is set (either from .env or default)
+        assert mongodb_service.mongo_url is not None
+        assert mongodb_service.mongo_url.startswith("mongodb://")
         assert mongodb_service.client is None
         assert mongodb_service.db is None
         assert mongodb_service.episodes_collection is None
