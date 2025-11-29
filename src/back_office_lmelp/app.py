@@ -5,7 +5,7 @@ import os
 import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from typing import Any, cast
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -542,7 +542,7 @@ async def get_calibre_status() -> dict[str, Any]:
     """Récupère le statut de l'intégration Calibre."""
     try:
         status = calibre_service.get_status()
-        return cast(dict[str, Any], status.model_dump())
+        return status.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
@@ -559,7 +559,7 @@ async def get_calibre_books(
         books_list = calibre_service.get_books(
             limit=limit, offset=offset, read_filter=read_filter, search=search
         )
-        return cast(dict[str, Any], books_list.model_dump())
+        return books_list.model_dump()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
@@ -573,7 +573,7 @@ async def get_calibre_book(book_id: int) -> dict[str, Any]:
         book = calibre_service.get_book(book_id)
         if book is None:
             raise HTTPException(status_code=404, detail=f"Livre {book_id} non trouvé")
-        return cast(dict[str, Any], book.model_dump())
+        return book.model_dump()
     except HTTPException:
         raise
     except Exception as e:
@@ -597,7 +597,7 @@ async def get_calibre_statistics() -> dict[str, Any]:
     """Récupère les statistiques de la bibliothèque Calibre."""
     try:
         stats = calibre_service.get_statistics()
-        return cast(dict[str, Any], stats.model_dump())
+        return stats.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
