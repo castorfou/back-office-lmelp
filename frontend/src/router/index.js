@@ -11,6 +11,7 @@ import AdvancedSearch from '../views/AdvancedSearch.vue';
 import AuteurDetail from '../views/AuteurDetail.vue';
 import LivreDetail from '../views/LivreDetail.vue';
 import MasquerEpisodes from '../views/MasquerEpisodes.vue';
+import CalibreLibrary from '../views/CalibreLibrary.vue';
 
 const routes = [
   {
@@ -75,6 +76,14 @@ const routes = [
     component: MasquerEpisodes,
     meta: {
       title: 'Masquer les Épisodes - Back-office LMELP'
+    }
+  },
+  {
+    path: '/calibre',
+    name: 'CalibreLibrary',
+    component: CalibreLibrary,
+    meta: {
+      title: 'Bibliothèque Calibre - Back-office LMELP'
     }
   }
 ];

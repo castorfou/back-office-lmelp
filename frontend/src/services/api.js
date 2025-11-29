@@ -378,4 +378,57 @@ export const fuzzySearchService = {
   }
 };
 
+/**
+ * Service pour la gestion de la bibliothèque Calibre
+ */
+export const calibreService = {
+  /**
+   * Récupère le statut de l'intégration Calibre
+   * @returns {Promise<Object>} Statut Calibre (available, library_path, total_books, etc.)
+   */
+  async getStatus() {
+    const response = await api.get('/calibre/status');
+    return response.data;
+  },
+
+  /**
+   * Récupère la liste des livres de la bibliothèque Calibre
+   * @param {Object} params - Paramètres de requête (limit, offset, read_filter, search, etc.)
+   * @returns {Promise<Object>} Liste paginée de livres avec total
+   */
+  async getBooks(params = {}) {
+    const response = await api.get('/calibre/books', { params });
+    return response.data;
+  },
+
+  /**
+   * Récupère les statistiques de la bibliothèque Calibre
+   * @returns {Promise<Object>} Statistiques (total_books, books_with_isbn, books_read, etc.)
+   */
+  async getStatistics() {
+    const response = await api.get('/calibre/statistics');
+    return response.data;
+  },
+
+  /**
+   * Récupère les détails d'un livre par son ID
+   * @param {number} bookId - ID du livre dans Calibre
+   * @returns {Promise<Object>} Détails complets du livre
+   */
+  async getBook(bookId) {
+    const response = await api.get(`/calibre/books/${bookId}`);
+    return response.data;
+  },
+
+  /**
+   * Récupère la liste des auteurs
+   * @param {Object} params - Paramètres de requête (limit, offset)
+   * @returns {Promise<Array>} Liste des auteurs
+   */
+  async getAuthors(params = {}) {
+    const response = await api.get('/calibre/authors', { params });
+    return response.data;
+  }
+};
+
 export default api;

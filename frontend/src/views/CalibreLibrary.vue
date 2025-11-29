@@ -1,0 +1,497 @@
+<template>
+  <div class="calibre-library">
+    <!-- Navigation -->
+    <Navigation pageTitle="Bibliothèque Calibre" />
+
+    <!-- Message d'erreur -->
+    <div v-if="error" class="error-message">
+      <strong>Erreur:</strong> {{ error }}
+    </div>
+
+    <!-- Calibre non disponible -->
+    <div v-if="!calibreStatus.available && !loading" class="unavailable-message">
+      <div class="unavailable-card">
+        <div class="icon">⚠️</div>
+        <h2>Calibre non disponible</h2>
+        <p v-if="calibreStatus.error">{{ calibreStatus.error }}</p>
+        <p v-else>Le service Calibre n'est pas configuré.</p>
+        <div class="help-text">
+          <p>Pour activer l'intégration Calibre, configurez la variable d'environnement :</p>
+          <code>CALIBRE_LIBRARY_PATH=/chemin/vers/bibliothèque</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calibre disponible -->
+    <div v-if="calibreStatus.available && !loading" class="calibre-content">
+      <!-- Filtres -->
+      <section class="filters">
+        <button
+          data-testid="filter-all"
+          :class="['filter-btn', { active: readFilter === null }]"
+          @click="setReadFilter(null)"
+        >
+          Tous ({{ calibreStatus.total_books }})
+        </button>
+        <button
+          data-testid="filter-read"
+          :class="['filter-btn', { active: readFilter === true }]"
+          @click="setReadFilter(true)"
+        >
+          Lus<span v-if="calibreStatistics.books_read !== null"> ({{ calibreStatistics.books_read }})</span>
+        </button>
+        <button
+          data-testid="filter-unread"
+          :class="['filter-btn', { active: readFilter === false }]"
+          @click="setReadFilter(false)"
+        >
+          Non lus<span v-if="booksUnread !== null"> ({{ booksUnread }})</span>
+        </button>
+      </section>
+
+      <!-- Liste des livres -->
+      <section v-if="books.length > 0" class="books-section">
+        <div data-testid="books-list" class="books-grid">
+          <div
+            v-for="book in books"
+            :key="book.id"
+            data-testid="book-card"
+            class="book-card"
+          >
+            <div class="book-header">
+              <h3 class="book-title">{{ book.title }}</h3>
+              <span v-if="book.read !== null" class="read-badge" :class="{ read: book.read }">
+                {{ book.read ? '✓ Lu' : '◯ Non lu' }}
+              </span>
+            </div>
+            <p class="book-authors">{{ book.authors.join(', ') }}</p>
+            <div class="book-details">
+              <span v-if="book.isbn" class="detail">ISBN: {{ book.isbn }}</span>
+              <span v-if="book.publisher" class="detail">Éditeur: {{ book.publisher }}</span>
+              <span v-if="book.rating" class="detail">
+                Note: {{ book.rating / 2 }}/5 ⭐
+              </span>
+            </div>
+            <div v-if="book.tags && book.tags.length > 0" class="book-tags">
+              <span v-for="tag in book.tags" :key="tag" class="tag">{{ tag }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading indicator for infinite scroll -->
+        <div v-if="loadingMore" class="loading-more">
+          <p>Chargement de plus de livres...</p>
+        </div>
+
+        <!-- End of list indicator -->
+        <div v-if="!loadingMore && books.length >= totalBooks && totalBooks > 0" class="end-of-list">
+          <p>Tous les livres ont été chargés ({{ totalBooks }} au total)</p>
+        </div>
+      </section>
+
+      <!-- Aucun livre trouvé -->
+      <div v-if="books.length === 0 && !loading" class="no-books">
+        <p>Aucun livre trouvé avec les filtres sélectionnés.</p>
+      </div>
+    </div>
+
+    <!-- Chargement -->
+    <div v-if="loading" class="loading">
+      <p>Chargement...</p>
+    </div>
+  </div>
+</template>
+
+<script>
+import { calibreService } from '../services/api.js';
+import Navigation from '../components/Navigation.vue';
+
+export default {
+  name: 'CalibreLibrary',
+
+  components: {
+    Navigation
+  },
+
+  data() {
+    return {
+      loading: true,
+      loadingMore: false,
+      error: null,
+      calibreStatus: {
+        available: false,
+        library_path: null,
+        total_books: null,
+        virtual_library_tag: null,
+        custom_columns: {},
+        error: null
+      },
+      calibreStatistics: {
+        books_read: null
+      },
+      books: [],
+      totalBooks: 0,
+      currentOffset: 0,
+      limit: 50,
+      readFilter: null
+    };
+  },
+
+  computed: {
+    booksUnread() {
+      if (this.calibreStatistics.books_read !== null && this.calibreStatus.total_books !== null) {
+        return this.calibreStatus.total_books - this.calibreStatistics.books_read;
+      }
+      return null;
+    }
+  },
+
+  async mounted() {
+    await this.loadCalibreStatus();
+    if (this.calibreStatus.available) {
+      await Promise.all([
+        this.loadBooks(),
+        this.loadCalibreStatistics()
+      ]);
+      // Add scroll listener for infinite scroll
+      window.addEventListener('scroll', this.handleScroll);
+    }
+  },
+
+  beforeUnmount() {
+    // Clean up scroll listener
+    window.removeEventListener('scroll', this.handleScroll);
+  },
+
+  methods: {
+    async loadCalibreStatus() {
+      try {
+        this.loading = true;
+        this.error = null;
+        const status = await calibreService.getStatus();
+        this.calibreStatus = status;
+      } catch (err) {
+        console.error('Erreur lors du chargement du statut Calibre:', err);
+        this.error = err.message;
+        this.calibreStatus.available = false;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadCalibreStatistics() {
+      try {
+        const stats = await calibreService.getStatistics();
+        this.calibreStatistics = stats;
+      } catch (err) {
+        console.error('Erreur lors du chargement des statistiques Calibre:', err);
+        // Les statistiques ne sont pas critiques, on ne bloque pas l'affichage
+      }
+    },
+
+    async loadBooks() {
+      try {
+        this.loading = true;
+        this.error = null;
+
+        const params = {
+          limit: this.limit,
+          offset: this.currentOffset
+        };
+
+        if (this.readFilter !== null) {
+          params.read_filter = this.readFilter;
+        }
+
+        const result = await calibreService.getBooks(params);
+        this.books = result.books;
+        this.totalBooks = result.total;
+      } catch (err) {
+        console.error('Erreur lors du chargement des livres:', err);
+        this.error = err.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadMoreBooks() {
+      // Don't load if already loading or all books are loaded
+      if (this.loadingMore || this.books.length >= this.totalBooks) {
+        return;
+      }
+
+      try {
+        this.loadingMore = true;
+        this.currentOffset += this.limit;
+
+        const params = {
+          limit: this.limit,
+          offset: this.currentOffset
+        };
+
+        if (this.readFilter !== null) {
+          params.read_filter = this.readFilter;
+        }
+
+        const result = await calibreService.getBooks(params);
+        // Append new books to existing list
+        this.books = [...this.books, ...result.books];
+        this.totalBooks = result.total;
+      } catch (err) {
+        console.error('Erreur lors du chargement de plus de livres:', err);
+        this.error = err.message;
+      } finally {
+        this.loadingMore = false;
+      }
+    },
+
+    handleScroll() {
+      // Check if near bottom of page (within 200px)
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const clientHeight = document.documentElement.clientHeight;
+
+      if (scrollHeight - (scrollTop + clientHeight) < 200) {
+        this.loadMoreBooks();
+      }
+    },
+
+    async setReadFilter(value) {
+      this.readFilter = value;
+      this.currentOffset = 0; // Reset to first page
+      await this.loadBooks();
+    }
+  }
+};
+</script>
+
+<style scoped>
+.calibre-library {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+/* Messages */
+.error-message {
+  background: #fee;
+  border: 1px solid #fcc;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  color: #c33;
+}
+
+.unavailable-message {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.unavailable-card {
+  background: white;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+  max-width: 600px;
+}
+
+.unavailable-card .icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.unavailable-card h2 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.help-text {
+  margin-top: 2rem;
+  text-align: left;
+  background: #f5f5f5;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.help-text code {
+  display: block;
+  background: #333;
+  color: #0f0;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* Filtres */
+.filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.filter-btn:hover {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* Books grid */
+.books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.book-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.book-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.book-title {
+  font-size: 1.2rem;
+  color: #333;
+  margin: 0;
+  flex: 1;
+}
+
+.read-badge {
+  background: #e0e0e0;
+  color: #666;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.read-badge.read {
+  background: #d4edda;
+  color: #155724;
+}
+
+.book-authors {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0.5rem 0;
+}
+
+.book-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.book-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.tag {
+  background: #f0f0f0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Infinite scroll indicators */
+.loading-more {
+  text-align: center;
+  padding: 2rem;
+  color: #667eea;
+  font-size: 1rem;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.end-of-list {
+  text-align: center;
+  padding: 2rem;
+  color: #999;
+  font-size: 0.95rem;
+  border-top: 1px solid #eee;
+  margin-top: 2rem;
+}
+
+.no-books {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .page-header {
+    padding: 2rem 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 2rem;
+  }
+
+  .books-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .library-info {
+    flex-direction: column;
+  }
+
+  .filters {
+    flex-direction: column;
+  }
+
+  .filter-btn {
+    width: 100%;
+  }
+}
+</style>

@@ -5,6 +5,7 @@ nav:
   - API Reference: api.md
   - Guide Claude AI: claude-ai-guide.md
   - Workflow de développement: development-workflow.md
+  - Script de démarrage: start-dev-script.md
   - Validation Bibliographique: biblio-verification-flow.md
   - Traitement données biblio: bibliographic-data-processing.md
   - Ramasse-miettes summaries: summary-garbage-collector.md

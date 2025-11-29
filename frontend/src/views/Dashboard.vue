@@ -122,6 +122,19 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-calibre-library"
+            @click="navigateToCalibre"
+          >
+            <div class="function-icon">
+              <img :src="calibreIcon" alt="Calibre" class="function-icon-img" />
+            </div>
+            <h3>Bibliothèque Calibre</h3>
+            <p>Consultation et gestion de la bibliothèque personnelle</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div class="function-card coming-soon">
             <div class="function-icon">📊</div>
             <h3>Rapports et analyses</h3>
@@ -145,6 +158,7 @@
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
+import calibreIcon from '../assets/calibre_logo.png';
 
 export default {
   name: 'Dashboard',
@@ -171,6 +185,7 @@ export default {
         couples_not_found_pas_en_base: null
       },
       babelioIcon: babelioSymbol,
+      calibreIcon: calibreIcon,
       loading: true,
       error: null
     };
@@ -260,6 +275,10 @@ export default {
 
     navigateToMasquerEpisodes() {
       this.$router.push('/masquer-episodes');
+    },
+
+    navigateToCalibre() {
+      this.$router.push('/calibre');
     }
   }
 };
