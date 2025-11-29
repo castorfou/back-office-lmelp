@@ -35,7 +35,7 @@ Intégration de la bibliothèque personnelle Calibre dans back-office-lmelp pour
 ### 1. Documentation créée
 
 #### Documentation utilisateur
-**Fichier**: [docs/user/calibre-integration.md](../../user/calibre-integration.md)
+**Fichier**: `docs/user/calibre-integration.md`
 
 Contenu:
 - Vue d'ensemble de l'architecture (MongoDB + Calibre + Babelio)
@@ -47,7 +47,7 @@ Contenu:
 - FAQ
 
 #### Documentation développeur
-**Fichier**: [docs/dev/calibre-integration.md](../calibre-integration.md)
+**Fichier**: `docs/dev/calibre-integration.md`
 
 Contenu détaillé:
 - Architecture technique avec diagrammes
@@ -67,7 +67,7 @@ Contenu détaillé:
 
 ### 2. Script d'exploration
 
-**Fichier**: [scripts/explore_calibre.py](../../../scripts/explore_calibre.py)
+**Fichier**: `scripts/explore_calibre.py`
 
 Script pour analyser la bibliothèque Calibre:
 - Vérification de connexion
@@ -311,7 +311,7 @@ ModuleNotFoundError: No module named 'calibre.library'
 ### Actions effectuées
 
 #### 1. Modification script d'exploration ✅
-**Fichier** : [scripts/explore_calibre.py](../../../scripts/explore_calibre.py)
+**Fichier** : `scripts/explore_calibre.py`
 
 Ajout du chargement automatique de `.env` :
 ```python
@@ -326,7 +326,7 @@ def main():
 ```
 
 #### 2. Configuration devcontainer pour installer Calibre ✅
-**Fichier** : [.devcontainer/postCreateCommand.sh](../../../.devcontainer/postCreateCommand.sh)
+**Fichier** : `.devcontainer/postCreateCommand.sh`
 
 Ajout de la fonction `install_calibre()` :
 ```bash
