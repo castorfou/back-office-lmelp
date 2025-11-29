@@ -66,17 +66,22 @@ ls -l "/mnt/c/Users/username/Calibre Library/metadata.db"
 
 ### Étape 2 : Modifier le fichier .env
 
-Éditez le fichier `.env` (ou uploadez-le dans Portainer) et décommentez/modifiez la ligne `CALIBRE_HOST_PATH` :
+Éditez le fichier `.env` (ou uploadez-le dans Portainer) et décommentez/modifiez les lignes Calibre :
 
 ```bash
 # Exemple pour NAS Synology
 CALIBRE_HOST_PATH=/volume1/books/Calibre Library
+
+# Optionnel : Tag de bibliothèque virtuelle pour filtrer les livres
+CALIBRE_VIRTUAL_LIBRARY_TAG=guillaume
 ```
 
 **Important** : Assurez-vous que le chemin :
 - Pointe vers le **répertoire racine** de la bibliothèque Calibre (pas vers `metadata.db` directement)
 - Ne contient **pas** de barre oblique finale (`/`)
 - Utilise des guillemets si le chemin contient des espaces
+
+**Note sur le tag** : Si votre bibliothèque Calibre utilise des tags pour organiser les livres (ex: "guillaume" pour vos livres personnels), définissez `CALIBRE_VIRTUAL_LIBRARY_TAG` pour afficher uniquement ces livres. Laissez vide pour afficher tous les livres.
 
 ### Étape 3 : Redéployer la stack
 
@@ -189,8 +194,9 @@ chmod +r "/volume1/books/Calibre Library/"
 
 1. **Tag de bibliothèque virtuelle non configuré** :
    - Si votre bibliothèque Calibre utilise des tags pour filtrer (ex: tag "guillaume")
-   - Vérifiez la configuration dans `src/back_office_lmelp/services/calibre_service.py`
-   - Le tag de filtre est défini par la variable d'environnement `CALIBRE_VIRTUAL_LIBRARY_TAG`
+   - Définissez la variable d'environnement `CALIBRE_VIRTUAL_LIBRARY_TAG` dans le fichier `.env`
+   - Exemple : `CALIBRE_VIRTUAL_LIBRARY_TAG=guillaume`
+   - Redéployez la stack après modification
 
 2. **Base de données vide** :
    - Vérifiez que votre bibliothèque Calibre contient bien des livres :

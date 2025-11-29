@@ -34,6 +34,7 @@ services:
       # Calibre integration (optionnel)
       # Si CALIBRE_HOST_PATH est défini dans .env, Calibre sera disponible à /calibre
       CALIBRE_LIBRARY_PATH: ${CALIBRE_HOST_PATH:+/calibre}
+      CALIBRE_VIRTUAL_LIBRARY_TAG: ${CALIBRE_VIRTUAL_LIBRARY_TAG:-}
 
     # Volumes
     # Monter la bibliothèque Calibre si CALIBRE_LIBRARY_PATH est défini
