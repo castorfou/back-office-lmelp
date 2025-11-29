@@ -10,7 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class CalibreAuthor(BaseModel):  # type: ignore[misc]
+class CalibreAuthor(BaseModel):
     """Représente un auteur dans Calibre."""
 
     id: int = Field(..., description="ID unique de l'auteur dans Calibre")
@@ -19,7 +19,7 @@ class CalibreAuthor(BaseModel):  # type: ignore[misc]
     link: str | None = Field(None, description="URL vers la page de l'auteur")
 
 
-class CalibreBook(BaseModel):  # type: ignore[misc]
+class CalibreBook(BaseModel):
     """
     Représente un livre dans Calibre.
 
@@ -89,7 +89,7 @@ class CalibreBook(BaseModel):  # type: ignore[misc]
     )
 
 
-class CalibreBookList(BaseModel):  # type: ignore[misc]
+class CalibreBookList(BaseModel):
     """Liste paginée de livres Calibre."""
 
     total: int = Field(..., description="Nombre total de livres (avant pagination)")
@@ -100,7 +100,7 @@ class CalibreBookList(BaseModel):  # type: ignore[misc]
     )
 
 
-class CalibreStatus(BaseModel):  # type: ignore[misc]
+class CalibreStatus(BaseModel):
     """Statut de l'intégration Calibre."""
 
     available: bool = Field(..., description="Calibre est disponible et accessible")
@@ -115,7 +115,7 @@ class CalibreStatus(BaseModel):  # type: ignore[misc]
     error: str | None = Field(None, description="Message d'erreur si non disponible")
 
 
-class CalibreStatistics(BaseModel):  # type: ignore[misc]
+class CalibreStatistics(BaseModel):
     """Statistiques de la bibliothèque Calibre."""
 
     total_books: int = Field(..., description="Nombre total de livres")

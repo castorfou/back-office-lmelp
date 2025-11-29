@@ -221,6 +221,16 @@ disable_error_code = ["misc"]
 module = ["yaml", "thefuzz", "pydantic"]
 ignore_missing_imports = true
 
+# Configuration pour calibre_models (ignore Pydantic-related issues)
+[[tool.mypy.overrides]]
+module = "back_office_lmelp.models.calibre_models"
+disable_error_code = ["misc", "call-arg"]
+
+# Configuration pour calibre_service (ignore Pydantic-related issues)
+[[tool.mypy.overrides]]
+module = "back_office_lmelp.services.calibre_service"
+disable_error_code = ["call-arg"]
+
 # Configuration tests
 [[tool.mypy.overrides]]
 module = "tests.*"
