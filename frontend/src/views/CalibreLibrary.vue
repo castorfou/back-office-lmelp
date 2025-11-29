@@ -24,7 +24,18 @@
 
     <!-- Calibre disponible -->
     <div v-if="calibreStatus.available && !loading" class="calibre-content">
-      <!-- Filtres -->
+      <!-- Barre de recherche -->
+      <section class="search-section">
+        <input
+          v-model="searchText"
+          data-testid="search-input"
+          type="text"
+          class="search-input"
+          placeholder="Rechercher par titre ou auteur..."
+        />
+      </section>
+
+      <!-- Filtres de statut lecture -->
       <section class="filters">
         <button
           data-testid="filter-all"
@@ -49,22 +60,72 @@
         </button>
       </section>
 
+      <!-- Boutons de tri -->
+      <section class="sort-section">
+        <label>Trier par :</label>
+        <button
+          data-testid="sort-date-added"
+          :class="['sort-btn', { active: sortBy === 'date-added' }]"
+          @click="setSortBy('date-added')"
+        >
+          Derniers ajoutés
+        </button>
+        <button
+          data-testid="sort-title-az"
+          :class="['sort-btn', { active: sortBy === 'title-az' }]"
+          @click="setSortBy('title-az')"
+        >
+          Titre A→Z
+        </button>
+        <button
+          data-testid="sort-title-za"
+          :class="['sort-btn', { active: sortBy === 'title-za' }]"
+          @click="setSortBy('title-za')"
+        >
+          Titre Z→A
+        </button>
+        <button
+          data-testid="sort-author-az"
+          :class="['sort-btn', { active: sortBy === 'author-az' }]"
+          @click="setSortBy('author-az')"
+        >
+          Auteur A→Z
+        </button>
+        <button
+          data-testid="sort-author-za"
+          :class="['sort-btn', { active: sortBy === 'author-za' }]"
+          @click="setSortBy('author-za')"
+        >
+          Auteur Z→A
+        </button>
+      </section>
+
+      <!-- Compteur de livres affichés -->
+      <div class="books-count">
+        <span v-if="filteredBooks.length === allBooks.length">
+          {{ allBooks.length }} livres au total
+        </span>
+        <span v-else>
+          {{ filteredBooks.length }} livre{{ filteredBooks.length > 1 ? 's' : '' }} affiché{{ filteredBooks.length > 1 ? 's' : '' }} sur {{ allBooks.length }}
+        </span>
+      </div>
+
       <!-- Liste des livres -->
-      <section v-if="books.length > 0" class="books-section">
+      <section v-if="filteredBooks.length > 0" class="books-section">
         <div data-testid="books-list" class="books-grid">
           <div
-            v-for="book in books"
+            v-for="book in filteredBooks"
             :key="book.id"
             data-testid="book-card"
             class="book-card"
           >
             <div class="book-header">
-              <h3 class="book-title">{{ book.title }}</h3>
+              <h3 class="book-title" v-html="highlightText(book.title, searchText)"></h3>
               <span v-if="book.read !== null" class="read-badge" :class="{ read: book.read }">
                 {{ book.read ? '✓ Lu' : '◯ Non lu' }}
               </span>
             </div>
-            <p class="book-authors">{{ book.authors.join(', ') }}</p>
+            <p class="book-authors" v-html="highlightText(book.authors.join(', '), searchText)"></p>
             <div class="book-details">
               <span v-if="book.isbn" class="detail">ISBN: {{ book.isbn }}</span>
               <span v-if="book.publisher" class="detail">Éditeur: {{ book.publisher }}</span>
@@ -77,20 +138,10 @@
             </div>
           </div>
         </div>
-
-        <!-- Loading indicator for infinite scroll -->
-        <div v-if="loadingMore" class="loading-more">
-          <p>Chargement de plus de livres...</p>
-        </div>
-
-        <!-- End of list indicator -->
-        <div v-if="!loadingMore && books.length >= totalBooks && totalBooks > 0" class="end-of-list">
-          <p>Tous les livres ont été chargés ({{ totalBooks }} au total)</p>
-        </div>
       </section>
 
       <!-- Aucun livre trouvé -->
-      <div v-if="books.length === 0 && !loading" class="no-books">
+      <div v-if="filteredBooks.length === 0 && allBooks.length > 0" class="no-books">
         <p>Aucun livre trouvé avec les filtres sélectionnés.</p>
       </div>
     </div>
@@ -104,6 +155,7 @@
 
 <script>
 import { calibreService } from '../services/api.js';
+import { highlightSearchTermAccentInsensitive } from '../utils/textUtils.js';
 import Navigation from '../components/Navigation.vue';
 
 export default {
@@ -116,7 +168,6 @@ export default {
   data() {
     return {
       loading: true,
-      loadingMore: false,
       error: null,
       calibreStatus: {
         available: false,
@@ -129,11 +180,10 @@ export default {
       calibreStatistics: {
         books_read: null
       },
-      books: [],
-      totalBooks: 0,
-      currentOffset: 0,
-      limit: 50,
-      readFilter: null
+      allBooks: [],  // All books loaded at once
+      searchText: '',
+      readFilter: null,
+      sortBy: 'date-added' // Default sort
     };
   },
 
@@ -143,6 +193,30 @@ export default {
         return this.calibreStatus.total_books - this.calibreStatistics.books_read;
       }
       return null;
+    },
+
+    filteredBooks() {
+      let result = [...this.allBooks];
+
+      // Apply read filter
+      if (this.readFilter !== null) {
+        result = result.filter(book => book.read === this.readFilter);
+      }
+
+      // Apply search filter (case-insensitive, title and author)
+      if (this.searchText.trim()) {
+        const search = this.searchText.toLowerCase().trim();
+        result = result.filter(book => {
+          const titleMatch = book.title?.toLowerCase().includes(search);
+          const authorMatch = book.authors?.some(author => author.toLowerCase().includes(search));
+          return titleMatch || authorMatch;
+        });
+      }
+
+      // Apply sorting
+      result = this.sortBooks(result);
+
+      return result;
     }
   },
 
@@ -150,17 +224,10 @@ export default {
     await this.loadCalibreStatus();
     if (this.calibreStatus.available) {
       await Promise.all([
-        this.loadBooks(),
+        this.loadAllBooks(),
         this.loadCalibreStatistics()
       ]);
-      // Add scroll listener for infinite scroll
-      window.addEventListener('scroll', this.handleScroll);
     }
-  },
-
-  beforeUnmount() {
-    // Clean up scroll listener
-    window.removeEventListener('scroll', this.handleScroll);
   },
 
   methods: {
@@ -189,23 +256,14 @@ export default {
       }
     },
 
-    async loadBooks() {
+    async loadAllBooks() {
       try {
         this.loading = true;
         this.error = null;
 
-        const params = {
-          limit: this.limit,
-          offset: this.currentOffset
-        };
-
-        if (this.readFilter !== null) {
-          params.read_filter = this.readFilter;
-        }
-
-        const result = await calibreService.getBooks(params);
-        this.books = result.books;
-        this.totalBooks = result.total;
+        // Load ALL books at once with a large limit
+        const result = await calibreService.getBooks({ limit: 10000, offset: 0 });
+        this.allBooks = result.books;
       } catch (err) {
         console.error('Erreur lors du chargement des livres:', err);
         this.error = err.message;
@@ -214,52 +272,54 @@ export default {
       }
     },
 
-    async loadMoreBooks() {
-      // Don't load if already loading or all books are loaded
-      if (this.loadingMore || this.books.length >= this.totalBooks) {
-        return;
-      }
-
-      try {
-        this.loadingMore = true;
-        this.currentOffset += this.limit;
-
-        const params = {
-          limit: this.limit,
-          offset: this.currentOffset
-        };
-
-        if (this.readFilter !== null) {
-          params.read_filter = this.readFilter;
-        }
-
-        const result = await calibreService.getBooks(params);
-        // Append new books to existing list
-        this.books = [...this.books, ...result.books];
-        this.totalBooks = result.total;
-      } catch (err) {
-        console.error('Erreur lors du chargement de plus de livres:', err);
-        this.error = err.message;
-      } finally {
-        this.loadingMore = false;
-      }
-    },
-
-    handleScroll() {
-      // Check if near bottom of page (within 200px)
-      const scrollHeight = document.documentElement.scrollHeight;
-      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-      const clientHeight = document.documentElement.clientHeight;
-
-      if (scrollHeight - (scrollTop + clientHeight) < 200) {
-        this.loadMoreBooks();
-      }
-    },
-
-    async setReadFilter(value) {
+    setReadFilter(value) {
       this.readFilter = value;
-      this.currentOffset = 0; // Reset to first page
-      await this.loadBooks();
+    },
+
+    setSortBy(sortType) {
+      this.sortBy = sortType;
+    },
+
+    sortBooks(books) {
+      const sorted = [...books];
+
+      switch (this.sortBy) {
+        case 'title-az':
+          return sorted.sort((a, b) => a.title.localeCompare(b.title));
+
+        case 'title-za':
+          return sorted.sort((a, b) => b.title.localeCompare(a.title));
+
+        case 'author-az':
+          return sorted.sort((a, b) => {
+            const authorA = a.authors?.[0] || '';
+            const authorB = b.authors?.[0] || '';
+            return authorA.localeCompare(authorB);
+          });
+
+        case 'author-za':
+          return sorted.sort((a, b) => {
+            const authorA = a.authors?.[0] || '';
+            const authorB = b.authors?.[0] || '';
+            return authorB.localeCompare(authorA);
+          });
+
+        case 'date-added':
+          // Most recent first (descending)
+          return sorted.sort((a, b) => {
+            if (!a.timestamp) return 1;
+            if (!b.timestamp) return -1;
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          });
+
+        default:
+          return sorted;
+      }
+    },
+
+    highlightText(text, searchTerm) {
+      // Use accent-insensitive highlighting (same as TextSearchEngine)
+      return highlightSearchTermAccentInsensitive(text, searchTerm || this.searchText);
     }
   }
 };
@@ -324,11 +384,30 @@ export default {
   font-family: monospace;
 }
 
-/* Filtres */
+/* Barre de recherche */
+.search-section {
+  margin-bottom: 1.5rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+/* Filtres de statut lecture */
 .filters {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   flex-wrap: wrap;
 }
 
@@ -351,6 +430,51 @@ export default {
   background: #667eea;
   color: white;
   border-color: #667eea;
+}
+
+/* Boutons de tri */
+.sort-section {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sort-section label {
+  font-weight: 600;
+  color: #555;
+}
+
+.sort-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.sort-btn:hover {
+  border-color: #667eea;
+  background: #f5f7ff;
+}
+
+.sort-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* Compteur de livres */
+.books-count {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #f5f7ff;
+  border-radius: 6px;
+  color: #555;
+  font-size: 0.95rem;
 }
 
 /* Books grid */
@@ -430,29 +554,6 @@ export default {
   border-radius: 12px;
   font-size: 0.85rem;
   color: #666;
-}
-
-/* Infinite scroll indicators */
-.loading-more {
-  text-align: center;
-  padding: 2rem;
-  color: #667eea;
-  font-size: 1rem;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-.end-of-list {
-  text-align: center;
-  padding: 2rem;
-  color: #999;
-  font-size: 0.95rem;
-  border-top: 1px solid #eee;
-  margin-top: 2rem;
 }
 
 .no-books {
