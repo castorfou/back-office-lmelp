@@ -132,12 +132,52 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 ## Development Workflow
 
 ### Test-Driven Development (TDD)
-**ALWAYS follow TDD for all code changes**:
-1. Write failing tests first (RED)
-2. Implement minimal code to pass (GREEN)
-3. Refactor while keeping tests green (REFACTOR)
+**ALWAYS follow TDD for all code changes with INCREMENTAL approach**:
 
-**Never implement code without corresponding tests.**
+**CRITICAL - The Incremental TDD Cycle:**
+
+1. **Start with ONE high-level test** that captures the real business problem
+   - ❌ BAD: Writing all unit tests for non-existent functions (`_is_title_truncated`, `fetch_full_title_from_url`, etc.)
+   - ✅ GOOD: Write ONE integration test showing `verify_book()` returns wrong title (business problem)
+
+2. **Make it fail for the RIGHT reason**
+   - First RED should be: "Expected 'Full Title' but got 'Truncated Title...'" (business failure)
+   - NOT: "AttributeError: function doesn't exist" (technical failure)
+   - Add minimal stub functions returning dummy values to see the real failure
+
+3. **Implement incrementally, ONE function at a time**
+   - Fix the high-level test by adding detection logic
+   - When you need a helper function, write its test FIRST, then implement
+   - Each cycle: ONE test → ONE minimal implementation → GREEN
+
+4. **Example - Issue #88 (Truncated Titles):**
+   ```python
+   # Step 1: High-level test (integration)
+   def test_verify_book_should_return_full_title_not_truncated():
+       result = verify_book("Full Title", "Author")
+       assert result["babelio_suggestion_title"] == "Full Title"
+       # NOT: "Full Title..." ← This is the REAL problem to fix
+
+   # Step 2: Run test → Fails because returns "Full Title..."
+   # Step 3: Add stub: def _is_title_truncated(title): return False
+   # Step 4: Test still fails (good! Real business problem visible)
+
+   # Step 5: Write unit test for the helper
+   def test_should_detect_truncated_title():
+       assert _is_title_truncated("Title...") is True
+
+   # Step 6: Run test → Fails (returns False)
+   # Step 7: Implement _is_title_truncated() → GREEN
+   # Step 8: Continue incrementally for scraping logic...
+   ```
+
+**Why this matters:**
+- Writing all tests at once hides the real problem behind technical errors
+- You can't verify each small step independently
+- Harder to debug when multiple things are broken at once
+- Violates the "minimal change" principle of TDD
+
+**Never implement code without corresponding tests, and never write tests faster than you implement code.**
 
 ### Backend Testing - Key Rules
 

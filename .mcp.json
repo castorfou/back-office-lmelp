@@ -7,7 +7,7 @@
         "-y",
         "mongodb-mcp-server",
         "--connectionString",
-         "mongodb://localhost:27017/masque_et_la_plume",
+         "mongodb://localhost:27018/masque_et_la_plume",
         "--readOnly"
       ]
     }

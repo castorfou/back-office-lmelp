@@ -338,6 +338,18 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                             "babelio_publisher"
                         ]
 
+                    # ✅ FIX Issue #88: Enrichir suggested_title et suggested_author
+                    # Ces champs sont ESSENTIELS pour que le frontend affiche le titre complet
+                    # dans le modal de validation (LivresAuteurs.vue:validateSuggestion)
+                    if verification.get("babelio_suggestion_title"):
+                        enriched_book["suggested_title"] = verification[
+                            "babelio_suggestion_title"
+                        ]
+                    if verification.get("babelio_suggestion_author"):
+                        enriched_book["suggested_author"] = verification[
+                            "babelio_suggestion_author"
+                        ]
+
             except Exception:
                 # En cas d'erreur Babelio (timeout, réseau, etc.), continuer sans enrichissement
                 # Le livre reste tel quel sans babelio_url/babelio_publisher
