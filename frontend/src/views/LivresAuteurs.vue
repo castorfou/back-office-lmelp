@@ -1109,9 +1109,11 @@ export default {
       // Pré-remplir le formulaire avec les suggestions (modifiables par l'utilisateur)
       const suggestion = this.validationSuggestions.get(this.getBookKey(book));
 
+      // Issue #88: Utiliser suggestion en PRIORITÉ (même source que l'affichage "Suggestions Babelio")
+      // puis book.suggested_* (enrichissement backend), puis fallback sur données originales
       this.validationForm = {
-        author: book.suggested_author || suggestion?.author || book.auteur,
-        title: book.suggested_title || suggestion?.title || book.titre,
+        author: suggestion?.author || book.suggested_author || book.auteur,
+        title: suggestion?.title || book.suggested_title || book.titre,
         publisher: book.editeur || ''
       };
 
