@@ -475,6 +475,20 @@ class BabelioService:
                         f"Impossible de scraper l'éditeur pour {babelio_url}: {e}"
                     )
 
+            # Enrichissement titre: scraper si titre tronqué détecté (Issue #88)
+            if self._is_title_truncated(suggested_title) and babelio_url:
+                try:
+                    full_title = await self.fetch_full_title_from_url(babelio_url)
+                    if full_title:
+                        suggested_title = full_title
+                        # Mettre à jour aussi babelio_data pour le frontend (Issue #88)
+                        babelio_data_clean["titre"] = full_title
+                except Exception as e:
+                    # Erreur de scraping non fatale, on continue avec titre tronqué
+                    logger.debug(
+                        f"Impossible de scraper le titre complet pour {babelio_url}: {e}"
+                    )
+
             return {
                 "status": status,
                 "original_title": title,
@@ -491,6 +505,87 @@ class BabelioService:
         except Exception as e:
             logger.error(f"Erreur verify_book pour {title}/{author}: {e}")
             return self._create_book_error_result(title, author, str(e))
+
+    def _is_title_truncated(self, title: str | None) -> bool:
+        """Détecte si un titre est tronqué (se termine par '...').
+
+        Args:
+            title: Titre à vérifier
+
+        Returns:
+            True si le titre se termine par '...', False sinon
+        """
+        if not title:
+            return False
+        return title.strip().endswith("...")
+
+    async def fetch_full_title_from_url(self, babelio_url: str) -> str | None:
+        """Scrape le titre complet depuis une page Babelio.
+
+        Args:
+            babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
+
+        Returns:
+            Titre complet ou None si non trouvé
+
+        Exemple:
+            full_title = await service.fetch_full_title_from_url(
+                "https://www.babelio.com/livres/Villanova-Le-Chemin-continue--Biographie-de-Georges-Lambric/1498118"
+            )
+            # → "Le Chemin continue : Biographie de Georges Lambrichs"
+
+        Note:
+            Utilise BeautifulSoup4 avec les sélecteurs:
+            1. <meta property="og:title"> (prioritaire, nettoie le suffixe " - Babelio")
+            2. <h1> (fallback)
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping titre: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Priorité 1: og:title (plus fiable, contient le titre complet)
+                og_title_tag = soup.find("meta", property="og:title")
+                if og_title_tag and hasattr(og_title_tag, "get"):
+                    content = og_title_tag.get("content")
+                    if content:
+                        title_raw = str(content)
+                        # Nettoyer le suffixe " - Babelio" et les espaces multiples
+                        title_clean = title_raw.replace(" - Babelio", "").strip()
+                        title_final = " ".join(title_clean.split())
+                        logger.debug(
+                            f"Titre complet trouvé (og:title) pour {babelio_url}: {title_final}"
+                        )
+                        return title_final
+
+                # Priorité 2: h1 (fallback)
+                h1_tag = soup.find("h1")
+                if h1_tag:
+                    title_raw = str(h1_tag.get_text())
+                    # Nettoyer les sauts de ligne et espaces multiples
+                    title_final = " ".join(title_raw.split())
+                    logger.debug(
+                        f"Titre complet trouvé (h1) pour {babelio_url}: {title_final}"
+                    )
+                    return title_final
+
+                logger.debug(f"Titre complet non trouvé pour {babelio_url}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping titre pour {babelio_url}: {e}")
+            return None
 
     async def fetch_publisher_from_url(self, babelio_url: str) -> str | None:
         """Scrape l'éditeur depuis une page Babelio.
