@@ -9,7 +9,7 @@ Fixtures créées depuis vrais appels API Babelio (2025-01-30) :
   → Titre complet attendu : "Le Chemin continue : Biographie de Georges Lambrichs"
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -73,7 +73,15 @@ class TestTitleEnrichmentIntegration:
             "url": "/livres/Villanova-Le-Chemin-continue--Biographie-de-Georges-Lambric/1498118",
         }
 
-        with patch.object(babelio_service, "search", return_value=[mock_book_data]):
+        with (
+            patch.object(babelio_service, "search", return_value=[mock_book_data]),
+            patch.object(
+                babelio_service,
+                "fetch_full_title_from_url",
+                new_callable=AsyncMock,
+                return_value="Le Chemin continue : Biographie de Georges Lambrichs",
+            ),
+        ):
             result = await babelio_service.verify_book(
                 "Le Chemin continue : Biographie de Georges Lambrichs",
                 "Arnaud Villanova",
@@ -116,7 +124,15 @@ class TestTitleEnrichmentIntegration:
             "url": "/livres/Villanova-Le-Chemin-continue--Biographie-de-Georges-Lambric/1498118",
         }
 
-        with patch.object(babelio_service, "search", return_value=[mock_book_data]):
+        with (
+            patch.object(babelio_service, "search", return_value=[mock_book_data]),
+            patch.object(
+                babelio_service,
+                "fetch_full_title_from_url",
+                new_callable=AsyncMock,
+                return_value="Le Chemin continue : Biographie de Georges Lambrichs",
+            ),
+        ):
             result = await babelio_service.verify_book(
                 "Le Chemin continue : Biographie de Georges Lambrichs",
                 "Arnaud Villanova",
