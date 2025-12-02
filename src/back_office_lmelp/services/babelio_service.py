@@ -305,14 +305,21 @@ class BabelioService:
                         logger.warning(f"Babelio HTTP {response.status} pour: {term}")
                         return []
 
-            except TimeoutError:
+            except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
-                return []
+                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                raise TimeoutError(
+                    f"Timeout lors de la recherche Babelio: {term}"
+                ) from e
             except aiohttp.ClientError as e:
                 logger.error(f"Erreur réseau Babelio pour {term}: {e}")
-                return []
+                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                raise aiohttp.ClientError(
+                    f"Erreur réseau lors de la recherche Babelio: {term}"
+                ) from e
             except Exception as e:
                 logger.error(f"Erreur inattendue Babelio pour {term}: {e}")
+                # Pour les autres erreurs, on retourne [] pour compatibilité
                 return []
 
     async def verify_author(self, author_name: str) -> dict[str, Any]:
@@ -374,6 +381,10 @@ class BabelioService:
                 "error_message": None,
             }
 
+        except (TimeoutError, aiohttp.ClientError):
+            # Propager les erreurs réseau/timeout pour que le script de migration
+            # puisse les détecter et arrêter le traitement
+            raise
         except Exception as e:
             logger.error(f"Erreur verify_author pour {author_name}: {e}")
             return self._create_error_result(author_name, str(e))
@@ -519,6 +530,10 @@ class BabelioService:
                 "error_message": None,
             }
 
+        except (TimeoutError, aiohttp.ClientError):
+            # Propager les erreurs réseau/timeout pour que le script de migration
+            # puisse les détecter et arrêter le traitement
+            raise
         except Exception as e:
             logger.error(f"Erreur verify_book pour {title}/{author}: {e}")
             return self._create_book_error_result(title, author, str(e))
