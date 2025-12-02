@@ -58,6 +58,14 @@
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== null) ? collectionsStatistics.couples_not_found_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres non trouvés</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ babelioCompletionPercentage }}</div>
+            <div class="stat-label">Livres avec lien Babelio</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ babelioAuthorsCompletionPercentage }}</div>
+            <div class="stat-label">Auteurs avec lien Babelio</div>
+          </div>
         </div>
       </section>
 
@@ -208,6 +216,44 @@ export default {
         console.error('Erreur de formatage de date:', error);
         return '--';
       }
+    },
+
+    babelioCompletionPercentage() {
+      if (!this.collectionsStatistics ||
+          this.collectionsStatistics.livres_uniques == null ||
+          this.collectionsStatistics.books_without_url_babelio == null) {
+        return '...';
+      }
+
+      const total = this.collectionsStatistics.livres_uniques;
+      const withoutUrl = this.collectionsStatistics.books_without_url_babelio;
+      const withUrl = total - withoutUrl;
+
+      if (total === 0) {
+        return '0%';
+      }
+
+      const percentage = Math.round((withUrl / total) * 100);
+      return `${percentage}%`;
+    },
+
+    babelioAuthorsCompletionPercentage() {
+      if (!this.collectionsStatistics ||
+          this.collectionsStatistics.auteurs_uniques == null ||
+          this.collectionsStatistics.authors_without_url_babelio == null) {
+        return '...';
+      }
+
+      const total = this.collectionsStatistics.auteurs_uniques;
+      const withoutUrl = this.collectionsStatistics.authors_without_url_babelio;
+      const withUrl = total - withoutUrl;
+
+      if (total === 0) {
+        return '0%';
+      }
+
+      const percentage = Math.round((withUrl / total) * 100);
+      return `${percentage}%`;
     }
   },
 
