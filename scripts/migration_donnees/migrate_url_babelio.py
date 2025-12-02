@@ -92,6 +92,26 @@ async def scrape_title_from_page(
         return None
 
 
+def load_problematic_book_ids() -> set[str]:
+    """Charge les IDs des livres déjà identifiés comme problématiques.
+
+    Returns:
+        Set des livre_id déjà loggés
+    """
+    problematic_ids = set()
+    if PROBLEMATIC_CASES_FILE.exists():
+        try:
+            with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        case = json.loads(line)
+                        problematic_ids.add(case["livre_id"])
+        except Exception as e:
+            logger.warning(f"⚠️  Impossible de charger les cas problématiques: {e}")
+    return problematic_ids
+
+
 def log_problematic_case(
     livre_id: str,
     titre_attendu: str,
@@ -143,10 +163,25 @@ async def migrate_one_book_and_author(
     livres_collection = mongodb_service.get_collection("livres")
     auteurs_collection = mongodb_service.get_collection("auteurs")
 
-    # Trouver UN livre sans url_babelio
-    livre = livres_collection.find_one(
-        {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
-    )
+    # Charger les IDs des livres déjà identifiés comme problématiques
+    problematic_ids = load_problematic_book_ids()
+    if problematic_ids:
+        logger.info(
+            f"ℹ️  {len(problematic_ids)} livre(s) problématique(s) seront ignorés"
+        )
+
+    # Construire la query pour exclure les cas problématiques
+    from bson import ObjectId
+
+    query = {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+
+    if problematic_ids:
+        # Exclure les livres déjà loggés comme problématiques
+        excluded_object_ids = [ObjectId(id_str) for id_str in problematic_ids]
+        query["_id"] = {"$nin": excluded_object_ids}
+
+    # Trouver UN livre sans url_babelio (en excluant les problématiques)
+    livre = livres_collection.find_one(query)
 
     if not livre:
         logger.info("✅ Tous les livres ont déjà une URL Babelio")
