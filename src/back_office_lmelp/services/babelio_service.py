@@ -491,8 +491,10 @@ class BabelioService:
                     )
 
             # Enrichissement URL auteur: scraper depuis la page du livre (Issue #124)
+            # On scrape toujours l'URL auteur si on a trouvé un livre sur Babelio,
+            # indépendamment du score de confiance (contrairement à l'éditeur/titre)
             babelio_author_url = None
-            if confidence >= 0.90 and babelio_url:
+            if babelio_url:
                 try:
                     babelio_author_url = await self.fetch_author_url_from_page(
                         babelio_url
