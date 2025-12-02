@@ -23,17 +23,29 @@ class TestStatsService:
             "episodes_non_traites": 10,
         }
 
-        with patch(
-            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
-        ) as mock_cache:
+        with (
+            patch(
+                "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+            ) as mock_cache,
+            patch(
+                "back_office_lmelp.services.stats_service.mongodb_service"
+            ) as mock_mongodb,
+        ):
             mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+            # Mock MongoDB count_documents pour Issue #124
+            mock_mongodb.get_collection.return_value.count_documents.return_value = 0
 
             # Act
             stats_service = StatsService()
             result = stats_service.get_cache_statistics()
 
             # Assert
-            assert result == mock_cache_stats
+            expected_result = {
+                **mock_cache_stats,
+                "books_without_url_babelio": 0,
+                "authors_without_url_babelio": 0,
+            }
+            assert result == expected_result
             mock_cache.get_statistics_from_cache.assert_called_once()
 
     def test_stats_service_should_get_detailed_breakdown(self):
@@ -214,13 +226,13 @@ Total livres traités : 14"""
             "couples_suggested_pas_en_base": 0,
             "couples_not_found_pas_en_base": 0,
             "episodes_non_traites": 0,
+            "books_without_url_babelio": 0,
+            "authors_without_url_babelio": 0,
         }
 
-        with patch(
-            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
-        ) as mock_cache:
-            mock_cache.get_statistics_from_cache.return_value = empty_stats
-
+        with patch.object(
+            StatsService, "get_cache_statistics", return_value=empty_stats
+        ):
             # Act
             stats_service = StatsService()
             result = stats_service.get_human_readable_summary()
@@ -249,10 +261,17 @@ Total livres traités : 14"""
             "episodes_non_traites": 11,
         }
 
-        with patch(
-            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
-        ) as mock_cache:
+        with (
+            patch(
+                "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+            ) as mock_cache,
+            patch(
+                "back_office_lmelp.services.stats_service.mongodb_service"
+            ) as mock_mongodb,
+        ):
             mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+            # Mock MongoDB count_documents pour Issue #124
+            mock_mongodb.get_collection.return_value.count_documents.return_value = 0
 
             # Act
             stats_service = StatsService()
@@ -262,6 +281,9 @@ Total livres traités : 14"""
             assert "couples_verified_pas_en_base" not in result
             assert "avis_critiques_analyses" in result
             assert result["avis_critiques_analyses"] == 38
+            # Issue #124: vérifier les nouvelles métriques
+            assert "books_without_url_babelio" in result
+            assert "authors_without_url_babelio" in result
 
     def test_stats_service_should_include_avis_critiques_analyses(self):
         """Test TDD: Les stats DOIVENT inclure 'avis_critiques_analyses' (avis_critique_id distincts)."""
@@ -274,10 +296,17 @@ Total livres traités : 14"""
             "episodes_non_traites": 11,
         }
 
-        with patch(
-            "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
-        ) as mock_cache:
+        with (
+            patch(
+                "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+            ) as mock_cache,
+            patch(
+                "back_office_lmelp.services.stats_service.mongodb_service"
+            ) as mock_mongodb,
+        ):
             mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+            # Mock MongoDB count_documents pour Issue #124
+            mock_mongodb.get_collection.return_value.count_documents.return_value = 0
 
             # Act
             stats_service = StatsService()
