@@ -422,6 +422,7 @@ class BabelioService:
                     "confidence_score": 0.0,
                     "babelio_data": None,
                     "babelio_url": None,
+                    "babelio_author_url": None,
                     "error_message": None,
                 }
 
@@ -489,6 +490,9 @@ class BabelioService:
                         f"Impossible de scraper le titre complet pour {babelio_url}: {e}"
                     )
 
+            # Enrichissement URL auteur: construire depuis les données Babelio (Issue #124)
+            babelio_author_url = self._build_author_url(babelio_data_clean)
+
             return {
                 "status": status,
                 "original_title": title,
@@ -498,6 +502,7 @@ class BabelioService:
                 "confidence_score": confidence,
                 "babelio_data": babelio_data_clean,
                 "babelio_url": babelio_url,
+                "babelio_author_url": babelio_author_url,
                 "babelio_publisher": babelio_publisher,
                 "error_message": None,
             }
@@ -795,6 +800,44 @@ class BabelioService:
             return relative_url
         return f"{self.base_url}{relative_url}"
 
+    def _build_author_url(self, author_data: dict[str, Any]) -> str | None:
+        """Construit l'URL Babelio d'un auteur depuis ses données (Issue #124).
+
+        Args:
+            author_data: Dictionnaire contenant id_auteur, prenoms, nom
+
+        Returns:
+            URL complète de l'auteur ou None si données manquantes
+
+        Exemple:
+            {"id_auteur": "7743", "prenoms": "Catherine", "nom": "Millet"}
+            -> "https://www.babelio.com/auteur/Catherine-Millet/7743"
+        """
+        id_auteur = author_data.get("id_auteur")
+        prenoms = author_data.get("prenoms")
+        nom = author_data.get("nom")
+
+        # Si id_auteur manquant, on ne peut pas construire l'URL
+        if not id_auteur:
+            return None
+
+        # Formater le nom pour l'URL (remplacer espaces par tirets)
+        prenoms_str = str(prenoms).strip() if prenoms else ""
+        nom_str = str(nom).strip() if nom else ""
+
+        if prenoms_str and nom_str:
+            # Format: /auteur/Prenom-Nom/ID (respecte les espaces → tirets)
+            author_slug = f"{prenoms_str}-{nom_str}".replace(" ", "-")
+        elif nom_str:
+            author_slug = nom_str.replace(" ", "-")
+        elif prenoms_str:
+            author_slug = prenoms_str.replace(" ", "-")
+        else:
+            # Pas de nom du tout, on ne peut pas construire l'URL
+            return None
+
+        return f"{self.base_url}/auteur/{author_slug}/{id_auteur}"
+
     def _create_error_result(self, original: str, error_message: str) -> dict[str, Any]:
         """Crée un résultat d'erreur standardisé pour auteur."""
         return {
@@ -820,6 +863,7 @@ class BabelioService:
             "confidence_score": 0.0,
             "babelio_data": None,
             "babelio_url": None,
+            "babelio_author_url": None,
             "error_message": error_message,
         }
 

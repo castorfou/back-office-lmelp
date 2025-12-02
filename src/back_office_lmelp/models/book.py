@@ -15,6 +15,7 @@ class Book:
         self.titre: str = data.get("titre", "")
         self.auteur_id: str = str(data.get("auteur_id", ""))
         self.editeur: str = data.get("editeur", "")
+        self.url_babelio: str | None = data.get("url_babelio")
         self.episodes: list[str] = [
             str(episode_id) for episode_id in data.get("episodes", [])
         ]
@@ -31,6 +32,7 @@ class Book:
             "titre": self.titre,
             "auteur_id": self.auteur_id,
             "editeur": self.editeur,
+            "url_babelio": self.url_babelio,
             "episodes": self.episodes,
             "avis_critiques": self.avis_critiques,
             "created_at": self.created_at.isoformat()
@@ -47,7 +49,7 @@ class Book:
         Prépare les données d'un livre pour insertion MongoDB.
 
         Args:
-            data: Données du livre (peut inclure babelio_publisher)
+            data: Données du livre (peut inclure babelio_publisher, url_babelio)
 
         Returns:
             Dictionnaire formaté pour MongoDB
@@ -55,6 +57,7 @@ class Book:
         Note:
             Issue #85: babelio_publisher est prioritaire sur editeur
             (source plus fiable que la transcription)
+            Issue #124: url_babelio est conservée si présente
         """
         now = datetime.now()
 
@@ -65,6 +68,7 @@ class Book:
             "titre": data["titre"],
             "auteur_id": data["auteur_id"],
             "editeur": editeur,
+            "url_babelio": data.get("url_babelio"),
             "episodes": data.get("episodes", []),
             "avis_critiques": data.get("avis_critiques", []),
             "created_at": now,
