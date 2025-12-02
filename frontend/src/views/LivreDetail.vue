@@ -36,6 +36,10 @@
           </div>
           <div class="livre-publisher">Éditeur : {{ livre.editeur }}</div>
         </div>
+        <!-- Lien Babelio (Issue #124) -->
+        <div v-if="livre.url_babelio" class="livre-babelio">
+          <BabelioLink :url="livre.url_babelio" label="Fiche Babelio" />
+        </div>
         <div class="livre-stats">
           <span class="stat-badge">
             {{ livre.nombre_episodes }} épisode{{ livre.nombre_episodes > 1 ? 's' : '' }}
@@ -105,11 +109,13 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import BabelioLink from '../components/BabelioLink.vue';
 
 export default {
   name: 'LivreDetail',
   components: {
-    Navigation
+    Navigation,
+    BabelioLink
   },
   data() {
     return {

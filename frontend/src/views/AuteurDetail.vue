@@ -23,6 +23,10 @@
       <!-- En-tête auteur -->
       <div class="auteur-header">
         <h1 class="auteur-name">{{ auteur.nom }}</h1>
+        <!-- Lien Babelio (Issue #124) -->
+        <div v-if="auteur.url_babelio" class="auteur-babelio">
+          <BabelioLink :url="auteur.url_babelio" label="Fiche Babelio" />
+        </div>
         <div class="auteur-stats">
           <span class="stat-badge">
             {{ auteur.nombre_oeuvres }} œuvre{{ auteur.nombre_oeuvres > 1 ? 's' : '' }}
@@ -75,11 +79,13 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import BabelioLink from '../components/BabelioLink.vue';
 
 export default {
   name: 'AuteurDetail',
   components: {
-    Navigation
+    Navigation,
+    BabelioLink
   },
   data() {
     return {
