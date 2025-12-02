@@ -4,7 +4,7 @@ Ce module teste que verify_book() retourne maintenant babelio_author_url
 en plus de babelio_url, permettant de créer des auteurs avec leur URL Babelio.
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -20,17 +20,43 @@ class TestBabelioAuthorUrlExtraction:
         return BabelioService()
 
     @pytest.mark.asyncio
-    async def test_verify_book_includes_author_url(self, babelio_service):
-        """Test que verify_book() retourne l'URL auteur (Issue #124).
+    async def test_fetch_author_url_from_page_scrapes_correctly(self, babelio_service):
+        """Test que fetch_author_url_from_page() scrape correctement l'URL auteur (Issue #124).
 
-        Quand on vérifie un livre, la réponse Babelio contient:
-        - id_auteur: "7743"
-        - prenoms: "Catherine"
-        - nom: "Millet"
-
-        verify_book() doit construire l'URL auteur:
-        https://www.babelio.com/auteur/Catherine-Millet/7743
+        Vérifie que BeautifulSoup extrait bien le lien auteur depuis le HTML.
         """
+        # HTML réel simplifié d'une page livre Babelio
+        mock_html = """
+        <html>
+            <body>
+                <h1>Sphinx</h1>
+                <a href="/auteur/Anne-F-Garreta/20464">Anne F. Garréta</a>
+                <a href="/editeur/Grasset/123">Grasset</a>
+            </body>
+        </html>
+        """
+
+        # Mock de la session HTTP
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=mock_html)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = AsyncMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+
+        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+            url = await babelio_service.fetch_author_url_from_page(
+                "https://www.babelio.com/livres/Garreta-Sphinx/149981"
+            )
+
+        # Vérifications: BeautifulSoup doit avoir extrait le bon lien
+        assert url == "https://www.babelio.com/auteur/Anne-F-Garreta/20464"
+
+    @pytest.mark.asyncio
+    async def test_verify_book_includes_author_url(self, babelio_service):
+        """Test que verify_book() retourne l'URL auteur scrapée (Issue #124)."""
         # Mock de la vraie réponse Babelio pour un livre
         mock_search_results = [
             {
@@ -48,7 +74,29 @@ class TestBabelioAuthorUrlExtraction:
             }
         ]
 
-        with patch.object(babelio_service, "search", return_value=mock_search_results):
+        # HTML de la page du livre avec le lien auteur
+        mock_html = """
+        <html>
+            <body>
+                <a href="/auteur/Catherine-Millet/7743">Catherine Millet</a>
+            </body>
+        </html>
+        """
+
+        # Mock de la session HTTP
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=mock_html)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = AsyncMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+
+        with (
+            patch.object(babelio_service, "search", return_value=mock_search_results),
+            patch.object(babelio_service, "_get_session", return_value=mock_session),
+        ):
             result = await babelio_service.verify_book(
                 "Simone Émonet", "Catherine Millet"
             )
@@ -60,7 +108,7 @@ class TestBabelioAuthorUrlExtraction:
             == "https://www.babelio.com/livres/Millet-Simone-monet/1870367"
         )
 
-        # Issue #124: Nouvelle assertion pour URL auteur
+        # Issue #124: Vérifier que l'URL auteur est bien scrapée
         assert "babelio_author_url" in result
         assert (
             result["babelio_author_url"]
@@ -68,48 +116,35 @@ class TestBabelioAuthorUrlExtraction:
         )
 
     @pytest.mark.asyncio
-    async def test_verify_book_author_url_with_compound_name(self, babelio_service):
-        """Test URL auteur avec nom composé (ex: Jean-Paul Sartre)."""
-        mock_search_results = [
-            {
-                "id_oeuvre": "1234",
-                "titre": "La Nausée",
-                "id_auteur": "9999",
-                "prenoms": "Jean-Paul",
-                "nom": "Sartre",
-                "type": "livres",
-                "url": "/livres/Sartre-La-Nausee/1234",
-            }
-        ]
+    async def test_fetch_author_url_no_author_link_in_page(self, babelio_service):
+        """Test que fetch_author_url_from_page() retourne None si aucun lien auteur."""
+        # HTML sans lien auteur
+        mock_html = """
+        <html>
+            <body>
+                <h1>Livre anonyme</h1>
+                <a href="/editeur/Grasset/123">Grasset</a>
+            </body>
+        </html>
+        """
 
-        with patch.object(babelio_service, "search", return_value=mock_search_results):
-            result = await babelio_service.verify_book("La Nausée", "Jean-Paul Sartre")
+        # Mock de la session HTTP
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=mock_html)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
 
-        assert "babelio_author_url" in result
-        assert (
-            result["babelio_author_url"]
-            == "https://www.babelio.com/auteur/Jean-Paul-Sartre/9999"
-        )
+        mock_session = AsyncMock()
+        mock_session.get = MagicMock(return_value=mock_response)
 
-    @pytest.mark.asyncio
-    async def test_verify_book_author_url_missing_data(self, babelio_service):
-        """Test que l'URL auteur est None si données manquantes."""
-        # Cas: réponse Babelio sans id_auteur (rare mais possible)
-        mock_search_results = [
-            {
-                "id_oeuvre": "1234",
-                "titre": "Livre Sans Auteur",
-                # id_auteur manquant
-                "type": "livres",
-                "url": "/livres/Inconnu-Livre/1234",
-            }
-        ]
+        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+            url = await babelio_service.fetch_author_url_from_page(
+                "https://www.babelio.com/livres/Anonyme-Livre/1234"
+            )
 
-        with patch.object(babelio_service, "search", return_value=mock_search_results):
-            result = await babelio_service.verify_book("Livre Sans Auteur", None)
-
-        assert "babelio_author_url" in result
-        assert result["babelio_author_url"] is None
+        # Vérifications: doit retourner None
+        assert url is None
 
     @pytest.mark.asyncio
     async def test_verify_book_not_found_no_author_url(self, babelio_service):

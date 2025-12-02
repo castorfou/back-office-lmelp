@@ -490,8 +490,18 @@ class BabelioService:
                         f"Impossible de scraper le titre complet pour {babelio_url}: {e}"
                     )
 
-            # Enrichissement URL auteur: construire depuis les données Babelio (Issue #124)
-            babelio_author_url = self._build_author_url(babelio_data_clean)
+            # Enrichissement URL auteur: scraper depuis la page du livre (Issue #124)
+            babelio_author_url = None
+            if confidence >= 0.90 and babelio_url:
+                try:
+                    babelio_author_url = await self.fetch_author_url_from_page(
+                        babelio_url
+                    )
+                except Exception as e:
+                    # Erreur de scraping non fatale, on continue sans URL auteur
+                    logger.debug(
+                        f"Impossible de scraper l'URL auteur pour {babelio_url}: {e}"
+                    )
 
             return {
                 "status": status,
@@ -800,43 +810,63 @@ class BabelioService:
             return relative_url
         return f"{self.base_url}{relative_url}"
 
-    def _build_author_url(self, author_data: dict[str, Any]) -> str | None:
-        """Construit l'URL Babelio d'un auteur depuis ses données (Issue #124).
+    async def fetch_author_url_from_page(self, babelio_url: str) -> str | None:
+        """Scrape l'URL auteur depuis une page livre Babelio (Issue #124).
 
         Args:
-            author_data: Dictionnaire contenant id_auteur, prenoms, nom
+            babelio_url: URL complète Babelio du livre
 
         Returns:
-            URL complète de l'auteur ou None si données manquantes
+            URL complète de l'auteur ou None si non trouvée
 
         Exemple:
-            {"id_auteur": "7743", "prenoms": "Catherine", "nom": "Millet"}
-            -> "https://www.babelio.com/auteur/Catherine-Millet/7743"
+            author_url = await service.fetch_author_url_from_page(
+                "https://www.babelio.com/livres/Garreta-Sphinx/149981"
+            )
+            # → "https://www.babelio.com/auteur/Anne-F-Garreta/20464"
+
+        Note:
+            Utilise BeautifulSoup4 avec le sélecteur CSS:
+            a[href*="/auteur/"]
         """
-        id_auteur = author_data.get("id_auteur")
-        prenoms = author_data.get("prenoms")
-        nom = author_data.get("nom")
-
-        # Si id_auteur manquant, on ne peut pas construire l'URL
-        if not id_auteur:
+        if not babelio_url or not babelio_url.strip():
             return None
 
-        # Formater le nom pour l'URL (remplacer espaces par tirets)
-        prenoms_str = str(prenoms).strip() if prenoms else ""
-        nom_str = str(nom).strip() if nom else ""
+        try:
+            session = await self._get_session()
 
-        if prenoms_str and nom_str:
-            # Format: /auteur/Prenom-Nom/ID (respecte les espaces → tirets)
-            author_slug = f"{prenoms_str}-{nom_str}".replace(" ", "-")
-        elif nom_str:
-            author_slug = nom_str.replace(" ", "-")
-        elif prenoms_str:
-            author_slug = prenoms_str.replace(" ", "-")
-        else:
-            # Pas de nom du tout, on ne peut pas construire l'URL
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Sélecteur CSS pour l'auteur: premier lien pointant vers /auteur/
+                auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+                if auteur_link and hasattr(auteur_link, "get"):
+                    href = auteur_link.get("href")
+                    if href and isinstance(href, str):
+                        # Construire l'URL complète
+                        author_url = self._build_full_url(href)
+                        logger.debug(
+                            f"URL auteur trouvée pour {babelio_url}: {author_url}"
+                        )
+                        return author_url
+                    else:
+                        logger.debug(f"URL auteur sans href pour {babelio_url}")
+                        return None
+                else:
+                    logger.debug(f"URL auteur non trouvée pour {babelio_url}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")
             return None
-
-        return f"{self.base_url}/auteur/{author_slug}/{id_auteur}"
 
     def _create_error_result(self, original: str, error_message: str) -> dict[str, Any]:
         """Crée un résultat d'erreur standardisé pour auteur."""
