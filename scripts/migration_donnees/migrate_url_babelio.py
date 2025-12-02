@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -90,14 +91,33 @@ async def migrate_one_book_and_author(
 
         if url_babelio_livre:
             logger.info(f"📖 URL Babelio livre: {url_babelio_livre}")
-            if not dry_run:
-                livres_collection.update_one(
-                    {"_id": livre["_id"]}, {"$set": {"url_babelio": url_babelio_livre}}
-                )
-                logger.info("✅ Livre mis à jour dans MongoDB")
-            else:
-                logger.info("🔍 [DRY-RUN] Livre SERAIT mis à jour")
-            book_updated = True
+
+            # Vérification HTTP 200 pour l'URL livre
+            try:
+                session = await babelio_service._get_session()
+                async with session.get(url_babelio_livre) as response:
+                    if response.status == 200:
+                        logger.info(f"✅ URL livre vérifiée (HTTP {response.status})")
+                        if not dry_run:
+                            livres_collection.update_one(
+                                {"_id": livre["_id"]},
+                                {
+                                    "$set": {
+                                        "url_babelio": url_babelio_livre,
+                                        "updated_at": datetime.now(UTC),
+                                    }
+                                },
+                            )
+                            logger.info("✅ Livre mis à jour dans MongoDB")
+                        else:
+                            logger.info("🔍 [DRY-RUN] Livre SERAIT mis à jour")
+                        book_updated = True
+                    else:
+                        logger.warning(
+                            f"⚠️  URL livre invalide (HTTP {response.status})"
+                        )
+            except Exception as e:
+                logger.error(f"❌ Erreur vérification URL livre: {e}")
         else:
             logger.warning("⚠️  URL Babelio livre manquante dans la réponse")
 
@@ -106,15 +126,35 @@ async def migrate_one_book_and_author(
             # Vérifier si l'auteur n'a pas déjà une URL
             if not auteur.get("url_babelio"):
                 logger.info(f"👤 URL Babelio auteur: {url_babelio_auteur}")
-                if not dry_run:
-                    auteurs_collection.update_one(
-                        {"_id": auteur["_id"]},
-                        {"$set": {"url_babelio": url_babelio_auteur}},
-                    )
-                    logger.info("✅ Auteur mis à jour dans MongoDB")
-                else:
-                    logger.info("🔍 [DRY-RUN] Auteur SERAIT mis à jour")
-                author_updated = True
+
+                # Vérification HTTP 200 pour l'URL auteur
+                try:
+                    session = await babelio_service._get_session()
+                    async with session.get(url_babelio_auteur) as response:
+                        if response.status == 200:
+                            logger.info(
+                                f"✅ URL auteur vérifiée (HTTP {response.status})"
+                            )
+                            if not dry_run:
+                                auteurs_collection.update_one(
+                                    {"_id": auteur["_id"]},
+                                    {
+                                        "$set": {
+                                            "url_babelio": url_babelio_auteur,
+                                            "updated_at": datetime.now(UTC),
+                                        }
+                                    },
+                                )
+                                logger.info("✅ Auteur mis à jour dans MongoDB")
+                            else:
+                                logger.info("🔍 [DRY-RUN] Auteur SERAIT mis à jour")
+                            author_updated = True
+                        else:
+                            logger.warning(
+                                f"⚠️  URL auteur invalide (HTTP {response.status})"
+                            )
+                except Exception as e:
+                    logger.error(f"❌ Erreur vérification URL auteur: {e}")
             else:
                 logger.info(
                     f"ℹ️  Auteur a déjà une URL Babelio: {auteur.get('url_babelio')}"
@@ -143,6 +183,13 @@ async def main():
 
     if args.dry_run:
         logger.info("🔍 MODE DRY-RUN ACTIVÉ - Aucune modification ne sera appliquée")
+
+    # Initialiser la connexion MongoDB
+    if not mongodb_service.connect():
+        logger.error("❌ Impossible de se connecter à MongoDB")
+        return
+
+    logger.info("✅ Connexion MongoDB établie")
 
     # Initialiser le service Babelio
     babelio_service = BabelioService()
