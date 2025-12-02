@@ -20,6 +20,8 @@ echo ""
 
 COUNTER=0
 MAX_ITERATIONS=1000  # Sécurité pour éviter une boucle infinie
+HTTP_ERROR_COUNT=0   # Compteur d'erreurs HTTP consécutives
+MAX_HTTP_ERRORS=3    # Arrêt après 3 erreurs HTTP consécutives
 
 while [ $COUNTER -lt $MAX_ITERATIONS ]; do
     COUNTER=$((COUNTER + 1))
@@ -43,14 +45,93 @@ while [ $COUNTER -lt $MAX_ITERATIONS ]; do
         exit 0
     fi
 
-    # Vérifier si le livre a été mis à jour
+    # Vérifier si on a eu une erreur HTTP (signe d'indisponibilité Babelio)
+    if echo "$OUTPUT" | grep -q "Erreur lors de l'appel à Babelio"; then
+        HTTP_ERROR_COUNT=$((HTTP_ERROR_COUNT + 1))
+        echo ""
+        echo "❌ Erreur HTTP détectée ($HTTP_ERROR_COUNT/$MAX_HTTP_ERRORS)"
+
+        if [ $HTTP_ERROR_COUNT -ge $MAX_HTTP_ERRORS ]; then
+            echo ""
+            echo "=================================================="
+            echo "⚠️  BABELIO SEMBLE INDISPONIBLE"
+            echo "=================================================="
+            echo "$MAX_HTTP_ERRORS erreurs HTTP consécutives détectées."
+            echo "Le site Babelio est probablement temporairement indisponible."
+            echo "Veuillez réessayer plus tard."
+            exit 2
+        fi
+
+        echo "⏸️  Pause de 5 secondes avant de réessayer..."
+        sleep 5
+        continue
+    fi
+
+    # Vérifier si on a eu une erreur HTTP sur vérification URL
+    if echo "$OUTPUT" | grep -q "URL livre invalide (HTTP"; then
+        HTTP_ERROR_COUNT=$((HTTP_ERROR_COUNT + 1))
+        echo ""
+        echo "❌ Erreur HTTP détectée lors de la vérification ($HTTP_ERROR_COUNT/$MAX_HTTP_ERRORS)"
+
+        if [ $HTTP_ERROR_COUNT -ge $MAX_HTTP_ERRORS ]; then
+            echo ""
+            echo "=================================================="
+            echo "⚠️  BABELIO SEMBLE INDISPONIBLE"
+            echo "=================================================="
+            echo "$MAX_HTTP_ERRORS erreurs HTTP consécutives détectées."
+            echo "Le site Babelio est probablement temporairement indisponible."
+            echo "Veuillez réessayer plus tard."
+            exit 2
+        fi
+
+        echo "⏸️  Pause de 5 secondes avant de réessayer..."
+        sleep 5
+        continue
+    fi
+
+    # Vérifier si on a eu une erreur de scraping (peut aussi indiquer un problème Babelio)
+    if echo "$OUTPUT" | grep -q "Impossible de scraper le titre depuis la page"; then
+        HTTP_ERROR_COUNT=$((HTTP_ERROR_COUNT + 1))
+        echo ""
+        echo "❌ Erreur scraping détectée ($HTTP_ERROR_COUNT/$MAX_HTTP_ERRORS)"
+
+        if [ $HTTP_ERROR_COUNT -ge $MAX_HTTP_ERRORS ]; then
+            echo ""
+            echo "=================================================="
+            echo "⚠️  BABELIO SEMBLE INDISPONIBLE"
+            echo "=================================================="
+            echo "$MAX_HTTP_ERRORS erreurs de scraping consécutives détectées."
+            echo "Le site Babelio est probablement temporairement indisponible."
+            echo "Veuillez réessayer plus tard."
+            exit 2
+        fi
+
+        echo "⏸️  Pause de 5 secondes avant de réessayer..."
+        sleep 5
+        continue
+    fi
+
+    # Réinitialiser le compteur d'erreurs HTTP si succès
     if echo "$OUTPUT" | grep -q "Livre mis à jour: ✅ Oui"; then
+        HTTP_ERROR_COUNT=0
+        echo ""
+        echo "⏸️  Pause de 1 seconde avant le prochain livre..."
+        sleep 1
+    elif echo "$OUTPUT" | grep -q "Titre ne correspond pas"; then
+        # Erreur de validation = livre problématique (pas une erreur Babelio)
+        HTTP_ERROR_COUNT=0
+        echo ""
+        echo "⏸️  Pause de 1 seconde avant le prochain livre..."
+        sleep 1
+    elif echo "$OUTPUT" | grep -q "Livre non trouvé sur Babelio"; then
+        # not_found = livre problématique (pas une erreur Babelio)
+        HTTP_ERROR_COUNT=0
         echo ""
         echo "⏸️  Pause de 1 seconde avant le prochain livre..."
         sleep 1
     else
         echo ""
-        echo "⚠️  Aucun livre mis à jour, arrêt de la migration"
+        echo "⚠️  Statut de migration inconnu, arrêt par sécurité"
         exit 1
     fi
 done

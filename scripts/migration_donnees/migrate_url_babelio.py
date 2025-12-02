@@ -148,7 +148,7 @@ def log_problematic_case(
 
 async def migrate_one_book_and_author(
     babelio_service: BabelioService, dry_run: bool = False
-) -> dict[str, bool]:
+) -> dict[str, bool | str]:
     """Migre UN livre et son auteur pour ajouter url_babelio.
 
     Args:
@@ -156,7 +156,8 @@ async def migrate_one_book_and_author(
         dry_run: Si True, affiche sans modifier
 
     Returns:
-        Statut de la migration {book_updated, author_updated}
+        Statut de la migration {book_updated, author_updated, error_type}
+        error_type peut être: None, 'http_error', 'scraping_error', 'validation_error'
     """
     logger.info("🔍 Recherche d'un livre sans URL Babelio...")
 
@@ -185,7 +186,7 @@ async def migrate_one_book_and_author(
 
     if not livre:
         logger.info("✅ Tous les livres ont déjà une URL Babelio")
-        return {"book_updated": False, "author_updated": False}
+        return {"book_updated": False, "author_updated": False, "error_type": None}
 
     titre = livre.get("titre", "")
     auteur_id = livre.get("auteur_id")
@@ -208,7 +209,21 @@ async def migrate_one_book_and_author(
 
     # Vérifier le livre via Babelio
     logger.info(f"🌐 Vérification sur Babelio: '{titre}' par '{nom_auteur}'")
-    result = await babelio_service.verify_book(titre, nom_auteur)
+
+    try:
+        result = await babelio_service.verify_book(titre, nom_auteur)
+    except Exception as e:
+        # Erreur réseau/timeout = problème temporaire Babelio, PAS un problème du livre
+        # On ne log PAS dans problematic_cases car ce n'est pas un problème de données
+        logger.error(f"❌ Erreur lors de l'appel à Babelio (timeout/réseau): {e}")
+        logger.warning(
+            "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
+        )
+        return {
+            "book_updated": False,
+            "author_updated": False,
+            "error_type": "http_error",
+        }
 
     book_updated = False
     author_updated = False
@@ -229,15 +244,26 @@ async def migrate_one_book_and_author(
                         logger.warning(
                             f"⚠️  URL livre invalide (HTTP {response.status})"
                         )
-                        log_problematic_case(
-                            livre["_id"],
-                            titre,
-                            None,
-                            url_babelio_livre,
-                            nom_auteur,
-                            f"HTTP {response.status}",
-                        )
-                        return {"book_updated": False, "author_updated": False}
+                        # Ne logger que les 404 (vraiment introuvable)
+                        # 500/503 = problème serveur Babelio, pas un problème de données
+                        if response.status == 404:
+                            log_problematic_case(
+                                livre["_id"],
+                                titre,
+                                None,
+                                url_babelio_livre,
+                                nom_auteur,
+                                f"HTTP {response.status} (Not Found)",
+                            )
+                        else:
+                            logger.warning(
+                                "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
+                            )
+                        return {
+                            "book_updated": False,
+                            "author_updated": False,
+                            "error_type": "http_error",
+                        }
 
                 logger.info("✅ URL livre vérifiée (HTTP 200)")
 
@@ -248,15 +274,19 @@ async def migrate_one_book_and_author(
 
                 if titre_page is None:
                     logger.error("❌ Impossible de scraper le titre depuis la page")
-                    log_problematic_case(
-                        livre["_id"],
-                        titre,
-                        None,
-                        url_babelio_livre,
-                        nom_auteur,
-                        "Scraping titre échoué",
+                    logger.warning(
+                        "⚠️  Ceci peut indiquer que Babelio est temporairement indisponible"
                     )
-                    return {"book_updated": False, "author_updated": False}
+                    logger.warning(
+                        "⚠️  Ou bien que la structure HTML de Babelio a changé"
+                    )
+                    # Ne PAS logger dans problematic_cases car on ne sait pas si c'est
+                    # un problème de données ou un problème temporaire Babelio
+                    return {
+                        "book_updated": False,
+                        "author_updated": False,
+                        "error_type": "scraping_error",
+                    }
 
                 # Comparaison normalisée des titres
                 titre_normalise_attendu = normalize_title(titre)
@@ -281,7 +311,11 @@ async def migrate_one_book_and_author(
                         nom_auteur,
                         "Titre ne correspond pas",
                     )
-                    return {"book_updated": False, "author_updated": False}
+                    return {
+                        "book_updated": False,
+                        "author_updated": False,
+                        "error_type": "validation_error",
+                    }
 
                 logger.info("✅ Titre validé !")
 
@@ -311,7 +345,11 @@ async def migrate_one_book_and_author(
                     nom_auteur,
                     f"Exception: {str(e)}",
                 )
-                return {"book_updated": False, "author_updated": False}
+                return {
+                    "book_updated": False,
+                    "author_updated": False,
+                    "error_type": "http_error",
+                }
         else:
             logger.warning("⚠️  URL Babelio livre manquante dans la réponse")
 
@@ -371,7 +409,11 @@ async def migrate_one_book_and_author(
                 "Livre non trouvé sur Babelio (not_found)",
             )
 
-    return {"book_updated": book_updated, "author_updated": author_updated}
+    return {
+        "book_updated": book_updated,
+        "author_updated": author_updated,
+        "error_type": None,
+    }
 
 
 async def main():
