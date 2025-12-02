@@ -714,8 +714,8 @@ class MongoDBService:
             auteur_id: ID de l'auteur (MongoDB ObjectId en string)
 
         Returns:
-            Dict avec auteur_id, nom, nombre_oeuvres, et livres (triés alphabétiquement)
-            None si l'auteur n'existe pas
+            Dict avec auteur_id, nom, url_babelio, nombre_oeuvres, et livres
+            (triés alphabétiquement). None si l'auteur n'existe pas
         """
         if self.auteurs_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -739,6 +739,7 @@ class MongoDBService:
                     "$project": {
                         "_id": 1,
                         "nom": 1,
+                        "url_babelio": 1,  # Issue #124
                         "livres": {
                             "_id": 1,
                             "titre": 1,
@@ -771,6 +772,7 @@ class MongoDBService:
             return {
                 "auteur_id": str(auteur_data["_id"]),
                 "nom": auteur_data["nom"],
+                "url_babelio": auteur_data.get("url_babelio"),  # Issue #124
                 "nombre_oeuvres": len(livres_formatted),
                 "livres": livres_formatted,
             }
@@ -786,9 +788,9 @@ class MongoDBService:
             livre_id: ID du livre (MongoDB ObjectId en string)
 
         Returns:
-            Dict avec livre_id, titre, auteur_id, auteur_nom, editeur, nombre_episodes,
-            et episodes (triés par date décroissante, avec champ programme pour chaque épisode)
-            None si le livre n'existe pas
+            Dict avec livre_id, titre, auteur_id, auteur_nom, editeur, url_babelio,
+            nombre_episodes, et episodes (triés par date décroissante, avec champ
+            programme pour chaque épisode). None si le livre n'existe pas
         """
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -891,6 +893,7 @@ class MongoDBService:
                         "titre": 1,
                         "auteur_id": 1,
                         "editeur": 1,
+                        "url_babelio": 1,  # Issue #124
                         "auteur": 1,
                         "episodes_data": 1,
                     }
@@ -938,6 +941,7 @@ class MongoDBService:
                 "auteur_id": str(livre_data["auteur_id"]),
                 "auteur_nom": auteur_nom,
                 "editeur": livre_data.get("editeur", ""),
+                "url_babelio": livre_data.get("url_babelio"),  # Issue #124
                 "nombre_episodes": len(episodes_formatted),
                 "episodes": episodes_formatted,
             }

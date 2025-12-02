@@ -112,3 +112,59 @@ class TestGetAuteurDetail:
         # THEN: On reçoit une erreur 404 avec un message simple
         assert response.status_code == 404
         assert "Auteur non trouvé" in response.json()["detail"]
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_auteur_returns_url_babelio_when_present(
+        self, mock_mongodb_service, client
+    ):
+        """Test que GET /api/auteur/{id} retourne url_babelio quand disponible (Issue #124)."""
+        # GIVEN: Un auteur avec URL Babelio en base
+        auteur_id = str(ObjectId())
+        mock_mongodb_service.get_auteur_with_livres.return_value = {
+            "auteur_id": auteur_id,
+            "nom": "Catherine Millet",
+            "url_babelio": "https://www.babelio.com/auteur/Catherine-Millet/5309",
+            "nombre_oeuvres": 1,
+            "livres": [
+                {
+                    "livre_id": str(ObjectId()),
+                    "titre": "Simone Émonet",
+                    "editeur": "Flammarion",
+                }
+            ],
+        }
+
+        # WHEN: On appelle GET /api/auteur/{id}
+        response = client.get(f"/api/auteur/{auteur_id}")
+
+        # THEN: On reçoit un 200 avec url_babelio
+        assert response.status_code == 200
+        data = response.json()
+        assert data["auteur_id"] == auteur_id
+        assert data["nom"] == "Catherine Millet"
+        assert (
+            data["url_babelio"]
+            == "https://www.babelio.com/auteur/Catherine-Millet/5309"
+        )
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_auteur_handles_missing_url_babelio(self, mock_mongodb_service, client):
+        """Test que GET /api/auteur/{id} gère l'absence de url_babelio (Issue #124)."""
+        # GIVEN: Un auteur SANS URL Babelio en base
+        auteur_id = str(ObjectId())
+        mock_mongodb_service.get_auteur_with_livres.return_value = {
+            "auteur_id": auteur_id,
+            "nom": "Auteur Test",
+            "nombre_oeuvres": 0,
+            "livres": [],
+        }
+
+        # WHEN: On appelle GET /api/auteur/{id}
+        response = client.get(f"/api/auteur/{auteur_id}")
+
+        # THEN: On reçoit un 200 sans url_babelio (ou avec None/null)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["auteur_id"] == auteur_id
+        # url_babelio peut être absent ou None
+        assert data.get("url_babelio") is None or "url_babelio" not in data
