@@ -1474,7 +1474,7 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
 
 @app.get("/api/livres-auteurs/statistics", response_model=dict[str, Any])
 async def get_livres_auteurs_statistics() -> dict[str, Any]:
-    """Récupère les statistiques pour la page livres-auteurs."""
+    """Récupère les statistiques pour la page livres-auteurs (Issue #124: includes Babelio metrics)."""
     # Vérification mémoire
     memory_check = memory_guard.check_memory_limit()
     if memory_check:
@@ -1483,7 +1483,8 @@ async def get_livres_auteurs_statistics() -> dict[str, Any]:
         print(f"⚠️ {memory_check}")
 
     try:
-        stats = collections_management_service.get_statistics()
+        # Utiliser stats_service qui contient toutes les métriques, y compris Babelio (Issue #124)
+        stats = stats_service.get_cache_statistics()
         return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e

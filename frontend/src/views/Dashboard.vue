@@ -288,6 +288,8 @@ export default {
 
     async loadCollectionsStatistics() {
       try {
+        // Issue #124: Charger depuis /api/stats qui contient toutes les métriques
+        // y compris books_without_url_babelio et authors_without_url_babelio
         const stats = await livresAuteursService.getCollectionsStatistics();
         this.collectionsStatistics = stats;
       } catch (error) {
