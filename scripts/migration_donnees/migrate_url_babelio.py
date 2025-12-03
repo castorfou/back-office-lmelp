@@ -4,6 +4,9 @@
 Ce script met à jour UN livre et son auteur correspondant pour ajouter
 le champ url_babelio en utilisant l'API Babelio.
 
+IMPORTANT: Ce script respecte un délai de 5 secondes entre CHAQUE requête HTTP
+vers Babelio pour éviter le rate limiting et le bannissement d'IP.
+
 Usage:
     PYTHONPATH=/workspaces/back-office-lmelp/src python scripts/migrate_url_babelio.py [--dry-run]
 
@@ -16,6 +19,7 @@ import asyncio
 import json
 import logging
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,6 +40,13 @@ logger = logging.getLogger(__name__)
 
 # Fichier pour logger les cas problématiques
 PROBLEMATIC_CASES_FILE = Path(__file__).parent / "migration_problematic_cases.jsonl"
+
+# Délai minimum entre requêtes HTTP vers Babelio (en secondes)
+# CRITIQUE: Même valeur que BabelioService.min_interval pour cohérence
+MIN_REQUEST_INTERVAL = 5.0
+
+# Timestamp de la dernière requête HTTP (global pour tout le script)
+last_request_time = 0.0
 
 
 def normalize_title(title: str) -> str:
@@ -60,6 +71,26 @@ def normalize_title(title: str) -> str:
     return " ".join(title_no_accents.lower().split())
 
 
+async def wait_rate_limit() -> None:
+    """Attend le délai nécessaire pour respecter le rate limiting.
+
+    CRITIQUE: Doit être appelé AVANT chaque requête HTTP vers Babelio.
+    """
+    global last_request_time
+
+    current_time = time.time()
+    time_since_last = current_time - last_request_time
+
+    if time_since_last < MIN_REQUEST_INTERVAL:
+        wait_time = MIN_REQUEST_INTERVAL - time_since_last
+        logger.info(
+            f"⏱️  Rate limiting: attente de {wait_time:.1f}s avant prochaine requête..."
+        )
+        await asyncio.sleep(wait_time)
+
+    last_request_time = time.time()
+
+
 async def scrape_title_from_page(
     babelio_service: BabelioService, url: str
 ) -> str | None:
@@ -73,6 +104,9 @@ async def scrape_title_from_page(
         Titre extrait ou None si erreur
     """
     try:
+        # CRITIQUE: Attendre le délai avant la requête HTTP
+        await wait_rate_limit()
+
         session = await babelio_service._get_session()
         async with session.get(url) as response:
             if response.status != 200:
@@ -211,6 +245,8 @@ async def migrate_one_book_and_author(
     logger.info(f"🌐 Vérification sur Babelio: '{titre}' par '{nom_auteur}'")
 
     try:
+        # Note: verify_book() contient déjà le rate limiting via search()
+        # donc pas besoin d'appeler wait_rate_limit() ici
         result = await babelio_service.verify_book(titre, nom_auteur)
     except Exception as e:
         # Erreur réseau/timeout = problème temporaire Babelio, PAS un problème du livre
@@ -238,6 +274,9 @@ async def migrate_one_book_and_author(
 
             # ÉTAPE 1: Vérification HTTP 200
             try:
+                # CRITIQUE: Attendre le délai avant la requête HTTP
+                await wait_rate_limit()
+
                 session = await babelio_service._get_session()
                 async with session.get(url_babelio_livre) as response:
                     if response.status != 200:
@@ -361,6 +400,9 @@ async def migrate_one_book_and_author(
 
                 # Vérification HTTP 200 pour l'URL auteur
                 try:
+                    # CRITIQUE: Attendre le délai avant la requête HTTP
+                    await wait_rate_limit()
+
                     session = await babelio_service._get_session()
                     async with session.get(url_babelio_auteur) as response:
                         if response.status == 200:

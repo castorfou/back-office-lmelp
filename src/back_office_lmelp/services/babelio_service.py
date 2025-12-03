@@ -8,7 +8,7 @@ Architecture :
 - Format : JSON {"term": "search_term", "isMobile": false}
 - Headers : Content-Type: application/json, X-Requested-With: XMLHttpRequest
 - Cookies : disclaimer=1, p=FR (nécessaires pour éviter les blocages)
-- Rate limiting : 0.8 sec entre requêtes (respectueux de Babelio)
+- Rate limiting : 5.0 sec entre requêtes (éviter le rate limiting Babelio - Issue #124)
 
 Découverte technique basée sur l'analyse DevTools :
 - Babelio tolère les fautes d'orthographe (Houllebeck -> Houellebecq)
@@ -41,7 +41,7 @@ class BabelioService:
     """Service de vérification orthographique via l'API AJAX de Babelio.
 
     Ce service respecte les bonnes pratiques :
-    - Rate limiting à 0.8 sec entre requêtes
+    - Rate limiting à 5.0 sec entre requêtes (éviter blocage - Issue #124)
     - Headers et cookies appropriés pour éviter les blocages
     - Gestion d'erreur robuste (timeout, réseau, parsing JSON)
     - Session HTTP réutilisable et fermeture propre
@@ -51,7 +51,8 @@ class BabelioService:
         base_url: URL de base de Babelio
         search_endpoint: Endpoint AJAX pour la recherche
         session: Session aiohttp réutilisable
-        rate_limiter: Semaphore pour limiter à 1 req/sec
+        rate_limiter: Semaphore pour limiter à 1 req simultanée
+        min_interval: Délai minimum entre requêtes (5.0 sec par défaut)
     """
 
     def __init__(self):
@@ -61,7 +62,7 @@ class BabelioService:
         self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
         self.last_request_time = 0  # Timestamp de la dernière requête
-        self.min_interval = 0.8  # Délai minimum de 0.8 secondes entre requêtes
+        self.min_interval = 5.0  # Délai minimum de 5.0 secondes entre requêtes (Issue #124: éviter rate limiting)
         self._cache = {}  # Cache simple terme -> résultats (limité en taille)
         # Optional disk-backed cache service injected at app startup
         self.cache_service: Any | None = None
