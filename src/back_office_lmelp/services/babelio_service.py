@@ -918,6 +918,9 @@ class BabelioService:
 
         Utilise difflib.SequenceMatcher qui implémente l'algorithme
         de Ratcliff-Obershelp pour la similarité de séquences.
+
+        Normalise également les ligatures latines (œ→oe, æ→ae) pour
+        éviter les faux négatifs sur les titres français.
         """
         if not str1 or not str2:
             return 0.0
@@ -925,6 +928,14 @@ class BabelioService:
         # Normaliser : minuscules, espaces supprimés
         s1 = str1.lower().strip()
         s2 = str2.lower().strip()
+
+        # Normaliser les ligatures latines (œ→oe, æ→ae)
+        # Cas minuscules
+        s1 = s1.replace("œ", "oe").replace("æ", "ae")
+        s2 = s2.replace("œ", "oe").replace("æ", "ae")
+        # Cas majuscules (déjà passées en minuscules, mais gardons pour cohérence)
+        s1 = s1.replace("Œ".lower(), "oe").replace("Æ".lower(), "ae")
+        s2 = s2.replace("Œ".lower(), "oe").replace("Æ".lower(), "ae")
 
         if s1 == s2:
             return 1.0
