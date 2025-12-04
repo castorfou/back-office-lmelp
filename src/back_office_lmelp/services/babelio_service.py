@@ -74,9 +74,16 @@ class BabelioService:
             "true",
             "yes",
         )
+        # Logs de debug pour analyser les requêtes et résultats Babelio
+        # Activé avec BABELIO_DEBUG_LOG=1 (utile pour diagnostiquer problèmes de matching)
+        self._debug_log_enabled = os.getenv("BABELIO_DEBUG_LOG", "0").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         # If verbose cache logging is enabled, make sure our module logger
         # will emit INFO messages to stdout (useful when running under uvicorn)
-        if self._cache_log_enabled:
+        if self._cache_log_enabled or self._debug_log_enabled:
             try:
                 logger.setLevel(logging.INFO)
                 # add a stdout handler only if no handlers are configured for this logger
@@ -193,6 +200,10 @@ class BabelioService:
                     log_fn(
                         f"[BabelioCache] HIT (orig) key='{term}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
                     )
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: CACHE HIT (orig) - returning {items} cached result(s)"
+                        )
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
@@ -207,6 +218,10 @@ class BabelioService:
                     log_fn(
                         f"[BabelioCache] HIT (norm) key='{cache_key}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
                     )
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: CACHE HIT (norm) - returning {items} cached result(s)"
+                        )
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
@@ -247,14 +262,26 @@ class BabelioService:
 
             try:
                 logger.debug(f"Recherche Babelio pour: {term}")
+                if self._debug_log_enabled:
+                    logger.info(f"🔍 [DEBUG] search: POST {url} payload={payload}")
 
                 async with session.post(url, json=payload) as response:
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: Response status={response.status}"
+                        )
+
                     if response.status == 200:
                         try:
                             # Babelio retourne du JSON valide mais avec le mauvais Content-Type
                             # On récupère le texte brut puis on parse le JSON manuellement
                             text_content = await response.text()
                             results: list[dict[str, Any]] = json.loads(text_content)
+
+                            if self._debug_log_enabled:
+                                logger.info(
+                                    f"🔍 [DEBUG] search: Parsed {len(results)} result(s)"
+                                )
                             logger.debug(f"Babelio retourne {len(results)} résultats")
 
                             # Mettre en cache mémoire (limiter la taille du cache)
@@ -419,10 +446,31 @@ class BabelioService:
         try:
             # Recherche combinée titre + auteur si disponible
             search_term = f"{title} {author}" if author else title
+
+            if self._debug_log_enabled:
+                logger.info(f"🔍 [DEBUG] verify_book: search_term='{search_term}'")
+
             results = await self.search(search_term)
+
+            if self._debug_log_enabled:
+                books_count = len([r for r in results if r.get("type") == "livres"])
+                authors_count = len([r for r in results if r.get("type") == "auteurs"])
+                logger.info(
+                    f"🔍 [DEBUG] verify_book: {len(results)} résultat(s) - {books_count} livre(s), {authors_count} auteur(s)"
+                )
 
             # Chercher le meilleur match livre
             best_book = self._find_best_book_match(results, title, author)
+
+            if self._debug_log_enabled:
+                if best_book:
+                    logger.info(
+                        f"🔍 [DEBUG] verify_book: Match '{best_book.get('titre')}' par {self._format_author_name(best_book.get('prenoms'), best_book.get('nom'))}"
+                    )
+                else:
+                    logger.info(
+                        "🔍 [DEBUG] verify_book: Aucun match dans _find_best_book_match"
+                    )
 
             if best_book is None:
                 return {
@@ -755,7 +803,14 @@ class BabelioService:
         books = [r for r in results if r.get("type") == "livres"]
 
         if not books:
+            if self._debug_log_enabled:
+                logger.info("🔍 [DEBUG] _find_best_book_match: Aucun livre trouvé")
             return None
+
+        if self._debug_log_enabled:
+            logger.info(
+                f"🔍 [DEBUG] _find_best_book_match: {len(books)} livre(s) avant filtrage"
+            )
 
         # Si on a l'auteur, filtrer par auteur d'abord
         if author:
@@ -764,11 +819,24 @@ class BabelioService:
                 book_author = self._format_author_name(
                     book.get("prenoms"), book.get("nom")
                 )
-                if (
-                    book_author
-                    and self._calculate_similarity(author, book_author) > 0.7
-                ):
+                similarity = (
+                    self._calculate_similarity(author, book_author)
+                    if book_author
+                    else 0.0
+                )
+
+                if self._debug_log_enabled:
+                    logger.info(
+                        f"🔍 [DEBUG] _find_best_book_match: '{book.get('titre')}' - author '{author}' vs '{book_author}' = {similarity:.2f}"
+                    )
+
+                if book_author and similarity > 0.7:
                     author_filtered.append(book)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] _find_best_book_match: {len(author_filtered)} livre(s) après filtre auteur (seuil>0.7)"
+                )
 
             if author_filtered:
                 books = author_filtered
