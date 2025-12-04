@@ -473,18 +473,79 @@ class BabelioService:
                     )
 
             if best_book is None:
-                return {
-                    "status": "not_found",
-                    "original_title": title,
-                    "babelio_suggestion_title": None,
-                    "original_author": author,
-                    "babelio_suggestion_author": None,
-                    "confidence_score": 0.0,
-                    "babelio_data": None,
-                    "babelio_url": None,
-                    "babelio_author_url": None,
-                    "error_message": None,
-                }
+                # Stratégie de fallback: Si "titre + auteur" ne donne rien ET qu'on a un auteur,
+                # on réessaye avec juste le titre, puis on vérifie l'auteur par scraping
+                if author and len(results) == 0:
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] verify_book: Fallback - recherche avec titre seul '{title}'"
+                        )
+
+                    # Recherche avec titre seul
+                    title_only_results = await self.search(title)
+
+                    if self._debug_log_enabled:
+                        books_count = len(
+                            [r for r in title_only_results if r.get("type") == "livres"]
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] verify_book: Fallback trouvé {books_count} livre(s)"
+                        )
+
+                    # Pour chaque livre trouvé, scraper la page pour vérifier l'auteur
+                    books = [r for r in title_only_results if r.get("type") == "livres"]
+                    for book in books:
+                        book_url_relative = book.get("url")
+                        if not book_url_relative:
+                            continue
+
+                        book_url = self._build_full_url(book_url_relative)
+
+                        # Scraper l'auteur depuis la page
+                        scraped_author = await self._scrape_author_from_book_page(
+                            book_url
+                        )
+
+                        if scraped_author:
+                            # Calculer la similarité entre l'auteur attendu et l'auteur scraped
+                            similarity = self._calculate_similarity(
+                                author, scraped_author
+                            )
+
+                            if self._debug_log_enabled:
+                                logger.info(
+                                    f"🔍 [DEBUG] verify_book: Fallback - '{book.get('titre')}' author '{author}' vs scraped '{scraped_author}' = {similarity:.2f}"
+                                )
+
+                            # Si l'auteur correspond (seuil > 0.7), on a trouvé le bon livre
+                            if similarity > 0.7:
+                                if self._debug_log_enabled:
+                                    logger.info(
+                                        "🔍 [DEBUG] verify_book: Fallback SUCCESS - match trouvé avec auteur scraped"
+                                    )
+
+                                # Utiliser le livre trouvé comme best_book
+                                best_book = book
+                                # Ajouter les champs auteur manquants (puisque scraping retourne juste le nom)
+                                # On ne peut pas extraire prénom/nom séparément du scraping, donc on utilise le nom complet
+                                best_book["prenoms"] = None
+                                best_book["nom"] = scraped_author
+                                break
+
+                # Si toujours pas de résultat après fallback
+                if best_book is None:
+                    return {
+                        "status": "not_found",
+                        "original_title": title,
+                        "babelio_suggestion_title": None,
+                        "original_author": author,
+                        "babelio_suggestion_author": None,
+                        "confidence_score": 0.0,
+                        "babelio_data": None,
+                        "babelio_url": None,
+                        "babelio_author_url": None,
+                        "error_message": None,
+                    }
 
             # Extraire titre et auteur suggérés
             # Nettoyer les sauts de ligne et espaces multiples (Issue #96)
@@ -982,6 +1043,68 @@ class BabelioService:
             "babelio_author_url": None,
             "error_message": error_message,
         }
+
+    async def _scrape_author_from_book_page(self, babelio_url: str) -> str | None:
+        """Scrape le nom de l'auteur depuis une page livre Babelio.
+
+        Args:
+            babelio_url: URL complète Babelio du livre
+
+        Returns:
+            Nom de l'auteur ou None si non trouvé
+
+        Note:
+            Utilise BeautifulSoup pour extraire le nom de l'auteur
+            depuis le lien avec classe 'livre_auteur' ou href contenant '/auteur/'.
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] _scrape_author_from_book_page: Fetching {babelio_url}"
+                )
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Stratégie 1: Chercher un lien avec classe 'livre_auteur'
+                auteur_link = soup.select_one("a.livre_auteur")
+
+                # Stratégie 2: Si non trouvé, chercher le premier lien vers /auteur/
+                if not auteur_link:
+                    auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+                if auteur_link:
+                    author_name = auteur_link.get_text(strip=True)
+                    if author_name:
+                        if self._debug_log_enabled:
+                            logger.info(
+                                f"🔍 [DEBUG] _scrape_author_from_book_page: Found author '{author_name}'"
+                            )
+                        return author_name
+
+                if self._debug_log_enabled:
+                    logger.info(
+                        f"🔍 [DEBUG] _scrape_author_from_book_page: No author found on {babelio_url}"
+                    )
+                return None
+
+        except Exception as e:
+            logger.error(
+                f"Erreur scraping auteur pour {babelio_url}: {e}", exc_info=True
+            )
+            return None
 
     async def close(self):
         """Ferme proprement la session HTTP.
