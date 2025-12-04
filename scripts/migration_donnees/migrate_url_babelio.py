@@ -50,25 +50,35 @@ last_request_time = 0.0
 
 
 def normalize_title(title: str) -> str:
-    """Normalise un titre pour comparaison (minuscules, sans accents, espaces).
+    """Normalise un titre pour comparaison (minuscules, sans accents, espaces, ligatures).
 
     Args:
         title: Titre à normaliser
 
     Returns:
         Titre normalisé
+
+    Note:
+        Doit être cohérent avec BabelioService._calculate_similarity()
     """
     import unicodedata
+
+    # Minuscules d'abord
+    title_lower = title.lower()
+
+    # Normaliser les ligatures latines (œ→oe, æ→ae)
+    # CRITIQUE: Doit être fait AVANT la suppression des accents
+    title_lower = title_lower.replace("œ", "oe").replace("æ", "ae")
 
     # Retirer les accents
     title_no_accents = "".join(
         c
-        for c in unicodedata.normalize("NFD", title)
+        for c in unicodedata.normalize("NFD", title_lower)
         if unicodedata.category(c) != "Mn"
     )
 
-    # Minuscules et espaces multiples
-    return " ".join(title_no_accents.lower().split())
+    # Espaces multiples
+    return " ".join(title_no_accents.split())
 
 
 async def wait_rate_limit() -> None:
