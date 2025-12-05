@@ -38,13 +38,6 @@
       </div>
     </div>
 
-    <!-- Bouton de rafraîchissement -->
-    <div class="actions-bar">
-      <button @click="loadData" :disabled="loading" class="btn-refresh">
-        {{ loading ? 'Chargement...' : 'Rafraîchir' }}
-      </button>
-    </div>
-
     <!-- Message d'erreur -->
     <div v-if="error" class="error-message">
       {{ error }}
@@ -166,6 +159,17 @@
               <div v-if="retryResults[cas.livre_id].confidence_score">
                 <strong>Confiance:</strong> {{ (retryResults[cas.livre_id].confidence_score * 100).toFixed(1) }}%
               </div>
+            </div>
+
+            <!-- Bouton pour accepter le résultat du retry -->
+            <div v-if="retryResults[cas.livre_id].babelio_url" class="retry-actions">
+              <button
+                @click="acceptSuggestionFromRetry(cas, retryResults[cas.livre_id])"
+                :disabled="processingCase === cas.livre_id"
+                class="btn-accept"
+              >
+                ✓ Accepter ce résultat
+              </button>
             </div>
           </div>
         </div>
@@ -293,8 +297,11 @@ export default {
           author: cas.auteur || null,
         });
 
-        // Store the result
-        this.retryResults[cas.livre_id] = response.data;
+        // Store the result - force Vue reactivity by creating new object
+        this.retryResults = {
+          ...this.retryResults,
+          [cas.livre_id]: response.data
+        };
 
         if (response.data.status === 'verified' || response.data.status === 'corrected') {
           this.showToast(`✓ Livre trouvé: "${response.data.babelio_suggestion_title}"`, 'success');
@@ -453,30 +460,6 @@ h2 {
   font-size: 0.9em;
   color: #6c757d;
   margin-top: 5px;
-}
-
-/* Actions Bar */
-.actions-bar {
-  margin: 20px 0;
-}
-
-.btn-refresh {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1em;
-}
-
-.btn-refresh:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.btn-refresh:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* Error Message */
@@ -690,5 +673,20 @@ h2 {
 
 .result-content a:hover {
   text-decoration: underline;
+}
+
+.retry-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+.retry-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: all 0.2s;
 }
 </style>
