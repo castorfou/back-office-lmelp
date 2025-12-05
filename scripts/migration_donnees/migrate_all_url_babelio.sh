@@ -123,8 +123,8 @@ while [ $COUNTER -lt $MAX_ITERATIONS ]; do
         echo ""
         echo "⏸️  Pause de 1 seconde avant le prochain livre..."
         sleep 1
-    elif echo "$OUTPUT" | grep -q "Livre non trouvé sur Babelio"; then
-        # not_found = livre problématique (pas une erreur Babelio)
+    elif echo "$OUTPUT" | grep -q "Livre non traité"; then
+        # not_found/error/autre = livre problématique (pas une erreur Babelio)
         HTTP_ERROR_COUNT=0
         echo ""
         echo "⏸️  Pause de 1 seconde avant le prochain livre..."

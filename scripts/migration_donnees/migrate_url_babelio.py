@@ -446,20 +446,20 @@ async def migrate_one_book_and_author(
         elif auteur and not url_babelio_auteur:
             logger.warning("⚠️  URL Babelio auteur manquante dans la réponse")
     else:
-        # Livre not_found, suggested, ou autre statut non géré
+        # Livre not_found, error, ou autre statut non géré
         status = result.get("status")
-        logger.warning(f"❌ Livre non trouvé sur Babelio (status: {status})")
+        logger.warning(f"❌ Livre non traité (status: {status})")
 
-        # Logger les cas not_found pour éviter de les re-traiter
-        if status == "not_found":
-            log_problematic_case(
-                livre["_id"],
-                titre,
-                None,
-                "N/A",
-                nom_auteur,
-                "Livre non trouvé sur Babelio (not_found)",
-            )
+        # Logger TOUS les cas non-success pour éviter de les re-traiter indéfiniment
+        # Ceci inclut: not_found, error, et tout autre statut inattendu
+        log_problematic_case(
+            livre["_id"],
+            titre,
+            None,
+            "N/A",
+            nom_auteur,
+            f"Livre non traité - status: {status}",
+        )
 
     return {
         "book_updated": book_updated,
