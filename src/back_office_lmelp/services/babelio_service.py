@@ -905,6 +905,9 @@ class BabelioService:
 
             if author_filtered:
                 books = author_filtered
+            else:
+                # Aucun livre ne correspond à l'auteur → not_found
+                return None
 
         # Trier par pertinence (copies, notes si disponibles)
         books.sort(
