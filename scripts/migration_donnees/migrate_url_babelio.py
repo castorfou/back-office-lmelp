@@ -50,7 +50,7 @@ last_request_time = 0.0
 
 
 def normalize_title(title: str) -> str:
-    """Normalise un titre pour comparaison (minuscules, sans accents, espaces, ligatures).
+    """Normalise un titre pour comparaison (minuscules, sans accents, espaces, ligatures, ponctuation).
 
     Args:
         title: Titre à normaliser
@@ -66,6 +66,15 @@ def normalize_title(title: str) -> str:
     # Minuscules d'abord
     title_lower = title.lower()
 
+    # Normaliser les apostrophes typographiques (', ', ‛, ‚) vers '
+    # CRITIQUE: Babelio utilise souvent des apostrophes typographiques
+    title_lower = (
+        title_lower.replace("\u2019", "'")  # ' (right single quotation mark)
+        .replace("\u2018", "'")  # ' (left single quotation mark)
+        .replace("\u201b", "'")  # ‛ (single high-reversed-9 quotation mark)
+        .replace("\u201a", "'")  # ‚ (single low-9 quotation mark)
+    )
+
     # Normaliser les ligatures latines (œ→oe, æ→ae)
     # CRITIQUE: Doit être fait AVANT la suppression des accents
     title_lower = title_lower.replace("œ", "oe").replace("æ", "ae")
@@ -77,8 +86,14 @@ def normalize_title(title: str) -> str:
         if unicodedata.category(c) != "Mn"
     )
 
+    # Retirer la ponctuation (virgules, points, tirets, etc.)
+    # mais garder les lettres, chiffres et espaces
+    import re
+
+    title_no_punct = re.sub(r"[^\w\s]", " ", title_no_accents)
+
     # Espaces multiples
-    return " ".join(title_no_accents.split())
+    return " ".join(title_no_punct.split())
 
 
 async def wait_rate_limit() -> None:
