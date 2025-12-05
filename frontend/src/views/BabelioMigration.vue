@@ -1,8 +1,12 @@
 <template>
   <div class="babelio-migration">
-    <h1>Migration Babelio - Gestion des cas problématiques</h1>
+    <!-- Navigation -->
+    <Navigation pageTitle="Migration Babelio" />
 
-    <!-- Toast notifications -->
+    <main>
+      <h1>Gestion des cas problématiques</h1>
+
+      <!-- Toast notifications -->
     <div v-if="toast" class="toast" :class="toast.type">
       {{ toast.message }}
     </div>
@@ -172,14 +176,19 @@
     <div v-else-if="!loading" class="no-cases">
       <p>Aucun cas problématique à traiter! 🎉</p>
     </div>
+    </main>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import Navigation from '../components/Navigation.vue';
 
 export default {
   name: 'BabelioMigration',
+  components: {
+    Navigation,
+  },
   data() {
     return {
       status: null,
@@ -330,10 +339,13 @@ export default {
 
 <style scoped>
 .babelio-migration {
+  position: relative;
+}
+
+main {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  position: relative;
 }
 
 /* Toast Notification */
