@@ -29,7 +29,7 @@
         </div>
         <div class="stat-card info">
           <div class="stat-value">{{ status.not_found_count }}</div>
-          <div class="stat-label">Marqués "not found"</div>
+          <div class="stat-label">Absents de Babelio</div>
         </div>
         <div class="stat-card pending">
           <div class="stat-value">{{ status.pending_count }}</div>
