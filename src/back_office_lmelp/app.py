@@ -17,6 +17,7 @@ from thefuzz import process
 from .middleware import EnrichedLoggingMiddleware
 from .models.episode import Episode
 from .services.babelio_cache_service import BabelioCacheService
+from .services.babelio_migration_service import BabelioMigrationService
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
 from .services.calibre_service import calibre_service
@@ -112,6 +113,31 @@ class AddManualBookRequest(BaseModel):
     user_entered_publisher: str | None = None
 
 
+# Nouveaux modèles pour la migration Babelio (Issue #124)
+class AcceptSuggestionRequest(BaseModel):
+    """Modèle pour accepter une suggestion Babelio."""
+
+    livre_id: str
+    babelio_url: str
+    babelio_author_url: str | None = None
+    corrected_title: str | None = None
+
+
+class MarkNotFoundRequest(BaseModel):
+    """Modèle pour marquer un livre comme non trouvé sur Babelio."""
+
+    livre_id: str
+    reason: str
+
+
+class RetryWithTitleRequest(BaseModel):
+    """Modèle pour réessayer une recherche avec un nouveau titre."""
+
+    livre_id: str
+    new_title: str
+    author: str | None = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Gestion du cycle de vie de l'application."""
@@ -162,6 +188,12 @@ app = FastAPI(
     description="Interface de gestion pour la base de données du Masque et la Plume",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Initialize migration service (Issue #124)
+babelio_migration_service = BabelioMigrationService(
+    mongodb_service=mongodb_service,
+    babelio_service=babelio_service,
 )
 
 # Configure logging for enriched access logs (Issue #115)
@@ -1643,6 +1675,87 @@ async def get_validation_status_breakdown() -> list[dict[str, Any]] | JSONRespon
         return list(result) if result else []
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# Endpoints pour la migration Babelio (Issue #124)
+@app.get("/api/babelio-migration/status")
+async def get_migration_status() -> dict[str, Any]:
+    """Récupère le statut de la migration Babelio."""
+    return babelio_migration_service.get_migration_status()
+
+
+@app.get("/api/babelio-migration/problematic-cases")
+async def get_problematic_cases() -> list[dict[str, Any]]:
+    """Récupère la liste des cas problématiques de la migration."""
+    return babelio_migration_service.get_problematic_cases()
+
+
+@app.post("/api/babelio-migration/accept-suggestion")
+async def accept_suggestion(request: AcceptSuggestionRequest) -> JSONResponse:
+    """Accepte la suggestion Babelio et met à jour MongoDB."""
+    try:
+        success = babelio_migration_service.accept_suggestion(
+            livre_id=request.livre_id,
+            babelio_url=request.babelio_url,
+            babelio_author_url=request.babelio_author_url,
+            corrected_title=request.corrected_title,
+        )
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Suggestion acceptée pour livre {request.livre_id}",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/mark-not-found")
+async def mark_not_found(request: MarkNotFoundRequest) -> JSONResponse:
+    """Marque un livre comme non trouvé sur Babelio."""
+    try:
+        success = babelio_migration_service.mark_as_not_found(
+            livre_id=request.livre_id,
+            reason=request.reason,
+        )
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Livre {request.livre_id} marqué comme not found",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/retry-with-title")
+async def retry_with_title(request: RetryWithTitleRequest) -> dict[str, Any]:
+    """Réessaie la recherche Babelio avec un nouveau titre."""
+    return await babelio_migration_service.retry_with_new_title(
+        livre_id=request.livre_id,
+        new_title=request.new_title,
+        author=request.author,
+    )
 
 
 @app.get("/openapi_reduced.json")

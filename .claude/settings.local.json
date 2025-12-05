@@ -33,7 +33,8 @@
       "Bash(uv run ruff check:*)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)",
       "Bash(gh auth:*)",
-      "Bash(source .venv/bin/activate)"
+      "Bash(source .venv/bin/activate)",
+      "Bash(source:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

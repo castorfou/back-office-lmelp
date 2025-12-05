@@ -7,6 +7,7 @@ import Dashboard from '../views/Dashboard.vue';
 import EpisodePage from '../views/EpisodePage.vue';
 import LivresAuteurs from '../views/LivresAuteurs.vue';
 import BabelioTest from '../views/BabelioTest.vue';
+import BabelioMigration from '../views/BabelioMigration.vue';
 import AdvancedSearch from '../views/AdvancedSearch.vue';
 import AuteurDetail from '../views/AuteurDetail.vue';
 import LivreDetail from '../views/LivreDetail.vue';
@@ -44,6 +45,14 @@ const routes = [
     component: BabelioTest,
     meta: {
       title: 'Recherche Babelio - Back-office LMELP'
+    }
+  },
+  {
+    path: '/babelio-migration',
+    name: 'BabelioMigration',
+    component: BabelioMigration,
+    meta: {
+      title: 'Migration Babelio - Back-office LMELP'
     }
   },
   {

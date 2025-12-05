@@ -110,6 +110,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-babelio-migration"
+            @click="navigateToBabelioMigration"
+          >
+            <div class="function-icon">🔄</div>
+            <h3>Migration Babelio</h3>
+            <p>Gestion des cas problématiques de la migration URL Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-advanced-search"
             @click="navigateToAdvancedSearch"
           >
@@ -315,6 +326,10 @@ export default {
 
     navigateToBabelioTest() {
       this.$router.push('/babelio-test');
+    },
+
+    navigateToBabelioMigration() {
+      this.$router.push('/babelio-migration');
     },
 
     navigateToAdvancedSearch() {
