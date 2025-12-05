@@ -144,15 +144,19 @@ def load_problematic_book_ids() -> set[str]:
     """
     problematic_ids = set()
     if PROBLEMATIC_CASES_FILE.exists():
-        try:
-            with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        case = json.loads(line)
-                        problematic_ids.add(case["livre_id"])
-        except Exception as e:
-            logger.warning(f"⚠️  Impossible de charger les cas problématiques: {e}")
+        with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
+            for line_num, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue  # Ignorer les lignes vides
+                try:
+                    case = json.loads(line)
+                    problematic_ids.add(case["livre_id"])
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"⚠️  Ligne {line_num} invalide dans {PROBLEMATIC_CASES_FILE.name}: {e}"
+                    )
+                    continue  # Continuer avec les autres lignes
     return problematic_ids
 
 
