@@ -444,11 +444,15 @@ class BabelioService:
             return self._create_book_error_result(title, author, "Titre vide")
 
         try:
-            # Recherche combinée titre + auteur si disponible
-            search_term = f"{title} {author}" if author else title
+            # Recherche par titre uniquement (Issue #124: Terminus Malaussène)
+            # L'auteur sera utilisé pour filtrer les résultats, pas dans la query
+            search_term = title
 
             if self._debug_log_enabled:
-                logger.info(f"🔍 [DEBUG] verify_book: search_term='{search_term}'")
+                logger.info(
+                    f"🔍 [DEBUG] verify_book: search_term='{search_term}' "
+                    f"(author filter: '{author or 'None'}')"
+                )
 
             results = await self.search(search_term)
 
