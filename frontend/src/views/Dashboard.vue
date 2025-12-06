@@ -114,8 +114,8 @@
             @click="navigateToBabelioMigration"
           >
             <div class="function-icon">🔄</div>
-            <h3>Migration Babelio</h3>
-            <p>Gestion des cas problématiques de la migration URL Babelio</p>
+            <h3>Liaison Babelio</h3>
+            <p>Lier Auteurs et Livres aux pages Babelio</p>
             <div class="function-arrow">→</div>
           </div>
 

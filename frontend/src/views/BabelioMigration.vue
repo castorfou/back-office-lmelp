@@ -23,17 +23,90 @@
           <div class="stat-value">{{ status.migrated_count }}</div>
           <div class="stat-label">Migrés avec succès</div>
         </div>
+        <div class="stat-card success">
+          <div class="stat-value">{{ status.not_found_count }}</div>
+          <div class="stat-label">Absents de Babelio</div>
+        </div>
         <div class="stat-card warning">
           <div class="stat-value">{{ status.problematic_count }}</div>
           <div class="stat-label">Cas problématiques</div>
         </div>
-        <div class="stat-card info">
-          <div class="stat-value">{{ status.not_found_count }}</div>
-          <div class="stat-label">Absents de Babelio</div>
-        </div>
-        <div class="stat-card pending">
+        <div
+          class="stat-card pending clickable"
+          @click="toggleMigration"
+          :class="{ 'migration-running': migrationProgress.is_running }"
+          :title="migrationProgress.is_running ? 'Cliquer pour arrêter' : 'Cliquer pour lancer la migration'"
+        >
           <div class="stat-value">{{ status.pending_count }}</div>
-          <div class="stat-label">En attente</div>
+          <div class="stat-label">
+            {{ migrationProgress.is_running ? '⚙️ Migration en cours...' : 'En attente' }}
+          </div>
+          <div v-if="migrationProgress.is_running" class="migration-indicator">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress panel for migration -->
+      <div v-if="migrationProgress.is_running || migrationProgress.logs.length > 0" class="migration-progress-panel">
+        <div class="progress-header" @click="expandedLogs = !expandedLogs">
+          <h3>
+            {{ migrationProgress.is_running ? '⚙️ Migration en cours' : '✅ Dernière migration' }}
+          </h3>
+          <span class="expand-toggle">{{ expandedLogs ? '▼' : '▶' }}</span>
+        </div>
+
+        <div class="progress-summary">
+          <div class="progress-stat">
+            <strong>Livres traités:</strong> {{ migrationProgress.books_processed }}
+          </div>
+          <div class="progress-stat" v-if="migrationProgress.start_time">
+            <strong>Démarrée:</strong> {{ formatDate(migrationProgress.start_time) }}
+          </div>
+          <div class="progress-stat" v-if="migrationProgress.last_update">
+            <strong>Dernière mise à jour:</strong> {{ formatDate(migrationProgress.last_update) }}
+          </div>
+        </div>
+
+        <!-- Recent logs (always visible) -->
+        <div class="logs-preview">
+          <div
+            v-for="(log, index) in migrationProgress.logs"
+            :key="index"
+            class="log-line"
+          >
+            {{ log }}
+          </div>
+        </div>
+
+        <!-- Detailed logs (expandable) -->
+        <div v-if="expandedLogs" class="logs-detailed">
+          <div class="logs-header">
+            <h4>Logs détaillés ({{ detailedLogs.length }} lignes)</h4>
+            <button @click="refreshDetailedLogs" class="btn-refresh-logs">
+              🔄 Rafraîchir
+            </button>
+          </div>
+          <div class="logs-content">
+            <div
+              v-for="(log, index) in detailedLogs"
+              :key="index"
+              class="log-line-detail"
+            >
+              {{ log }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="migration-actions">
+          <button
+            v-if="migrationProgress.is_running"
+            @click="stopMigration"
+            class="btn-stop"
+          >
+            ⏹️ Arrêter la migration
+          </button>
         </div>
       </div>
     </div>
@@ -204,10 +277,34 @@ export default {
       processingCase: null,
       retryResults: {},
       toast: null,
+      migrationProgress: {
+        is_running: false,
+        start_time: null,
+        books_processed: 0,
+        last_update: null,
+        logs: [],
+        total_logs: 0,
+      },
+      expandedLogs: false,
+      detailedLogs: [],
+      progressInterval: null,
     };
   },
   mounted() {
     this.loadData();
+    this.checkMigrationProgress();
+    // Poll progress every 2 seconds when migration is running
+    this.progressInterval = setInterval(() => {
+      if (this.migrationProgress.is_running) {
+        this.checkMigrationProgress();
+        this.loadData(); // Refresh status to see pending count decrease
+      }
+    }, 2000);
+  },
+  beforeUnmount() {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+    }
   },
   methods: {
     showToast(message, type = 'success') {
@@ -336,6 +433,67 @@ export default {
       }
     },
 
+    async toggleMigration() {
+      if (this.migrationProgress.is_running) {
+        await this.stopMigration();
+      } else {
+        await this.startMigration();
+      }
+    },
+
+    async startMigration() {
+      try {
+        const response = await axios.post('/api/babelio-migration/start');
+
+        if (response.data.status === 'started') {
+          this.showToast('Migration démarrée!', 'success');
+          this.migrationProgress.is_running = true;
+          // Start polling immediately
+          this.checkMigrationProgress();
+        } else if (response.data.status === 'already_running') {
+          this.showToast('Migration déjà en cours', 'info');
+        } else {
+          this.showToast(`Erreur: ${response.data.message}`, 'error');
+        }
+      } catch (err) {
+        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
+      }
+    },
+
+    async stopMigration() {
+      try {
+        const response = await axios.post('/api/babelio-migration/stop');
+
+        if (response.data.status === 'stopped') {
+          this.showToast('Migration arrêtée', 'info');
+          this.migrationProgress.is_running = false;
+        } else {
+          this.showToast(`Erreur: ${response.data.message}`, 'error');
+        }
+      } catch (err) {
+        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
+      }
+    },
+
+    async checkMigrationProgress() {
+      try {
+        const response = await axios.get('/api/babelio-migration/progress');
+        this.migrationProgress = response.data;
+      } catch (err) {
+        console.error('Error checking migration progress:', err);
+      }
+    },
+
+    async refreshDetailedLogs() {
+      try {
+        const response = await axios.get('/api/babelio-migration/logs');
+        this.detailedLogs = response.data.logs || [];
+        this.showToast('Logs rechargés', 'success');
+      } catch (err) {
+        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
+      }
+    },
+
     formatDate(timestamp) {
       if (!timestamp) return 'N/A';
       return new Date(timestamp).toLocaleString('fr-FR');
@@ -444,6 +602,46 @@ h2 {
 
 .stat-card.info {
   border-color: #17a2b8;
+}
+
+.stat-card.pending {
+  border-color: #6c757d;
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  border-color: #495057;
+}
+
+.stat-card.migration-running {
+  border-color: #007bff;
+  background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+}
+
+.migration-indicator {
+  margin-top: 10px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .stat-card.pending {
@@ -688,5 +886,134 @@ h2 {
   cursor: pointer;
   font-size: 0.95em;
   transition: all 0.2s;
+}
+
+/* Migration Progress Panel */
+.migration-progress-panel {
+  background: #f8f9fa;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.progress-header h3 {
+  margin: 0;
+  color: #007bff;
+}
+
+.expand-toggle {
+  font-size: 1.2em;
+  color: #6c757d;
+}
+
+.progress-summary {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.progress-stat {
+  font-size: 0.95em;
+  color: #495057;
+}
+
+.logs-preview {
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.log-line {
+  margin-bottom: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logs-detailed {
+  margin-top: 15px;
+  border-top: 1px solid #dee2e6;
+  padding-top: 15px;
+}
+
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.logs-header h4 {
+  margin: 0;
+  color: #495057;
+}
+
+.btn-refresh-logs {
+  padding: 6px 12px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.btn-refresh-logs:hover {
+  background: #0056b3;
+}
+
+.logs-content {
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+}
+
+.log-line-detail {
+  margin-bottom: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.migration-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+.btn-stop {
+  padding: 10px 20px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 500;
+}
+
+.btn-stop:hover {
+  background: #c82333;
 }
 </style>

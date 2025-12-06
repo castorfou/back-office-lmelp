@@ -237,7 +237,12 @@ async def migrate_one_book_and_author(
     # Construire la query pour exclure les cas problématiques
     from bson import ObjectId
 
-    query = {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+    query = {
+        "$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}],
+        # CRITIQUE: Exclure les livres déjà marqués "not found" par l'utilisateur
+        # Sinon ils seront re-traités et re-ajoutés au JSONL à chaque migration
+        "$nor": [{"babelio_not_found": True}],
+    }
 
     if problematic_ids:
         # Exclure les livres déjà loggés comme problématiques

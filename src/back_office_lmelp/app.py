@@ -31,6 +31,9 @@ from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
 
+logger = logging.getLogger(__name__)
+
+
 class BabelioVerificationRequest(BaseModel):
     """Modèle pour les requêtes de vérification Babelio."""
 
@@ -1756,6 +1759,70 @@ async def retry_with_title(request: RetryWithTitleRequest) -> dict[str, Any]:
         new_title=request.new_title,
         author=request.author,
     )
+
+
+@app.post("/api/babelio-migration/start")
+async def start_migration_process() -> JSONResponse:
+    """Lance le processus de migration automatique des URL Babelio."""
+    try:
+        from .utils.migration_runner import migration_runner
+
+        result = await migration_runner.start_migration()
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Error starting migration: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)},
+        )
+
+
+@app.get("/api/babelio-migration/progress")
+async def get_migration_progress() -> JSONResponse:
+    """Récupère la progression actuelle de la migration."""
+    try:
+        from .utils.migration_runner import migration_runner
+
+        status = migration_runner.get_status()
+        return JSONResponse(content=status)
+    except Exception as e:
+        logger.error(f"Error getting migration progress: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)},
+        )
+
+
+@app.get("/api/babelio-migration/logs")
+async def get_migration_logs() -> JSONResponse:
+    """Récupère tous les logs détaillés de la migration."""
+    try:
+        from .utils.migration_runner import migration_runner
+
+        logs = migration_runner.get_detailed_logs()
+        return JSONResponse(content={"logs": logs})
+    except Exception as e:
+        logger.error(f"Error getting migration logs: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)},
+        )
+
+
+@app.post("/api/babelio-migration/stop")
+async def stop_migration_process() -> JSONResponse:
+    """Arrête le processus de migration en cours."""
+    try:
+        from .utils.migration_runner import migration_runner
+
+        result = await migration_runner.stop_migration()
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Error stopping migration: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)},
+        )
 
 
 @app.get("/openapi_reduced.json")

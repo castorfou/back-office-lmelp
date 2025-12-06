@@ -91,30 +91,38 @@ class BabelioMigrationService:
         }
 
     def get_problematic_cases(self) -> list[dict[str, Any]]:
-        """Récupère la liste des cas problématiques depuis le fichier JSONL.
+        """Récupère la liste des cas problématiques depuis MongoDB.
+
+        Exclut les livres qui ont déjà été marqués avec babelio_not_found=true
+        ou qui ont déjà une url_babelio (déjà résolus).
 
         Returns:
-            Liste des cas problématiques avec leurs détails
+            Liste des cas problématiques non résolus
         """
         cases: list[dict[str, Any]] = []
 
-        if not PROBLEMATIC_CASES_FILE.exists():
-            return cases
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
 
-        with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
-                    continue
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        livres_collection = self.mongodb_service.db["livres"]
 
-                try:
-                    case = json.loads(line)
-                    cases.append(case)
-                except json.JSONDecodeError as e:
-                    logger.warning(
-                        f"Ligne {line_num} invalide dans {PROBLEMATIC_CASES_FILE.name}: {e}"
+        # Récupérer tous les cas problématiques depuis MongoDB
+        for case in problematic_collection.find():
+            # Vérifier si ce livre est déjà résolu dans la collection livres
+            livre_id = case.get("livre_id")
+            if livre_id:
+                livre = livres_collection.find_one({"_id": ObjectId(livre_id)})
+                # Exclure si déjà marqué "not found" ou si a déjà une URL
+                if livre and (
+                    livre.get("babelio_not_found") or livre.get("url_babelio")
+                ):
+                    logger.debug(
+                        f"Livre {livre_id} déjà résolu, exclu des cas problématiques"
                     )
                     continue
+
+            cases.append(case)
 
         return cases
 
