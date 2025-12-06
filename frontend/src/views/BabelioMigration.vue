@@ -1,11 +1,9 @@
 <template>
   <div class="babelio-migration">
     <!-- Navigation -->
-    <Navigation pageTitle="Migration Babelio" />
+    <Navigation pageTitle="Liaison Babelio des livres" />
 
     <main>
-      <h1>Gestion des cas problématiques</h1>
-
       <!-- Toast notifications -->
     <div v-if="toast" class="toast" :class="toast.type">
       {{ toast.message }}
@@ -13,7 +11,10 @@
 
     <!-- Panel de statut -->
     <div v-if="status" class="status-panel">
-      <h2>Statut de la migration</h2>
+      <h2>Statut de la liaison</h2>
+
+      <!-- Statistiques Livres -->
+      <h3 class="stats-section-title">📚 Livres</h3>
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">{{ status.total_books }}</div>
@@ -21,7 +22,7 @@
         </div>
         <div class="stat-card success">
           <div class="stat-value">{{ status.migrated_count }}</div>
-          <div class="stat-label">Migrés avec succès</div>
+          <div class="stat-label">Liés avec succès</div>
         </div>
         <div class="stat-card success">
           <div class="stat-value">{{ status.not_found_count }}</div>
@@ -33,7 +34,24 @@
         </div>
         <div class="stat-card pending">
           <div class="stat-value">{{ status.pending_count }}</div>
-          <div class="stat-label">En attente de migration</div>
+          <div class="stat-label">En attente de liaison</div>
+        </div>
+      </div>
+
+      <!-- Statistiques Auteurs -->
+      <h3 class="stats-section-title">👤 Auteurs</h3>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ status.total_authors || 0 }}</div>
+          <div class="stat-label">Auteurs total</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value">{{ status.authors_with_url || 0 }}</div>
+          <div class="stat-label">Liés avec succès</div>
+        </div>
+        <div class="stat-card pending">
+          <div class="stat-value">{{ status.authors_without_url_babelio || 0 }}</div>
+          <div class="stat-label">En attente de liaison</div>
         </div>
       </div>
 
@@ -42,16 +60,16 @@
         <button
           class="btn-migration"
           @click="toggleMigration"
-          :disabled="status.pending_count === 0 && !migrationProgress.is_running"
+          :disabled="(status.pending_count === 0 && status.authors_without_url_babelio === 0) && !migrationProgress.is_running"
           :class="{ 'migration-running': migrationProgress.is_running }"
-          :title="migrationProgress.is_running ? 'Cliquer pour arrêter' : 'Cliquer pour lancer la migration'"
+          :title="migrationProgress.is_running ? 'Cliquer pour arrêter' : 'Cliquer pour lancer la liaison'"
         >
           <span v-if="migrationProgress.is_running">
             <div class="spinner-inline"></div>
-            ⚙️ Migration en cours...
+            ⚙️ Liaison en cours...
           </span>
           <span v-else>
-            🚀 Lancer la migration automatique
+            🚀 Lancer la liaison automatique
           </span>
         </button>
       </div>
@@ -59,22 +77,28 @@
       <!-- Legend section -->
       <div class="legend-section">
         <h3>Légende</h3>
+        <h4>📚 Livres</h4>
         <ul>
-          <li><strong>Total:</strong> Nombre total de livres dans la base de données</li>
-          <li><strong>Migrés avec succès:</strong> Livres ayant une URL Babelio associée</li>
+          <li><strong>Livres total:</strong> Nombre total de livres dans la base de données</li>
+          <li><strong>Liés avec succès:</strong> Livres ayant une URL Babelio associée</li>
           <li><strong>Absents de Babelio:</strong> Livres marqués comme non référencés sur Babelio</li>
           <li><strong>À traiter manuellement:</strong> Livres nécessitant une intervention manuelle (titre incorrect, correspondance ambiguë...)</li>
-          <li><strong>En attente de migration:</strong> Livres restant à traiter par la migration automatique</li>
+          <li><strong>En attente de liaison:</strong> Livres restant à traiter par la liaison automatique</li>
+        </ul>
+        <h4>👤 Auteurs</h4>
+        <ul>
+          <li><strong>Auteurs total:</strong> Nombre total d'auteurs dans la base de données</li>
+          <li><strong>Liés avec succès:</strong> Auteurs ayant une URL Babelio associée</li>
+          <li><strong>En attente de liaison:</strong> Auteurs restant à lier (la liaison automatique traite les auteurs en même temps que leurs livres)</li>
         </ul>
       </div>
 
       <!-- Progress panel for migration -->
-      <div v-if="migrationProgress.is_running || migrationProgress.logs.length > 0" class="migration-progress-panel">
-        <div class="progress-header" @click="expandedLogs = !expandedLogs">
+      <div v-if="migrationProgress.is_running || migrationProgress.book_logs.length > 0" class="migration-progress-panel">
+        <div class="progress-header">
           <h3>
-            {{ migrationProgress.is_running ? '⚙️ Migration en cours' : '✅ Dernière migration' }}
+            {{ migrationProgress.is_running ? '⚙️ Liaison en cours' : '✅ Dernière liaison' }}
           </h3>
-          <span class="expand-toggle">{{ expandedLogs ? '▼' : '▶' }}</span>
         </div>
 
         <div class="progress-summary">
@@ -89,32 +113,34 @@
           </div>
         </div>
 
-        <!-- Recent logs (always visible) -->
-        <div class="logs-preview">
-          <div
-            v-for="(log, index) in migrationProgress.logs"
-            :key="index"
-            class="log-line"
-          >
-            {{ log }}
-          </div>
-        </div>
-
-        <!-- Detailed logs (expandable) -->
-        <div v-if="expandedLogs" class="logs-detailed">
-          <div class="logs-header">
-            <h4>Logs détaillés ({{ detailedLogs.length }} lignes)</h4>
-            <button @click="refreshDetailedLogs" class="btn-refresh-logs">
-              🔄 Rafraîchir
-            </button>
-          </div>
-          <div class="logs-content">
+        <!-- Structured book logs (compact view) -->
+        <div v-if="migrationProgress.book_logs && migrationProgress.book_logs.length > 0" class="book-logs-section">
+          <h4>Livres traités ({{ migrationProgress.book_logs.length }})</h4>
+          <div class="book-logs-list">
             <div
-              v-for="(log, index) in detailedLogs"
+              v-for="(bookLog, index) in migrationProgress.book_logs"
               :key="index"
-              class="log-line-detail"
+              class="book-log-item"
             >
-              {{ log }}
+              <div class="book-log-header" @click="toggleBookLog(index)">
+                <span class="book-log-title">
+                  {{ bookLog.titre }} - {{ bookLog.auteur }}
+                </span>
+                <span class="book-log-status">
+                  {{ getStatusIcon(bookLog.livre_status) }}
+                  {{ getStatusIcon(bookLog.auteur_status) }}
+                  <span class="expand-toggle-book">{{ expandedBooks[index] ? '▼' : '▶' }}</span>
+                </span>
+              </div>
+              <div v-if="expandedBooks[index]" class="book-log-details">
+                <div
+                  v-for="(detail, detailIndex) in bookLog.details"
+                  :key="detailIndex"
+                  class="book-log-detail-line"
+                >
+                  {{ detail }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -126,7 +152,7 @@
             @click="stopMigration"
             class="btn-stop"
           >
-            ⏹️ Arrêter la migration
+            ⏹️ Arrêter la liaison
           </button>
         </div>
       </div>
@@ -139,7 +165,7 @@
 
     <!-- Liste des cas problématiques -->
     <div v-if="problematicCases.length > 0" class="cases-list">
-      <h2>Cas problématiques à traiter ({{ problematicCases.length }})</h2>
+      <h2>Cas à traiter manuellement ({{ problematicCases.length }})</h2>
 
       <div v-for="cas in problematicCases" :key="cas.livre_id" class="case-card">
         <div class="case-header">
@@ -315,11 +341,9 @@ export default {
         start_time: null,
         books_processed: 0,
         last_update: null,
-        logs: [],
-        total_logs: 0,
+        book_logs: [],
       },
-      expandedLogs: false,
-      detailedLogs: [],
+      expandedBooks: {},
       progressInterval: null,
     };
   },
@@ -537,19 +561,26 @@ export default {
       }
     },
 
-    async refreshDetailedLogs() {
-      try {
-        const response = await axios.get('/api/babelio-migration/logs');
-        this.detailedLogs = response.data.logs || [];
-        this.showToast('Logs rechargés', 'success');
-      } catch (err) {
-        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
-      }
-    },
-
     formatDate(timestamp) {
       if (!timestamp) return 'N/A';
       return new Date(timestamp).toLocaleString('fr-FR');
+    },
+
+    toggleBookLog(index) {
+      this.expandedBooks = {
+        ...this.expandedBooks,
+        [index]: !this.expandedBooks[index]
+      };
+    },
+
+    getStatusIcon(status) {
+      const icons = {
+        'success': '✅',
+        'error': '❌',
+        'not_found': '❌',
+        'none': '❌'
+      };
+      return icons[status] || '❓';
     },
   },
 };
@@ -628,6 +659,19 @@ h2 {
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
+}
+
+.stats-section-title {
+  margin: 20px 0 10px 0;
+  color: #495057;
+  font-size: 1.1em;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 8px;
+}
+
+.stats-section-title:first-of-type {
+  margin-top: 10px;
 }
 
 .stats-grid {
@@ -1066,11 +1110,6 @@ h2 {
   color: #007bff;
 }
 
-.expand-toggle {
-  font-size: 1.2em;
-  color: #6c757d;
-}
-
 .progress-summary {
   display: flex;
   gap: 20px;
@@ -1081,73 +1120,6 @@ h2 {
 .progress-stat {
   font-size: 0.95em;
   color: #495057;
-}
-
-.logs-preview {
-  background: #ffffff;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 15px;
-  max-height: 200px;
-  overflow-y: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-.log-line {
-  margin-bottom: 5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.logs-detailed {
-  margin-top: 15px;
-  border-top: 1px solid #dee2e6;
-  padding-top: 15px;
-}
-
-.logs-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.logs-header h4 {
-  margin: 0;
-  color: #495057;
-}
-
-.btn-refresh-logs {
-  padding: 6px 12px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-}
-
-.btn-refresh-logs:hover {
-  background: #0056b3;
-}
-
-.logs-content {
-  background: #ffffff;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 15px;
-  max-height: 400px;
-  overflow-y: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.85em;
-}
-
-.log-line-detail {
-  margin-bottom: 3px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.4;
 }
 
 .migration-actions {
@@ -1169,5 +1141,82 @@ h2 {
 
 .btn-stop:hover {
   background: #c82333;
+}
+
+/* Book Logs Section */
+.book-logs-section {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #dee2e6;
+}
+
+.book-logs-section h4 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.book-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.book-log-item {
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.book-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.book-log-header:hover {
+  background-color: #f8f9fa;
+}
+
+.book-log-title {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.95em;
+}
+
+.book-log-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1em;
+}
+
+.expand-toggle-book {
+  color: #6c757d;
+  font-size: 0.9em;
+  margin-left: 5px;
+}
+
+.book-log-details {
+  padding: 10px 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+}
+
+.book-log-detail-line {
+  margin-bottom: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #495057;
+  line-height: 1.4;
 }
 </style>

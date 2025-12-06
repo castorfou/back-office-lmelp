@@ -246,7 +246,7 @@ async def migrate_one_book_and_author(
 
     if not livre:
         logger.info("✅ Tous les livres ont déjà une URL Babelio")
-        return {"book_updated": False, "author_updated": False, "error_type": None}
+        return None  # Aucun livre à traiter - MigrationRunner arrêtera la boucle
 
     titre = livre.get("titre", "")
     auteur_id = livre.get("auteur_id")
@@ -282,9 +282,11 @@ async def migrate_one_book_and_author(
             "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
         )
         return {
-            "book_updated": False,
-            "author_updated": False,
-            "error_type": "http_error",
+            "livre_updated": False,
+            "auteur_updated": False,
+            "titre": titre,
+            "auteur": nom_auteur,
+            "status": "error",
         }
 
     book_updated = False
@@ -325,9 +327,11 @@ async def migrate_one_book_and_author(
                                 "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
                             )
                         return {
-                            "book_updated": False,
-                            "author_updated": False,
-                            "error_type": "http_error",
+                            "livre_updated": False,
+                            "auteur_updated": False,
+                            "titre": titre,
+                            "auteur": nom_auteur,
+                            "status": "error",
                         }
 
                 logger.info("✅ URL livre vérifiée (HTTP 200)")
@@ -348,9 +352,11 @@ async def migrate_one_book_and_author(
                     # Ne PAS logger dans problematic_cases car on ne sait pas si c'est
                     # un problème de données ou un problème temporaire Babelio
                     return {
-                        "book_updated": False,
-                        "author_updated": False,
-                        "error_type": "scraping_error",
+                        "livre_updated": False,
+                        "auteur_updated": False,
+                        "titre": titre,
+                        "auteur": nom_auteur,
+                        "status": "error",
                     }
 
                 # Comparaison normalisée des titres
@@ -377,9 +383,11 @@ async def migrate_one_book_and_author(
                         "Titre ne correspond pas",
                     )
                     return {
-                        "book_updated": False,
-                        "author_updated": False,
-                        "error_type": "validation_error",
+                        "livre_updated": False,
+                        "auteur_updated": False,
+                        "titre": titre,
+                        "auteur": nom_auteur,
+                        "status": "not_found",
                     }
 
                 logger.info("✅ Titre validé !")
@@ -411,9 +419,11 @@ async def migrate_one_book_and_author(
                     f"Exception: {str(e)}",
                 )
                 return {
-                    "book_updated": False,
-                    "author_updated": False,
-                    "error_type": "http_error",
+                    "livre_updated": False,
+                    "auteur_updated": False,
+                    "titre": titre,
+                    "auteur": nom_auteur,
+                    "status": "error",
                 }
         else:
             logger.warning("⚠️  URL Babelio livre manquante dans la réponse")
@@ -477,10 +487,178 @@ async def migrate_one_book_and_author(
             f"Livre non traité - status: {status}",
         )
 
+    # Retourner les infos complètes pour MigrationRunner
     return {
-        "book_updated": book_updated,
-        "author_updated": author_updated,
-        "error_type": None,
+        "livre_updated": book_updated,
+        "auteur_updated": author_updated,
+        "titre": titre,
+        "auteur": nom_auteur,
+        "status": result.get("status", "error"),
+    }
+
+
+async def scrape_author_url_from_book_page(book_url: str) -> str | None:
+    """Scrape l'URL auteur depuis la page Babelio d'un livre.
+
+    Args:
+        book_url: URL de la page Babelio du livre
+
+    Returns:
+        URL de l'auteur ou None si non trouvé
+
+    Example:
+        >>> url = await scrape_author_url_from_book_page(
+        ...     "https://www.babelio.com/livres/Orwell-1984/1234"
+        ... )
+        >>> print(url)
+        https://www.babelio.com/auteur/George-Orwell/5678
+    """
+    try:
+        # CRITIQUE: Attendre le délai avant la requête HTTP
+        await wait_rate_limit()
+
+        # Récupérer le service Babelio pour utiliser sa session HTTP
+        from back_office_lmelp.services.babelio_service import BabelioService
+
+        babelio_service = BabelioService()
+        session = await babelio_service._get_session()
+
+        async with session.get(book_url) as response:
+            if response.status != 200:
+                logger.warning(
+                    f"⚠️  Erreur HTTP {response.status} lors du scraping de {book_url}"
+                )
+                return None
+
+            html = await response.text()
+            soup = BeautifulSoup(html, "html5lib")
+
+            # Chercher le lien auteur dans la page
+            # Format: <a href="/auteur/Nom-Prenom/12345" class="...">
+            author_link = soup.find("a", href=lambda x: x and "/auteur/" in x)
+            if author_link and author_link.get("href"):
+                author_path = author_link["href"]
+                # Convertir path relatif en URL absolue
+                if author_path.startswith("/"):
+                    author_url = f"https://www.babelio.com{author_path}"
+                    logger.info(f"✅ URL auteur trouvée: {author_url}")
+                    return author_url
+
+            logger.warning(f"⚠️  Aucune URL auteur trouvée dans {book_url}")
+            return None
+
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du scraping de {book_url}: {e}")
+        return None
+
+
+async def complete_missing_authors(dry_run: bool = False) -> dict | None:
+    """Complète les auteurs manquants pour les livres qui ont déjà une URL Babelio.
+
+    Cette fonction traite les livres qui ont déjà une url_babelio
+    mais dont l'auteur n'en a pas encore. Elle scrape la page du livre
+    pour récupérer l'URL de l'auteur.
+
+    Args:
+        dry_run: Si True, affiche les modifications sans les appliquer
+
+    Returns:
+        Dict avec les infos de traitement ou None si aucun auteur à compléter
+
+    Example:
+        >>> result = await complete_missing_authors(dry_run=False)
+        >>> print(result)
+        {
+            "auteur_updated": True,
+            "titre": "1984",
+            "auteur": "George Orwell",
+            "status": "success"
+        }
+    """
+    livres_collection = mongodb_service.get_collection("livres")
+    auteurs_collection = mongodb_service.get_collection("auteurs")
+
+    # Chercher un livre qui a une URL Babelio mais dont l'auteur n'en a pas
+    # Pipeline d'aggregation pour joindre livres et auteurs
+    pipeline = [
+        # Livres avec URL Babelio
+        {"$match": {"url_babelio": {"$exists": True, "$ne": None}}},
+        # Joindre avec auteurs
+        {
+            "$lookup": {
+                "from": "auteurs",
+                "localField": "auteur_id",
+                "foreignField": "_id",
+                "as": "auteur_info",
+            }
+        },
+        # Déplier le tableau auteur_info
+        {"$unwind": "$auteur_info"},
+        # Filtrer: auteur SANS URL Babelio
+        {
+            "$match": {
+                "$or": [
+                    {"auteur_info.url_babelio": {"$exists": False}},
+                    {"auteur_info.url_babelio": None},
+                ]
+            }
+        },
+        # Limiter à 1 résultat
+        {"$limit": 1},
+    ]
+
+    livre_cursor = livres_collection.aggregate(pipeline)
+    livre = None
+    async for doc in livre_cursor:
+        livre = doc
+        break
+
+    if not livre:
+        logger.info("✅ Aucun auteur à compléter")
+        return None
+
+    titre = livre.get("titre", "Unknown")
+    auteur_info = livre.get("auteur_info", {})
+    nom_auteur = auteur_info.get("nom", "Unknown")
+    auteur_id = auteur_info.get("_id")
+    url_babelio_livre = livre.get("url_babelio")
+
+    logger.info(f"📚 Livre: {titre} ({nom_auteur})")
+    logger.info(f"🔗 URL livre: {url_babelio_livre}")
+    logger.info(f"👤 Auteur sans URL Babelio: {nom_auteur}")
+
+    # Scraper la page du livre pour récupérer l'URL auteur
+    url_babelio_auteur = await scrape_author_url_from_book_page(url_babelio_livre)
+
+    if not url_babelio_auteur:
+        logger.warning("❌ Impossible de récupérer l'URL auteur")
+        return {
+            "auteur_updated": False,
+            "titre": titre,
+            "auteur": nom_auteur,
+            "status": "error",
+        }
+
+    # Mettre à jour l'auteur dans MongoDB
+    if not dry_run:
+        auteurs_collection.update_one(
+            {"_id": auteur_id},
+            {
+                "$set": {
+                    "url_babelio": url_babelio_auteur,
+                    "updated_at": datetime.now(UTC),
+                }
+            },
+        )
+        logger.info(f"✅ Auteur {nom_auteur} mis à jour avec URL Babelio")
+    else:
+        logger.info(f"🔍 [DRY-RUN] Auteur SERAIT mis à jour: {url_babelio_auteur}")
+
+    return {
+        "auteur_updated": not dry_run,
+        "titre": titre,
+        "auteur": nom_auteur,
+        "status": "success",
     }
 
 

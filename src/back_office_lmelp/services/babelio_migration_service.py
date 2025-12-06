@@ -45,6 +45,7 @@ class BabelioMigrationService:
         if self.mongodb_service.db is None:
             raise RuntimeError("MongoDB not connected")
         livres_collection = self.mongodb_service.db["livres"]
+        auteurs_collection = self.mongodb_service.db["auteurs"]
 
         # Compter les livres total
         total_books = livres_collection.count_documents({})
@@ -60,6 +61,13 @@ class BabelioMigrationService:
         # Compter les cas problématiques dans le fichier
         problematic_cases = self.get_problematic_cases()
         problematic_count = len(problematic_cases)
+
+        # Statistiques pour les auteurs
+        total_authors = auteurs_collection.count_documents({})
+        authors_with_url = auteurs_collection.count_documents(
+            {"url_babelio": {"$exists": True, "$ne": None}}
+        )
+        authors_without_url = total_authors - authors_with_url
 
         # Chercher la dernière date de mise à jour
         last_migration = None
@@ -81,6 +89,10 @@ class BabelioMigrationService:
             - not_found_count
             - problematic_count,
             "last_migration": last_migration,
+            # Statistiques auteurs
+            "total_authors": total_authors,
+            "authors_with_url": authors_with_url,
+            "authors_without_url_babelio": authors_without_url,
         }
 
     def get_problematic_cases(self) -> list[dict[str, Any]]:
