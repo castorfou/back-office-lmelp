@@ -86,7 +86,10 @@ class BabelioMigrationService:
             "migrated_count": migrated_count,
             "not_found_count": not_found_count,
             "problematic_count": problematic_count,
-            "pending_count": total_books - migrated_count - not_found_count,
+            "pending_count": total_books
+            - migrated_count
+            - not_found_count
+            - problematic_count,
             "last_migration": last_migration,
         }
 
