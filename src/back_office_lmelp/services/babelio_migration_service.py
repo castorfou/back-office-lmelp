@@ -1,15 +1,13 @@
 """Service pour gérer la migration des URL Babelio.
 
 Ce service gère:
-- Lecture des cas problématiques depuis le fichier JSONL
+- Lecture des cas problématiques depuis MongoDB
 - Actions manuelles (accepter suggestion, marquer not found, retry)
-- Suppression de cas du fichier JSONL après traitement
+- Suppression de cas de MongoDB après traitement
 """
 
-import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
@@ -19,14 +17,6 @@ from back_office_lmelp.services.mongodb_service import MongoDBService
 
 
 logger = logging.getLogger(__name__)
-
-# Chemin vers le fichier JSONL des cas problématiques
-PROBLEMATIC_CASES_FILE = (
-    Path(__file__).parent.parent.parent.parent
-    / "scripts"
-    / "migration_donnees"
-    / "migration_problematic_cases.jsonl"
-)
 
 
 class BabelioMigrationService:
@@ -198,9 +188,6 @@ class BabelioMigrationService:
         problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
         problematic_collection.delete_one({"livre_id": livre_id})
 
-        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
-        self._remove_from_problematic(livre_id)
-
         logger.info(f"✅ Suggestion acceptée pour livre {livre_id}: {babelio_url}")
         return True
 
@@ -244,9 +231,6 @@ class BabelioMigrationService:
         # Retirer de la collection MongoDB babelio_problematic_cases
         problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
         problematic_collection.delete_one({"livre_id": livre_id})
-
-        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
-        self._remove_from_problematic(livre_id)
 
         logger.info(f"❌ Livre {livre_id} marqué comme not found: {reason}")
         return True
@@ -293,9 +277,6 @@ class BabelioMigrationService:
         problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
         problematic_collection.delete_one({"livre_id": livre_id})
 
-        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
-        self._remove_from_problematic(livre_id)
-
         logger.info(f"✏️  Titre corrigé pour livre {livre_id}: '{new_title}'")
         return True
 
@@ -320,35 +301,3 @@ class BabelioMigrationService:
 
         logger.info(f"📊 Résultat retry: status={result.get('status')}")
         return result
-
-    def _remove_from_problematic(self, livre_id: str) -> None:
-        """Retire un livre du fichier JSONL des cas problématiques.
-
-        Args:
-            livre_id: ID du livre à retirer
-        """
-        if not PROBLEMATIC_CASES_FILE.exists():
-            return
-
-        # Lire toutes les lignes sauf celle du livre_id
-        lines_to_keep = []
-        with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-
-                try:
-                    case = json.loads(line)
-                    if case.get("livre_id") != livre_id:
-                        lines_to_keep.append(line)
-                except json.JSONDecodeError:
-                    # Garder les lignes invalides pour ne pas les perdre
-                    lines_to_keep.append(line)
-
-        # Réécrire le fichier
-        with open(PROBLEMATIC_CASES_FILE, "w", encoding="utf-8") as f:
-            for line in lines_to_keep:
-                f.write(line + "\n")
-
-        logger.debug(f"Livre {livre_id} retiré du fichier JSONL")

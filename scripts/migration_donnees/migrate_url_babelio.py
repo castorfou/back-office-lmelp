@@ -16,7 +16,6 @@ Options:
 
 import argparse
 import asyncio
-import json
 import logging
 import sys
 import time
@@ -37,9 +36,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Fichier pour logger les cas problématiques
-PROBLEMATIC_CASES_FILE = Path(__file__).parent / "migration_problematic_cases.jsonl"
 
 # Délai minimum entre requêtes HTTP vers Babelio (en secondes)
 # CRITIQUE: Même valeur que BabelioService.min_interval pour cohérence
@@ -152,26 +148,21 @@ async def scrape_title_from_page(
 
 
 def load_problematic_book_ids() -> set[str]:
-    """Charge les IDs des livres déjà identifiés comme problématiques.
+    """Charge les IDs des livres déjà identifiés comme problématiques depuis MongoDB.
 
     Returns:
-        Set des livre_id déjà loggés
+        Set des livre_id déjà loggés dans la collection babelio_problematic_cases
     """
     problematic_ids = set()
-    if PROBLEMATIC_CASES_FILE.exists():
-        with open(PROBLEMATIC_CASES_FILE, encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
-                    continue  # Ignorer les lignes vides
-                try:
-                    case = json.loads(line)
-                    problematic_ids.add(case["livre_id"])
-                except json.JSONDecodeError as e:
-                    logger.warning(
-                        f"⚠️  Ligne {line_num} invalide dans {PROBLEMATIC_CASES_FILE.name}: {e}"
-                    )
-                    continue  # Continuer avec les autres lignes
+
+    # Lire depuis la collection MongoDB babelio_problematic_cases
+    problematic_collection = mongodb_service.get_collection("babelio_problematic_cases")
+
+    for case in problematic_collection.find():
+        livre_id = case.get("livre_id")
+        if livre_id:
+            problematic_ids.add(livre_id)
+
     return problematic_ids
 
 
@@ -183,7 +174,7 @@ def log_problematic_case(
     auteur: str,
     raison: str,
 ) -> None:
-    """Log un cas problématique dans le fichier JSONL.
+    """Log un cas problématique dans MongoDB collection babelio_problematic_cases.
 
     Args:
         livre_id: ID du livre dans MongoDB
@@ -194,7 +185,7 @@ def log_problematic_case(
         raison: Raison du rejet
     """
     case = {
-        "timestamp": datetime.now(UTC).isoformat(),
+        "timestamp": datetime.now(UTC),
         "livre_id": str(livre_id),
         "titre_attendu": titre_attendu,
         "titre_trouve": titre_trouve,
@@ -203,8 +194,9 @@ def log_problematic_case(
         "raison": raison,
     }
 
-    with open(PROBLEMATIC_CASES_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(case, ensure_ascii=False) + "\n")
+    # Écrire dans MongoDB collection babelio_problematic_cases
+    problematic_collection = mongodb_service.get_collection("babelio_problematic_cases")
+    problematic_collection.insert_one(case)
 
     logger.warning(f"⚠️  Cas problématique loggé: {raison}")
 
