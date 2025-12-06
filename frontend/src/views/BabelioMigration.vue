@@ -29,22 +29,43 @@
         </div>
         <div class="stat-card warning">
           <div class="stat-value">{{ status.problematic_count }}</div>
-          <div class="stat-label">Cas problématiques</div>
+          <div class="stat-label">À traiter manuellement</div>
         </div>
-        <div
-          class="stat-card pending clickable"
+        <div class="stat-card pending">
+          <div class="stat-value">{{ status.pending_count }}</div>
+          <div class="stat-label">En attente de migration</div>
+        </div>
+      </div>
+
+      <!-- Migration button -->
+      <div class="migration-button-container">
+        <button
+          class="btn-migration"
           @click="toggleMigration"
+          :disabled="status.pending_count === 0 && !migrationProgress.is_running"
           :class="{ 'migration-running': migrationProgress.is_running }"
           :title="migrationProgress.is_running ? 'Cliquer pour arrêter' : 'Cliquer pour lancer la migration'"
         >
-          <div class="stat-value">{{ status.pending_count }}</div>
-          <div class="stat-label">
-            {{ migrationProgress.is_running ? '⚙️ Migration en cours...' : 'En attente' }}
-          </div>
-          <div v-if="migrationProgress.is_running" class="migration-indicator">
-            <div class="spinner"></div>
-          </div>
-        </div>
+          <span v-if="migrationProgress.is_running">
+            <div class="spinner-inline"></div>
+            ⚙️ Migration en cours...
+          </span>
+          <span v-else>
+            🚀 Lancer la migration automatique
+          </span>
+        </button>
+      </div>
+
+      <!-- Legend section -->
+      <div class="legend-section">
+        <h3>Légende</h3>
+        <ul>
+          <li><strong>Total:</strong> Nombre total de livres dans la base de données</li>
+          <li><strong>Migrés avec succès:</strong> Livres ayant une URL Babelio associée</li>
+          <li><strong>Absents de Babelio:</strong> Livres marqués comme non référencés sur Babelio</li>
+          <li><strong>À traiter manuellement:</strong> Livres nécessitant une intervention manuelle (titre incorrect, correspondance ambiguë...)</li>
+          <li><strong>En attente de migration:</strong> Livres restant à traiter par la migration automatique</li>
+        </ul>
       </div>
 
       <!-- Progress panel for migration -->
@@ -192,14 +213,26 @@
               ✎ Modifier titre
             </button>
 
+            <!-- Sauvegarder le titre corrigé -->
+            <button
+              v-if="editingCase === cas.livre_id"
+              @click="saveCorrectedTitle(cas)"
+              :disabled="processingCase === cas.livre_id || !newTitle.trim()"
+              class="btn-save"
+              title="Sauvegarder le titre sans relancer la recherche Babelio"
+            >
+              💾 Sauvegarder titre
+            </button>
+
             <!-- Valider le retry -->
             <button
               v-if="editingCase === cas.livre_id"
               @click="retryWithNewTitle(cas)"
               :disabled="processingCase === cas.livre_id || !newTitle.trim()"
               class="btn-retry"
+              title="Corriger le titre ET relancer la recherche Babelio"
             >
-              ↻ Réessayer
+              ↻ Réessayer Babelio
             </button>
 
             <!-- Annuler l'édition -->
@@ -382,6 +415,26 @@ export default {
     cancelEditing() {
       this.editingCase = null;
       this.newTitle = '';
+    },
+
+    async saveCorrectedTitle(cas) {
+      this.processingCase = cas.livre_id;
+
+      try {
+        const response = await axios.post('/api/babelio-migration/correct-title', {
+          livre_id: cas.livre_id,
+          new_title: this.newTitle.trim(),
+        });
+
+        this.showToast(response.data.message || `✏️ Titre corrigé: "${this.newTitle}"`, 'success');
+        this.editingCase = null;
+        this.newTitle = '';
+        await this.loadData();
+      } catch (err) {
+        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
+      } finally {
+        this.processingCase = null;
+      }
     },
 
     async retryWithNewTitle(cas) {
@@ -648,6 +701,98 @@ h2 {
   border-color: #6c757d;
 }
 
+/* Migration Button */
+.migration-button-container {
+  margin: 30px 0;
+  text-align: center;
+}
+
+.btn-migration {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  font-size: 1.1em;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 123, 255, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-migration:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 123, 255, 0.4);
+}
+
+.btn-migration:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.btn-migration.migration-running {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  box-shadow: 0 4px 6px rgba(220, 53, 69, 0.3);
+}
+
+.btn-migration.migration-running:hover {
+  background: linear-gradient(135deg, #c82333 0%, #a71d2a 100%);
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+/* Legend Section */
+.legend-section {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.legend-section h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #2c3e50;
+  font-size: 1.1em;
+}
+
+.legend-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.legend-section li {
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+  color: #495057;
+  line-height: 1.6;
+}
+
+.legend-section li:last-child {
+  border-bottom: none;
+}
+
+.legend-section strong {
+  color: #2c3e50;
+}
+
 .stat-value {
   font-size: 2em;
   font-weight: bold;
@@ -822,6 +967,15 @@ h2 {
 
 .btn-edit:hover:not(:disabled) {
   background: #e0a800;
+}
+
+.btn-save {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #117a8b;
 }
 
 .btn-retry {

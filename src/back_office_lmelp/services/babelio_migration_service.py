@@ -125,7 +125,17 @@ class BabelioMigrationService:
                     )
                     continue
 
-            cases.append(case)
+            # Convertir ObjectId et datetime en strings pour Pydantic/FastAPI
+            serializable_case = {}
+            for key, value in case.items():
+                if isinstance(value, ObjectId):
+                    serializable_case[key] = str(value)
+                elif isinstance(value, datetime):
+                    serializable_case[key] = value.isoformat()
+                else:
+                    serializable_case[key] = value
+
+            cases.append(serializable_case)
 
         return cases
 
@@ -184,7 +194,11 @@ class BabelioMigrationService:
                     {"$set": {"url_babelio": babelio_author_url}},
                 )
 
-        # Retirer du fichier JSONL
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({"livre_id": livre_id})
+
+        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
         self._remove_from_problematic(livre_id)
 
         logger.info(f"✅ Suggestion acceptée pour livre {livre_id}: {babelio_url}")
@@ -227,10 +241,62 @@ class BabelioMigrationService:
             logger.error(f"Livre {livre_id} non trouvé dans MongoDB")
             return False
 
-        # Retirer du fichier JSONL
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({"livre_id": livre_id})
+
+        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
         self._remove_from_problematic(livre_id)
 
         logger.info(f"❌ Livre {livre_id} marqué comme not found: {reason}")
+        return True
+
+    def correct_title(self, livre_id: str, new_title: str) -> bool:
+        """Corrige le titre d'un livre et le retire des cas problématiques.
+
+        Le livre redevient éligible pour la migration automatique.
+
+        Args:
+            livre_id: ID du livre MongoDB (string hex)
+            new_title: Nouveau titre corrigé
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+
+        # Convertir livre_id en ObjectId
+        try:
+            livre_oid = ObjectId(livre_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {livre_id} - {e}")
+            return False
+
+        # Mettre à jour le titre du livre
+        result = livres_collection.update_one(
+            {"_id": livre_oid},
+            {
+                "$set": {
+                    "titre": new_title,
+                    "updated_at": datetime.now(UTC),
+                }
+            },
+        )
+
+        if result.matched_count == 0:
+            logger.error(f"Livre {livre_id} non trouvé dans MongoDB")
+            return False
+
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({"livre_id": livre_id})
+
+        # Retirer du fichier JSONL (legacy, sera supprimé plus tard)
+        self._remove_from_problematic(livre_id)
+
+        logger.info(f"✏️  Titre corrigé pour livre {livre_id}: '{new_title}'")
         return True
 
     async def retry_with_new_title(

@@ -133,6 +133,13 @@ class MarkNotFoundRequest(BaseModel):
     reason: str
 
 
+class CorrectTitleRequest(BaseModel):
+    """Modèle pour corriger le titre d'un livre."""
+
+    livre_id: str
+    new_title: str
+
+
 class RetryWithTitleRequest(BaseModel):
     """Modèle pour réessayer une recherche avec un nouveau titre."""
 
@@ -1738,6 +1745,34 @@ async def mark_not_found(request: MarkNotFoundRequest) -> JSONResponse:
                 content={
                     "status": "success",
                     "message": f"Livre {request.livre_id} marqué comme not found",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/correct-title")
+async def correct_title(request: CorrectTitleRequest) -> JSONResponse:
+    """Corrige le titre d'un livre et le retire des cas problématiques."""
+    try:
+        success = babelio_migration_service.correct_title(
+            livre_id=request.livre_id,
+            new_title=request.new_title,
+        )
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Titre corrigé: '{request.new_title}'",
                 },
             )
         else:
