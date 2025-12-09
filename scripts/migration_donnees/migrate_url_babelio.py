@@ -615,7 +615,7 @@ async def complete_missing_authors(dry_run: bool = False) -> dict | None:
 
     livre_cursor = livres_collection.aggregate(pipeline)
     livre = None
-    async for doc in livre_cursor:
+    for doc in livre_cursor:
         livre = doc
         break
 

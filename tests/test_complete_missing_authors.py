@@ -50,8 +50,8 @@ class TestCompleteMissingAuthors:
             },
         }
 
-        # Mock du curseur async retourné par aggregate()
-        async def mock_aggregate_cursor():
+        # Mock du curseur synchrone retourné par aggregate()
+        def mock_aggregate_cursor():
             yield livre_result
 
         mock_livres_collection.aggregate.return_value = mock_aggregate_cursor()
@@ -115,8 +115,8 @@ class TestCompleteMissingAuthors:
         # Arrange
         mock_livres_collection = MagicMock()
 
-        # Mock du curseur async vide (aucun résultat)
-        async def mock_empty_aggregate_cursor():
+        # Mock du curseur synchrone vide (aucun résultat)
+        def mock_empty_aggregate_cursor():
             return
             yield  # Never reached - empty iterator
 
