@@ -27,7 +27,10 @@ if str(scripts_path) not in sys.path:
     sys.path.insert(0, str(scripts_path))
 
 try:
-    from migrate_url_babelio import migrate_one_book_and_author  # type: ignore
+    from migrate_url_babelio import (  # type: ignore
+        complete_missing_authors,
+        migrate_one_book_and_author,
+    )
 finally:
     # Clean up sys.path
     if str(scripts_path) in sys.path:
@@ -331,6 +334,65 @@ class MigrationRunner:
                     logger.error(f"Error processing book in iteration {iteration}: {e}")
                     # Continue to next book
                     await asyncio.sleep(1)
+
+            # Phase 2: Compléter les auteurs manquants
+            # (livres déjà liés mais auteurs non liés)
+            logger.info("🔄 Phase 2: Complétion des auteurs manquants...")
+            authors_completed = 0
+            max_author_iterations = 100
+
+            while self.is_running and authors_completed < max_author_iterations:
+                try:
+                    # Appeler complete_missing_authors pour traiter un auteur
+                    author_result = await complete_missing_authors(dry_run=False)
+
+                    # Si None, tous les auteurs sont complétés
+                    if author_result is None:
+                        logger.info(
+                            "✅ Phase 2 terminée - tous les auteurs ont une URL Babelio"
+                        )
+                        break
+
+                    # Extraire les infos de l'auteur complété
+                    titre = author_result.get("titre", "Unknown")
+                    auteur = author_result.get("auteur", "Unknown")
+                    auteur_updated = author_result.get("auteur_updated", False)
+
+                    # Créer un log structuré pour cet auteur
+                    details = [
+                        f"📚 Via livre: {titre}",
+                        f"👤 Auteur: {auteur}",
+                    ]
+                    if auteur_updated:
+                        details.append("✅ Auteur complété avec URL Babelio")
+                    else:
+                        details.append("❌ Auteur non complété")
+
+                    book_log = create_book_log(
+                        titre=titre,
+                        auteur=auteur,
+                        livre_status="success",  # Livre déjà lié (pas modifié)
+                        auteur_status="success" if auteur_updated else "error",
+                        details=details,
+                    )
+
+                    self.book_logs.append(book_log)
+                    self.books_processed += 1
+                    authors_completed += 1
+                    self.last_update = datetime.now(UTC)
+
+                    summary = f"Auteur complété: {auteur} (via {titre})"
+                    self.logs.append(summary)
+                    logger.info(summary)
+
+                    # Small delay
+                    await asyncio.sleep(1)
+
+                except Exception as e:
+                    logger.error(f"Error completing author: {e}")
+                    await asyncio.sleep(1)
+
+            logger.info(f"✅ Phase 2 terminée - {authors_completed} auteurs complétés")
 
             # Close babelio service
             await babelio_service.close()

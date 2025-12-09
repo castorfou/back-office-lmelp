@@ -37,19 +37,24 @@ class TestCompleteMissingAuthors:
         mock_livres_collection = MagicMock()
         mock_auteurs_collection = MagicMock()
 
-        # Livre avec URL Babelio
-        mock_livres_collection.find_one.return_value = {
+        # Résultat de l'aggregation pipeline - livre avec URL mais auteur sans URL
+        livre_result = {
             "_id": livre_id,
             "titre": "1984",
             "auteur_id": auteur_id,
             "url_babelio": "https://www.babelio.com/livres/Orwell-1984/1234",
+            "auteur_info": {
+                "_id": auteur_id,
+                "nom": "George Orwell",
+                # Pas de url_babelio → auteur à compléter
+            },
         }
 
-        # Auteur SANS URL Babelio
-        mock_auteurs_collection.find_one.return_value = {
-            "_id": auteur_id,
-            "nom": "George Orwell",
-        }
+        # Mock du curseur async retourné par aggregate()
+        async def mock_aggregate_cursor():
+            yield livre_result
+
+        mock_livres_collection.aggregate.return_value = mock_aggregate_cursor()
 
         mock_auteurs_collection.update_one.return_value = MagicMock(matched_count=1)
 
@@ -110,8 +115,12 @@ class TestCompleteMissingAuthors:
         # Arrange
         mock_livres_collection = MagicMock()
 
-        # Aucun livre trouvé
-        mock_livres_collection.find_one.return_value = None
+        # Mock du curseur async vide (aucun résultat)
+        async def mock_empty_aggregate_cursor():
+            return
+            yield  # Never reached - empty iterator
+
+        mock_livres_collection.aggregate.return_value = mock_empty_aggregate_cursor()
 
         def get_collection_side_effect(name):
             if name == "livres":
