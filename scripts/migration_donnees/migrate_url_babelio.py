@@ -270,6 +270,9 @@ async def migrate_one_book_and_author(
     # Vérifier le livre via Babelio
     logger.info(f"🌐 Vérification sur Babelio: '{titre}' par '{nom_auteur}'")
 
+    # Initialiser les statuts
+    author_already_linked = False
+
     try:
         # Note: verify_book() contient déjà le rate limiting via search()
         # donc pas besoin d'appeler wait_rate_limit() ici
@@ -469,6 +472,8 @@ async def migrate_one_book_and_author(
                 logger.info(
                     f"ℹ️  Auteur a déjà une URL Babelio: {auteur.get('url_babelio')}"
                 )
+                # Indiquer que l'auteur était déjà lié (pas une erreur)
+                author_already_linked = True
         elif auteur and not url_babelio_auteur:
             logger.warning("⚠️  URL Babelio auteur manquante dans la réponse")
     else:
@@ -491,6 +496,7 @@ async def migrate_one_book_and_author(
     return {
         "livre_updated": book_updated,
         "auteur_updated": author_updated,
+        "auteur_already_linked": author_already_linked,
         "titre": titre,
         "auteur": nom_auteur,
         "status": result.get("status", "error"),

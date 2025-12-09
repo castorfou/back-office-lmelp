@@ -254,10 +254,11 @@ class MigrationRunner:
                         babelio_service=babelio_service, dry_run=False
                     )
 
-                    # Check if migration is complete (no more books)
+                    # Check if Phase 1 is complete (no more books)
                     if result is None or result.get("status") == "no_pending_books":
-                        logger.info("✅ Migration completed - no more books to process")
-                        self.is_running = False
+                        logger.info("✅ Phase 1 terminée - no more books to process")
+                        # NE PAS mettre is_running = False ici !
+                        # La Phase 2 (complétion des auteurs) doit s'exécuter ensuite
                         break
 
                     # Extract book info from result
@@ -267,6 +268,7 @@ class MigrationRunner:
                     # Map result to book_log statuses
                     livre_updated = result.get("livre_updated", False)
                     auteur_updated = result.get("auteur_updated", False)
+                    auteur_already_linked = result.get("auteur_already_linked", False)
                     status = result.get("status", "error")
 
                     # Determine statuses
@@ -281,6 +283,8 @@ class MigrationRunner:
                         auteur_status = "none"
                     elif auteur_updated:
                         auteur_status = "success"
+                    elif auteur_already_linked:
+                        auteur_status = "none"  # Déjà lié = pas besoin de migrer
                     elif status == "not_found":
                         auteur_status = "none"
                     else:
@@ -298,6 +302,8 @@ class MigrationRunner:
 
                     if auteur_updated:
                         details.append("✅ Auteur mis à jour avec URL Babelio")
+                    elif auteur_already_linked:
+                        details.append("ℹ️  Auteur déjà lié à Babelio")
                     elif auteur:
                         details.append("❌ Auteur non migré")
                     else:
