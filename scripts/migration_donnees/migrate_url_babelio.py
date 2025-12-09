@@ -583,12 +583,22 @@ async def complete_missing_authors(dry_run: bool = False) -> dict | None:
     """
     livres_collection = mongodb_service.get_collection("livres")
     auteurs_collection = mongodb_service.get_collection("auteurs")
+    prob_collection = mongodb_service.get_collection("babelio_problematic_cases")
+
+    # Récupérer les IDs de livres déjà loggés comme problématiques
+    problematic_cases = prob_collection.find({}, {"livre_id": 1})
+    problematic_livre_ids = [case["livre_id"] for case in problematic_cases]
 
     # Chercher un livre qui a une URL Babelio mais dont l'auteur n'en a pas
     # Pipeline d'aggregation pour joindre livres et auteurs
     pipeline = [
-        # Livres avec URL Babelio
-        {"$match": {"url_babelio": {"$exists": True, "$ne": None}}},
+        # Livres avec URL Babelio ET non loggés dans problematic_cases
+        {
+            "$match": {
+                "url_babelio": {"$exists": True, "$ne": None},
+                "_id": {"$nin": problematic_livre_ids},
+            }
+        },
         # Joindre avec auteurs
         {
             "$lookup": {
@@ -638,6 +648,15 @@ async def complete_missing_authors(dry_run: bool = False) -> dict | None:
 
     if not url_babelio_auteur:
         logger.warning("❌ Impossible de récupérer l'URL auteur")
+        # Logger le cas problématique pour éviter de le re-traiter en boucle
+        log_problematic_case(
+            livre["_id"],
+            titre,
+            None,
+            url_babelio_livre,
+            nom_auteur,
+            "Failed to scrape author URL from book page",
+        )
         return {
             "auteur_updated": False,
             "titre": titre,

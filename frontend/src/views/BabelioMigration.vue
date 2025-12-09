@@ -11,7 +11,7 @@
 
     <!-- Panel de statut -->
     <div v-if="status" class="status-panel">
-      <h2>Statut de la liaison</h2>
+      <h2>{{ migrationProgress.is_running ? '⚙️ Liaison en cours' : 'Migration Babelio' }}</h2>
 
       <!-- Statistiques Livres -->
       <h3 class="stats-section-title">📚 Livres</h3>
@@ -99,6 +99,19 @@
           <h3>
             {{ migrationProgress.is_running ? '⚙️ Liaison en cours' : '✅ Dernière liaison' }}
           </h3>
+
+          <!-- Progress bar -->
+          <div v-if="totalItemsToProcess > 0" class="progress-bar-container">
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                :style="{ width: progressPercentage + '%' }"
+              ></div>
+            </div>
+            <div class="progress-bar-label">
+              {{ migrationProgress.books_processed }} / {{ totalItemsToProcess }} traités ({{ Math.round(progressPercentage) }}%)
+            </div>
+          </div>
         </div>
 
         <div class="progress-summary">
@@ -363,6 +376,16 @@ export default {
       clearInterval(this.progressInterval);
     }
   },
+  computed: {
+    totalItemsToProcess() {
+      if (!this.status) return 0;
+      return (this.status.pending_count || 0) + (this.status.authors_without_url_babelio || 0);
+    },
+    progressPercentage() {
+      if (this.totalItemsToProcess === 0) return 0;
+      return (this.migrationProgress.books_processed / this.totalItemsToProcess) * 100;
+    },
+  },
   methods: {
     showToast(message, type = 'success') {
       this.toast = { message, type };
@@ -595,6 +618,40 @@ main {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 24px;
+  background-color: #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0066cc 0%, #0052a3 100%);
+  transition: width 0.3s ease-out;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.3);
+}
+
+.progress-bar-label {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
 }
 
 /* Toast Notification */

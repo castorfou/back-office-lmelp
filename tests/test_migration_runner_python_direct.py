@@ -153,14 +153,25 @@ class TestMigrationRunnerPythonDirect:
         from back_office_lmelp.utils.migration_runner import MigrationRunner
 
         # Arrange - Mock qui retourne None (pas de livres)
-        with patch(
-            "back_office_lmelp.utils.migration_runner.migrate_one_book_and_author"
-        ) as mock_migrate:
+        with (
+            patch(
+                "back_office_lmelp.utils.migration_runner.migrate_one_book_and_author"
+            ) as mock_migrate,
+            patch(
+                "back_office_lmelp.utils.migration_runner.complete_missing_authors"
+            ) as mock_complete_authors,
+        ):
 
             async def side_effect_migrate(*args, **kwargs):
                 return None
 
             mock_migrate.side_effect = side_effect_migrate
+
+            # Mock complete_missing_authors to return None (no missing authors)
+            async def side_effect_complete_authors(*args, **kwargs):
+                return None
+
+            mock_complete_authors.side_effect = side_effect_complete_authors
 
             with patch(
                 "back_office_lmelp.utils.migration_runner.BabelioService"

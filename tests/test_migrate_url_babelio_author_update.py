@@ -107,19 +107,23 @@ class TestMigrateUrlBabelioAuthorUpdate:
             }
 
             # Mock HTTP 200 pour les deux URLs
-            mock_response_livre = AsyncMock()
+            mock_response_livre = MagicMock()
             mock_response_livre.status = 200
-            mock_response_livre.__aenter__.return_value = mock_response_livre
+            mock_response_livre.__aenter__ = AsyncMock(return_value=mock_response_livre)
+            mock_response_livre.__aexit__ = AsyncMock(return_value=None)
 
-            mock_response_auteur = AsyncMock()
+            mock_response_auteur = MagicMock()
             mock_response_auteur.status = 200
-            mock_response_auteur.__aenter__.return_value = mock_response_auteur
+            mock_response_auteur.__aenter__ = AsyncMock(
+                return_value=mock_response_auteur
+            )
+            mock_response_auteur.__aexit__ = AsyncMock(return_value=None)
 
-            mock_session = AsyncMock()
+            mock_session = MagicMock()
             # Premier appel = URL livre, deuxième appel = URL auteur
             mock_session.get.side_effect = [mock_response_livre, mock_response_auteur]
 
-            mock_babelio._get_session.return_value = mock_session
+            mock_babelio._get_session = AsyncMock(return_value=mock_session)
 
             from scripts.migration_donnees.migrate_url_babelio import (
                 migrate_one_book_and_author,
@@ -246,14 +250,15 @@ class TestMigrateUrlBabelioAuthorUpdate:
             }
 
             # Mock HTTP 200 pour l'URL livre
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.status = 200
-            mock_response.__aenter__.return_value = mock_response
+            mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_response.__aexit__ = AsyncMock(return_value=None)
 
-            mock_session = AsyncMock()
+            mock_session = MagicMock()
             mock_session.get.return_value = mock_response
 
-            mock_babelio._get_session.return_value = mock_session
+            mock_babelio._get_session = AsyncMock(return_value=mock_session)
 
             from scripts.migration_donnees.migrate_url_babelio import (
                 migrate_one_book_and_author,

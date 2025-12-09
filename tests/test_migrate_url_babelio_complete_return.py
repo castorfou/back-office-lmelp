@@ -128,10 +128,36 @@ class TestMigrateUrlBabelioCompleteReturn:
             }
             return collections.get(name, MagicMock())
 
-        with patch(
-            "scripts.migration_donnees.migrate_url_babelio.mongodb_service.get_collection"
-        ) as mock_get_collection:
+        with (
+            patch(
+                "scripts.migration_donnees.migrate_url_babelio.mongodb_service.get_collection"
+            ) as mock_get_collection,
+            patch(
+                "scripts.migration_donnees.migrate_url_babelio.scrape_title_from_page"
+            ) as mock_scrape,
+            patch(
+                "scripts.migration_donnees.migrate_url_babelio.normalize_title"
+            ) as mock_normalize,
+            patch(
+                "scripts.migration_donnees.migrate_url_babelio.wait_rate_limit"
+            ) as mock_wait,
+        ):
             mock_get_collection.side_effect = get_collection_side_effect
+
+            # Mock wait_rate_limit (async function)
+            async def mock_wait_async():
+                pass
+
+            mock_wait.side_effect = mock_wait_async
+
+            # Mock scrape_title_from_page (async function) pour retourner le titre exact
+            async def mock_scrape_async(*args, **kwargs):
+                return "1984"
+
+            mock_scrape.side_effect = mock_scrape_async
+
+            # Mock normalize_title pour retourner la même valeur
+            mock_normalize.side_effect = lambda x: x
 
             # Mock BabelioService - retourne verified avec URL
             mock_babelio = AsyncMock()
@@ -140,7 +166,24 @@ class TestMigrateUrlBabelioCompleteReturn:
                 "babelio_url": "https://www.babelio.com/livres/Orwell-1984/1234",
                 "babelio_author_url": "https://www.babelio.com/auteur/George-Orwell/5678",
             }
-            mock_babelio._get_session.return_value.__aenter__.return_value.get.return_value.__aenter__.return_value.status = 200
+
+            # Mock HTTP 200 pour les deux URLs (livre + auteur)
+            mock_response_livre = MagicMock()
+            mock_response_livre.status = 200
+            mock_response_livre.__aenter__ = AsyncMock(return_value=mock_response_livre)
+            mock_response_livre.__aexit__ = AsyncMock(return_value=None)
+
+            mock_response_auteur = MagicMock()
+            mock_response_auteur.status = 200
+            mock_response_auteur.__aenter__ = AsyncMock(
+                return_value=mock_response_auteur
+            )
+            mock_response_auteur.__aexit__ = AsyncMock(return_value=None)
+
+            mock_session = MagicMock()
+            mock_session.get.side_effect = [mock_response_livre, mock_response_auteur]
+
+            mock_babelio._get_session = AsyncMock(return_value=mock_session)
 
             from scripts.migration_donnees.migrate_url_babelio import (
                 migrate_one_book_and_author,
