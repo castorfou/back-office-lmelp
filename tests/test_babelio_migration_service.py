@@ -228,6 +228,7 @@ class TestBabelioMigrationService:
 
         # Arrange - Mock des collections
         mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
         mock_problematic_collection = MagicMock()
 
         # Total: 100 livres
@@ -241,6 +242,18 @@ class TestBabelioMigrationService:
             return 0
 
         mock_livres_collection.count_documents.side_effect = count_documents_side_effect
+
+        # Mock auteurs collection
+        def auteurs_count_side_effect(query):
+            if query == {}:
+                return 50  # total_authors
+            elif "url_babelio" in query and "$exists" in query["url_babelio"]:
+                return 40  # authors_with_url
+            elif "babelio_not_found" in query:
+                return 0  # authors_not_found
+            return 0
+
+        mock_auteurs_collection.count_documents.side_effect = auteurs_count_side_effect
 
         # 5 cas problématiques dans MongoDB (non résolus)
         # Note: Les livre_id doivent être des ObjectIds valides (24 caractères hex)
@@ -263,6 +276,18 @@ class TestBabelioMigrationService:
         ]
         mock_problematic_collection.find.return_value = mock_problematic_cases
 
+        # Mock count_documents for problematic collection (5 livres, 0 auteurs)
+        def problematic_count_side_effect(query):
+            if query.get("type") == "livre":
+                return 5
+            elif query.get("type") == "auteur":
+                return 0
+            return 0
+
+        mock_problematic_collection.count_documents.side_effect = (
+            problematic_count_side_effect
+        )
+
         # Mock find_one pour dire qu'aucun n'est résolu
         from bson import ObjectId
 
@@ -272,11 +297,12 @@ class TestBabelioMigrationService:
 
         # Mock db collections
         def mock_getitem(key):
-            if key == "livres":
-                return mock_livres_collection
-            elif key == "babelio_problematic_cases":
-                return mock_problematic_collection
-            return MagicMock()
+            collections = {
+                "livres": mock_livres_collection,
+                "auteurs": mock_auteurs_collection,
+                "babelio_problematic_cases": mock_problematic_collection,
+            }
+            return collections.get(key, MagicMock())
 
         mock_mongodb_service.db.__getitem__.side_effect = mock_getitem
 

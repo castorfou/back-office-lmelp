@@ -36,17 +36,27 @@ class TestBabelioMigrationAuthorStats:
 
         mock_livres_collection.find_one.return_value = None
 
-        # Mock auteurs - 445 total, 431 avec URL
+        # Mock auteurs - 445 total, 431 avec URL, 0 not_found
         def auteurs_count_side_effect(query):
             if query == {}:
                 return 445  # total_authors
             elif query == {"url_babelio": {"$exists": True, "$ne": None}}:
                 return 431  # authors_with_url
+            elif query == {"babelio_not_found": True}:
+                return 0  # authors_not_found
             return 0
 
         mock_auteurs_collection.count_documents.side_effect = auteurs_count_side_effect
 
-        # Mock problematic cases
+        # Mock problematic cases - 0 livres, 0 auteurs
+        def problematic_count_side_effect(query):
+            if query.get("type") == "livre" or query.get("type") == "auteur":
+                return 0
+            return 0
+
+        mock_problematic_collection.count_documents.side_effect = (
+            problematic_count_side_effect
+        )
         mock_problematic_collection.find.return_value = []
 
         # Mock db

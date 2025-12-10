@@ -45,26 +45,33 @@ class TestMigrationRunnerPhase2:
         # Mock migrate_one_book_and_author pour retourner None (pas de livres)
         mock_migrate = AsyncMock(return_value=None)
 
-        # Mock complete_missing_authors pour retourner un auteur complété
-        mock_complete_authors_call_count = 0
+        # Mock get_all_books_to_complete pour retourner une liste avec un livre
+        from bson import ObjectId
 
-        async def mock_complete_authors_side_effect(dry_run=False):
-            nonlocal mock_complete_authors_call_count
-            mock_complete_authors_call_count += 1
+        livre_id = ObjectId()
+        auteur_id = ObjectId()
 
-            # Premier appel: retourner un auteur complété
-            if mock_complete_authors_call_count == 1:
-                return {
-                    "auteur_updated": True,
+        mock_get_all_books = AsyncMock(
+            return_value=[
+                {
+                    "livre_id": livre_id,
                     "titre": "1984",
                     "auteur": "George Orwell",
-                    "status": "success",
+                    "auteur_id": auteur_id,
+                    "url_babelio": "https://www.babelio.com/livres/Orwell-1984/1234",
                 }
-            # Deuxième appel: plus d'auteurs à compléter
-            else:
-                return None
+            ]
+        )
 
-        mock_complete_authors = AsyncMock(side_effect=mock_complete_authors_side_effect)
+        # Mock process_one_book_author pour simuler la complétion d'un auteur
+        mock_process_one = AsyncMock(
+            return_value={
+                "auteur_updated": True,
+                "titre": "1984",
+                "auteur": "George Orwell",
+                "status": "success",
+            }
+        )
 
         # Mock BabelioService
         mock_babelio_service = MagicMock()
@@ -76,8 +83,12 @@ class TestMigrationRunnerPhase2:
                 mock_migrate,
             ),
             patch(
-                "src.back_office_lmelp.utils.migration_runner.complete_missing_authors",
-                mock_complete_authors,
+                "src.back_office_lmelp.utils.migration_runner.get_all_authors_to_complete",
+                mock_get_all_books,
+            ),
+            patch(
+                "src.back_office_lmelp.utils.migration_runner.process_one_author",
+                mock_process_one,
             ),
             patch(
                 "src.back_office_lmelp.utils.migration_runner.BabelioService",
@@ -98,9 +109,14 @@ class TestMigrationRunnerPhase2:
                 "Phase 1 doit être appelée au moins une fois"
             )
 
-            # Vérifier que complete_missing_authors a été appelé (Phase 2)
-            assert mock_complete_authors.call_count >= 1, (
-                "Phase 2 doit être appelée pour compléter les auteurs"
+            # Vérifier que get_all_authors_to_complete a été appelé (Phase 2)
+            assert mock_get_all_books.call_count >= 1, (
+                "Phase 2 doit charger la liste des auteurs à traiter"
+            )
+
+            # Vérifier que process_one_author a été appelé (Phase 2)
+            assert mock_process_one.call_count >= 1, (
+                "Phase 2 doit traiter au moins un auteur"
             )
 
             # Vérifier que le runner a traité l'auteur

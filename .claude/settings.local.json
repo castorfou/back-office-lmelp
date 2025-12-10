@@ -34,7 +34,8 @@
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest:*)",
       "Bash(gh auth:*)",
       "Bash(source .venv/bin/activate)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); echo \"\"Backend URL: $BACKEND_URL\"\"')"
     ]
   },
   "enableAllProjectMcpServers": true,

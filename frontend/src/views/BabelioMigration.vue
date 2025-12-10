@@ -49,6 +49,14 @@
           <div class="stat-value">{{ status.authors_with_url || 0 }}</div>
           <div class="stat-label">Liés avec succès</div>
         </div>
+        <div class="stat-card success">
+          <div class="stat-value">{{ status.authors_not_found_count || 0 }}</div>
+          <div class="stat-label">Absents de Babelio</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-value">{{ status.problematic_authors_count || 0 }}</div>
+          <div class="stat-label">À traiter manuellement</div>
+        </div>
         <div class="stat-card pending">
           <div class="stat-value">{{ status.authors_without_url_babelio || 0 }}</div>
           <div class="stat-label">En attente de liaison</div>
@@ -89,6 +97,8 @@
         <ul>
           <li><strong>Auteurs total:</strong> Nombre total d'auteurs dans la base de données</li>
           <li><strong>Liés avec succès:</strong> Auteurs ayant une URL Babelio associée</li>
+          <li><strong>Absents de Babelio:</strong> Auteurs marqués comme non référencés sur Babelio</li>
+          <li><strong>À traiter manuellement:</strong> Auteurs nécessitant une intervention manuelle (aucun livre trouvé sur Babelio, auteur orphelin...)</li>
           <li><strong>En attente de liaison:</strong> Auteurs restant à lier (la liaison automatique traite les auteurs en même temps que leurs livres)</li>
         </ul>
       </div>
@@ -116,7 +126,7 @@
 
         <div class="progress-summary">
           <div class="progress-stat">
-            <strong>Livres traités:</strong> {{ migrationProgress.books_processed }}
+            <strong>Éléments traités:</strong> {{ migrationProgress.books_processed }}
           </div>
           <div class="progress-stat" v-if="migrationProgress.start_time">
             <strong>Démarrée:</strong> {{ formatDate(migrationProgress.start_time) }}
@@ -128,7 +138,7 @@
 
         <!-- Structured book logs (compact view) -->
         <div v-if="migrationProgress.book_logs && migrationProgress.book_logs.length > 0" class="book-logs-section">
-          <h4>Livres traités ({{ migrationProgress.book_logs.length }})</h4>
+          <h4>Éléments traités ({{ migrationProgress.book_logs.length }})</h4>
           <div class="book-logs-list">
             <div
               v-for="(bookLog, index) in migrationProgress.book_logs"
@@ -137,11 +147,11 @@
             >
               <div class="book-log-header" @click="toggleBookLog(index)">
                 <span class="book-log-title">
-                  {{ bookLog.titre }} - {{ bookLog.auteur }}
+                  {{ bookLog.titre }}<template v-if="bookLog.auteur"> - {{ bookLog.auteur }}</template>
                 </span>
                 <span class="book-log-status">
-                  {{ getStatusIcon(bookLog.livre_status) }}
-                  {{ getStatusIcon(bookLog.auteur_status) }}
+                  <template v-if="bookLog.livre_status !== 'none'">{{ getStatusIcon(bookLog.livre_status) }}</template>
+                  <template v-if="bookLog.auteur_status !== 'none'">{{ getStatusIcon(bookLog.auteur_status) }}</template>
                   <span class="expand-toggle-book">{{ expandedBooks[index] ? '▼' : '▶' }}</span>
                 </span>
               </div>
@@ -180,10 +190,17 @@
     <div v-if="problematicCases.length > 0" class="cases-list">
       <h2>Cas à traiter manuellement ({{ problematicCases.length }})</h2>
 
-      <div v-for="cas in problematicCases" :key="cas.livre_id" class="case-card">
+      <div v-for="cas in problematicCases" :key="cas.livre_id || cas.auteur_id" class="case-card">
         <div class="case-header">
-          <h3>{{ cas.titre_attendu }}</h3>
-          <span class="author">{{ cas.auteur }}</span>
+          <!-- Affichage différent selon le type (livre vs auteur) -->
+          <template v-if="cas.type === 'auteur'">
+            <h3>👤 {{ cas.nom_auteur }}</h3>
+            <span class="author">{{ cas.nb_livres }} livre(s) lié(s)</span>
+          </template>
+          <template v-else>
+            <h3>{{ cas.titre_attendu }}</h3>
+            <span class="author">{{ cas.auteur }}</span>
+          </template>
         </div>
 
         <div class="case-body">
@@ -227,7 +244,7 @@
             <button
               v-if="cas.url_babelio && cas.url_babelio !== 'N/A'"
               @click="acceptSuggestion(cas)"
-              :disabled="processingCase === cas.livre_id"
+              :disabled="processingCase === getCaseId(cas)"
               class="btn-accept"
             >
               ✓ Accepter suggestion
@@ -236,51 +253,20 @@
             <!-- Marquer comme not found -->
             <button
               @click="markNotFound(cas)"
-              :disabled="processingCase === cas.livre_id"
+              :disabled="processingCase === getCaseId(cas)"
               class="btn-not-found"
             >
               ✗ Pas sur Babelio
             </button>
 
-            <!-- Modifier et réessayer -->
+            <!-- Entrer URL manuellement -->
             <button
-              v-if="editingCase !== cas.livre_id"
-              @click="startEditing(cas)"
-              :disabled="processingCase === cas.livre_id"
-              class="btn-edit"
+              @click="openUrlPopup(cas)"
+              :disabled="processingCase === getCaseId(cas)"
+              class="btn-enter-url"
+              title="Entrer manuellement l'URL Babelio"
             >
-              ✎ Modifier titre
-            </button>
-
-            <!-- Sauvegarder le titre corrigé -->
-            <button
-              v-if="editingCase === cas.livre_id"
-              @click="saveCorrectedTitle(cas)"
-              :disabled="processingCase === cas.livre_id || !newTitle.trim()"
-              class="btn-save"
-              title="Sauvegarder le titre sans relancer la recherche Babelio"
-            >
-              💾 Sauvegarder titre
-            </button>
-
-            <!-- Valider le retry -->
-            <button
-              v-if="editingCase === cas.livre_id"
-              @click="retryWithNewTitle(cas)"
-              :disabled="processingCase === cas.livre_id || !newTitle.trim()"
-              class="btn-retry"
-              title="Corriger le titre ET relancer la recherche Babelio"
-            >
-              ↻ Réessayer Babelio
-            </button>
-
-            <!-- Annuler l'édition -->
-            <button
-              v-if="editingCase === cas.livre_id"
-              @click="cancelEditing"
-              class="btn-cancel"
-            >
-              Annuler
+              ✏️ Entrer URL Babelio
             </button>
           </div>
 
@@ -310,7 +296,7 @@
             <div v-if="retryResults[cas.livre_id].babelio_url" class="retry-actions">
               <button
                 @click="acceptSuggestionFromRetry(cas, retryResults[cas.livre_id])"
-                :disabled="processingCase === cas.livre_id"
+                :disabled="processingCase === getCaseId(cas)"
                 class="btn-accept"
               >
                 ✓ Accepter ce résultat
@@ -326,6 +312,51 @@
       <p>Aucun cas problématique à traiter! 🎉</p>
     </div>
     </main>
+
+    <!-- Popup pour entrer l'URL Babelio -->
+    <div v-if="showUrlPopup" class="popup-overlay" @click.self="closeUrlPopup">
+      <div class="popup-content">
+        <div class="popup-header">
+          <h3>Entrer URL Babelio</h3>
+          <button @click="closeUrlPopup" class="close-btn">×</button>
+        </div>
+
+        <div class="popup-body">
+          <p v-if="urlPopupCase">
+            <strong>{{ urlPopupCase.type === 'auteur' ? 'Auteur' : 'Livre' }}:</strong>
+            {{ urlPopupCase.type === 'auteur' ? urlPopupCase.nom_auteur : urlPopupCase.titre_attendu }}
+          </p>
+
+          <label>
+            URL Babelio:
+            <input
+              v-model="babelioUrl"
+              type="text"
+              class="input-url"
+              placeholder="https://www.babelio.com/..."
+              @keyup.enter="submitUrl"
+            />
+          </label>
+
+          <div v-if="urlError" class="error-message">
+            {{ urlError }}
+          </div>
+        </div>
+
+        <div class="popup-footer">
+          <button @click="closeUrlPopup" class="btn-cancel">
+            Annuler
+          </button>
+          <button
+            @click="submitUrl"
+            :disabled="!babelioUrl.trim() || processingUrl"
+            class="btn-submit"
+          >
+            {{ processingUrl ? 'Traitement...' : 'Valider' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -357,23 +388,23 @@ export default {
         book_logs: [],
       },
       expandedBooks: {},
-      progressInterval: null,
+      pollInterval: null,
+      // Popup pour entrer URL Babelio
+      showUrlPopup: false,
+      urlPopupCase: null,
+      babelioUrl: '',
+      processingUrl: false,
+      urlError: null,
     };
   },
   mounted() {
     this.loadData();
     this.checkMigrationProgress();
-    // Poll progress every 2 seconds when migration is running
-    this.progressInterval = setInterval(() => {
-      if (this.migrationProgress.is_running) {
-        this.checkMigrationProgress();
-        this.loadData(); // Refresh status to see pending count decrease
-      }
-    }, 2000);
   },
   beforeUnmount() {
-    if (this.progressInterval) {
-      clearInterval(this.progressInterval);
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
     }
   },
   computed: {
@@ -387,6 +418,11 @@ export default {
     },
   },
   methods: {
+    // Helper pour obtenir l'ID d'un cas (livre_id ou auteur_id selon le type)
+    getCaseId(cas) {
+      return cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
+    },
+
     showToast(message, type = 'success') {
       this.toast = { message, type };
       setTimeout(() => {
@@ -435,20 +471,85 @@ export default {
     },
 
     async markNotFound(cas) {
-      this.processingCase = cas.livre_id;
+      // Déterminer le type et l'ID selon le cas
+      const itemType = cas.type || 'livre';
+      const itemId = cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
+      const itemName = cas.type === 'auteur' ? cas.nom_auteur : cas.titre_attendu;
+      const reason = cas.type === 'auteur'
+        ? 'Auteur non disponible sur Babelio'
+        : 'Livre non disponible sur Babelio';
+
+      this.processingCase = itemId;
 
       try {
         const response = await axios.post('/api/babelio-migration/mark-not-found', {
-          livre_id: cas.livre_id,
-          reason: 'Livre non disponible sur Babelio',
+          item_id: itemId,
+          reason: reason,
+          item_type: itemType,
         });
 
-        this.showToast(response.data.message || `✗ "${cas.titre_attendu}" marqué not found`, 'info');
+        this.showToast(response.data.message || `✗ "${itemName}" marqué not found`, 'info');
         await this.loadData();
       } catch (err) {
         this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
       } finally {
         this.processingCase = null;
+      }
+    },
+
+    openUrlPopup(cas) {
+      this.urlPopupCase = cas;
+      this.babelioUrl = '';
+      this.urlError = null;
+      this.showUrlPopup = true;
+    },
+
+    closeUrlPopup() {
+      this.showUrlPopup = false;
+      this.urlPopupCase = null;
+      this.babelioUrl = '';
+      this.urlError = null;
+      this.processingUrl = false;
+    },
+
+    async submitUrl() {
+      if (!this.babelioUrl.trim()) {
+        this.urlError = 'Veuillez entrer une URL';
+        return;
+      }
+
+      // Validation basique de l'URL
+      if (!this.babelioUrl.includes('babelio.com')) {
+        this.urlError = 'L\'URL doit être une URL Babelio valide';
+        return;
+      }
+
+      const cas = this.urlPopupCase;
+      const itemType = cas.type || 'livre';
+      const itemId = cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
+      const itemName = cas.type === 'auteur' ? cas.nom_auteur : cas.titre_attendu;
+
+      this.processingUrl = true;
+      this.urlError = null;
+
+      try {
+        const response = await axios.post('/api/babelio-migration/update-from-url', {
+          item_id: itemId,
+          babelio_url: this.babelioUrl.trim(),
+          item_type: itemType,
+        });
+
+        if (response.data.status === 'success') {
+          this.showToast(response.data.message || `✓ "${itemName}" mis à jour!`, 'success');
+          this.closeUrlPopup();
+          await this.loadData();
+        } else {
+          this.urlError = response.data.message || 'Erreur lors de la mise à jour';
+        }
+      } catch (err) {
+        this.urlError = err.response?.data?.message || err.message || 'Erreur lors de la mise à jour';
+      } finally {
+        this.processingUrl = false;
       }
     },
 
@@ -550,6 +651,7 @@ export default {
           this.migrationProgress.is_running = true;
           // Start polling immediately
           this.checkMigrationProgress();
+          this.startPolling();
         } else if (response.data.status === 'already_running') {
           this.showToast('Migration déjà en cours', 'info');
         } else {
@@ -567,6 +669,7 @@ export default {
         if (response.data.status === 'stopped') {
           this.showToast('Migration arrêtée', 'info');
           this.migrationProgress.is_running = false;
+          this.stopPolling();
         } else {
           this.showToast(`Erreur: ${response.data.message}`, 'error');
         }
@@ -579,8 +682,33 @@ export default {
       try {
         const response = await axios.get('/api/babelio-migration/progress');
         this.migrationProgress = response.data;
+
+        // Si la migration vient de se terminer, arrêter le polling et recharger les données
+        if (!response.data.is_running && this.pollInterval) {
+          this.stopPolling();
+          await this.loadData();
+        }
       } catch (err) {
         console.error('Error checking migration progress:', err);
+      }
+    },
+
+    startPolling() {
+      // Ne pas démarrer si déjà en cours
+      if (this.pollInterval) {
+        return;
+      }
+
+      // Polling toutes les 2 secondes
+      this.pollInterval = setInterval(async () => {
+        await this.checkMigrationProgress();
+      }, 2000);
+    },
+
+    stopPolling() {
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
+        this.pollInterval = null;
       }
     },
 
@@ -1061,6 +1189,15 @@ h2 {
   background: #c82333;
 }
 
+.btn-enter-url {
+  background: #6f42c1;
+  color: white;
+}
+
+.btn-enter-url:hover:not(:disabled) {
+  background: #5a32a3;
+}
+
 .btn-edit {
   background: #ffc107;
   color: #212529;
@@ -1275,5 +1412,152 @@ h2 {
   word-break: break-word;
   color: #495057;
   line-height: 1.4;
+}
+
+/* Popup pour entrer URL Babelio */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.popup-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: popupSlideIn 0.3s ease-out;
+}
+
+@keyframes popupSlideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.popup-header h3 {
+  margin: 0;
+  color: #212529;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #212529;
+}
+
+.popup-body {
+  padding: 20px;
+}
+
+.popup-body p {
+  margin-bottom: 16px;
+  color: #495057;
+}
+
+.popup-body label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #212529;
+}
+
+.input-url {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.input-url:focus {
+  outline: none;
+  border-color: #6f42c1;
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.1);
+}
+
+.error-message {
+  margin-top: 12px;
+  padding: 10px;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  color: #721c24;
+  font-size: 14px;
+}
+
+.popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #dee2e6;
+}
+
+.btn-submit {
+  background: #6f42c1;
+  color: white;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: #5a32a3;
+}
+
+.btn-submit:disabled {
+  background: #ced4da;
+  cursor: not-allowed;
+}
+
+.popup-footer .btn-cancel {
+  background: #6c757d;
+  color: white;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.popup-footer .btn-cancel:hover {
+  background: #5a6268;
 }
 </style>

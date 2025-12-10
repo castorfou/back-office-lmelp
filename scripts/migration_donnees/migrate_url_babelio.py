@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from bson import ObjectId
 
 
 # Ajouter le chemin src au PYTHONPATH
@@ -185,6 +186,7 @@ def log_problematic_case(
         raison: Raison du rejet
     """
     case = {
+        "type": "livre",  # Identificateur de type
         "timestamp": datetime.now(UTC),
         "livre_id": str(livre_id),
         "titre_attendu": titre_attendu,
@@ -199,6 +201,39 @@ def log_problematic_case(
     problematic_collection.insert_one(case)
 
     logger.warning(f"⚠️  Cas problématique loggé: {raison}")
+
+
+def log_problematic_author(
+    auteur_id,  # ObjectId ou str
+    nom_auteur: str,
+    nb_livres: int,
+    livres_status: str,  # "all_not_found" | "orphelin" | "all_problematic"
+    raison: str,
+) -> None:
+    """Log un cas problématique d'AUTEUR dans MongoDB collection babelio_problematic_cases.
+
+    Args:
+        auteur_id: ID de l'auteur dans MongoDB (ObjectId ou str)
+        nom_auteur: Nom de l'auteur
+        nb_livres: Nombre de livres liés à cet auteur
+        livres_status: Statut des livres ("all_not_found", "orphelin", "all_problematic")
+        raison: Raison du problème
+    """
+    case = {
+        "type": "auteur",  # Identificateur de type
+        "timestamp": datetime.now(UTC),
+        "auteur_id": str(auteur_id),  # Convertir ObjectId en string
+        "nom_auteur": nom_auteur,
+        "nb_livres": nb_livres,
+        "livres_status": livres_status,
+        "raison": raison,
+    }
+
+    # Écrire dans MongoDB collection babelio_problematic_cases
+    problematic_collection = mongodb_service.get_collection("babelio_problematic_cases")
+    problematic_collection.insert_one(case)
+
+    logger.warning(f"⚠️  Auteur problématique loggé: {raison}")
 
 
 async def migrate_one_book_and_author(
@@ -537,7 +572,7 @@ async def scrape_author_url_from_book_page(book_url: str) -> str | None:
                 return None
 
             html = await response.text()
-            soup = BeautifulSoup(html, "html5lib")
+            soup = BeautifulSoup(html, "lxml")
 
             # Chercher le lien auteur dans la page
             # Format: <a href="/auteur/Nom-Prenom/12345" class="...">
@@ -556,6 +591,442 @@ async def scrape_author_url_from_book_page(book_url: str) -> str | None:
     except Exception as e:
         logger.error(f"❌ Erreur lors du scraping de {book_url}: {e}")
         return None
+
+
+async def get_all_books_to_complete() -> list[dict]:
+    """Récupère TOUS les livres dont les auteurs doivent être complétés.
+
+    Approche batch: charge tous les livres en UNE FOIS pour éviter
+    de rejouer plusieurs fois sur le même livre en cas d'erreur.
+
+    Returns:
+        Liste de dicts avec: livre_id, titre, auteur, auteur_id, url_babelio
+
+    Example:
+        >>> books = await get_all_books_to_complete()
+        >>> print(len(books))
+        15
+        >>> print(books[0])
+        {
+            "livre_id": ObjectId("..."),
+            "titre": "1984",
+            "auteur": "George Orwell",
+            "auteur_id": ObjectId("..."),
+            "url_babelio": "https://www.babelio.com/livres/..."
+        }
+    """
+    livres_collection = mongodb_service.get_collection("livres")
+    prob_collection = mongodb_service.get_collection("babelio_problematic_cases")
+
+    # Récupérer les IDs de livres déjà loggés comme problématiques
+    problematic_cases = prob_collection.find({}, {"livre_id": 1})
+    # CRITICAL: Convertir les IDs de STRING vers ObjectId pour le filtre MongoDB
+    # log_problematic_case() stocke livre_id en string mais MongoDB _id est ObjectId
+    problematic_livre_ids = [ObjectId(case["livre_id"]) for case in problematic_cases]
+
+    # Chercher TOUS les livres qui ont une URL Babelio mais dont l'auteur n'en a pas
+    # Pipeline d'aggregation pour joindre livres et auteurs
+    pipeline = [
+        # Livres avec URL Babelio ET non loggés dans problematic_cases
+        {
+            "$match": {
+                "url_babelio": {"$exists": True, "$ne": None},
+                "_id": {"$nin": problematic_livre_ids},
+            }
+        },
+        # Joindre avec auteurs
+        {
+            "$lookup": {
+                "from": "auteurs",
+                "localField": "auteur_id",
+                "foreignField": "_id",
+                "as": "auteur_info",
+            }
+        },
+        # Déplier le tableau auteur_info
+        {"$unwind": "$auteur_info"},
+        # Filtrer: auteur SANS URL Babelio
+        {
+            "$match": {
+                "$or": [
+                    {"auteur_info.url_babelio": {"$exists": False}},
+                    {"auteur_info.url_babelio": None},
+                ]
+            }
+        },
+        # Pas de limit: récupérer TOUS les livres
+    ]
+
+    livre_cursor = livres_collection.aggregate(pipeline)
+
+    # Construire la liste de tous les livres à traiter
+    books_to_process = []
+    for livre in livre_cursor:
+        auteur_info = livre.get("auteur_info", {})
+        books_to_process.append(
+            {
+                "livre_id": livre["_id"],
+                "titre": livre.get("titre", "Unknown"),
+                "auteur": auteur_info.get("nom", "Unknown"),
+                "auteur_id": auteur_info.get("_id"),
+                "url_babelio": livre.get("url_babelio"),
+            }
+        )
+
+    logger.info(f"📋 {len(books_to_process)} livres à traiter en batch")
+    return books_to_process
+
+
+async def get_all_authors_to_complete() -> list[dict]:
+    """Récupère TOUS les auteurs sans url_babelio à traiter.
+
+    Pour chaque auteur, récupère aussi ses livres avec leurs détails
+    (url_babelio, babelio_not_found) pour pouvoir déterminer comment
+    traiter l'auteur.
+
+    Returns:
+        Liste de dicts avec:
+        {
+            "auteur_id": ObjectId,
+            "nom": str,
+            "livres": [
+                {
+                    "livre_id": ObjectId,
+                    "titre": str,
+                    "url_babelio": str | None,
+                    "babelio_not_found": bool | None
+                }
+            ]
+        }
+    """
+    auteurs_collection = mongodb_service.get_collection("auteurs")
+
+    # Pipeline: auteurs sans url_babelio + leurs livres
+    pipeline = [
+        # Auteurs sans URL Babelio ET pas marqués "not found"
+        {
+            "$match": {
+                "$and": [
+                    {
+                        "$or": [
+                            {"url_babelio": {"$exists": False}},
+                            {"url_babelio": None},
+                        ]
+                    },
+                    # Exclure les auteurs marqués "absent de Babelio"
+                    {
+                        "$or": [
+                            {"babelio_not_found": {"$exists": False}},
+                            {"babelio_not_found": False},
+                        ]
+                    },
+                ]
+            }
+        },
+        # Joindre avec livres
+        {
+            "$lookup": {
+                "from": "livres",
+                "localField": "_id",
+                "foreignField": "auteur_id",
+                "as": "livres_info",
+            }
+        },
+        # Projeter les champs nécessaires
+        {
+            "$project": {
+                "auteur_id": "$_id",
+                "nom": 1,
+                "livres": {
+                    "$map": {
+                        "input": "$livres_info",
+                        "as": "livre",
+                        "in": {
+                            "livre_id": "$$livre._id",
+                            "titre": "$$livre.titre",
+                            "url_babelio": "$$livre.url_babelio",
+                            "babelio_not_found": "$$livre.babelio_not_found",
+                        },
+                    }
+                },
+            }
+        },
+    ]
+
+    auteur_cursor = auteurs_collection.aggregate(pipeline)
+
+    # IMPORTANT: Convertir le curseur en liste pour éviter qu'il soit épuisé
+    all_authors = list(auteur_cursor)
+    logger.info(f"🔍 {len(all_authors)} auteurs sans URL trouvés dans MongoDB")
+
+    # Récupérer les IDs des auteurs déjà problématiques
+    problematic_collection = mongodb_service.get_collection("babelio_problematic_cases")
+    problematic_authors = list(problematic_collection.find({"type": "auteur"}))
+    problematic_author_ids = {
+        ObjectId(doc["auteur_id"]) for doc in problematic_authors if "auteur_id" in doc
+    }
+    logger.info(
+        f"⚠️  {len(problematic_author_ids)} auteurs déjà problématiques à exclure"
+    )
+
+    # Construire la liste en excluant les auteurs déjà problématiques
+    authors_to_process = []
+    for auteur in all_authors:
+        auteur_id = auteur.get("auteur_id")
+        if auteur_id not in problematic_author_ids:
+            authors_to_process.append(auteur)
+        else:
+            logger.info(
+                f"⏭️  Auteur '{auteur.get('nom')}' (ID={auteur_id}) déjà dans problematic_cases, ignoré"
+            )
+
+    logger.info(f"📋 {len(authors_to_process)} auteurs à traiter après filtrage")
+    return authors_to_process
+
+
+async def process_one_author(author_data: dict, dry_run: bool = False) -> dict:
+    """Traite un auteur sans url_babelio en examinant ses livres.
+
+    Args:
+        author_data: Dict avec auteur_id, nom, livres (liste)
+        dry_run: Si True, affiche sans modifier
+
+    Returns:
+        Dict avec status, auteur_updated, nom_auteur, raison
+
+    Logique:
+    1. Si l'auteur a un livre avec url_babelio → scraper l'URL auteur
+    2. Si tous les livres sont problématiques → marquer auteur problématique
+    3. Si tous les livres sont not_found → marquer auteur absent de Babelio
+    4. Si auteur orphelin (pas de livres) → marquer problématique
+    """
+    auteur_id = author_data["auteur_id"]
+    nom_auteur = author_data["nom"]
+    livres = author_data["livres"]
+
+    logger.info(f"🔄 Traitement auteur: '{nom_auteur}' ({len(livres)} livres)")
+
+    # Cas 1: Auteur orphelin (pas de livres)
+    if not livres:
+        logger.warning(
+            f"⚠️  Auteur orphelin: '{nom_auteur}' - Logging problematic author"
+        )
+        log_problematic_author(
+            auteur_id=auteur_id,
+            nom_auteur=nom_auteur,
+            nb_livres=0,
+            livres_status="orphelin",
+            raison="Auteur sans livres liés",
+        )
+        return {
+            "status": "error",
+            "auteur_updated": False,
+            "nom_auteur": nom_auteur,
+            "raison": "Auteur orphelin (pas de livres)",
+        }
+
+    # Chercher un livre avec url_babelio
+    livre_avec_url = None
+    for livre in livres:
+        if livre.get("url_babelio"):
+            livre_avec_url = livre
+            break
+
+    # Cas 2: Un livre a une url_babelio → scraper l'URL de l'auteur
+    if livre_avec_url:
+        logger.info(
+            f"📚 Livre trouvé avec URL: '{livre_avec_url['titre']}' - "
+            f"Scraping URL auteur..."
+        )
+        await wait_rate_limit()
+        author_url = await scrape_author_url_from_book_page(
+            livre_avec_url["url_babelio"]
+        )
+
+        if author_url is None:
+            logger.warning(
+                f"❌ Impossible de récupérer l'URL auteur pour '{nom_auteur}' - "
+                f"Logging problematic case"
+            )
+            log_problematic_case(
+                livre_id=str(livre_avec_url["livre_id"]),
+                titre_attendu=livre_avec_url["titre"],
+                titre_trouve=None,
+                url_babelio=livre_avec_url["url_babelio"],
+                auteur=nom_auteur,
+                raison="Impossible de récupérer l'URL de l'auteur depuis la page du livre",
+            )
+            return {
+                "status": "error",
+                "auteur_updated": False,
+                "nom_auteur": nom_auteur,
+                "raison": "Scraping failed",
+            }
+
+        # Succès - mettre à jour l'auteur
+        if dry_run:
+            logger.info(
+                f"[DRY RUN] Mettre à jour auteur '{nom_auteur}' avec URL: {author_url}"
+            )
+            return {
+                "status": "success",
+                "auteur_updated": False,
+                "nom_auteur": nom_auteur,
+                "raison": "Dry run",
+            }
+
+        auteurs_collection = mongodb_service.get_collection("auteurs")
+        result = auteurs_collection.update_one(
+            {"_id": auteur_id}, {"$set": {"url_babelio": author_url}}
+        )
+
+        if result.matched_count > 0:
+            logger.info(f"✅ Auteur '{nom_auteur}' mis à jour avec URL: {author_url}")
+            return {
+                "status": "success",
+                "auteur_updated": True,
+                "nom_auteur": nom_auteur,
+                "raison": "URL trouvée et mise à jour",
+            }
+        else:
+            logger.error(f"❌ Échec mise à jour auteur '{nom_auteur}'")
+            return {
+                "status": "error",
+                "auteur_updated": False,
+                "nom_auteur": nom_auteur,
+                "raison": "Update failed",
+            }
+
+    # Cas 3: Vérifier si tous les livres sont not_found
+    all_not_found = all(livre.get("babelio_not_found") for livre in livres)
+    if all_not_found:
+        logger.info(
+            f"ℹ️  Tous les livres de '{nom_auteur}' sont absents de Babelio - "
+            f"Auteur aussi absent"
+        )
+        # Marquer l'auteur comme absent (on pourrait ajouter un champ babelio_not_found)
+        auteurs_collection = mongodb_service.get_collection("auteurs")
+        if not dry_run:
+            auteurs_collection.update_one(
+                {"_id": auteur_id}, {"$set": {"babelio_not_found": True}}
+            )
+        return {
+            "status": "not_found",
+            "auteur_updated": False,
+            "nom_auteur": nom_auteur,
+            "raison": "Tous les livres sont absents de Babelio",
+        }
+
+    # Cas 4: Livres sont dans problematic_cases ou mix
+    logger.warning(
+        f"⚠️  Auteur '{nom_auteur}': livres problématiques ou mix - "
+        f"Logging problematic author"
+    )
+    log_problematic_author(
+        auteur_id=auteur_id,
+        nom_auteur=nom_auteur,
+        nb_livres=len(livres),
+        livres_status="all_problematic",
+        raison=f"Livres problématiques: {[livre['titre'] for livre in livres]}",
+    )
+    return {
+        "status": "error",
+        "auteur_updated": False,
+        "nom_auteur": nom_auteur,
+        "raison": "Livres problématiques",
+    }
+
+
+async def process_one_book_author(book_data: dict, dry_run: bool = False) -> dict:
+    """Traite un livre du batch et complète l'URL Babelio de son auteur.
+
+    Cette fonction est appelée pour chaque livre dans la liste retournée
+    par get_all_books_to_complete(). Elle ne fait PAS de requête MongoDB
+    pour chercher le livre, elle utilise directement les données fournies.
+
+    Args:
+        book_data: Dict contenant livre_id, titre, auteur, auteur_id, url_babelio
+        dry_run: Si True, affiche les modifications sans les appliquer
+
+    Returns:
+        Dict avec status, auteur_updated, titre, auteur
+
+    Example:
+        >>> book = {
+        ...     "livre_id": ObjectId("..."),
+        ...     "titre": "1984",
+        ...     "auteur": "George Orwell",
+        ...     "auteur_id": ObjectId("..."),
+        ...     "url_babelio": "https://www.babelio.com/livres/Orwell-1984/1234"
+        ... }
+        >>> result = await process_one_book_author(book, dry_run=False)
+        >>> result["status"]
+        'success'
+    """
+    livre_id = book_data["livre_id"]
+    titre = book_data["titre"]
+    auteur = book_data["auteur"]
+    auteur_id = book_data["auteur_id"]
+    url_babelio = book_data["url_babelio"]
+
+    logger.info(f"🔄 Traitement livre: '{titre}' par {auteur}")
+
+    # Scraper l'URL de l'auteur depuis la page du livre
+    await wait_rate_limit()
+    author_url = await scrape_author_url_from_book_page(url_babelio)
+
+    if author_url is None:
+        # Échec du scraping - logger le cas problématique
+        logger.warning(
+            f"❌ Impossible de récupérer l'URL auteur pour '{titre}' - "
+            f"Logging problematic case"
+        )
+        log_problematic_case(
+            livre_id=str(livre_id),
+            titre_attendu=titre,
+            titre_trouve=None,
+            url_babelio=url_babelio,
+            auteur=auteur,
+            raison="Impossible de récupérer l'URL de l'auteur depuis la page du livre",
+        )
+        return {
+            "status": "error",
+            "auteur_updated": False,
+            "titre": titre,
+            "auteur": auteur,
+        }
+
+    # Succès - mettre à jour l'auteur dans MongoDB
+    if dry_run:
+        logger.info(f"[DRY RUN] Mettre à jour auteur '{auteur}' avec URL: {author_url}")
+        return {
+            "status": "success",
+            "auteur_updated": False,  # False car pas vraiment mis à jour en dry_run
+            "titre": titre,
+            "auteur": auteur,
+        }
+
+    auteurs_collection = mongodb_service.get_collection("auteurs")
+    result = auteurs_collection.update_one(
+        {"_id": auteur_id}, {"$set": {"url_babelio": author_url}}
+    )
+
+    if result.matched_count > 0:
+        logger.info(f"✅ Auteur '{auteur}' mis à jour avec URL: {author_url}")
+        return {
+            "status": "success",
+            "auteur_updated": True,
+            "titre": titre,
+            "auteur": auteur,
+        }
+    else:
+        logger.error(f"❌ Échec mise à jour auteur '{auteur}' (ID: {auteur_id})")
+        return {
+            "status": "error",
+            "auteur_updated": False,
+            "titre": titre,
+            "auteur": auteur,
+        }
 
 
 async def complete_missing_authors(dry_run: bool = False) -> dict | None:
@@ -587,7 +1058,9 @@ async def complete_missing_authors(dry_run: bool = False) -> dict | None:
 
     # Récupérer les IDs de livres déjà loggés comme problématiques
     problematic_cases = prob_collection.find({}, {"livre_id": 1})
-    problematic_livre_ids = [case["livre_id"] for case in problematic_cases]
+    # CRITICAL: Convertir les IDs de STRING vers ObjectId pour le filtre MongoDB
+    # log_problematic_case() stocke livre_id en string (line 189) mais MongoDB _id est ObjectId
+    problematic_livre_ids = [ObjectId(case["livre_id"]) for case in problematic_cases]
 
     # Chercher un livre qui a une URL Babelio mais dont l'auteur n'en a pas
     # Pipeline d'aggregation pour joindre livres et auteurs

@@ -127,10 +127,11 @@ class AcceptSuggestionRequest(BaseModel):
 
 
 class MarkNotFoundRequest(BaseModel):
-    """Modèle pour marquer un livre comme non trouvé sur Babelio."""
+    """Modèle pour marquer un livre ou auteur comme non trouvé sur Babelio."""
 
-    livre_id: str
+    item_id: str
     reason: str
+    item_type: str = "livre"  # "livre" ou "auteur"
 
 
 class CorrectTitleRequest(BaseModel):
@@ -146,6 +147,14 @@ class RetryWithTitleRequest(BaseModel):
     livre_id: str
     new_title: str
     author: str | None = None
+
+
+class UpdateFromBabelioUrlRequest(BaseModel):
+    """Modèle pour mettre à jour depuis une URL Babelio manuelle."""
+
+    item_id: str
+    babelio_url: str
+    item_type: str = "livre"  # "livre" ou "auteur"
 
 
 @asynccontextmanager
@@ -1732,25 +1741,62 @@ async def accept_suggestion(request: AcceptSuggestionRequest) -> JSONResponse:
 
 @app.post("/api/babelio-migration/mark-not-found")
 async def mark_not_found(request: MarkNotFoundRequest) -> JSONResponse:
-    """Marque un livre comme non trouvé sur Babelio."""
+    """Marque un livre ou auteur comme non trouvé sur Babelio."""
     try:
         success = babelio_migration_service.mark_as_not_found(
-            livre_id=request.livre_id,
+            item_id=request.item_id,
             reason=request.reason,
+            item_type=request.item_type,
         )
 
         if success:
+            item_label = "Livre" if request.item_type == "livre" else "Auteur"
             return JSONResponse(
                 status_code=200,
                 content={
                     "status": "success",
-                    "message": f"Livre {request.livre_id} marqué comme not found",
+                    "message": f"{item_label} {request.item_id} marqué comme not found",
+                },
+            )
+        else:
+            item_label = "Livre" if request.item_type == "livre" else "Auteur"
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": f"{item_label} non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/update-from-url")
+async def update_from_babelio_url(request: UpdateFromBabelioUrlRequest) -> JSONResponse:
+    """Met à jour un livre/auteur depuis une URL Babelio manuelle."""
+    try:
+        result = await babelio_migration_service.update_from_babelio_url(
+            item_id=request.item_id,
+            babelio_url=request.babelio_url,
+            item_type=request.item_type,
+        )
+
+        if result["success"]:
+            item_label = "Livre" if request.item_type == "livre" else "Auteur"
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"{item_label} mis à jour depuis URL Babelio",
+                    "data": result["scraped_data"],
                 },
             )
         else:
             return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
+                status_code=400,
+                content={
+                    "status": "error",
+                    "message": result.get("error", "Erreur inconnue"),
+                },
             )
     except Exception as e:
         return JSONResponse(

@@ -28,8 +28,9 @@ if str(scripts_path) not in sys.path:
 
 try:
     from migrate_url_babelio import (  # type: ignore
-        complete_missing_authors,
+        get_all_authors_to_complete,
         migrate_one_book_and_author,
+        process_one_author,
     )
 finally:
     # Clean up sys.path
@@ -63,7 +64,7 @@ def create_book_log(
         ValueError: Si un statut invalide est fourni
     """
     # Validation des statuts
-    valid_livre_statuses = {"success", "error", "not_found"}
+    valid_livre_statuses = {"success", "error", "not_found", "none"}
     valid_auteur_statuses = {"success", "error", "not_found", "none"}
 
     if livre_status not in valid_livre_statuses:
@@ -342,52 +343,78 @@ class MigrationRunner:
                     await asyncio.sleep(1)
 
             # Phase 2: Compléter les auteurs manquants
-            # (livres déjà liés mais auteurs non liés)
             logger.info("🔄 Phase 2: Complétion des auteurs manquants...")
             authors_completed = 0
-            max_author_iterations = 100
 
-            while self.is_running and authors_completed < max_author_iterations:
+            # APPROCHE BATCH: Charger TOUS les auteurs sans URL une seule fois
+            authors_to_process = await get_all_authors_to_complete()
+            total_authors = len(authors_to_process)
+            logger.info(f"📋 {total_authors} auteurs à traiter")
+
+            # Itérer sur la liste d'auteurs
+            for idx, author_data in enumerate(authors_to_process, start=1):
+                if not self.is_running:
+                    logger.info("⚠️  Migration arrêtée par l'utilisateur")
+                    break
+
                 try:
-                    # Appeler complete_missing_authors pour traiter un auteur
-                    author_result = await complete_missing_authors(dry_run=False)
+                    nom_auteur = author_data.get("nom", "Unknown")
+                    livres = author_data.get("livres", [])
+                    nb_livres = len(livres)
 
-                    # Si None, tous les auteurs sont complétés
-                    if author_result is None:
-                        logger.info(
-                            "✅ Phase 2 terminée - tous les auteurs ont une URL Babelio"
-                        )
-                        break
+                    logger.info(
+                        f"🔄 [{idx}/{total_authors}] Traitement: {nom_auteur} ({nb_livres} livres)"
+                    )
 
-                    # Extraire les infos de l'auteur complété
-                    titre = author_result.get("titre", "Unknown")
-                    auteur = author_result.get("auteur", "Unknown")
+                    # Traiter cet auteur
+                    author_result = await process_one_author(author_data, dry_run=False)
+
                     auteur_updated = author_result.get("auteur_updated", False)
+                    raison = author_result.get("raison", "")
 
                     # Créer un log structuré pour cet auteur
+                    # PHASE 2: Afficher l'AUTEUR comme titre principal
                     details = [
-                        f"📚 Via livre: {titre}",
-                        f"👤 Auteur: {auteur}",
+                        f"👤 Auteur: {nom_auteur}",
                     ]
-                    if auteur_updated:
-                        details.append("✅ Auteur complété avec URL Babelio")
+
+                    # Afficher le titre du livre si un seul livre lié
+                    if nb_livres == 1:
+                        livre_titre = livres[0].get("titre", "Sans titre")
+                        details.append(f"📚 1 livre lié: {livre_titre}")
+                    elif nb_livres == 0:
+                        details.append("📚 Aucun livre lié")
                     else:
-                        details.append("❌ Auteur non complété")
+                        details.append(f"📚 {nb_livres} livres liés")
+
+                    if auteur_updated:
+                        details.append("✅ URL Babelio ajoutée")
+                    else:
+                        details.append(f"❌ {raison}")
+
+                    # Déterminer le statut
+                    if auteur_updated:
+                        auteur_status = "success"
+                    elif author_result.get("status") == "not_found":
+                        auteur_status = "not_found"
+                    else:
+                        auteur_status = "error"
 
                     book_log = create_book_log(
-                        titre=titre,
-                        auteur=auteur,
-                        livre_status="success",  # Livre déjà lié (pas modifié)
-                        auteur_status="success" if auteur_updated else "error",
+                        titre=nom_auteur,  # Phase 2: Auteur comme titre principal
+                        auteur="",  # Pas d'auteur secondaire en Phase 2
+                        livre_status="none",  # Livre pas modifié en Phase 2
+                        auteur_status=auteur_status,
                         details=details,
                     )
 
                     self.book_logs.append(book_log)
                     self.books_processed += 1
-                    authors_completed += 1
+                    if auteur_updated:
+                        authors_completed += 1
                     self.last_update = datetime.now(UTC)
 
-                    summary = f"Auteur complété: {auteur} (via {titre})"
+                    summary = f"Auteur: {nom_auteur} - {raison}"
                     self.logs.append(summary)
                     logger.info(summary)
 
@@ -395,10 +422,15 @@ class MigrationRunner:
                     await asyncio.sleep(1)
 
                 except Exception as e:
-                    logger.error(f"Error completing author: {e}")
+                    nom_auteur = author_data.get("nom", "Unknown")
+                    logger.error(
+                        f"Error processing author '{nom_auteur}' at index {idx}: {e}"
+                    )
                     await asyncio.sleep(1)
 
-            logger.info(f"✅ Phase 2 terminée - {authors_completed} auteurs complétés")
+            logger.info(
+                f"✅ Phase 2 terminée - {authors_completed} auteurs complétés sur {total_authors} auteurs traités"
+            )
 
             # Close babelio service
             await babelio_service.close()
@@ -490,14 +522,15 @@ class MigrationRunner:
             Dict with status and message
         """
         async with self._lock:
-            if not self.is_running or self.process is None:
+            if not self.is_running:
                 return {
                     "status": "not_running",
                     "message": "No migration is currently running",
                 }
 
             try:
-                self.process.terminate()
+                # Plus de subprocess depuis migration Python directe
+                # On met juste is_running à False pour arrêter la boucle
                 self.is_running = False
                 self.logs.append("⚠️ Migration stopped by user")
 
