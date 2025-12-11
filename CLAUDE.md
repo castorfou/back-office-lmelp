@@ -280,6 +280,144 @@ mcp__MongoDB__count --database "masque_et_la_plume" --collection "episodes"
 mcp__MongoDB__aggregate --database "masque_et_la_plume" --collection "livres" --pipeline '[{"$group": {"_id": "$editeur", "count": {"$sum": 1}}}]'
 ```
 
+## Critical Patterns and Anti-Patterns
+
+### MongoDB Cursor Handling
+
+**CRITICAL**: Never mix sync cursors with async iteration
+
+```python
+# ❌ WRONG - Async iteration on sync cursor
+authors = auteurs_collection.aggregate([...])  # Sync cursor
+async for author in authors:  # ERROR: async iteration on sync cursor
+    process(author)
+
+# ✅ CORRECT - Materialize sync cursor first
+authors = list(auteurs_collection.aggregate([...]))  # Materialize
+for author in authors:  # Sync iteration
+    await process(author)
+```
+
+### Vue.js Lifecycle Cleanup
+
+**CRITICAL**: Always clean up timers/intervals in `beforeUnmount()`
+
+```javascript
+// ✅ CORRECT
+data() {
+  return { pollInterval: null }
+},
+
+beforeUnmount() {
+  if (this.pollInterval) {
+    clearInterval(this.pollInterval);
+    this.pollInterval = null;
+  }
+}
+```
+
+**Why**: Prevents memory leaks and continued execution after component destruction.
+
+### Polling vs Server-Sent Events
+
+**Prefer simple conditional polling over EventSource (SSE):**
+
+```javascript
+// ❌ AVOID - EventSource with infinite reconnection
+this.eventSource = new EventSource(url);
+this.eventSource.onerror = () => {
+  setTimeout(() => this.connectToProgressStream(), 5000); // Infinite loop
+};
+
+// ✅ PREFER - Conditional polling with cleanup
+startPolling() {
+  if (this.pollInterval) return;
+  this.pollInterval = setInterval(async () => {
+    await this.checkProgress();
+  }, 2000);
+}
+
+stopPolling() {
+  if (this.pollInterval) {
+    clearInterval(this.pollInterval);
+    this.pollInterval = null;
+  }
+}
+```
+
+**Advantages**: More control, proper cleanup, no infinite reconnection.
+
+### Business Logic First
+
+**CRITICAL**: Understand domain logic before implementing
+
+```python
+# ❌ WRONG - Assuming author doesn't exist if books not found
+if all_books_not_found:
+    author.babelio_not_found = True  # INCORRECT assumption
+
+# ✅ CORRECT - Business logic: author may exist even if books don't
+if all_books_not_found:
+    add_to_problematic_cases(author)  # Manual review required
+    # Author may have other works on Babelio we don't know about
+```
+
+**Example**: Patrice Delbourg's book isn't on Babelio, but author may have other works there.
+
+### Rate Limiting for External APIs
+
+**CRITICAL**: Always respect external API limits
+
+```python
+# ✅ Add delays between requests
+await asyncio.sleep(5)  # 5 seconds between Babelio requests
+```
+
+**Why**: Prevents ban/throttling from external services.
+
+### Text Normalization for Matching
+
+**Chain normalizations for reliable matching:**
+
+```python
+def normalize_text(text: str) -> str:
+    """Normalize text for reliable matching."""
+    text = text.lower()
+    text = text.replace('œ', 'oe').replace('æ', 'ae')  # Ligatures
+    text = text.replace(''', "'")  # Typographic apostrophes
+    text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+    return text
+```
+
+### Separation of Concerns - MongoDB Collections
+
+**Use separate collections for different concerns:**
+
+```python
+# ✅ CORRECT - Separate collections
+babelio_problematic_cases  # Manual review needed
+livres                     # Normal data with babelio_not_found flag
+auteurs                    # Normal data with babelio_not_found flag
+
+# ❌ WRONG - Mixing concerns in one collection with type field
+all_cases  # {type: "problematic" | "not_found" | "normal"}
+```
+
+**Why**: Clearer queries, better performance, easier maintenance.
+
+### Fallback Strategies
+
+**Implement graceful degradation:**
+
+```python
+# ✅ CORRECT - Try specific search, fallback to broader
+result = search_title_and_author(title, author)
+if not result:
+    result = search_author_only(author)  # Broader search
+    if result:
+        result = scrape_from_author_page(result)
+```
+
 ## Documentation Guidelines
 
 ### Writing Documentation

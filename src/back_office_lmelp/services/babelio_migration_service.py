@@ -1,0 +1,459 @@
+"""Service pour gérer la migration des URL Babelio.
+
+Ce service gère:
+- Lecture des cas problématiques depuis MongoDB
+- Actions manuelles (accepter suggestion, marquer not found, retry)
+- Suppression de cas de MongoDB après traitement
+"""
+
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
+from bson import ObjectId
+
+from back_office_lmelp.services.babelio_service import BabelioService
+from back_office_lmelp.services.mongodb_service import MongoDBService
+
+
+logger = logging.getLogger(__name__)
+
+
+class BabelioMigrationService:
+    """Service de gestion de la migration Babelio."""
+
+    def __init__(
+        self,
+        mongodb_service: MongoDBService,
+        babelio_service: BabelioService,
+    ):
+        """Initialise le service de migration.
+
+        Args:
+            mongodb_service: Service MongoDB
+            babelio_service: Service Babelio
+        """
+        self.mongodb_service = mongodb_service
+        self.babelio_service = babelio_service
+
+    def get_migration_status(self) -> dict[str, Any]:
+        """Récupère le statut de la migration.
+
+        Returns:
+            Statut avec compteurs et dernière mise à jour
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+        auteurs_collection = self.mongodb_service.db["auteurs"]
+
+        # Compter les livres total
+        total_books = livres_collection.count_documents({})
+
+        # Compter les livres avec URL Babelio
+        migrated_count = livres_collection.count_documents(
+            {"url_babelio": {"$exists": True, "$ne": None}}
+        )
+
+        # Compter les livres marqués "not found"
+        not_found_count = livres_collection.count_documents({"babelio_not_found": True})
+
+        # Compter les cas problématiques par type
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_count = problematic_collection.count_documents({"type": "livre"})
+        problematic_authors_count = problematic_collection.count_documents(
+            {"type": "auteur"}
+        )
+
+        # Statistiques pour les auteurs
+        total_authors = auteurs_collection.count_documents({})
+        authors_with_url = auteurs_collection.count_documents(
+            {"url_babelio": {"$exists": True, "$ne": None}}
+        )
+        authors_not_found_count = auteurs_collection.count_documents(
+            {"babelio_not_found": True}
+        )
+        authors_without_url = (
+            total_authors
+            - authors_with_url
+            - authors_not_found_count
+            - problematic_authors_count
+        )
+
+        # Chercher la dernière date de mise à jour
+        last_migration = None
+        latest_book = livres_collection.find_one(
+            {"url_babelio": {"$exists": True, "$ne": None}},
+            sort=[("_id", -1)],
+        )
+        if latest_book:
+            # Extraire timestamp de l'ObjectId
+            last_migration = latest_book["_id"].generation_time.isoformat()
+
+        return {
+            "total_books": total_books,
+            "migrated_count": migrated_count,
+            "not_found_count": not_found_count,
+            "problematic_count": problematic_count,
+            "pending_count": total_books
+            - migrated_count
+            - not_found_count
+            - problematic_count,
+            "last_migration": last_migration,
+            # Statistiques auteurs
+            "total_authors": total_authors,
+            "authors_with_url": authors_with_url,
+            "authors_not_found_count": authors_not_found_count,
+            "problematic_authors_count": problematic_authors_count,
+            "authors_without_url_babelio": authors_without_url,
+        }
+
+    def get_problematic_cases(self) -> list[dict[str, Any]]:
+        """Récupère la liste des cas problématiques depuis MongoDB.
+
+        Exclut les livres qui ont déjà été marqués avec babelio_not_found=true
+        ou qui ont déjà une url_babelio (déjà résolus).
+
+        Returns:
+            Liste des cas problématiques non résolus
+        """
+        cases: list[dict[str, Any]] = []
+
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        livres_collection = self.mongodb_service.db["livres"]
+
+        # Récupérer tous les cas problématiques depuis MongoDB
+        for case in problematic_collection.find():
+            # Vérifier si ce livre est déjà résolu dans la collection livres
+            livre_id = case.get("livre_id")
+            if livre_id:
+                livre = livres_collection.find_one({"_id": ObjectId(livre_id)})
+                # Exclure si déjà marqué "not found" ou si a déjà une URL
+                if livre and (
+                    livre.get("babelio_not_found") or livre.get("url_babelio")
+                ):
+                    logger.debug(
+                        f"Livre {livre_id} déjà résolu, exclu des cas problématiques"
+                    )
+                    continue
+
+            # Convertir ObjectId et datetime en strings pour Pydantic/FastAPI
+            serializable_case = {}
+            for key, value in case.items():
+                if isinstance(value, ObjectId):
+                    serializable_case[key] = str(value)
+                elif isinstance(value, datetime):
+                    serializable_case[key] = value.isoformat()
+                else:
+                    serializable_case[key] = value
+
+            cases.append(serializable_case)
+
+        # Trier: livres d'abord, puis auteurs
+        cases.sort(key=lambda c: (c.get("type") != "livre", c.get("type")))
+
+        return cases
+
+    def accept_suggestion(
+        self,
+        livre_id: str,
+        babelio_url: str,
+        babelio_author_url: str | None = None,
+        corrected_title: str | None = None,
+    ) -> bool:
+        """Accepte la suggestion Babelio et met à jour MongoDB.
+
+        Args:
+            livre_id: ID du livre MongoDB (string hex)
+            babelio_url: URL Babelio du livre
+            babelio_author_url: URL Babelio de l'auteur (optionnel)
+            corrected_title: Titre corrigé (optionnel)
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+        auteurs_collection = self.mongodb_service.db["auteurs"]
+
+        # Convertir livre_id en ObjectId
+        try:
+            livre_oid = ObjectId(livre_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {livre_id} - {e}")
+            return False
+
+        # Mettre à jour le livre
+        update_data: dict[str, Any] = {
+            "url_babelio": babelio_url,
+            "updated_at": datetime.now(UTC),
+        }
+        if corrected_title:
+            update_data["titre"] = corrected_title
+
+        result = livres_collection.update_one({"_id": livre_oid}, {"$set": update_data})
+
+        if result.matched_count == 0:
+            logger.error(f"Livre {livre_id} non trouvé dans MongoDB")
+            return False
+
+        # Mettre à jour l'auteur si URL fournie
+        if babelio_author_url:
+            livre = livres_collection.find_one({"_id": livre_oid})
+            if livre and livre.get("auteur_id"):
+                auteur_id = livre["auteur_id"]
+                # Ne pas écraser si l'auteur a déjà une URL
+                result = auteurs_collection.update_one(
+                    {"_id": auteur_id, "url_babelio": {"$exists": False}},
+                    {"$set": {"url_babelio": babelio_author_url}},
+                )
+
+                # Si l'auteur a été mis à jour, retirer aussi de problematic_cases
+                if result.matched_count > 0:
+                    problematic_collection = self.mongodb_service.db[
+                        "babelio_problematic_cases"
+                    ]
+                    problematic_collection.delete_one({"auteur_id": str(auteur_id)})
+
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({"livre_id": livre_id})
+
+        logger.info(f"✅ Suggestion acceptée pour livre {livre_id}: {babelio_url}")
+        return True
+
+    def mark_as_not_found(
+        self, item_id: str, reason: str, item_type: str = "livre"
+    ) -> bool:
+        """Marque un livre ou auteur comme non trouvé sur Babelio.
+
+        Args:
+            item_id: ID du livre ou auteur MongoDB (string hex)
+            reason: Raison du not found
+            item_type: Type d'item ('livre' ou 'auteur')
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+
+        # Convertir item_id en ObjectId
+        try:
+            item_oid = ObjectId(item_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {item_id} - {e}")
+            return False
+
+        # Déterminer la collection à mettre à jour
+        if item_type == "livre":
+            collection = self.mongodb_service.db["livres"]
+            problematic_key = "livre_id"
+            log_label = "Livre"
+        elif item_type == "auteur":
+            collection = self.mongodb_service.db["auteurs"]
+            problematic_key = "auteur_id"
+            log_label = "Auteur"
+        else:
+            logger.error(f"Type invalide: {item_type}. Doit être 'livre' ou 'auteur'.")
+            return False
+
+        result = collection.update_one(
+            {"_id": item_oid},
+            {
+                "$set": {
+                    "babelio_not_found": True,
+                    "babelio_not_found_reason": reason,
+                    "babelio_not_found_date": datetime.now(UTC),
+                    "updated_at": datetime.now(UTC),
+                }
+            },
+        )
+
+        if result.matched_count == 0:
+            logger.error(f"{log_label} {item_id} non trouvé dans MongoDB")
+            return False
+
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({problematic_key: item_id})
+
+        logger.info(f"❌ {log_label} {item_id} marqué comme not found: {reason}")
+        return True
+
+    def correct_title(self, livre_id: str, new_title: str) -> bool:
+        """Corrige le titre d'un livre et le retire des cas problématiques.
+
+        Le livre redevient éligible pour la migration automatique.
+
+        Args:
+            livre_id: ID du livre MongoDB (string hex)
+            new_title: Nouveau titre corrigé
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+
+        # Convertir livre_id en ObjectId
+        try:
+            livre_oid = ObjectId(livre_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {livre_id} - {e}")
+            return False
+
+        # Mettre à jour le titre du livre
+        result = livres_collection.update_one(
+            {"_id": livre_oid},
+            {
+                "$set": {
+                    "titre": new_title,
+                    "updated_at": datetime.now(UTC),
+                }
+            },
+        )
+
+        if result.matched_count == 0:
+            logger.error(f"Livre {livre_id} non trouvé dans MongoDB")
+            return False
+
+        # Retirer de la collection MongoDB babelio_problematic_cases
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        problematic_collection.delete_one({"livre_id": livre_id})
+
+        logger.info(f"✏️  Titre corrigé pour livre {livre_id}: '{new_title}'")
+        return True
+
+    async def retry_with_new_title(
+        self, livre_id: str, new_title: str, author: str | None = None
+    ) -> dict[str, Any]:
+        """Réessaie la recherche Babelio avec un nouveau titre.
+
+        Args:
+            livre_id: ID du livre MongoDB
+            new_title: Nouveau titre à rechercher
+            author: Nom de l'auteur (optionnel)
+
+        Returns:
+            Résultat de verify_book()
+        """
+        logger.info(
+            f"🔄 Retry pour livre {livre_id}: titre='{new_title}' auteur='{author}'"
+        )
+
+        result = await self.babelio_service.verify_book(new_title, author)
+
+        logger.info(f"📊 Résultat retry: status={result.get('status')}")
+        return result
+
+    async def update_from_babelio_url(
+        self, item_id: str, babelio_url: str, item_type: str = "livre"
+    ) -> dict[str, Any]:
+        """Met à jour un livre/auteur depuis une URL Babelio manuelle.
+
+        Scrape la page Babelio et réutilise la logique existante (accept_suggestion).
+
+        Args:
+            item_id: ID du livre ou auteur MongoDB
+            babelio_url: URL Babelio complète
+            item_type: Type d'item ('livre' ou 'auteur')
+
+        Returns:
+            Dict avec success, scraped_data, ou error
+        """
+        if self.mongodb_service.db is None:
+            return {"success": False, "error": "MongoDB not connected"}
+
+        # Valider l'URL Babelio
+        if not babelio_url or "babelio.com" not in babelio_url.lower():
+            return {
+                "success": False,
+                "error": "URL invalide: doit être une URL Babelio",
+            }
+
+        try:
+            if item_type == "livre":
+                # Scraper les données de la page livre
+                titre = await self.babelio_service.fetch_full_title_from_url(
+                    babelio_url
+                )
+                auteur_url = await self.babelio_service.fetch_author_url_from_page(
+                    babelio_url
+                )
+
+                if not titre:
+                    return {
+                        "success": False,
+                        "error": "Impossible de scraper le titre depuis l'URL",
+                    }
+
+                # Réutiliser accept_suggestion pour la mise à jour
+                success = self.accept_suggestion(
+                    livre_id=item_id,
+                    babelio_url=babelio_url,
+                    babelio_author_url=auteur_url,
+                    corrected_title=titre,
+                )
+
+                if success:
+                    return {
+                        "success": True,
+                        "scraped_data": {
+                            "titre": titre,
+                            "url_babelio": babelio_url,
+                            "auteur_url_babelio": auteur_url,
+                        },
+                    }
+                else:
+                    return {"success": False, "error": "Échec de la mise à jour"}
+
+            elif item_type == "auteur":
+                # Pour un auteur, mise à jour simple de l'URL
+                auteurs_collection = self.mongodb_service.db["auteurs"]
+                try:
+                    auteur_oid = ObjectId(item_id)
+                except Exception as e:
+                    return {"success": False, "error": f"ID invalide: {e}"}
+
+                auteur = auteurs_collection.find_one({"_id": auteur_oid})
+                if not auteur:
+                    return {"success": False, "error": "Auteur non trouvé dans MongoDB"}
+
+                # Mise à jour de l'auteur
+                auteurs_collection.update_one(
+                    {"_id": auteur_oid},
+                    {
+                        "$set": {
+                            "url_babelio": babelio_url,
+                            "updated_at": datetime.now(UTC),
+                        }
+                    },
+                )
+
+                # Retirer de problematic_cases
+                problematic_collection = self.mongodb_service.db[
+                    "babelio_problematic_cases"
+                ]
+                problematic_collection.delete_one({"auteur_id": item_id})
+
+                logger.info(f"✅ Auteur {item_id} mis à jour depuis URL: {babelio_url}")
+                return {
+                    "success": True,
+                    "scraped_data": {
+                        "nom": auteur.get("nom", ""),
+                        "url_babelio": babelio_url,
+                    },
+                }
+
+            else:
+                return {"success": False, "error": f"Type invalide: {item_type}"}
+
+        except Exception as e:
+            logger.error(f"Erreur update_from_babelio_url pour {item_id}: {e}")
+            return {"success": False, "error": str(e)}

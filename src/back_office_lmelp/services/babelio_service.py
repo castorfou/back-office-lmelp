@@ -8,7 +8,7 @@ Architecture :
 - Format : JSON {"term": "search_term", "isMobile": false}
 - Headers : Content-Type: application/json, X-Requested-With: XMLHttpRequest
 - Cookies : disclaimer=1, p=FR (nécessaires pour éviter les blocages)
-- Rate limiting : 0.8 sec entre requêtes (respectueux de Babelio)
+- Rate limiting : 5.0 sec entre requêtes (éviter le rate limiting Babelio - Issue #124)
 
 Découverte technique basée sur l'analyse DevTools :
 - Babelio tolère les fautes d'orthographe (Houllebeck -> Houellebecq)
@@ -41,7 +41,7 @@ class BabelioService:
     """Service de vérification orthographique via l'API AJAX de Babelio.
 
     Ce service respecte les bonnes pratiques :
-    - Rate limiting à 0.8 sec entre requêtes
+    - Rate limiting à 5.0 sec entre requêtes (éviter blocage - Issue #124)
     - Headers et cookies appropriés pour éviter les blocages
     - Gestion d'erreur robuste (timeout, réseau, parsing JSON)
     - Session HTTP réutilisable et fermeture propre
@@ -51,7 +51,8 @@ class BabelioService:
         base_url: URL de base de Babelio
         search_endpoint: Endpoint AJAX pour la recherche
         session: Session aiohttp réutilisable
-        rate_limiter: Semaphore pour limiter à 1 req/sec
+        rate_limiter: Semaphore pour limiter à 1 req simultanée
+        min_interval: Délai minimum entre requêtes (5.0 sec par défaut)
     """
 
     def __init__(self):
@@ -61,7 +62,7 @@ class BabelioService:
         self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
         self.last_request_time = 0  # Timestamp de la dernière requête
-        self.min_interval = 0.8  # Délai minimum de 0.8 secondes entre requêtes
+        self.min_interval = 5.0  # Délai minimum de 5.0 secondes entre requêtes (Issue #124: éviter rate limiting)
         self._cache = {}  # Cache simple terme -> résultats (limité en taille)
         # Optional disk-backed cache service injected at app startup
         self.cache_service: Any | None = None
@@ -73,9 +74,16 @@ class BabelioService:
             "true",
             "yes",
         )
+        # Logs de debug pour analyser les requêtes et résultats Babelio
+        # Activé avec BABELIO_DEBUG_LOG=1 (utile pour diagnostiquer problèmes de matching)
+        self._debug_log_enabled = os.getenv("BABELIO_DEBUG_LOG", "0").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         # If verbose cache logging is enabled, make sure our module logger
         # will emit INFO messages to stdout (useful when running under uvicorn)
-        if self._cache_log_enabled:
+        if self._cache_log_enabled or self._debug_log_enabled:
             try:
                 logger.setLevel(logging.INFO)
                 # add a stdout handler only if no handlers are configured for this logger
@@ -192,6 +200,10 @@ class BabelioService:
                     log_fn(
                         f"[BabelioCache] HIT (orig) key='{term}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
                     )
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: CACHE HIT (orig) - returning {items} cached result(s)"
+                        )
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
@@ -206,6 +218,10 @@ class BabelioService:
                     log_fn(
                         f"[BabelioCache] HIT (norm) key='{cache_key}' items={items} ts={getattr(wrapper, 'get', lambda *_: None)('ts')}"
                     )
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: CACHE HIT (norm) - returning {items} cached result(s)"
+                        )
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
@@ -246,14 +262,26 @@ class BabelioService:
 
             try:
                 logger.debug(f"Recherche Babelio pour: {term}")
+                if self._debug_log_enabled:
+                    logger.info(f"🔍 [DEBUG] search: POST {url} payload={payload}")
 
                 async with session.post(url, json=payload) as response:
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] search: Response status={response.status}"
+                        )
+
                     if response.status == 200:
                         try:
                             # Babelio retourne du JSON valide mais avec le mauvais Content-Type
                             # On récupère le texte brut puis on parse le JSON manuellement
                             text_content = await response.text()
                             results: list[dict[str, Any]] = json.loads(text_content)
+
+                            if self._debug_log_enabled:
+                                logger.info(
+                                    f"🔍 [DEBUG] search: Parsed {len(results)} result(s)"
+                                )
                             logger.debug(f"Babelio retourne {len(results)} résultats")
 
                             # Mettre en cache mémoire (limiter la taille du cache)
@@ -305,14 +333,21 @@ class BabelioService:
                         logger.warning(f"Babelio HTTP {response.status} pour: {term}")
                         return []
 
-            except TimeoutError:
+            except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
-                return []
+                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                raise TimeoutError(
+                    f"Timeout lors de la recherche Babelio: {term}"
+                ) from e
             except aiohttp.ClientError as e:
                 logger.error(f"Erreur réseau Babelio pour {term}: {e}")
-                return []
+                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                raise aiohttp.ClientError(
+                    f"Erreur réseau lors de la recherche Babelio: {term}"
+                ) from e
             except Exception as e:
                 logger.error(f"Erreur inattendue Babelio pour {term}: {e}")
+                # Pour les autres erreurs, on retourne [] pour compatibilité
                 return []
 
     async def verify_author(self, author_name: str) -> dict[str, Any]:
@@ -374,6 +409,10 @@ class BabelioService:
                 "error_message": None,
             }
 
+        except (TimeoutError, aiohttp.ClientError):
+            # Propager les erreurs réseau/timeout pour que le script de migration
+            # puisse les détecter et arrêter le traitement
+            raise
         except Exception as e:
             logger.error(f"Erreur verify_author pour {author_name}: {e}")
             return self._create_error_result(author_name, str(e))
@@ -405,25 +444,112 @@ class BabelioService:
             return self._create_book_error_result(title, author, "Titre vide")
 
         try:
-            # Recherche combinée titre + auteur si disponible
-            search_term = f"{title} {author}" if author else title
+            # Recherche par titre uniquement (Issue #124: Terminus Malaussène)
+            # L'auteur sera utilisé pour filtrer les résultats, pas dans la query
+            search_term = title
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] verify_book: search_term='{search_term}' "
+                    f"(author filter: '{author or 'None'}')"
+                )
+
             results = await self.search(search_term)
+
+            if self._debug_log_enabled:
+                books_count = len([r for r in results if r.get("type") == "livres"])
+                authors_count = len([r for r in results if r.get("type") == "auteurs"])
+                logger.info(
+                    f"🔍 [DEBUG] verify_book: {len(results)} résultat(s) - {books_count} livre(s), {authors_count} auteur(s)"
+                )
 
             # Chercher le meilleur match livre
             best_book = self._find_best_book_match(results, title, author)
 
+            if self._debug_log_enabled:
+                if best_book:
+                    logger.info(
+                        f"🔍 [DEBUG] verify_book: Match '{best_book.get('titre')}' par {self._format_author_name(best_book.get('prenoms'), best_book.get('nom'))}"
+                    )
+                else:
+                    logger.info(
+                        "🔍 [DEBUG] verify_book: Aucun match dans _find_best_book_match"
+                    )
+
             if best_book is None:
-                return {
-                    "status": "not_found",
-                    "original_title": title,
-                    "babelio_suggestion_title": None,
-                    "original_author": author,
-                    "babelio_suggestion_author": None,
-                    "confidence_score": 0.0,
-                    "babelio_data": None,
-                    "babelio_url": None,
-                    "error_message": None,
-                }
+                # Stratégie de fallback: Si "titre + auteur" ne donne rien ET qu'on a un auteur,
+                # on réessaye avec juste le titre, puis on vérifie l'auteur par scraping
+                if author and len(results) == 0:
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] verify_book: Fallback - recherche avec titre seul '{title}'"
+                        )
+
+                    # Recherche avec titre seul
+                    title_only_results = await self.search(title)
+
+                    if self._debug_log_enabled:
+                        books_count = len(
+                            [r for r in title_only_results if r.get("type") == "livres"]
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] verify_book: Fallback trouvé {books_count} livre(s)"
+                        )
+
+                    # Pour chaque livre trouvé, scraper la page pour vérifier l'auteur
+                    books = [r for r in title_only_results if r.get("type") == "livres"]
+                    for book in books:
+                        book_url_relative = book.get("url")
+                        if not book_url_relative:
+                            continue
+
+                        book_url = self._build_full_url(book_url_relative)
+
+                        # Scraper l'auteur depuis la page
+                        scraped_author = await self._scrape_author_from_book_page(
+                            book_url
+                        )
+
+                        if scraped_author:
+                            # Calculer la similarité entre l'auteur attendu et l'auteur scraped
+                            similarity = self._calculate_similarity(
+                                author, scraped_author
+                            )
+
+                            if self._debug_log_enabled:
+                                logger.info(
+                                    f"🔍 [DEBUG] verify_book: Fallback - '{book.get('titre')}' author '{author}' vs scraped '{scraped_author}' = {similarity:.2f}"
+                                )
+
+                            # Si l'auteur correspond (seuil > 0.7), on a trouvé le bon livre
+                            if similarity > 0.7:
+                                if self._debug_log_enabled:
+                                    logger.info(
+                                        "🔍 [DEBUG] verify_book: Fallback SUCCESS - match trouvé avec auteur scraped"
+                                    )
+
+                                # Utiliser le livre trouvé comme best_book
+                                best_book = book
+                                # Ajouter les champs auteur manquants (puisque scraping retourne juste le nom)
+                                # On ne peut pas extraire prénom/nom séparément du scraping, donc on utilise le nom complet
+                                best_book["prenoms"] = None
+                                best_book["nom"] = scraped_author
+                                break
+
+                # Si toujours pas de résultat après fallback
+                if best_book is None:
+                    return {
+                        "status": "not_found",
+                        "original_title": title,
+                        "babelio_suggestion_title": None,
+                        "original_author": author,
+                        "babelio_suggestion_author": None,
+                        "confidence_score": 0.0,
+                        "babelio_data": None,
+                        "babelio_url": None,
+                        "babelio_author_url": None,
+                        "error_message": None,
+                    }
 
             # Extraire titre et auteur suggérés
             # Nettoyer les sauts de ligne et espaces multiples (Issue #96)
@@ -489,6 +615,21 @@ class BabelioService:
                         f"Impossible de scraper le titre complet pour {babelio_url}: {e}"
                     )
 
+            # Enrichissement URL auteur: scraper depuis la page du livre (Issue #124)
+            # On scrape toujours l'URL auteur si on a trouvé un livre sur Babelio,
+            # indépendamment du score de confiance (contrairement à l'éditeur/titre)
+            babelio_author_url = None
+            if babelio_url:
+                try:
+                    babelio_author_url = await self.fetch_author_url_from_page(
+                        babelio_url
+                    )
+                except Exception as e:
+                    # Erreur de scraping non fatale, on continue sans URL auteur
+                    logger.debug(
+                        f"Impossible de scraper l'URL auteur pour {babelio_url}: {e}"
+                    )
+
             return {
                 "status": status,
                 "original_title": title,
@@ -498,10 +639,15 @@ class BabelioService:
                 "confidence_score": confidence,
                 "babelio_data": babelio_data_clean,
                 "babelio_url": babelio_url,
+                "babelio_author_url": babelio_author_url,
                 "babelio_publisher": babelio_publisher,
                 "error_message": None,
             }
 
+        except (TimeoutError, aiohttp.ClientError):
+            # Propager les erreurs réseau/timeout pour que le script de migration
+            # puisse les détecter et arrêter le traitement
+            raise
         except Exception as e:
             logger.error(f"Erreur verify_book pour {title}/{author}: {e}")
             return self._create_book_error_result(title, author, str(e))
@@ -722,7 +868,14 @@ class BabelioService:
         books = [r for r in results if r.get("type") == "livres"]
 
         if not books:
+            if self._debug_log_enabled:
+                logger.info("🔍 [DEBUG] _find_best_book_match: Aucun livre trouvé")
             return None
+
+        if self._debug_log_enabled:
+            logger.info(
+                f"🔍 [DEBUG] _find_best_book_match: {len(books)} livre(s) avant filtrage"
+            )
 
         # Si on a l'auteur, filtrer par auteur d'abord
         if author:
@@ -731,14 +884,30 @@ class BabelioService:
                 book_author = self._format_author_name(
                     book.get("prenoms"), book.get("nom")
                 )
-                if (
-                    book_author
-                    and self._calculate_similarity(author, book_author) > 0.7
-                ):
+                similarity = (
+                    self._calculate_similarity(author, book_author)
+                    if book_author
+                    else 0.0
+                )
+
+                if self._debug_log_enabled:
+                    logger.info(
+                        f"🔍 [DEBUG] _find_best_book_match: '{book.get('titre')}' - author '{author}' vs '{book_author}' = {similarity:.2f}"
+                    )
+
+                if book_author and similarity > 0.7:
                     author_filtered.append(book)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] _find_best_book_match: {len(author_filtered)} livre(s) après filtre auteur (seuil>0.7)"
+                )
 
             if author_filtered:
                 books = author_filtered
+            else:
+                # Aucun livre ne correspond à l'auteur → not_found
+                return None
 
         # Trier par pertinence (copies, notes si disponibles)
         books.sort(
@@ -756,6 +925,9 @@ class BabelioService:
 
         Utilise difflib.SequenceMatcher qui implémente l'algorithme
         de Ratcliff-Obershelp pour la similarité de séquences.
+
+        Normalise également les ligatures latines (œ→oe, æ→ae) pour
+        éviter les faux négatifs sur les titres français.
         """
         if not str1 or not str2:
             return 0.0
@@ -763,6 +935,14 @@ class BabelioService:
         # Normaliser : minuscules, espaces supprimés
         s1 = str1.lower().strip()
         s2 = str2.lower().strip()
+
+        # Normaliser les ligatures latines (œ→oe, æ→ae)
+        # Cas minuscules
+        s1 = s1.replace("œ", "oe").replace("æ", "ae")
+        s2 = s2.replace("œ", "oe").replace("æ", "ae")
+        # Cas majuscules (déjà passées en minuscules, mais gardons pour cohérence)
+        s1 = s1.replace("Œ".lower(), "oe").replace("Æ".lower(), "ae")
+        s2 = s2.replace("Œ".lower(), "oe").replace("Æ".lower(), "ae")
 
         if s1 == s2:
             return 1.0
@@ -795,6 +975,64 @@ class BabelioService:
             return relative_url
         return f"{self.base_url}{relative_url}"
 
+    async def fetch_author_url_from_page(self, babelio_url: str) -> str | None:
+        """Scrape l'URL auteur depuis une page livre Babelio (Issue #124).
+
+        Args:
+            babelio_url: URL complète Babelio du livre
+
+        Returns:
+            URL complète de l'auteur ou None si non trouvée
+
+        Exemple:
+            author_url = await service.fetch_author_url_from_page(
+                "https://www.babelio.com/livres/Garreta-Sphinx/149981"
+            )
+            # → "https://www.babelio.com/auteur/Anne-F-Garreta/20464"
+
+        Note:
+            Utilise BeautifulSoup4 avec le sélecteur CSS:
+            a[href*="/auteur/"]
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Sélecteur CSS pour l'auteur: premier lien pointant vers /auteur/
+                auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+                if auteur_link and hasattr(auteur_link, "get"):
+                    href = auteur_link.get("href")
+                    if href and isinstance(href, str):
+                        # Construire l'URL complète
+                        author_url = self._build_full_url(href)
+                        logger.debug(
+                            f"URL auteur trouvée pour {babelio_url}: {author_url}"
+                        )
+                        return author_url
+                    else:
+                        logger.debug(f"URL auteur sans href pour {babelio_url}")
+                        return None
+                else:
+                    logger.debug(f"URL auteur non trouvée pour {babelio_url}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")
+            return None
+
     def _create_error_result(self, original: str, error_message: str) -> dict[str, Any]:
         """Crée un résultat d'erreur standardisé pour auteur."""
         return {
@@ -820,8 +1058,71 @@ class BabelioService:
             "confidence_score": 0.0,
             "babelio_data": None,
             "babelio_url": None,
+            "babelio_author_url": None,
             "error_message": error_message,
         }
+
+    async def _scrape_author_from_book_page(self, babelio_url: str) -> str | None:
+        """Scrape le nom de l'auteur depuis une page livre Babelio.
+
+        Args:
+            babelio_url: URL complète Babelio du livre
+
+        Returns:
+            Nom de l'auteur ou None si non trouvé
+
+        Note:
+            Utilise BeautifulSoup pour extraire le nom de l'auteur
+            depuis le lien avec classe 'livre_auteur' ou href contenant '/auteur/'.
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] _scrape_author_from_book_page: Fetching {babelio_url}"
+                )
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
+                    )
+                    return None
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Stratégie 1: Chercher un lien avec classe 'livre_auteur'
+                auteur_link = soup.select_one("a.livre_auteur")
+
+                # Stratégie 2: Si non trouvé, chercher le premier lien vers /auteur/
+                if not auteur_link:
+                    auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+                if auteur_link:
+                    author_name = auteur_link.get_text(strip=True)
+                    if author_name:
+                        if self._debug_log_enabled:
+                            logger.info(
+                                f"🔍 [DEBUG] _scrape_author_from_book_page: Found author '{author_name}'"
+                            )
+                        return author_name
+
+                if self._debug_log_enabled:
+                    logger.info(
+                        f"🔍 [DEBUG] _scrape_author_from_book_page: No author found on {babelio_url}"
+                    )
+                return None
+
+        except Exception as e:
+            logger.error(
+                f"Erreur scraping auteur pour {babelio_url}: {e}", exc_info=True
+            )
+            return None
 
     async def close(self):
         """Ferme proprement la session HTTP.

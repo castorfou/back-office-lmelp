@@ -15,11 +15,9 @@ class TestCollectionsAPIEndpoints:
         self.client = TestClient(app)
 
     def test_get_livres_auteurs_statistics_endpoint(self):
-        """Test endpoint GET /api/livres-auteurs/statistics."""
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
-            mock_service.get_statistics.return_value = {
+        """Test endpoint GET /api/livres-auteurs/statistics (Issue #124: via stats_service)."""
+        with patch("back_office_lmelp.app.stats_service") as mock_service:
+            mock_service.get_cache_statistics.return_value = {
                 "episodes_non_traites": 5,
                 "couples_en_base": 42,
                 "couples_verified_pas_en_base": 18,

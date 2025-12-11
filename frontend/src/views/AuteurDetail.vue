@@ -22,11 +22,32 @@
     <div v-else-if="auteur" class="auteur-content">
       <!-- En-tête auteur -->
       <div class="auteur-header">
-        <h1 class="auteur-name">{{ auteur.nom }}</h1>
-        <div class="auteur-stats">
-          <span class="stat-badge">
-            {{ auteur.nombre_oeuvres }} œuvre{{ auteur.nombre_oeuvres > 1 ? 's' : '' }}
-          </span>
+        <div class="auteur-header-container">
+          <!-- Icône Babelio à gauche (Issue #124) -->
+          <a
+            v-if="auteur.url_babelio"
+            :href="auteur.url_babelio"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="babelio-logo-link"
+            title="Voir sur Babelio"
+          >
+            <img
+              src="@/assets/babelio-symbol-liaison.svg"
+              alt="Icône Babelio"
+              class="babelio-logo"
+            />
+          </a>
+
+          <!-- Informations de l'auteur à droite -->
+          <div class="auteur-info">
+            <h1 class="auteur-name">{{ auteur.nom }}</h1>
+            <div class="auteur-stats">
+              <span class="stat-badge">
+                {{ auteur.nombre_oeuvres }} œuvre{{ auteur.nombre_oeuvres > 1 ? 's' : '' }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -174,10 +195,43 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.auteur-header-container {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Icône Babelio à gauche (Issue #124) */
+.babelio-logo-link {
+  flex-shrink: 0;
+  display: block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.babelio-logo-link:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+.babelio-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+.auteur-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .auteur-name {
   font-size: 2rem;
   color: #2c3e50;
-  margin: 0 0 1rem 0;
+  margin: 0;
 }
 
 .auteur-stats {

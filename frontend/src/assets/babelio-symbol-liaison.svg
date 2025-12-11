@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 80 85"
+   role="img"
+   aria-labelledby="title-babelio-link-overlay"
+   version="1.1"
+   id="svg4"
+   sodipodi:docname="babelio-symbol-liaison.svg"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="namedview4"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="11.305882"
+     inkscape:cx="39.979188"
+     inkscape:cy="42.5"
+     inkscape:window-width="1854"
+     inkscape:window-height="1211"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4" />
+  <title
+     id="title-babelio-link-overlay">Icône Babelio avec lien superposé</title>
+  <g
+     id="babelio-books-background">
+    <path
+       fill="#FBB91E"
+       d="M9.438 72.217v9.924h59.546V55.026C51.75 65.915 31.33 72.217 9.438 72.217Z"
+       id="path1" />
+    <path
+       fill="#FBB91E"
+       d="M19.362 54.117v12.74c3.904-.361 7.779-.932 11.594-1.711 6.852-1.402 13.59-3.494 20.031-6.218 2.737-1.159 5.433-2.437 8.072-3.825V32.862C48.904 44.053 35.017 51.791 19.362 54.117Z"
+       id="path2" />
+    <path
+       fill="#FBB91E"
+       d="M29.286 32.528V46.71c1.455-.493 2.894-1.04 4.317-1.641 3.677-1.556 7.225-3.479 10.544-5.722 1.72-1.164 3.387-2.417 4.987-3.751V9.588C45.58 19.468 38.441 27.637 29.286 32.528Z"
+       id="path3" />
+  </g>
+  <g
+     id="grey-link-overlay"
+     transform="matrix(1.6120639,-1.2915067,1.0122295,1.2634689,30.618886,69.862051)"
+     fill="#666666">
+    <path
+       d="M 3.9,12 C 3.9,10.29 5.29,8.9 7,8.9 h 4 V 7 H 7 c -2.76,0 -5,2.24 -5,5 0,2.76 2.24,5 5,5 h 4 V 15.1 H 7 C 5.29,15.1 3.9,13.71 3.9,12 Z M 8,13 h 8 V 11 H 8 Z m 9,-6 h -4 v 1.9 h 4 c 1.71,0 3.1,1.39 3.1,3.1 0,1.71 -1.39,3.1 -3.1,3.1 H 13 V 17 h 4 c 2.76,0 5,-2.24 5,-5 0,-2.76 -2.24,-5 -5,-5 z"
+       id="path4" />
+  </g>
+</svg>

@@ -549,6 +549,43 @@ class TestBabelioService:
         similarity = babelio_service._calculate_similarity("Einstein", "Houellebecq")
         assert similarity < 0.3
 
+    def test_calculate_similarity_with_ligatures_oe_ae(self, babelio_service):
+        """Test TDD: La similarité doit normaliser les ligatures œ/æ.
+
+        Cas réel du problème :
+        - Titre attendu: "48 indices sur la disparition de ma sœur"
+        - Titre Babelio: "48 indices sur la disparition de ma soeur"
+        - Résultat actuel: similarité < 1.0 → rejeté
+        - Résultat attendu: similarité = 1.0 → accepté (œ = oe)
+        """
+        # Cas œ → oe (ligature latine)
+        similarity = babelio_service._calculate_similarity(
+            "48 indices sur la disparition de ma sœur",
+            "48 indices sur la disparition de ma soeur",
+        )
+        assert similarity == 1.0, "œ doit être équivalent à oe"
+
+        # Cas Œ → OE (majuscule)
+        similarity = babelio_service._calculate_similarity("Œuvre", "Oeuvre")
+        assert similarity == 1.0, "Œ doit être équivalent à OE"
+
+        # Cas æ → ae (ligature latine)
+        similarity = babelio_service._calculate_similarity(
+            "Cæsar et les Romains", "Caesar et les Romains"
+        )
+        assert similarity == 1.0, "æ doit être équivalent à ae"
+
+        # Cas Æ → AE (majuscule)
+        similarity = babelio_service._calculate_similarity("Ægypte", "Aegypte")
+        assert similarity == 1.0, "Æ doit être équivalent à AE"
+
+        # Cas mixte dans un titre complet
+        similarity = babelio_service._calculate_similarity(
+            "L'œuvre complète d'Æneas",
+            "L'oeuvre complète d'Aeneas",
+        )
+        assert similarity == 1.0, "Ligatures multiples doivent être normalisées"
+
     def test_format_author_name_combinations(self, babelio_service):
         """Test de formatage des noms d'auteur.
 

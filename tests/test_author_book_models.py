@@ -75,6 +75,74 @@ class TestAuthorModel:
         assert isinstance(author["created_at"], datetime)
         assert isinstance(author["updated_at"], datetime)
 
+    def test_author_creation_with_url_babelio(self):
+        """Test création d'un auteur avec URL Babelio (Issue #124)."""
+        author_data = {
+            "_id": ObjectId("64f1234567890abcdef12345"),  # pragma: allowlist secret
+            "nom": "Catherine Millet",
+            "url_babelio": "https://www.babelio.com/auteur/Catherine-Millet/7743",
+            "livres": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        author = Author(author_data)
+
+        assert (
+            author.url_babelio == "https://www.babelio.com/auteur/Catherine-Millet/7743"
+        )
+
+    def test_author_to_dict_includes_url_babelio(self):
+        """Test que to_dict() inclut l'URL Babelio (Issue #124)."""
+        author_data = {
+            "_id": ObjectId("64f1234567890abcdef12345"),  # pragma: allowlist secret
+            "nom": "Catherine Millet",
+            "url_babelio": "https://www.babelio.com/auteur/Catherine-Millet/7743",
+            "livres": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        author = Author(author_data)
+        result_dict = author.to_dict()
+
+        assert "url_babelio" in result_dict
+        assert (
+            result_dict["url_babelio"]
+            == "https://www.babelio.com/auteur/Catherine-Millet/7743"
+        )
+
+    def test_author_for_mongodb_insert_with_url_babelio(self):
+        """Test insertion MongoDB avec URL Babelio (Issue #124)."""
+        author_data = {
+            "nom": "Nouveau Auteur",
+            "url_babelio": "https://www.babelio.com/auteur/Nouveau-Auteur/12345",
+            "livres": [],
+        }
+
+        author = Author.for_mongodb_insert(author_data)
+
+        assert "url_babelio" in author
+        assert (
+            author["url_babelio"]
+            == "https://www.babelio.com/auteur/Nouveau-Auteur/12345"
+        )
+
+    def test_author_without_url_babelio_defaults_to_none(self):
+        """Test qu'un auteur sans URL Babelio a None par défaut (Issue #124)."""
+        author_data = {
+            "_id": ObjectId("64f1234567890abcdef12345"),  # pragma: allowlist secret
+            "nom": "Auteur Sans URL",
+            "livres": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        author = Author(author_data)
+
+        assert hasattr(author, "url_babelio")
+        assert author.url_babelio is None
+
 
 class TestBookModel:
     """Tests pour le modèle Book."""
@@ -213,3 +281,91 @@ class TestBookModel:
 
         assert str(avis_id) in book.avis_critiques
         assert len(book.avis_critiques) == 1
+
+    def test_book_creation_with_url_babelio(self):
+        """Test création d'un livre avec URL Babelio (Issue #124)."""
+        book_data = {
+            "_id": ObjectId("64f1234567890abcdef22222"),  # pragma: allowlist secret
+            "titre": "Simone Émonet",
+            "auteur_id": ObjectId(  # pragma: allowlist secret
+                "64f1234567890abcdef12345"  # pragma: allowlist secret
+            ),
+            "editeur": "Flammarion",
+            "url_babelio": "https://www.babelio.com/livres/Millet-Simone-monet/1870367",
+            "episodes": [],
+            "avis_critiques": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        book = Book(book_data)
+
+        assert (
+            book.url_babelio
+            == "https://www.babelio.com/livres/Millet-Simone-monet/1870367"
+        )
+
+    def test_book_to_dict_includes_url_babelio(self):
+        """Test que to_dict() inclut l'URL Babelio (Issue #124)."""
+        book_data = {
+            "_id": ObjectId("64f1234567890abcdef22222"),  # pragma: allowlist secret
+            "titre": "Simone Émonet",
+            "auteur_id": ObjectId(  # pragma: allowlist secret
+                "64f1234567890abcdef12345"  # pragma: allowlist secret
+            ),
+            "editeur": "Flammarion",
+            "url_babelio": "https://www.babelio.com/livres/Millet-Simone-monet/1870367",
+            "episodes": [],
+            "avis_critiques": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        book = Book(book_data)
+        result_dict = book.to_dict()
+
+        assert "url_babelio" in result_dict
+        assert (
+            result_dict["url_babelio"]
+            == "https://www.babelio.com/livres/Millet-Simone-monet/1870367"
+        )
+
+    def test_book_for_mongodb_insert_with_url_babelio(self):
+        """Test insertion MongoDB avec URL Babelio (Issue #124)."""
+        book_data = {
+            "titre": "Nouveau Livre",
+            "auteur_id": ObjectId(  # pragma: allowlist secret
+                "64f1234567890abcdef12345"  # pragma: allowlist secret
+            ),
+            "editeur": "Nouvel Éditeur",
+            "url_babelio": "https://www.babelio.com/livres/Auteur-Titre/123456",
+            "episodes": [],
+            "avis_critiques": [],
+        }
+
+        book = Book.for_mongodb_insert(book_data)
+
+        assert "url_babelio" in book
+        assert (
+            book["url_babelio"] == "https://www.babelio.com/livres/Auteur-Titre/123456"
+        )
+
+    def test_book_without_url_babelio_defaults_to_none(self):
+        """Test qu'un livre sans URL Babelio a None par défaut (Issue #124)."""
+        book_data = {
+            "_id": ObjectId("64f1234567890abcdef22222"),  # pragma: allowlist secret
+            "titre": "Livre Sans URL",
+            "auteur_id": ObjectId(  # pragma: allowlist secret
+                "64f1234567890abcdef12345"  # pragma: allowlist secret
+            ),
+            "editeur": "Éditeur",
+            "episodes": [],
+            "avis_critiques": [],
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        book = Book(book_data)
+
+        assert hasattr(book, "url_babelio")
+        assert book.url_babelio is None

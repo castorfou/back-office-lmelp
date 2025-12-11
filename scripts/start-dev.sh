@@ -220,6 +220,7 @@ fi
 # Start backend in background
 log "Lancement du backend FastAPI..."
 cd "$PROJECT_ROOT"
+export BABELIO_DEBUG_LOG=1
 PYTHONPATH="$PROJECT_ROOT/src" python -m back_office_lmelp.app &
 BACKEND_PID=$!
 log "Backend démarré (PID: $BACKEND_PID)"
@@ -236,8 +237,14 @@ log "Frontend démarré (PID: $FRONTEND_PID)"
 # Capture frontend port information
 capture_port_from_output "FRONTEND" "$FRONTEND_PID"
 
-# Note: The backend writes .dev-ports.json automatically, so we don't overwrite it here
-# We just log the detected information
+# Wait for backend to create .dev-ports.json
+sleep 2
+
+# Add frontend information to .dev-ports.json
+if [[ -n "$FRONTEND_PORT" && -n "$FRONTEND_HOST" && -n "$FRONTEND_PID" ]]; then
+    write_unified_port_discovery "$BACKEND_PORT" "$BACKEND_HOST" "$BACKEND_PID" "$FRONTEND_PORT" "$FRONTEND_HOST" "$FRONTEND_PID"
+    log "📡 Frontend info added to .dev-ports.json"
+fi
 
 log "Backend et frontend démarrés avec succès!"
 log "📍 Backend: ${BACKEND_HOST:-unknown}:${BACKEND_PORT:-unknown}"

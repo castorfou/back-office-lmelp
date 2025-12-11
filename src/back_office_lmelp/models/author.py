@@ -13,6 +13,7 @@ class Author:
         """Initialise un auteur à partir des données MongoDB."""
         self.id: str = str(data.get("_id", ""))
         self.nom: str = data.get("nom", "")
+        self.url_babelio: str | None = data.get("url_babelio")
         self.livres: list[str] = [str(livre_id) for livre_id in data.get("livres", [])]
         self.created_at: datetime = data.get("created_at", datetime.now())
         self.updated_at: datetime = data.get("updated_at", datetime.now())
@@ -22,6 +23,7 @@ class Author:
         return {
             "id": self.id,
             "nom": self.nom,
+            "url_babelio": self.url_babelio,
             "livres": self.livres,
             "created_at": self.created_at.isoformat()
             if isinstance(self.created_at, datetime)
@@ -37,7 +39,7 @@ class Author:
         Prépare les données d'un auteur pour insertion MongoDB.
 
         Args:
-            data: Données de l'auteur
+            data: Données de l'auteur (peut inclure url_babelio)
 
         Returns:
             Dictionnaire formaté pour MongoDB
@@ -45,6 +47,7 @@ class Author:
         now = datetime.now()
         return {
             "nom": data["nom"],
+            "url_babelio": data.get("url_babelio"),
             "livres": data.get("livres", []),
             "created_at": now,
             "updated_at": now,

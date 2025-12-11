@@ -14,7 +14,7 @@ class TestLivresAuteursStatsEndpoint:
     """Tests pour l'endpoint statistiques cache-optimisé /api/livres-auteurs/statistics."""
 
     def test_stats_endpoint_returns_cache_statistics(self):
-        """Test TDD: L'endpoint statistiques utilise le cache optimisé."""
+        """Test TDD: L'endpoint statistiques utilise le cache optimisé (Issue #124: via stats_service)."""
 
         # Mock des statistiques optimisées depuis le cache
         mock_stats = {
@@ -27,11 +27,9 @@ class TestLivresAuteursStatsEndpoint:
             "couples_rejected": 1,
         }
 
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
+        with patch("back_office_lmelp.app.stats_service") as mock_service:
             # Mock: le service retourne les statistiques optimisées
-            mock_service.get_statistics.return_value = mock_stats
+            mock_service.get_cache_statistics.return_value = mock_stats
 
             # Act
             response = client.get("/api/livres-auteurs/statistics")
@@ -55,16 +53,14 @@ class TestLivresAuteursStatsEndpoint:
             assert stats["couples_not_found_pas_en_base"] == 3
 
             # Vérifier que le service a bien été appelé
-            mock_service.get_statistics.assert_called_once()
+            mock_service.get_cache_statistics.assert_called_once()
 
     def test_stats_endpoint_handles_service_error(self):
-        """Test TDD: L'endpoint gère les erreurs du service gracieusement."""
+        """Test TDD: L'endpoint gère les erreurs du service gracieusement (Issue #124: via stats_service)."""
 
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
+        with patch("back_office_lmelp.app.stats_service") as mock_service:
             # Mock: le service lève une exception
-            mock_service.get_statistics.side_effect = Exception(
+            mock_service.get_cache_statistics.side_effect = Exception(
                 "Database connection failed"
             )
 
@@ -78,7 +74,7 @@ class TestLivresAuteursStatsEndpoint:
             assert "Database connection failed" in error["detail"]
 
     def test_stats_endpoint_returns_zero_values_for_empty_cache(self):
-        """Test TDD: L'endpoint gère correctement un cache vide."""
+        """Test TDD: L'endpoint gère correctement un cache vide (Issue #124: via stats_service)."""
 
         # Mock des statistiques vides (première utilisation)
         empty_stats = {
@@ -91,10 +87,8 @@ class TestLivresAuteursStatsEndpoint:
             "couples_rejected": 0,
         }
 
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
-            mock_service.get_statistics.return_value = empty_stats
+        with patch("back_office_lmelp.app.stats_service") as mock_service:
+            mock_service.get_cache_statistics.return_value = empty_stats
 
             # Act
             response = client.get("/api/livres-auteurs/statistics")
@@ -109,7 +103,7 @@ class TestLivresAuteursStatsEndpoint:
                 assert value >= 0
 
     def test_stats_endpoint_performance_cache_first(self):
-        """Test TDD: L'endpoint utilise la méthode cache-first optimisée."""
+        """Test TDD: L'endpoint utilise la méthode cache-first optimisée (Issue #124: via stats_service)."""
 
         mock_stats = {
             "episodes_non_traites": 5,
@@ -119,10 +113,8 @@ class TestLivresAuteursStatsEndpoint:
             "couples_not_found_pas_en_base": 0,
         }
 
-        with patch(
-            "back_office_lmelp.app.collections_management_service"
-        ) as mock_service:
-            mock_service.get_statistics.return_value = mock_stats
+        with patch("back_office_lmelp.app.stats_service") as mock_service:
+            mock_service.get_cache_statistics.return_value = mock_stats
 
             # Act
             response = client.get("/api/livres-auteurs/statistics")
@@ -130,10 +122,10 @@ class TestLivresAuteursStatsEndpoint:
             # Assert
             assert response.status_code == 200
 
-            # Vérifier qu'on utilise bien get_statistics (cache-first)
+            # Vérifier qu'on utilise bien get_cache_statistics (cache-first)
             # et pas une autre méthode moins optimisée
-            mock_service.get_statistics.assert_called_once_with()
+            mock_service.get_cache_statistics.assert_called_once_with()
 
-            # S'assurer qu'on utilise bien la méthode optimisée get_statistics
+            # S'assurer qu'on utilise bien la méthode optimisée get_cache_statistics
             # (pas les anciennes méthodes séparées qui ont été supprimées)
-            mock_service.get_statistics.assert_called_once_with()
+            mock_service.get_cache_statistics.assert_called_once_with()

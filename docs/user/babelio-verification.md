@@ -1,12 +1,16 @@
-# Guide Utilisateur - Validation Bibliographique
+# Guide Utilisateur - Intégration Babelio
 
 ## Vue d'ensemble
 
-La validation bibliographique vérifie automatiquement l'orthographe des auteurs et titres de livres extraits des avis critiques en utilisant la base de données Babelio.com.
+L'intégration Babelio enrichit automatiquement la base de données avec des liens vers les fiches Babelio des livres et auteurs. Le système vérifie l'orthographe, valide les données bibliographiques, et maintient à jour les URLs Babelio pour faciliter l'accès aux informations détaillées.
 
-## Accès à la fonctionnalité
+## Accès aux fonctionnalités
 
+### Validation bibliographique
 **Navigation** : Menu principal → **Livres et Auteurs**
+
+### Gestion de la migration Babelio
+**Navigation** : Menu principal → **Gestion Babelio** ou accès direct via `/babelio-migration`
 
 ## Comprendre les indicateurs de validation
 
@@ -101,11 +105,97 @@ Lors de l'extraction des livres depuis les avis critiques, le système enrichit 
 - **Cas difficiles** : Inversions de nom, segmentation incorrecte nécessitent intervention manuelle
 - **Dépendance externe** : Nécessite connexion internet pour interroger Babelio
 
+## Migration automatique des URLs Babelio
+
+### Objectif
+
+Le système de migration enrichit automatiquement la base de données avec les URLs Babelio manquantes pour les livres et auteurs existants.
+
+### Fonctionnement
+
+**Phase 1 - Livres sans URL** :
+- Recherche automatique sur Babelio par titre et auteur
+- Validation de la correspondance avec normalisation du texte
+- Extraction de l'URL auteur depuis la page livre
+- Mise à jour automatique des champs `url_babelio`
+
+**Phase 2 - Auteurs sans URL** :
+- Détection des auteurs dont les livres ont une URL mais pas l'auteur
+- Scraping de l'URL auteur depuis les pages livres existantes
+- Complétion automatique des URLs manquantes
+
+### Interface de gestion (`/babelio-migration`)
+
+L'interface permet de gérer la migration et de traiter les cas problématiques :
+
+**Statistiques** :
+- Nombre total de livres et auteurs
+- Taux de complétion des URLs Babelio
+- Progression en temps réel
+
+**Actions disponibles** :
+- **Démarrer/Arrêter la migration** : Lancement des phases 1 et 2
+- **Logs de progression** : Suivi détaillé livre par livre
+- **Gestion des cas problématiques** : Traitement manuel des cas non résolus automatiquement
+
+### Cas problématiques
+
+Certains livres ou auteurs nécessitent un traitement manuel :
+
+**Raisons fréquentes** :
+- Titre trouvé sur Babelio ne correspond pas exactement
+- Livre absent de Babelio (`babelio_not_found: true`)
+- Auteur dont tous les livres sont absents de Babelio
+
+**Actions manuelles** :
+- **Accepter la suggestion** : Valider l'URL proposée malgré la différence de titre
+- **Marquer comme non trouvé** : Confirmer l'absence sur Babelio
+- **Supprimer du suivi** : Retirer des cas problématiques après traitement
+
+### Affichage des liens Babelio
+
+Les liens Babelio sont affichés sur les pages de détail :
+
+**Pages livre** (`/livre/{id}`) :
+- Icône Babelio 80x80px cliquable
+- Lien direct vers la fiche Babelio du livre
+- Design avec effet hover (couleur brand #FBB91E)
+
+**Pages auteur** (`/auteur/{id}`) :
+- Icône Babelio 80x80px cliquable
+- Lien direct vers la fiche Babelio de l'auteur
+- Layout cohérent avec les liens RadioFrance
+
+### Normalisation intelligente
+
+Le système normalise automatiquement les textes pour améliorer la correspondance :
+
+**Transformations appliquées** :
+- Ligatures : œ → oe, æ → ae
+- Apostrophes typographiques : ' → '
+- Suppression de la ponctuation
+- Conversion en minuscules
+
+**Stratégie de secours** :
+- Recherche titre + auteur en priorité
+- Si échec → Recherche auteur seul
+- Scraping de l'URL depuis la page résultat
+
+### Rate limiting
+
+Le système respecte les limitations de Babelio :
+
+- **Délai entre requêtes** : 5 secondes
+- **Gestion gracieuse** : Arrêt automatique si Babelio indisponible
+- **Reprise possible** : La migration peut être relancée à tout moment
+
 ## En cas de problème
 
 1. **Erreur de connexion** : Vérifiez votre connexion internet, puis cliquez sur Retry
 2. **Résultats incorrects** : Signalez via GitHub Issues avec exemple précis (auteur + titre)
-3. **Performance lente** : Normal avec beaucoup de livres (rate limiting Babelio)
+3. **Performance lente** : Normal avec beaucoup de livres (rate limiting Babelio 5 sec/requête)
+4. **Migration bloquée** : Consultez les logs de progression pour identifier le problème
+5. **Babelio indisponible** : La migration s'arrête automatiquement, relancez plus tard
 
 ## Documentation technique
 

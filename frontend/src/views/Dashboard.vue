@@ -58,6 +58,14 @@
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== null) ? collectionsStatistics.couples_not_found_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres non trouvés</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ babelioCompletionPercentage }}</div>
+            <div class="stat-label">Livres avec lien Babelio</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ babelioAuthorsCompletionPercentage }}</div>
+            <div class="stat-label">Auteurs avec lien Babelio</div>
+          </div>
         </div>
       </section>
 
@@ -97,6 +105,19 @@
             </div>
             <h3>Recherche Babelio</h3>
             <p>Vérification orthographique des auteurs, livres et éditeurs via Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-babelio-migration"
+            @click="navigateToBabelioMigration"
+          >
+            <div class="function-icon">
+              <img :src="babelioIconLiaison" alt="BabelioLiaison" class="function-icon-img" />
+            </div>
+            <h3>Liaison Babelio</h3>
+            <p>Lier Auteurs et Livres aux pages Babelio</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -158,6 +179,7 @@
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
+import babelioSymbolLiaison from '../assets/babelio-symbol-liaison.svg';
 import calibreIcon from '../assets/calibre_logo.png';
 
 export default {
@@ -185,6 +207,7 @@ export default {
         couples_not_found_pas_en_base: null
       },
       babelioIcon: babelioSymbol,
+      babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
       loading: true,
       error: null
@@ -208,6 +231,44 @@ export default {
         console.error('Erreur de formatage de date:', error);
         return '--';
       }
+    },
+
+    babelioCompletionPercentage() {
+      if (!this.collectionsStatistics ||
+          this.collectionsStatistics.livres_uniques == null ||
+          this.collectionsStatistics.books_without_url_babelio == null) {
+        return '...';
+      }
+
+      const total = this.collectionsStatistics.livres_uniques;
+      const withoutUrl = this.collectionsStatistics.books_without_url_babelio;
+      const withUrl = total - withoutUrl;
+
+      if (total === 0) {
+        return '0%';
+      }
+
+      const percentage = Math.round((withUrl / total) * 100);
+      return `${percentage}%`;
+    },
+
+    babelioAuthorsCompletionPercentage() {
+      if (!this.collectionsStatistics ||
+          this.collectionsStatistics.auteurs_uniques == null ||
+          this.collectionsStatistics.authors_without_url_babelio == null) {
+        return '...';
+      }
+
+      const total = this.collectionsStatistics.auteurs_uniques;
+      const withoutUrl = this.collectionsStatistics.authors_without_url_babelio;
+      const withUrl = total - withoutUrl;
+
+      if (total === 0) {
+        return '0%';
+      }
+
+      const percentage = Math.round((withUrl / total) * 100);
+      return `${percentage}%`;
     }
   },
 
@@ -242,6 +303,8 @@ export default {
 
     async loadCollectionsStatistics() {
       try {
+        // Issue #124: Charger depuis /api/stats qui contient toutes les métriques
+        // y compris books_without_url_babelio et authors_without_url_babelio
         const stats = await livresAuteursService.getCollectionsStatistics();
         this.collectionsStatistics = stats;
       } catch (error) {
@@ -267,6 +330,10 @@ export default {
 
     navigateToBabelioTest() {
       this.$router.push('/babelio-test');
+    },
+
+    navigateToBabelioMigration() {
+      this.$router.push('/babelio-migration');
     },
 
     navigateToAdvancedSearch() {

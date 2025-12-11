@@ -19,10 +19,42 @@ class StatsService:
         Récupère les statistiques optimisées depuis le cache.
 
         Returns:
-            Dictionnaire avec les statistiques complètes
+            Dictionnaire avec les statistiques complètes (incluant métriques Issue #124)
         """
         result = self.cache_service.get_statistics_from_cache()
-        return dict(result) if result else {}
+        stats = dict(result) if result else {}
+
+        # Issue #124: Ajouter métriques de complétude URL Babelio
+        stats["books_without_url_babelio"] = self._count_books_without_url_babelio()
+        stats["authors_without_url_babelio"] = self._count_authors_without_url_babelio()
+
+        return stats
+
+    def _count_books_without_url_babelio(self) -> int:
+        """
+        Compte les livres sans URL Babelio (Issue #124).
+
+        Returns:
+            Nombre de livres où url_babelio est None ou absent
+        """
+        livres_collection = self.mongodb_service.get_collection("livres")
+        count: int = livres_collection.count_documents(
+            {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+        )
+        return count
+
+    def _count_authors_without_url_babelio(self) -> int:
+        """
+        Compte les auteurs sans URL Babelio (Issue #124).
+
+        Returns:
+            Nombre d'auteurs où url_babelio est None ou absent
+        """
+        auteurs_collection = self.mongodb_service.get_collection("auteurs")
+        count: int = auteurs_collection.count_documents(
+            {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+        )
+        return count
 
     def get_detailed_breakdown(self) -> list[dict[str, Any]]:
         """
