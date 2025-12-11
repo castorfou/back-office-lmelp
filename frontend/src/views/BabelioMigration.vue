@@ -104,7 +104,7 @@
       </div>
 
       <!-- Progress panel for migration -->
-      <div v-if="migrationProgress.is_running || migrationProgress.book_logs.length > 0" class="migration-progress-panel">
+      <div v-if="migrationProgress.is_running || (migrationProgress.book_logs && migrationProgress.book_logs.length > 0)" class="migration-progress-panel">
         <div class="progress-header">
           <h3>
             {{ migrationProgress.is_running ? '⚙️ Liaison en cours' : '✅ Dernière liaison' }}

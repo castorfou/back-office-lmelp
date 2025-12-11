@@ -52,9 +52,11 @@ describe('BabelioLink - Tests unitaires', () => {
       expect(link.text()).toContain('Voir sur Babelio');
     });
 
-    it('affiche une icône de lien externe', () => {
-      const link = wrapper.find('a');
-      expect(link.html()).toContain('🔗');
+    it('affiche une icône SVG Babelio', () => {
+      const img = wrapper.find('img');
+      expect(img.exists()).toBe(true);
+      expect(img.attributes('src')).toContain('babelio-symbol-liaison.svg');
+      expect(img.attributes('alt')).toBe('Icône Babelio');
     });
   });
 
@@ -97,7 +99,7 @@ describe('BabelioLink - Tests unitaires', () => {
   });
 
   describe('Label par défaut', () => {
-    it('utilise "Voir sur Babelio" si aucun label n\'est fourni', () => {
+    it('utilise "Fiche Babelio" si aucun label n\'est fourni', () => {
       wrapper = mount(BabelioLink, {
         props: {
           url: 'https://www.babelio.com/auteur/Michel-Houellebecq/2180'
@@ -105,7 +107,7 @@ describe('BabelioLink - Tests unitaires', () => {
       });
 
       const link = wrapper.find('a');
-      expect(link.text()).toContain('Voir sur Babelio');
+      expect(link.text()).toContain('Fiche Babelio');
     });
   });
 
