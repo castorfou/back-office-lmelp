@@ -113,7 +113,9 @@
             data-testid="function-babelio-migration"
             @click="navigateToBabelioMigration"
           >
-            <div class="function-icon">🔄</div>
+            <div class="function-icon">
+              <img :src="babelioIconLiaison" alt="BabelioLiaison" class="function-icon-img" />
+            </div>
             <h3>Liaison Babelio</h3>
             <p>Lier Auteurs et Livres aux pages Babelio</p>
             <div class="function-arrow">→</div>
@@ -177,6 +179,7 @@
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
+import babelioSymbolLiaison from '../assets/babelio-symbol-liaison.svg';
 import calibreIcon from '../assets/calibre_logo.png';
 
 export default {
@@ -204,6 +207,7 @@ export default {
         couples_not_found_pas_en_base: null
       },
       babelioIcon: babelioSymbol,
+      babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
       loading: true,
       error: null
