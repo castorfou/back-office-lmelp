@@ -900,18 +900,21 @@ async def process_one_author(author_data: dict, dry_run: bool = False) -> dict:
     # Cas 3: Vérifier si tous les livres sont not_found
     all_not_found = all(livre.get("babelio_not_found") for livre in livres)
     if all_not_found:
-        logger.info(
-            f"ℹ️  Tous les livres de '{nom_auteur}' sont absents de Babelio - "
-            f"Auteur aussi absent"
+        logger.warning(
+            f"⚠️  Tous les livres de '{nom_auteur}' sont absents de Babelio - "
+            f"Logging problematic author (traitement manuel requis)"
         )
-        # Marquer l'auteur comme absent (on pourrait ajouter un champ babelio_not_found)
-        auteurs_collection = mongodb_service.get_collection("auteurs")
-        if not dry_run:
-            auteurs_collection.update_one(
-                {"_id": auteur_id}, {"$set": {"babelio_not_found": True}}
-            )
+        # Ne PAS marquer l'auteur comme not_found car l'auteur peut exister
+        # sur Babelio même si ses livres n'y sont pas
+        log_problematic_author(
+            auteur_id=auteur_id,
+            nom_auteur=nom_auteur,
+            nb_livres=len(livres),
+            livres_status="all_not_found",
+            raison=f"Tous les livres sont absents de Babelio: {[livre['titre'] for livre in livres]}",
+        )
         return {
-            "status": "not_found",
+            "status": "error",
             "auteur_updated": False,
             "nom_auteur": nom_auteur,
             "raison": "Tous les livres sont absents de Babelio",
