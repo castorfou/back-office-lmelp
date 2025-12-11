@@ -161,16 +161,18 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées
 - 🎯 **Workflow complet** : De l'extraction des avis critiques jusqu'aux collections finales structurées
 
-#### Vérification Orthographique Babelio
-- ✅ **Auteurs** : Vérification et correction automatique d'orthographe
-- 📚 **Livres** : Validation croisée titre/auteur avec base Babelio
-- 🔗 **Enrichissement** : Liens directs, métadonnées, popularité
-- 🏢 **Éditeur automatique** : Scraping et enrichissement de l'éditeur depuis Babelio
-  - Enrichissement automatique lors de l'extraction des livres
-  - Mise à jour des avis critiques avec l'éditeur vérifié
-  - Cache intelligent avec enrichissement différé si nécessaire
-- 🎯 **Interface dédiée** : http://localhost:5174/babelio-test
-- 🤖 **Tolérance aux fautes** : Corrections intelligentes (ex: "Houllebeck" → "Michel Houellebecq")
+#### Intégration Babelio
+- 🔗 **Liens automatiques** : Tous les livres et auteurs incluent leurs URLs Babelio quand disponibles
+- 🎨 **Affichage visuel** : Icônes Babelio cliquables (80x80px) sur pages détail livre/auteur
+- 🤖 **Migration automatique** : Système en 2 phases pour enrichir les URLs manquantes
+  - Phase 1 : Livres sans URL → recherche et validation sur Babelio
+  - Phase 2 : Auteurs sans URL → extraction depuis pages livres existantes
+- 📊 **Interface gestion** : Page dédiée `/babelio-migration` avec suivi temps réel
+- ⚠️ **Cas problématiques** : Collection MongoDB `babelio_problematic_cases` pour traitement manuel
+- ✅ **Validation intelligente** : Normalisation texte automatique (ligatures œ→oe, ponctuation, casse)
+- 🔄 **Stratégie de secours** : Recherche élargie si correspondance exacte échoue
+- 🏢 **Éditeur enrichi** : Scraping automatique de l'éditeur depuis Babelio
+- 🤖 **Tolérance fautes** : Corrections orthographiques (ex: "Houllebeck" → "Michel Houellebecq")
 
 ##### Cache disque Babelio (diagnostic)
 
