@@ -5,8 +5,14 @@
     target="_blank"
     rel="noopener noreferrer"
     class="babelio-link"
+    :title="`Voir sur Babelio: ${displayLabel}`"
   >
-    🔗 {{ displayLabel }}
+    <img
+      src="@/assets/babelio-symbol-liaison.svg"
+      alt="Icône Babelio"
+      class="babelio-icon"
+    />
+    <span class="babelio-label">{{ displayLabel }}</span>
   </a>
 </template>
 
@@ -21,7 +27,7 @@ export default {
     },
     label: {
       type: String,
-      default: 'Voir sur Babelio'
+      default: 'Fiche Babelio'
     }
   },
 
@@ -31,7 +37,7 @@ export default {
     },
 
     displayLabel() {
-      return this.label || 'Voir sur Babelio';
+      return this.label || 'Fiche Babelio';
     }
   }
 };
@@ -41,21 +47,33 @@ export default {
 .babelio-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  color: #1976d2;
+  gap: 1rem;
   text-decoration: none;
-  font-size: 0.9rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
+  color: #333;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .babelio-link:hover {
-  background-color: #e3f2fd;
-  text-decoration: underline;
+  transform: scale(1.05);
+  opacity: 0.9;
 }
 
-.babelio-link:active {
-  background-color: #bbdefb;
+.babelio-icon {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.babelio-link:hover .babelio-icon {
+  box-shadow: 0 4px 12px rgba(251, 185, 30, 0.3);
+}
+
+.babelio-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
 }
 </style>

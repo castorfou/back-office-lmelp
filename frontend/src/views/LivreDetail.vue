@@ -22,28 +22,45 @@
     <div v-else-if="livre" class="livre-content">
       <!-- En-tête livre -->
       <div class="livre-header">
-        <h1 class="livre-title">{{ livre.titre }}</h1>
-        <div class="livre-meta">
-          <div class="livre-author">
-            Auteur :
-            <router-link
-              :to="`/auteur/${livre.auteur_id}`"
-              class="author-link"
-              data-test="auteur-link"
-            >
-              {{ livre.auteur_nom }}
-            </router-link>
+        <div class="livre-header-container">
+          <!-- Icône Babelio à gauche (Issue #124) -->
+          <a
+            v-if="livre.url_babelio"
+            :href="livre.url_babelio"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="babelio-logo-link"
+            title="Voir sur Babelio"
+          >
+            <img
+              src="@/assets/babelio-symbol-liaison.svg"
+              alt="Icône Babelio"
+              class="babelio-logo"
+            />
+          </a>
+
+          <!-- Informations du livre à droite -->
+          <div class="livre-info">
+            <h1 class="livre-title">{{ livre.titre }}</h1>
+            <div class="livre-meta">
+              <div class="livre-author">
+                Auteur :
+                <router-link
+                  :to="`/auteur/${livre.auteur_id}`"
+                  class="author-link"
+                  data-test="auteur-link"
+                >
+                  {{ livre.auteur_nom }}
+                </router-link>
+              </div>
+              <div class="livre-publisher">Éditeur : {{ livre.editeur }}</div>
+            </div>
+            <div class="livre-stats">
+              <span class="stat-badge">
+                {{ livre.nombre_episodes }} épisode{{ livre.nombre_episodes > 1 ? 's' : '' }}
+              </span>
+            </div>
           </div>
-          <div class="livre-publisher">Éditeur : {{ livre.editeur }}</div>
-        </div>
-        <!-- Lien Babelio (Issue #124) -->
-        <div v-if="livre.url_babelio" class="livre-babelio">
-          <BabelioLink :url="livre.url_babelio" label="Fiche Babelio" />
-        </div>
-        <div class="livre-stats">
-          <span class="stat-badge">
-            {{ livre.nombre_episodes }} épisode{{ livre.nombre_episodes > 1 ? 's' : '' }}
-          </span>
         </div>
       </div>
 
@@ -109,13 +126,11 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
-import BabelioLink from '../components/BabelioLink.vue';
 
 export default {
   name: 'LivreDetail',
   components: {
-    Navigation,
-    BabelioLink
+    Navigation
   },
   data() {
     return {
@@ -218,10 +233,43 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.livre-header-container {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Icône Babelio à gauche (Issue #124) */
+.babelio-logo-link {
+  flex-shrink: 0;
+  display: block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.babelio-logo-link:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+.babelio-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+.livre-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .livre-title {
   font-size: 2rem;
   color: #2c3e50;
-  margin: 0 0 1rem 0;
+  margin: 0;
 }
 
 .livre-meta {
