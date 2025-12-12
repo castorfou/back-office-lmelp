@@ -84,6 +84,49 @@ class RadioFranceService:
             logger.error(f"Error searching RadioFrance: {e}")
             return None
 
+    def _is_valid_episode_url(self, url: str) -> bool:
+        """Vérifie qu'une URL est bien un épisode valide et pas une page statique.
+
+        Les épisodes ont un pattern d'URL spécifique avec un slug contenant une date.
+        Les pages statiques comme /contact, /a-propos doivent être filtrées.
+
+        Args:
+            url: URL à valider
+
+        Returns:
+            True si l'URL est un épisode valide, False sinon
+        """
+        # Liste des pages statiques à exclure
+        static_pages = ["/contact", "/a-propos", "/rss", "/feed"]
+
+        # Vérifier que l'URL ne finit pas par une page statique
+        for static_page in static_pages:
+            if url.endswith(static_page):
+                return False
+
+        # Les épisodes valides contiennent généralement :
+        # - "du-dimanche" ou "du-lundi" etc. (jour de diffusion)
+        # - Une date dans l'URL
+        # - Un ID numérique à la fin
+        # Exemple: /le-masque-et-la-plume-du-dimanche-10-decembre-2023-5870209
+        return "-du-" in url or any(
+            month in url
+            for month in [
+                "janvier",
+                "fevrier",
+                "mars",
+                "avril",
+                "mai",
+                "juin",
+                "juillet",
+                "aout",
+                "septembre",
+                "octobre",
+                "novembre",
+                "decembre",
+            ]
+        )
+
     def _parse_json_ld(self, soup: BeautifulSoup) -> str | None:
         """Parse JSON-LD Schema.org ItemList pour extraire l'URL du premier résultat.
 
@@ -99,7 +142,7 @@ class RadioFranceService:
             soup: BeautifulSoup object du HTML
 
         Returns:
-            URL du premier résultat, ou None si JSON-LD absent/invalide
+            URL du premier résultat VALIDE (épisode), ou None si JSON-LD absent/invalide
         """
         try:
             # Chercher tous les scripts JSON-LD
@@ -112,13 +155,16 @@ class RadioFranceService:
                     # Vérifier si c'est une ItemList
                     if isinstance(data, dict) and data.get("@type") == "ItemList":
                         items = data.get("itemListElement", [])
-                        if items and len(items) > 0:
-                            # Prendre le premier résultat (position: 1)
-                            first_item = items[0]
-                            url: str = first_item.get("url", "")
+
+                        # Parcourir TOUS les résultats, pas seulement le premier
+                        for item in items:
+                            url: str = item.get("url", "")
 
                             # Vérifier que c'est bien un lien d'épisode
-                            if self.podcast_search_base in url:
+                            if (
+                                self.podcast_search_base in url
+                                and self._is_valid_episode_url(url)
+                            ):
                                 return url
 
                 except (json.JSONDecodeError, KeyError, TypeError):
@@ -132,16 +178,17 @@ class RadioFranceService:
             return None
 
     def _parse_html_links(self, soup: BeautifulSoup) -> str | None:
-        """Parse les liens HTML <a href> pour extraire l'URL du premier résultat.
+        """Parse les liens HTML <a href> pour extraire l'URL du premier résultat VALIDE.
 
         Stratégie de fallback si JSON-LD absent.
-        Cherche le premier lien contenant le chemin du podcast.
+        Cherche le premier lien VALIDE (épisode) contenant le chemin du podcast.
+        Filtre les pages statiques comme /contact, /a-propos, etc.
 
         Args:
             soup: BeautifulSoup object du HTML
 
         Returns:
-            URL du premier résultat, ou None si aucun lien trouvé
+            URL du premier résultat valide, ou None si aucun lien trouvé
         """
         try:
             links = soup.find_all("a", href=True)
@@ -150,6 +197,7 @@ class RadioFranceService:
                 if (
                     self.podcast_search_base in href
                     and href != self.podcast_search_base
+                    and self._is_valid_episode_url(href)
                 ):
                     # Construire l'URL complète si c'est un chemin relatif
                     if href.startswith("/"):

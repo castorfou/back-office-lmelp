@@ -167,3 +167,49 @@ class TestRadioFranceService:
             )
 
             assert result is None
+
+    @pytest.mark.asyncio
+    async def test_search_episode_should_skip_contact_page(self, radiofrance_service):
+        """RED TEST - Issue #129: devrait ignorer le lien /contact dans les résultats.
+
+        Reproduit le bug où le lien /contact est retourné au lieu de l'épisode réel.
+        Le lien /contact apparaît parfois en premier dans les résultats de recherche
+        RadioFrance, mais ce n'est pas un épisode valide.
+
+        Utilise une fixture HTML RÉELLE capturée avec /contact en premier résultat.
+        Fixture: search_with_contact_link.html
+
+        Vérifie que :
+        - Le lien /contact est ignoré (non valide)
+        - Le vrai lien d'épisode est retourné
+        - URL retournée contient un slug de date (du-dimanche-DD-mois-YYYY)
+        """
+        # Charger la fixture HTML avec /contact en premier
+        fixture_path = FIXTURES_DIR / "search_with_contact_link.html"
+        with open(fixture_path, encoding="utf-8") as f:
+            html_with_contact = f.read()
+
+        # Créer un mock response
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=html_with_contact)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = Mock()
+        mock_session.get = Mock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            episode_title = "Le Masque et la plume du dimanche 10 décembre 2023"
+            result = await radiofrance_service.search_episode_page_url(episode_title)
+
+            # RED: Ce test doit ÉCHOUER avant la correction
+            # Actuellement, le service retourne /contact au lieu de l'épisode
+            assert result is not None
+            assert "/contact" not in result, (
+                f"Le lien /contact ne devrait pas être retourné. Got: {result}"
+            )
+            assert "le-masque-et-la-plume-du-dimanche-10-decembre-2023" in result
+            assert result.startswith("https://www.radiofrance.fr")
