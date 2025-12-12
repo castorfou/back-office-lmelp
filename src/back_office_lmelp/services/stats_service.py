@@ -14,12 +14,12 @@ class StatsService:
         self.cache_service = livres_auteurs_cache_service
         self.mongodb_service = mongodb_service
 
-    def get_cache_statistics(self) -> dict[str, int]:
+    def get_cache_statistics(self) -> dict[str, Any]:
         """
         Récupère les statistiques optimisées depuis le cache.
 
         Returns:
-            Dictionnaire avec les statistiques complètes (incluant métriques Issue #124)
+            Dictionnaire avec les statistiques complètes (incluant métriques Issue #124 et #128)
         """
         result = self.cache_service.get_statistics_from_cache()
         stats = dict(result) if result else {}
@@ -28,33 +28,146 @@ class StatsService:
         stats["books_without_url_babelio"] = self._count_books_without_url_babelio()
         stats["authors_without_url_babelio"] = self._count_authors_without_url_babelio()
 
+        # Issue #128: Ajouter nouvelles métriques
+        stats["last_episode_date"] = self._get_last_episode_date()
+        stats["episodes_without_avis_critiques"] = (
+            self._count_episodes_without_avis_critiques()
+        )
+        stats["avis_critiques_without_analysis"] = (
+            self._count_avis_critiques_without_analysis()
+        )
+
         return stats
 
     def _count_books_without_url_babelio(self) -> int:
         """
-        Compte les livres sans URL Babelio (Issue #124).
+        Compte les livres sans URL Babelio (Issue #124, #128).
+
+        Compte uniquement les livres à traiter manuellement (sans url_babelio).
+        Exclut les livres avec babelio_not_found: true car confirmés comme absents de Babelio.
 
         Returns:
-            Nombre de livres où url_babelio est None ou absent
+            Nombre de livres sans lien Babelio (à traiter manuellement)
         """
         livres_collection = self.mongodb_service.get_collection("livres")
         count: int = livres_collection.count_documents(
-            {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+            {
+                "$and": [
+                    {
+                        "$or": [
+                            {"url_babelio": None},
+                            {"url_babelio": {"$exists": False}},
+                        ]
+                    },
+                    {
+                        "$or": [
+                            {"babelio_not_found": {"$ne": True}},
+                            {"babelio_not_found": {"$exists": False}},
+                        ]
+                    },
+                ]
+            }
         )
         return count
 
     def _count_authors_without_url_babelio(self) -> int:
         """
-        Compte les auteurs sans URL Babelio (Issue #124).
+        Compte les auteurs sans URL Babelio (Issue #124, #128).
+
+        Compte uniquement les auteurs à traiter manuellement (sans url_babelio).
+        Exclut les auteurs avec babelio_not_found: true car confirmés comme absents de Babelio.
 
         Returns:
-            Nombre d'auteurs où url_babelio est None ou absent
+            Nombre d'auteurs sans lien Babelio (à traiter manuellement)
         """
         auteurs_collection = self.mongodb_service.get_collection("auteurs")
         count: int = auteurs_collection.count_documents(
-            {"$or": [{"url_babelio": None}, {"url_babelio": {"$exists": False}}]}
+            {
+                "$and": [
+                    {
+                        "$or": [
+                            {"url_babelio": None},
+                            {"url_babelio": {"$exists": False}},
+                        ]
+                    },
+                    {
+                        "$or": [
+                            {"babelio_not_found": {"$ne": True}},
+                            {"babelio_not_found": {"$exists": False}},
+                        ]
+                    },
+                ]
+            }
         )
         return count
+
+    def _get_last_episode_date(self) -> str | None:
+        """
+        Récupère la date du dernier épisode en base (Issue #128).
+
+        Returns:
+            Date de diffusion du dernier épisode (format ISO), ou None si aucun épisode
+        """
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        last_episode = episodes_collection.find_one(
+            sort=[("diffusion", -1)], projection={"diffusion": 1}
+        )
+        if last_episode and "diffusion" in last_episode:
+            # Retourner la date au format ISO string
+            diffusion = last_episode["diffusion"]
+            if hasattr(diffusion, "isoformat"):
+                return str(diffusion.isoformat())
+            return str(diffusion)
+        return None
+
+    def _count_episodes_without_avis_critiques(self) -> int:
+        """
+        Compte les épisodes non masqués sans avis critiques extraits (Issue #128).
+
+        Returns:
+            Nombre d'épisodes où masked=False et n'ont pas d'avis critiques
+        """
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        avis_critiques_collection = self.mongodb_service.get_collection(
+            "avis_critiques"
+        )
+
+        # Compter les épisodes non masqués
+        non_masked_count = episodes_collection.count_documents(
+            {"$or": [{"masked": False}, {"masked": {"$exists": False}}]}
+        )
+
+        # Compter les épisodes avec avis critiques (distincts)
+        episodes_with_avis = avis_critiques_collection.distinct("episode_oid")
+        episodes_with_avis_count: int = len(episodes_with_avis)
+
+        # Retourner la différence
+        return int(max(0, non_masked_count - episodes_with_avis_count))
+
+    def _count_avis_critiques_without_analysis(self) -> int:
+        """
+        Compte les avis critiques extraits mais non analysés (Issue #128).
+
+        Un avis critique est considéré comme "analysé" s'il existe un document
+        dans livresauteurs_cache qui référence cet avis critique.
+
+        Returns:
+            Nombre d'avis critiques sans analyse
+        """
+        avis_critiques_collection = self.mongodb_service.get_collection(
+            "avis_critiques"
+        )
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+
+        # Compter total avis critiques
+        total_avis = avis_critiques_collection.count_documents({})
+
+        # Compter les avis critiques analysés (présents dans le cache)
+        # Utiliser distinct sur avis_critique_id dans le cache
+        analyzed_avis = cache_collection.distinct("avis_critique_id")
+        analyzed_count: int = len([a for a in analyzed_avis if a is not None])
+
+        return int(max(0, total_avis - analyzed_count))
 
     def get_detailed_breakdown(self) -> list[dict[str, Any]]:
         """

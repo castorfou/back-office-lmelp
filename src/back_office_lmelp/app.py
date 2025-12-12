@@ -1645,8 +1645,8 @@ async def get_all_books() -> list[dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
-@app.get("/api/stats", response_model=dict[str, int])
-async def get_cache_statistics() -> dict[str, int] | JSONResponse:
+@app.get("/api/stats", response_model=dict[str, Any])
+async def get_cache_statistics() -> dict[str, Any] | JSONResponse:
     """Récupère les statistiques de base du cache livres/auteurs."""
     try:
         return stats_service.get_cache_statistics()

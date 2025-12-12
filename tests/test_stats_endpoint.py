@@ -196,3 +196,60 @@ Total livres traités : 17"""
 
             assert data == mock_validation_stats
             mock_stats_service.get_validation_status_breakdown.assert_called_once()
+
+    def test_stats_endpoint_should_return_last_episode_date(self):
+        """Test TDD Issue #128: L'endpoint /api/stats doit retourner la date du dernier épisode."""
+        mock_stats = {
+            "couples_en_base": 5,
+            "last_episode_date": "2024-12-10T20:00:00",
+        }
+
+        with patch("back_office_lmelp.app.stats_service") as mock_stats_service:
+            mock_stats_service.get_cache_statistics.return_value = mock_stats
+
+            # Act
+            response = client.get("/api/stats")
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert "last_episode_date" in data
+            assert data["last_episode_date"] == "2024-12-10T20:00:00"
+
+    def test_stats_endpoint_should_return_episodes_without_avis_critiques(self):
+        """Test TDD Issue #128: L'endpoint /api/stats doit retourner le nombre d'épisodes sans avis critiques."""
+        mock_stats = {
+            "couples_en_base": 5,
+            "episodes_without_avis_critiques": 117,
+        }
+
+        with patch("back_office_lmelp.app.stats_service") as mock_stats_service:
+            mock_stats_service.get_cache_statistics.return_value = mock_stats
+
+            # Act
+            response = client.get("/api/stats")
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert "episodes_without_avis_critiques" in data
+            assert data["episodes_without_avis_critiques"] == 117
+
+    def test_stats_endpoint_should_return_avis_critiques_without_analysis(self):
+        """Test TDD Issue #128: L'endpoint /api/stats doit retourner le nombre d'avis critiques sans analyse."""
+        mock_stats = {
+            "couples_en_base": 5,
+            "avis_critiques_without_analysis": 0,
+        }
+
+        with patch("back_office_lmelp.app.stats_service") as mock_stats_service:
+            mock_stats_service.get_cache_statistics.return_value = mock_stats
+
+            # Act
+            response = client.get("/api/stats")
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert "avis_critiques_without_analysis" in data
+            assert data["avis_critiques_without_analysis"] == 0
