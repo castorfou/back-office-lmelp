@@ -24,6 +24,8 @@ class Episode:
         self.transcription: str | None = data.get("transcription")
         # Issue #107: Champ pour masquer les épisodes
         self.masked: bool = data.get("masked", False)
+        # Issue #129: URL de la page RadioFrance de l'épisode
+        self.episode_page_url: str | None = data.get("episode_page_url")
 
     def to_dict(self) -> dict[str, Any]:
         """Convertit l'épisode en dictionnaire pour l'API."""
@@ -42,6 +44,8 @@ class Episode:
             "transcription": self.transcription,
             # Issue #107: Champ masked
             "masked": self.masked,
+            # Issue #129: URL de la page RadioFrance
+            "episode_page_url": self.episode_page_url,
         }
 
     def to_summary_dict(self) -> dict[str, Any]:

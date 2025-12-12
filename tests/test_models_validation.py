@@ -96,6 +96,7 @@ class TestEpisodeModel:
             "titre_origin": None,
             "description_origin": None,
             "masked": False,  # Issue #107: Champ masked ajouté
+            "episode_page_url": None,  # Issue #129: URL de la page RadioFrance
         }
 
         assert result == expected
@@ -134,6 +135,7 @@ class TestEpisodeModel:
             "titre_origin": None,
             "description_origin": None,
             "masked": False,  # Issue #107: Champ masked ajouté
+            "episode_page_url": None,  # Issue #129: URL de la page RadioFrance
         }
 
         assert result == expected

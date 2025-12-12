@@ -9,6 +9,11 @@
 			"matchCommandLine": true
 		}
 	},
+	"files.exclude": {
+		"**/.git": true,
+		"**/.*_cache": true,
+		"**/site": true
+	},
 	"remote.autoForwardPorts": false,
 	"chat.emptyState.history.enabled": true,
 	"chat.tools.terminal.terminalProfile.linux": {
