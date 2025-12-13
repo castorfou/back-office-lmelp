@@ -117,7 +117,7 @@
             data-testid="function-masquer-episodes"
             @click="navigateToMasquerEpisodes"
           >
-            <div class="function-icon">👁️</div>
+            <div class="function-icon">🙈</div>
             <h3>Masquer les Épisodes</h3>
             <p>Gérer la visibilité des épisodes (masquer/afficher)</p>
             <div class="function-arrow">→</div>
