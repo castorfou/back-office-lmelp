@@ -34,6 +34,10 @@ class TestStatsService:
             mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
             # Mock MongoDB count_documents pour Issue #124
             mock_mongodb.get_collection.return_value.count_documents.return_value = 0
+            # Mock MongoDB find_one pour Issue #128 (last_episode_date)
+            mock_mongodb.get_collection.return_value.find_one.return_value = None
+            # Mock MongoDB distinct pour Issue #128 (episodes/avis_critiques)
+            mock_mongodb.get_collection.return_value.distinct.return_value = []
 
             # Act
             stats_service = StatsService()
@@ -44,6 +48,9 @@ class TestStatsService:
                 **mock_cache_stats,
                 "books_without_url_babelio": 0,
                 "authors_without_url_babelio": 0,
+                "last_episode_date": None,
+                "episodes_without_avis_critiques": 0,
+                "avis_critiques_without_analysis": 0,
             }
             assert result == expected_result
             mock_cache.get_statistics_from_cache.assert_called_once()
@@ -228,6 +235,9 @@ Total livres traités : 14"""
             "episodes_non_traites": 0,
             "books_without_url_babelio": 0,
             "authors_without_url_babelio": 0,
+            "last_episode_date": None,
+            "episodes_without_avis_critiques": 0,
+            "avis_critiques_without_analysis": 0,
         }
 
         with patch.object(

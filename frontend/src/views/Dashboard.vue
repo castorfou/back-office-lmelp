@@ -18,53 +18,33 @@
       <section class="statistics-section">
         <h2>Informations générales</h2>
         <div class="stats-grid">
-          <div class="stat-card">
+          <a :href="lmelpFrontOfficeUrl" class="stat-card clickable-stat" target="_blank" rel="noopener noreferrer">
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
+          </a>
+          <a :href="lmelpAvisCritiquesUrl" class="stat-card clickable-stat" target="_blank" rel="noopener noreferrer">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.episodes_without_avis_critiques != null) ? collectionsStatistics.episodes_without_avis_critiques : '...' }}</div>
+            <div class="stat-label">Épisodes sans avis critiques</div>
+          </a>
+          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.avis_critiques_without_analysis != null) ? collectionsStatistics.avis_critiques_without_analysis : '...' }}</div>
+            <div class="stat-label">Avis critiques sans analyse</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ statistics.totalEpisodes !== null ? statistics.totalEpisodes : '...' }}</div>
-            <div class="stat-label">Épisodes au total</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ statistics.maskedEpisodes !== null ? statistics.maskedEpisodes : '...' }}</div>
-            <div class="stat-label">Épisodes masqués</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ statistics.episodesWithCorrectedTitles !== null ? statistics.episodesWithCorrectedTitles : '...' }}</div>
-            <div class="stat-label">Titres corrigés</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ statistics.episodesWithCorrectedDescriptions !== null ? statistics.episodesWithCorrectedDescriptions : '...' }}</div>
-            <div class="stat-label">Descriptions corrigées</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ statistics.criticalReviews !== null ? statistics.criticalReviews : '...' }}</div>
-            <div class="stat-label">Avis critiques extraits</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.avis_critiques_analyses != null) ? collectionsStatistics.avis_critiques_analyses : '...' }}</div>
-            <div class="stat-label">Avis critiques analysés</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.livres_uniques !== undefined) ? collectionsStatistics.livres_uniques : ((collectionsStatistics && collectionsStatistics.couples_en_base !== null) ? collectionsStatistics.couples_en_base : '...') }}</div>
-            <div class="stat-label">Livres en base</div>
-          </div>
-          <div class="stat-card">
+          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_suggested_pas_en_base !== null) ? collectionsStatistics.couples_suggested_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres suggérés</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== null) ? collectionsStatistics.couples_not_found_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres non trouvés</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ babelioCompletionPercentage }}</div>
-            <div class="stat-label">Livres avec lien Babelio</div>
+          <div class="stat-card clickable-stat" @click="navigateToBabelioMigration">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.books_without_url_babelio != null) ? collectionsStatistics.books_without_url_babelio : '...' }}</div>
+            <div class="stat-label">Livres sans lien Babelio</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ babelioAuthorsCompletionPercentage }}</div>
-            <div class="stat-label">Auteurs avec lien Babelio</div>
+          <div class="stat-card clickable-stat" @click="navigateToBabelioMigration">
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.authors_without_url_babelio != null) ? collectionsStatistics.authors_without_url_babelio : '...' }}</div>
+            <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
         </div>
       </section>
@@ -137,7 +117,7 @@
             data-testid="function-masquer-episodes"
             @click="navigateToMasquerEpisodes"
           >
-            <div class="function-icon">👁️</div>
+            <div class="function-icon">🙈</div>
             <h3>Masquer les Épisodes</h3>
             <p>Gérer la visibilité des épisodes (masquer/afficher)</p>
             <div class="function-arrow">→</div>
@@ -204,7 +184,12 @@ export default {
         couples_en_base: null,
         avis_critiques_analyses: null,
         couples_suggested_pas_en_base: null,
-        couples_not_found_pas_en_base: null
+        couples_not_found_pas_en_base: null,
+        episodes_without_avis_critiques: null,
+        avis_critiques_without_analysis: null,
+        books_without_url_babelio: null,
+        authors_without_url_babelio: null,
+        last_episode_date: null
       },
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,
@@ -216,12 +201,14 @@ export default {
 
   computed: {
     formattedLastUpdate() {
-      if (!this.statistics.lastUpdateDate) {
+      // Issue #128: Utiliser last_episode_date depuis collectionsStatistics
+      const lastDate = this.collectionsStatistics?.last_episode_date || this.statistics.lastUpdateDate;
+      if (!lastDate) {
         return null;
       }
 
       try {
-        const date = new Date(this.statistics.lastUpdateDate);
+        const date = new Date(lastDate);
         return date.toLocaleDateString('fr-FR', {
           day: '2-digit',
           month: '2-digit',
@@ -231,6 +218,16 @@ export default {
         console.error('Erreur de formatage de date:', error);
         return '--';
       }
+    },
+
+    lmelpFrontOfficeUrl() {
+      // Issue #128: URL vers le front-office lmelp (port 8501)
+      return 'http://localhost:8501/';
+    },
+
+    lmelpAvisCritiquesUrl() {
+      // Issue #128: URL vers la page avis critiques du front-office
+      return 'http://localhost:8501/avis_critiques';
     },
 
     babelioCompletionPercentage() {
@@ -419,6 +416,21 @@ export default {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   text-align: center;
   min-width: 0; /* Permet au contenu de rétrécir */
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.stat-card.clickable-stat {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.stat-card.clickable-stat:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  border-color: #667eea;
 }
 
 .stat-value {
