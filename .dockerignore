@@ -43,10 +43,10 @@ frontend/dist/
 # Development
 .devcontainer/
 .claude/
-scripts/
 notebooks/
 data/
 screenshots/
+# scripts/ - NEEDED for backend Docker build (migration_runner imports)
 
 # Testing
 tests/
