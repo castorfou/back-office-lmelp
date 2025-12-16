@@ -33,6 +33,9 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy source code
 COPY src/ /app/src/
 
+# Copy scripts directory (needed for migration_runner imports)
+COPY scripts/ /app/scripts/
+
 # Set Python path
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:$PATH"
