@@ -19,8 +19,8 @@ Le problème n'était PAS uniquement le calcul de `sys.path`, mais le fait que *
 ### Chaîne d'import
 
 1. Frontend appelle `/api/babelio-migration/start`
-2. Backend ([app.py:1849](../../src/back_office_lmelp/app.py#L1849)) importe `migration_runner`
-3. migration_runner ([migration_runner.py:23-30](../../src/back_office_lmelp/utils/migration_runner.py#L23-L30)) calcule le chemin vers `scripts/migration_donnees/`
+2. Backend (`app.py:1849`) importe `migration_runner`
+3. migration_runner (`migration_runner.py:23-30`) calcule le chemin vers `scripts/migration_donnees/`
 4. migration_runner tente d'importer depuis `migrate_url_babelio.py`
 5. **ERREUR**: Le fichier n'existe pas en production Docker!
 
@@ -56,7 +56,7 @@ COPY scripts/ /app/scripts/
 
 ### Fichier Modifié
 
-- [docker/build/backend/Dockerfile:36-37](../../docker/build/backend/Dockerfile#L36-L37)
+- `docker/build/backend/Dockerfile:36-37`
 
 ## Pourquoi migration_runner importe-t-il depuis scripts/?
 
