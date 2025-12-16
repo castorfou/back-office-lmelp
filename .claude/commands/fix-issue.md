@@ -11,7 +11,7 @@ Utilise une todo list pour garder la trace complète de ce travail, et être sû
 10. Met à jour README.md et CLAUDE.md si necessaire, utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne.
 11. Met à jour la documentation utilisateur et développeur (sous /docs), utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne.
 12. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
-13. Fais un test `mkdocs build --strict`
+13. Fais un test `mkdocs build --strict` et corrige les erreurs eventuelles
 14. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.
 15. Demande à l'utilisateur si la feature est bien terminée ou s'il faut refaire une boucle complete (de 3 à 14) sur un sujet complémentaire.
 16. Prepare la pull request et demande à l'utilisateur de la valider. Sur cette validation tu utiliseras gh pour la valider et tu vérifieras que c'est effectivement bien le cas.
