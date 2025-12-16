@@ -10,7 +10,7 @@ Erreur `No module named 'migrate_url_babelio'` lors du clic sur le bouton "Lance
 
 ## Analyse Racine
 
-Le fichier [scripts/migration_donnees/migrate_url_babelio.py:30](../../scripts/migration_donnees/migrate_url_babelio.py#L30) calculait incorrectement le chemin vers le répertoire `src` :
+Le fichier `scripts/migration_donnees/migrate_url_babelio.py:30` calculait incorrectement le chemin vers le répertoire `src` :
 
 ```python
 # Code incorrect (ligne 30)
@@ -39,11 +39,11 @@ L'import fonctionnait quand :
 
 ### Différence entre Devcontainer et Docker Production
 
-**Devcontainer** ([.devcontainer/devcontainer.json:16](../../.devcontainer/devcontainer.json#L16)) :
+**Devcontainer** (`.devcontainer/devcontainer.json:16`) :
 - `PYTHONPATH` défini explicitement : `"PYTHONPATH": "/workspaces/back-office-lmelp/src"`
 - Package installé en mode éditable par `postCreateCommand.sh`
 
-**Dockerfile Production** ([docker/build/backend/Dockerfile:37](../../docker/build/backend/Dockerfile#L37)) :
+**Dockerfile Production** (`docker/build/backend/Dockerfile:37`) :
 - `ENV PYTHONPATH=/app/src`
 - `uv sync --frozen --no-dev` (PAS d'installation éditable)
 - Le code source est simplement copié dans `/app/src/`
@@ -68,7 +68,7 @@ Cette correction fonctionne dans **tous les environnements** :
 
 ## Fichiers Modifiés
 
-- [scripts/migration_donnees/migrate_url_babelio.py:30-32](../../scripts/migration_donnees/migrate_url_babelio.py#L30-L32) - Correction du calcul du chemin
+- `scripts/migration_donnees/migrate_url_babelio.py:30-32` - Correction du calcul du chemin
 
 ## Tests de Validation
 
@@ -182,4 +182,4 @@ python3 -c "import sys; [print(p) for p in sys.path if 'back-office' in p]"
 
 - Issue #135 : https://github.com/castorfou/back-office-lmelp/issues/135
 - Commentaire d'analyse : https://github.com/castorfou/back-office-lmelp/issues/135#issuecomment-3653731046
-- Code corrigé : [scripts/migration_donnees/migrate_url_babelio.py:30-32](../../scripts/migration_donnees/migrate_url_babelio.py#L30-L32)
+- Code corrigé : `scripts/migration_donnees/migrate_url_babelio.py:30-32`
