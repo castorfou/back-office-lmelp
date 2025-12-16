@@ -27,7 +27,9 @@ from bson import ObjectId
 
 
 # Ajouter le chemin src au PYTHONPATH
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Fix Issue #135: Corriger le calcul du chemin vers /workspaces/back-office-lmelp/src
+# (ou /app/src en production) au lieu de /workspaces/back-office-lmelp/scripts/src
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from back_office_lmelp.services.babelio_service import BabelioService
 from back_office_lmelp.services.mongodb_service import mongodb_service
