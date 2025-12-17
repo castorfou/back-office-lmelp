@@ -29,7 +29,7 @@ Le timeout frontend de 30 secondes était insuffisant pour les opérations longu
 
 ### Modifications apportées
 
-**1. Configuration timeout étendu** ([frontend/src/services/api.js](frontend/src/services/api.js))
+**1. Configuration timeout étendu** (`frontend/src/services/api.js`)
 
 ```javascript
 // Timeout étendu pour les opérations longues (extraction/validation de livres)
@@ -57,7 +57,7 @@ async setValidationResults(validationData) {
 }
 ```
 
-**3. Tests ajoutés** ([frontend/tests/unit/api.timeout.test.js](frontend/tests/unit/api.timeout.test.js))
+**3. Tests ajoutés** (`frontend/tests/unit/api.timeout.test.js`)
 
 Tests de spécification documentant le comportement attendu :
 - `getLivresAuteurs` doit utiliser timeout de 120s
