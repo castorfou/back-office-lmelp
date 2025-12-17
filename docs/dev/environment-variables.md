@@ -32,6 +32,7 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `BABELIO_CACHE_LOG` | Active les logs détaillés du cache Babelio | `0` (désactivé) | `1`, `true`, `yes` |
+| `BABELIO_DEBUG_LOG` | Active les logs de debug détaillés du service Babelio (matching, scraping) | `0` (désactivé) | `1`, `true` |
 
 ### Usage `BABELIO_CACHE_LOG`
 
@@ -48,6 +49,29 @@ BABELIO_CACHE_LOG=true    # ✅
 BABELIO_CACHE_LOG=yes     # ✅
 BABELIO_CACHE_LOG=0       # ❌ désactivé
 BABELIO_CACHE_LOG=false   # ❌ désactivé
+```
+
+### Usage `BABELIO_DEBUG_LOG`
+
+Active les logs de debug détaillés pour diagnostiquer les problèmes de matching Babelio (comparaisons auteur/titre, scraping, fallbacks).
+
+```bash
+# Désactivé par défaut en production
+python -m back_office_lmelp.app
+
+# Activer les logs de debug pour diagnostiquer un problème de matching
+BABELIO_DEBUG_LOG=1 python -m back_office_lmelp.app
+```
+
+**Note importante**: Le script de développement `scripts/start-dev.sh` active **automatiquement** `BABELIO_DEBUG_LOG=1` pour faciliter le diagnostic pendant le développement. En production, cette variable doit rester désactivée pour éviter la pollution des logs.
+
+Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
+```
+🔍 [DEBUG] verify_book: search_term='Le Titre' (author filter: 'Auteur')
+🔍 [DEBUG] verify_book: 3 résultat(s) - 2 livre(s), 1 auteur(s)
+🔍 [DEBUG] _find_best_book_match: 2 livre(s) avant filtrage
+🔍 [DEBUG] _find_best_book_match: 'Le titre exact' - author 'Auteur' vs 'Auteur Complet' = 0.85
+🔍 [DEBUG] _find_best_book_match: 1 livre(s) après filtre auteur (seuil>0.7)
 ```
 
 ## Configuration frontend
@@ -73,8 +97,11 @@ AZURE_OPENAI_API_KEY=your-api-key-here
 AZURE_OPENAI_API_VERSION=2024-02-01
 AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
 
-# Debug (désactivé par défaut)
+# Debug (désactivé par défaut en production)
 BABELIO_CACHE_LOG=0
+BABELIO_DEBUG_LOG=0
+
+# Note: scripts/start-dev.sh active automatiquement BABELIO_DEBUG_LOG=1
 ```
 
 ## Notes importantes

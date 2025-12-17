@@ -204,3 +204,64 @@ frontend/src/
 ├── utils/           # Utilitaires
 └── App.vue          # Composant racine avec router-view
 ```
+
+## Configuration des services API
+
+### Timeouts HTTP
+
+Le fichier `frontend/src/services/api.js` configure les timeouts pour les requêtes HTTP via axios.
+
+**Configuration par défaut** : 30 secondes (suffisant pour la plupart des opérations)
+
+```javascript
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000, // 30 secondes
+});
+```
+
+**Timeouts étendus** : 120 secondes pour opérations longues
+
+Certaines opérations nécessitent un timeout étendu en raison du traitement backend intensif :
+
+| Endpoint | Timeout | Raison |
+|----------|---------|--------|
+| `/api/livres-auteurs` | 120s | Extraction des livres + validation Babelio initiale (peut prendre 60-90s pour plusieurs livres) |
+| `/api/set-validation-results` | 120s | Traitement complet de la validation + enrichissement Babelio |
+| Tous les autres | 30s | Opérations standard (recherche, stats, lecture cache) |
+
+**Exemple d'implémentation** :
+
+```javascript
+// Timeout étendu pour opérations longues
+const EXTENDED_TIMEOUT = 120000; // 120 secondes (2 minutes)
+
+async getLivresAuteurs(params = {}) {
+  const response = await api.get('/livres-auteurs', {
+    params,
+    timeout: EXTENDED_TIMEOUT  // Override timeout par défaut
+  });
+  return response.data;
+}
+```
+
+**Pourquoi 120 secondes ?**
+
+L'extraction et la validation initiale d'un épisode effectue :
+1. Extraction des livres depuis les avis critiques
+2. Validation Babelio de chaque livre (recherche + scraping si nécessaire)
+3. Rate limiting entre requêtes externes
+4. Mise en cache des résultats
+
+Pour un épisode avec 5-10 livres, le traitement peut prendre 60-90 secondes au premier chargement. Les chargements suivants sont rapides (<1s) grâce au cache MongoDB.
+
+**Gestion des erreurs timeout** :
+
+```javascript
+if (error.code === 'ECONNABORTED') {
+  throw new Error('Timeout: La requête a pris trop de temps');
+}
+```
+
+L'utilisateur reçoit un message clair et peut réessayer (généralement avec succès au 2ème essai car le backend a terminé le traitement et mis les données en cache).
+```

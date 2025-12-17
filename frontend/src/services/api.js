@@ -7,11 +7,14 @@ import axios from 'axios';
 // Configuration axios
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000, // 30 secondes pour permettre le fallback parsing
+  timeout: 30000, // 30 secondes par défaut (suffisant pour la plupart des opérations)
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Timeout étendu pour les opérations longues (extraction/validation de livres)
+const EXTENDED_TIMEOUT = 120000; // 120 secondes (2 minutes)
 
 // Intercepteur pour gérer les erreurs globalement
 api.interceptors.response.use(
@@ -60,7 +63,12 @@ export const livresAuteursService = {
    * @returns {Promise<Array>} Liste des livres avec métadonnées
    */
   async getLivresAuteurs(params = {}) {
-    const response = await api.get('/livres-auteurs', { params });
+    // Utiliser un timeout étendu pour permettre l'extraction et la validation initiale
+    // qui peut prendre plus de 60s pour un épisode avec plusieurs livres
+    const response = await api.get('/livres-auteurs', {
+      params,
+      timeout: EXTENDED_TIMEOUT
+    });
     return response.data;
   },
 
@@ -138,7 +146,11 @@ export const livresAuteursService = {
    * @returns {Promise<Object>} Résultat de l'opération
    */
   async setValidationResults(validationData) {
-    const response = await api.post('/set-validation-results', validationData);
+    // Utiliser un timeout étendu pour permettre le traitement complet de la validation
+    // qui peut inclure l'enrichissement Babelio et l'insertion en base
+    const response = await api.post('/set-validation-results', validationData, {
+      timeout: EXTENDED_TIMEOUT
+    });
     return response.data;
   },
 

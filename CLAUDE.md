@@ -418,6 +418,57 @@ if not result:
         result = scrape_from_author_page(result)
 ```
 
+### Debug Logging Strategy
+
+**Pattern recommandé** : Conserver les logs debug dans le code et les contrôler via variables d'environnement.
+
+**❌ MAUVAISE approche** (ancienne) :
+```python
+# Ajouter des logs debug pendant le développement
+logger.info(f"🔍 [DEBUG] verify_book: search_term='{search_term}'")
+
+# Les supprimer avant commit
+# ❌ Perte d'informations de diagnostic pour le futur
+```
+
+**✅ BONNE approche** (actuelle) :
+```python
+# 1. Ajouter un flag de contrôle dans __init__
+self._debug_log_enabled = os.getenv("FEATURE_DEBUG_LOG", "0").lower() in ("1", "true")
+
+# 2. Garder les logs conditionnels dans le code
+if self._debug_log_enabled:
+    logger.info(f"🔍 [DEBUG] verify_book: search_term='{search_term}'")
+    logger.info(f"🔍 [DEBUG] _find_best_book_match: {len(books)} livre(s)")
+```
+
+**Avantages** :
+- ✅ Logs disponibles pour diagnostic futur (activation via env var)
+- ✅ Pas de pollution en production (désactivé par défaut)
+- ✅ Facilite le debugging des problèmes complexes (matching, scraping, etc.)
+- ✅ Historique conservé pour comprendre les décisions passées
+
+**Convention de nommage** :
+- Pattern : `{FEATURE}_DEBUG_LOG` (ex: `BABELIO_DEBUG_LOG`, `CALIBRE_DEBUG_LOG`)
+- Valeurs : `0` (défaut, désactivé) ou `1`/`true` (activé)
+- Scope : Une variable par feature/service majeur
+
+**Configuration développement** :
+```bash
+# scripts/start-dev.sh active automatiquement les logs debug pertinents
+export BABELIO_DEBUG_LOG=1  # Activé en dev pour diagnostic matching
+
+# En production : toujours désactivé (valeur par défaut)
+```
+
+**Exemples de logs debug utiles** :
+- Comparaisons de similarité (matching auteur/titre)
+- Étapes de scraping et parsing
+- Décisions de fallback
+- Résultats intermédiaires de traitements complexes
+
+**Documentation** : Voir [environment-variables.md](docs/dev/environment-variables.md) pour la liste complète des variables de debug disponibles.
+
 ## Documentation Guidelines
 
 ### Writing Documentation
