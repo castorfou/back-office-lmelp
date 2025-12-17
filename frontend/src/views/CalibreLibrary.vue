@@ -200,7 +200,13 @@ export default {
 
       // Apply read filter
       if (this.readFilter !== null) {
-        result = result.filter(book => book.read === this.readFilter);
+        if (this.readFilter === false) {
+          // For "unread" filter, include books with read === false OR read === null
+          result = result.filter(book => book.read === false || book.read === null);
+        } else {
+          // For "read" filter, only include books with read === true
+          result = result.filter(book => book.read === true);
+        }
       }
 
       // Apply search filter (case-insensitive, title and author)

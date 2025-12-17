@@ -300,12 +300,13 @@ describe('CalibreLibrary', () => {
     it('should filter unread books when clicking "Non lus" button', async () => {
       // Arrange
       calibreService.getBooks.mockResolvedValue({
-        total: 4,
+        total: 5,
         books: [
           { id: 1, title: 'Book 1', authors: ['A'], read: true },
           { id: 2, title: 'Book 2', authors: ['B'], read: false },
           { id: 3, title: 'Book 3', authors: ['C'], read: true },
-          { id: 4, title: 'Book 4', authors: ['D'], read: false }
+          { id: 4, title: 'Book 4', authors: ['D'], read: false },
+          { id: 5, title: 'Book 5', authors: ['E'], read: null }
         ]
       });
 
@@ -322,10 +323,11 @@ describe('CalibreLibrary', () => {
       await unreadButton.trigger('click');
       await wrapper.vm.$nextTick();
 
-      // Assert - Should only show unread books (client-side filtering)
+      // Assert - Should show unread books (false) AND books with unknown status (null)
       expect(wrapper.vm.readFilter).toBe(false);
-      expect(wrapper.vm.filteredBooks).toHaveLength(2);
-      expect(wrapper.vm.filteredBooks.every(b => b.read === false)).toBe(true);
+      expect(wrapper.vm.filteredBooks).toHaveLength(3);
+      expect(wrapper.vm.filteredBooks.every(b => b.read === false || b.read === null)).toBe(true);
+      expect(wrapper.vm.filteredBooks.some(b => b.id === 5 && b.read === null)).toBe(true);
     });
   });
 
