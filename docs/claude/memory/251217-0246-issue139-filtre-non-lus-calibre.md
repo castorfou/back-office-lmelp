@@ -10,7 +10,7 @@ Le filtre "Non lus" de la bibliothèque Calibre retournait une liste vide alors 
 
 ## Cause racine
 
-Dans [CalibreLibrary.vue:203](frontend/src/views/CalibreLibrary.vue#L203), le filtre utilisait une égalité stricte :
+Dans `frontend/src/views/CalibreLibrary.vue:203`, le filtre utilisait une égalité stricte :
 
 ```javascript
 result = result.filter(book => book.read === this.readFilter);
@@ -22,7 +22,7 @@ Quand `readFilter === false` (filtre "Non lus"), les livres avec `read === null`
 
 ### 1. Test TDD (RED)
 
-Modifié le test existant dans [CalibreLibrary.test.js:300-331](frontend/tests/unit/CalibreLibrary.test.js#L300-L331) :
+Modifié le test existant dans `frontend/tests/unit/CalibreLibrary.test.js:300-331` :
 
 ```javascript
 it('should filter unread books when clicking "Non lus" button', async () => {
@@ -49,7 +49,7 @@ it('should filter unread books when clicking "Non lus" button', async () => {
 
 ### 2. Code fix (GREEN)
 
-Modifié la logique de filtrage dans [CalibreLibrary.vue:202-210](frontend/src/views/CalibreLibrary.vue#L202-L210) :
+Modifié la logique de filtrage dans `frontend/src/views/CalibreLibrary.vue:202-210` :
 
 ```javascript
 if (this.readFilter !== null) {
@@ -86,8 +86,8 @@ Les livres avec `read === null` représentent un **statut de lecture inconnu**. 
 ## Fichiers modifiés
 
 1. **Frontend**
-   - [CalibreLibrary.vue](frontend/src/views/CalibreLibrary.vue) - Logique de filtrage corrigée
-   - [CalibreLibrary.test.js](frontend/tests/unit/CalibreLibrary.test.js) - Test amélioré avec cas `null`
+   - `frontend/src/views/CalibreLibrary.vue` - Logique de filtrage corrigée
+   - `frontend/tests/unit/CalibreLibrary.test.js` - Test amélioré avec cas `null`
 
 ## Tests
 
