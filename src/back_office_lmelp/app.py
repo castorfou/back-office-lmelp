@@ -161,6 +161,11 @@ class UpdateFromBabelioUrlRequest(BaseModel):
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Gestion du cycle de vie de l'application."""
     try:
+        # Afficher les informations de démarrage (Issue #136)
+        from .utils.startup_logging import log_startup_info
+
+        log_startup_info()
+
         # Démarrage
         if not mongodb_service.connect():
             raise Exception("Impossible de se connecter à MongoDB")
