@@ -62,6 +62,7 @@ class TestBabelioMigrationService:
         cases = [
             {
                 "_id": ObjectId("674e9a8f1234567890abcde1"),
+                "type": "livre",
                 "timestamp": datetime(2025, 12, 5, 9, 25, 40, 528467, tzinfo=UTC),
                 "livre_id": "6914a45f497dd3ad92041855",
                 "titre_attendu": "La Cordillère des ondes",
@@ -69,6 +70,7 @@ class TestBabelioMigrationService:
             },
             {
                 "_id": ObjectId("674e9a8f1234567890abcde2"),
+                "type": "livre",
                 "timestamp": datetime(2025, 12, 5, 9, 28, 10, 362279, tzinfo=UTC),
                 "livre_id": "692c8b7fe405566c2a0b869c",
                 "titre_attendu": "Cours de poétique",
@@ -76,6 +78,7 @@ class TestBabelioMigrationService:
             },
             {
                 "_id": ObjectId("674e9a8f1234567890abcde3"),
+                "type": "livre",
                 "timestamp": datetime(2025, 12, 5, 21, 47, 22, 849163, tzinfo=UTC),
                 "livre_id": "68ec058fc9f430a13dcefe78",
                 "titre_attendu": "Sur les lieux de Georges Pérec",
@@ -83,6 +86,7 @@ class TestBabelioMigrationService:
             },
             {
                 "_id": ObjectId("674e9a8f1234567890abcde4"),
+                "type": "livre",
                 "timestamp": datetime(2025, 12, 5, 21, 47, 24, 707196, tzinfo=UTC),
                 "livre_id": "68ec0746c9f430a13dcefe81",
                 "titre_attendu": "Club des Poètes",
@@ -90,6 +94,7 @@ class TestBabelioMigrationService:
             },
             {
                 "_id": ObjectId("674e9a8f1234567890abcde5"),
+                "type": "livre",
                 "timestamp": datetime(2025, 12, 5, 21, 47, 26, 486887, tzinfo=UTC),
                 "livre_id": "690d91eb2246ccf9a62179bd",
                 "titre_attendu": "Bookmakers",
@@ -155,6 +160,7 @@ class TestBabelioMigrationService:
         mock_problematic_cases = [
             {
                 "_id": "mock_id_1",
+                "type": "livre",
                 "timestamp": datetime.now(UTC),
                 "livre_id": "6914a45f497dd3ad92041855",
                 "titre_attendu": "La Cordillère des ondes",
@@ -165,6 +171,7 @@ class TestBabelioMigrationService:
             },
             {
                 "_id": "mock_id_2",
+                "type": "livre",
                 "timestamp": datetime.now(UTC),
                 "livre_id": "692c8b7fe405566c2a0b869c",
                 "titre_attendu": "Cours de poétique",
@@ -267,6 +274,7 @@ class TestBabelioMigrationService:
         mock_problematic_cases = [
             {
                 "_id": f"mock_id_{i}",
+                "type": "livre",
                 "timestamp": datetime.now(UTC),
                 "livre_id": valid_object_ids[i],
                 "titre_attendu": f"Titre {i}",
@@ -481,6 +489,7 @@ class TestBabelioMigrationService:
         mock_problematic_collection.find.return_value = [
             {
                 "_id": ObjectId("674e9a8f1234567890abcdef"),
+                "type": "livre",
                 "timestamp": timestamp_1,
                 "livre_id": livre_id_1,
                 "titre_attendu": "Cours de poétique",

@@ -701,7 +701,18 @@ class BabelioService:
                 html = await response.text()
                 soup = BeautifulSoup(html, "lxml")
 
-                # Priorité 1: og:title (plus fiable, contient le titre complet)
+                # Priorité 1: h1 (contient juste le titre, sans nom d'auteur)
+                h1_tag = soup.find("h1")
+                if h1_tag:
+                    title_raw = str(h1_tag.get_text())
+                    # Nettoyer les sauts de ligne et espaces multiples
+                    title_final = " ".join(title_raw.split())
+                    logger.debug(
+                        f"Titre complet trouvé (h1) pour {babelio_url}: {title_final}"
+                    )
+                    return title_final
+
+                # Priorité 2: og:title (fallback, peut contenir "Titre - Auteur - Babelio")
                 og_title_tag = soup.find("meta", property="og:title")
                 if og_title_tag and hasattr(og_title_tag, "get"):
                     content = og_title_tag.get("content")
@@ -714,17 +725,6 @@ class BabelioService:
                             f"Titre complet trouvé (og:title) pour {babelio_url}: {title_final}"
                         )
                         return title_final
-
-                # Priorité 2: h1 (fallback)
-                h1_tag = soup.find("h1")
-                if h1_tag:
-                    title_raw = str(h1_tag.get_text())
-                    # Nettoyer les sauts de ligne et espaces multiples
-                    title_final = " ".join(title_raw.split())
-                    logger.debug(
-                        f"Titre complet trouvé (h1) pour {babelio_url}: {title_final}"
-                    )
-                    return title_final
 
                 logger.debug(f"Titre complet non trouvé pour {babelio_url}")
                 return None
@@ -1000,11 +1000,20 @@ class BabelioService:
         try:
             session = await self._get_session()
 
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] fetch_author_url_from_page: Fetching {babelio_url}"
+                )
+
             async with session.get(babelio_url) as response:
                 if response.status != 200:
                     logger.warning(
                         f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
                     )
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] fetch_author_url_from_page: HTTP error {response.status}"
+                        )
                     return None
 
                 html = await response.text()
@@ -1018,19 +1027,30 @@ class BabelioService:
                     if href and isinstance(href, str):
                         # Construire l'URL complète
                         author_url = self._build_full_url(href)
-                        logger.debug(
-                            f"URL auteur trouvée pour {babelio_url}: {author_url}"
-                        )
+                        if self._debug_log_enabled:
+                            logger.info(
+                                f"🔍 [DEBUG] fetch_author_url_from_page: URL auteur trouvée '{author_url}'"
+                            )
                         return author_url
                     else:
-                        logger.debug(f"URL auteur sans href pour {babelio_url}")
+                        if self._debug_log_enabled:
+                            logger.info(
+                                "🔍 [DEBUG] fetch_author_url_from_page: Lien auteur sans href valide"
+                            )
                         return None
                 else:
-                    logger.debug(f"URL auteur non trouvée pour {babelio_url}")
+                    if self._debug_log_enabled:
+                        logger.info(
+                            "🔍 [DEBUG] fetch_author_url_from_page: Aucun lien auteur trouvé avec sélecteur 'a[href*=\"/auteur/\"]'"
+                        )
                     return None
 
         except Exception as e:
             logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] fetch_author_url_from_page: Exception {type(e).__name__}: {e}"
+                )
             return None
 
     def _create_error_result(self, original: str, error_message: str) -> dict[str, Any]:

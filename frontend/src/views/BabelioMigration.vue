@@ -192,8 +192,12 @@
 
       <div v-for="cas in problematicCases" :key="cas.livre_id || cas.auteur_id" class="case-card">
         <div class="case-header">
-          <!-- Affichage différent selon le type (livre vs auteur) -->
-          <template v-if="cas.type === 'auteur'">
+          <!-- Affichage différent selon le type (livre vs auteur vs groupé) -->
+          <template v-if="cas.type === 'livre_auteur_groupe'">
+            <h3>📚 {{ cas.titre_attendu }} + 👤 {{ cas.nom_auteur }}</h3>
+            <span class="author grouped-label">Livre et auteur à traiter ensemble</span>
+          </template>
+          <template v-else-if="cas.type === 'auteur'">
             <h3>👤 {{ cas.nom_auteur }}</h3>
             <span class="author">{{ cas.nb_livres }} livre(s) lié(s)</span>
           </template>
@@ -240,34 +244,59 @@
 
           <!-- Actions -->
           <div class="case-actions">
-            <!-- Accepter la suggestion (si URL disponible) -->
-            <button
-              v-if="cas.url_babelio && cas.url_babelio !== 'N/A'"
-              @click="acceptSuggestion(cas)"
-              :disabled="processingCase === getCaseId(cas)"
-              class="btn-accept"
-            >
-              ✓ Accepter suggestion
-            </button>
+            <!-- Pour les cas groupés: seulement 2 boutons -->
+            <template v-if="cas.type === 'livre_auteur_groupe'">
+              <!-- Marquer comme not found -->
+              <button
+                @click="markNotFound(cas)"
+                :disabled="processingCase === getCaseId(cas)"
+                class="btn-not-found"
+              >
+                ✗ Pas sur Babelio
+              </button>
 
-            <!-- Marquer comme not found -->
-            <button
-              @click="markNotFound(cas)"
-              :disabled="processingCase === getCaseId(cas)"
-              class="btn-not-found"
-            >
-              ✗ Pas sur Babelio
-            </button>
+              <!-- Entrer URL manuellement (URL du livre) -->
+              <button
+                @click="openUrlPopup(cas)"
+                :disabled="processingCase === getCaseId(cas)"
+                class="btn-enter-url"
+                title="Entrer l'URL Babelio du livre (l'auteur sera extrait automatiquement)"
+              >
+                ✏️ Entrer URL Babelio
+              </button>
+            </template>
 
-            <!-- Entrer URL manuellement -->
-            <button
-              @click="openUrlPopup(cas)"
-              :disabled="processingCase === getCaseId(cas)"
-              class="btn-enter-url"
-              title="Entrer manuellement l'URL Babelio"
-            >
-              ✏️ Entrer URL Babelio
-            </button>
+            <!-- Pour les autres cas: boutons normaux -->
+            <template v-else>
+              <!-- Accepter la suggestion (si URL disponible) -->
+              <button
+                v-if="cas.url_babelio && cas.url_babelio !== 'N/A'"
+                @click="acceptSuggestion(cas)"
+                :disabled="processingCase === getCaseId(cas)"
+                class="btn-accept"
+              >
+                ✓ Accepter suggestion
+              </button>
+
+              <!-- Marquer comme not found -->
+              <button
+                @click="markNotFound(cas)"
+                :disabled="processingCase === getCaseId(cas)"
+                class="btn-not-found"
+              >
+                ✗ Pas sur Babelio
+              </button>
+
+              <!-- Entrer URL manuellement -->
+              <button
+                @click="openUrlPopup(cas)"
+                :disabled="processingCase === getCaseId(cas)"
+                class="btn-enter-url"
+                title="Entrer manuellement l'URL Babelio"
+              >
+                ✏️ Entrer URL Babelio
+              </button>
+            </template>
           </div>
 
           <!-- Résultat du retry -->
@@ -323,12 +352,20 @@
 
         <div class="popup-body">
           <p v-if="urlPopupCase">
-            <strong>{{ urlPopupCase.type === 'auteur' ? 'Auteur' : 'Livre' }}:</strong>
-            {{ urlPopupCase.type === 'auteur' ? urlPopupCase.nom_auteur : urlPopupCase.titre_attendu }}
+            <template v-if="urlPopupCase.type === 'livre_auteur_groupe'">
+              <strong>Livre + Auteur:</strong><br>
+              📚 {{ urlPopupCase.titre_attendu }}<br>
+              👤 {{ urlPopupCase.nom_auteur }}<br>
+              <em class="grouped-note">Entrez l'URL Babelio du livre. L'URL de l'auteur sera extraite automatiquement.</em>
+            </template>
+            <template v-else>
+              <strong>{{ urlPopupCase.type === 'auteur' ? 'Auteur' : 'Livre' }}:</strong>
+              {{ urlPopupCase.type === 'auteur' ? urlPopupCase.nom_auteur : urlPopupCase.titre_attendu }}
+            </template>
           </p>
 
           <label>
-            URL Babelio:
+            URL Babelio{{ urlPopupCase?.type === 'livre_auteur_groupe' ? ' du livre' : '' }}:
             <input
               v-model="babelioUrl"
               type="text"
@@ -525,9 +562,19 @@ export default {
       }
 
       const cas = this.urlPopupCase;
-      const itemType = cas.type || 'livre';
-      const itemId = cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
-      const itemName = cas.type === 'auteur' ? cas.nom_auteur : cas.titre_attendu;
+
+      // Pour les cas groupés, toujours traiter comme un livre
+      // Le backend extraira l'auteur automatiquement
+      let itemType = 'livre';
+      let itemId = cas.livre_id;
+      let itemName = cas.titre_attendu;
+
+      // Pour les cas non groupés, utiliser la logique existante
+      if (cas.type !== 'livre_auteur_groupe') {
+        itemType = cas.type || 'livre';
+        itemId = cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
+        itemName = cas.type === 'auteur' ? cas.nom_auteur : cas.titre_attendu;
+      }
 
       this.processingUrl = true;
       this.urlError = null;
@@ -540,7 +587,10 @@ export default {
         });
 
         if (response.data.status === 'success') {
-          this.showToast(response.data.message || `✓ "${itemName}" mis à jour!`, 'success');
+          const successMessage = cas.type === 'livre_auteur_groupe'
+            ? `✓ Livre et auteur mis à jour depuis l'URL Babelio!`
+            : response.data.message || `✓ "${itemName}" mis à jour!`;
+          this.showToast(successMessage, 'success');
           this.closeUrlPopup();
           await this.loadData();
         } else {
@@ -1082,6 +1132,19 @@ h2 {
 .case-header .author {
   color: #6c757d;
   font-style: italic;
+}
+
+.case-header .author.grouped-label {
+  color: #6f42c1;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.grouped-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #6f42c1;
 }
 
 .case-body {
