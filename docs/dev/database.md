@@ -499,6 +499,48 @@ client = AsyncIOMotorClient(
 3. **Index appropriés** pour toutes les requêtes fréquentes
 4. **Monitoring des performances** avec `explain()`
 5. **Sauvegarde régulière** des données critiques
+6. **Gestion des types de données** : vérifier le type réel retourné par les opérations MongoDB (voir section Type Handling ci-dessous)
+
+### Type Handling - distinct() vs find()
+
+**IMPORTANT**: Les opérations MongoDB peuvent retourner des types différents selon la méthode utilisée.
+
+#### Problème courant
+
+```python
+# ❌ ERREUR: Assumer que distinct() retourne le même type que find()
+episode_ids_from_distinct = collection.distinct("episode_oid")  # Peut retourner strings!
+episode_ids_from_find = {ep["_id"] for ep in episodes.find()}    # Retourne ObjectId
+
+# Intersection vide si les types ne matchent pas
+intersection = set(episode_ids_from_distinct) & episode_ids_from_find  # 0 éléments!
+```
+
+#### Solution
+
+```python
+# ✅ CORRECT: Conversion explicite basée sur inspection des données réelles
+from bson import ObjectId
+
+# Vérifier le type réel avec MCP tools ou inspection manuelle
+# Exemple: mcp__MongoDB__aggregate pour voir le type retourné
+
+episode_ids_from_distinct = {
+    ObjectId(ep_id) if isinstance(ep_id, str) else ep_id
+    for ep_id in collection.distinct("episode_oid")
+    if ep_id is not None
+}
+
+episode_ids_from_find = {ep["_id"] for ep in episodes.find()}
+intersection = episode_ids_from_distinct & episode_ids_from_find  # Fonctionne!
+```
+
+#### Recommandations
+
+1. **Toujours inspecter les données réelles** avant d'implémenter des comparaisons ou set operations
+2. **Utiliser les MCP MongoDB tools** pour vérifier les types retournés: `mcp__MongoDB__find`, `mcp__MongoDB__aggregate`
+3. **Documenter les conversions** dans le code avec des commentaires explicites
+4. **Créer des mocks de tests** basés sur les types réels, pas sur des suppositions
 
 ## Troubleshooting
 

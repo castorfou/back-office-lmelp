@@ -146,15 +146,18 @@ class StatsService:
 
     def _count_avis_critiques_without_analysis(self) -> int:
         """
-        Compte les avis critiques extraits mais non analysés (Issue #128, #143).
+        Compte les épisodes non masqués avec avis critiques mais sans analyse (Issue #128, #143, #148).
 
-        Un avis critique est considéré comme "analysé" s'il existe un document
-        dans livresauteurs_cache qui référence cet avis critique.
+        Un épisode est considéré comme "avec avis critique" s'il existe au moins un document
+        dans avis_critiques qui référence cet épisode.
 
-        Exclut les avis critiques des épisodes masqués (Issue #143).
+        Un épisode est considéré comme "analysé" s'il existe au moins un document
+        dans livresauteurs_cache qui référence cet épisode.
+
+        Exclut les épisodes masqués (Issue #143).
 
         Returns:
-            Nombre d'avis critiques sans analyse (épisodes non masqués uniquement)
+            Nombre d'épisodes avec avis critiques mais sans analyse (épisodes non masqués uniquement)
         """
         episodes_collection = self.mongodb_service.get_collection("episodes")
         avis_critiques_collection = self.mongodb_service.get_collection(
@@ -166,19 +169,39 @@ class StatsService:
         non_masked_episodes = episodes_collection.find(
             {"$or": [{"masked": False}, {"masked": {"$exists": False}}]}, {"_id": 1}
         )
-        non_masked_episode_ids = [ep["_id"] for ep in non_masked_episodes]
+        non_masked_episode_ids = {ep["_id"] for ep in non_masked_episodes}
 
-        # Compter les avis critiques des épisodes non masqués
-        total_avis = avis_critiques_collection.count_documents(
-            {"episode_oid": {"$in": non_masked_episode_ids}}
-        )
+        # Récupérer les épisodes distincts qui ont des avis critiques
+        # IMPORTANT (Issue #148): episode_oid est stocké comme STRING dans la base,
+        # on doit le convertir en ObjectId pour matcher avec les IDs de episodes.find()
+        from bson import ObjectId
 
-        # Compter les avis critiques analysés (présents dans le cache)
-        # Utiliser distinct sur avis_critique_id dans le cache
-        analyzed_avis = cache_collection.distinct("avis_critique_id")
-        analyzed_count: int = len([a for a in analyzed_avis if a is not None])
+        episodes_with_avis = {
+            ObjectId(ep_id) if isinstance(ep_id, str) else ep_id
+            for ep_id in avis_critiques_collection.distinct("episode_oid")
+            if ep_id is not None
+        }
 
-        return int(max(0, total_avis - analyzed_count))
+        # Filtrer pour ne garder que les épisodes NON masqués
+        episodes_with_avis_non_masked = episodes_with_avis & non_masked_episode_ids
+
+        # Récupérer les épisodes distincts qui ont été analysés
+        # IMPORTANT (Issue #148): episode_oid est stocké comme STRING dans la base,
+        # on doit le convertir en ObjectId pour matcher avec les IDs de episodes.find()
+        episodes_analyzed = {
+            ObjectId(ep_id) if isinstance(ep_id, str) else ep_id
+            for ep_id in cache_collection.distinct("episode_oid")
+            if ep_id is not None
+        }
+
+        # Filtrer pour ne garder que les épisodes NON masqués
+        episodes_analyzed_non_masked = episodes_analyzed & non_masked_episode_ids
+
+        # Calculer la différence: épisodes avec avis mais non analysés
+        count_with_avis = len(episodes_with_avis_non_masked)
+        count_analyzed = len(episodes_analyzed_non_masked)
+
+        return int(max(0, count_with_avis - count_analyzed))
 
     def get_detailed_breakdown(self) -> list[dict[str, Any]]:
         """

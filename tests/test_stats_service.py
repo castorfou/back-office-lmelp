@@ -1,6 +1,6 @@
 """Tests TDD pour le service autonome de consultation des statistiques."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from bson import ObjectId
 
@@ -377,25 +377,26 @@ Total livres traités : 14"""
         """Test TDD: Le compteur doit exclure les avis critiques des épisodes masqués (Issue #143)."""
         # Arrange
         non_masked_episode_id = ObjectId("678cce5da414f229887780aa")
+        masked_episode_id = ObjectId("678cce5da414f229887780ab")
 
         # Mock episodes_collection.find() pour retourner épisodes non masqués
         mock_episodes = [{"_id": non_masked_episode_id}]
 
-        # Mock avis_critiques_collection.count_documents() pour compter avis des épisodes non masqués
-        # 1 avis pour épisode non masqué
-        mock_total_avis_non_masked = 1
+        # Mock avis_critiques_collection.distinct() pour épisodes avec avis
+        # 1 épisode NON masqué + 1 épisode masqué = 2 total
+        mock_episodes_with_avis = [non_masked_episode_id, masked_episode_id]
 
-        # Mock cache_collection.distinct() pour avis analysés
-        # 0 avis analysés
-        mock_analyzed_avis = []
+        # Mock cache_collection.distinct() pour épisodes analysés
+        # 0 épisodes analysés
+        mock_episodes_analyzed = []
 
         with patch(
             "back_office_lmelp.services.stats_service.mongodb_service"
         ) as mock_mongodb:
-            # Configuration des mocks pour les 3 collections
-            mock_episodes_collection = mock_mongodb.get_collection.return_value
-            mock_avis_critiques_collection = mock_mongodb.get_collection.return_value
-            mock_cache_collection = mock_mongodb.get_collection.return_value
+            # Configuration des mocks pour les 3 collections (SÉPARÉS)
+            mock_episodes_collection = MagicMock()
+            mock_avis_critiques_collection = MagicMock()
+            mock_cache_collection = MagicMock()
 
             # Configurer get_collection pour retourner la bonne collection selon le nom
             collection_map = {
@@ -411,10 +412,10 @@ Total livres traités : 14"""
 
             # Configuration des mocks
             mock_episodes_collection.find.return_value = mock_episodes
-            mock_avis_critiques_collection.count_documents.return_value = (
-                mock_total_avis_non_masked
+            mock_avis_critiques_collection.distinct.return_value = (
+                mock_episodes_with_avis
             )
-            mock_cache_collection.distinct.return_value = mock_analyzed_avis
+            mock_cache_collection.distinct.return_value = mock_episodes_analyzed
 
             # Act
             stats_service = StatsService()
@@ -427,10 +428,94 @@ Total livres traités : 14"""
                 {"_id": 1},
             )
 
-            # Vérifier que count_documents filtre sur les IDs des épisodes non masqués
-            mock_avis_critiques_collection.count_documents.assert_called_once_with(
-                {"episode_oid": {"$in": [non_masked_episode_id]}}
+            # Vérifier que distinct a été appelé sur episode_oid pour avis_critiques
+            mock_avis_critiques_collection.distinct.assert_called_once_with(
+                "episode_oid"
             )
 
-            # Résultat attendu: 1 avis non masqué - 0 avis analysés = 1
+            # Vérifier que distinct a été appelé sur episode_oid pour cache
+            mock_cache_collection.distinct.assert_called_once_with("episode_oid")
+
+            # Résultat attendu: 1 épisode NON masqué avec avis - 0 analysés = 1
+            # (l'épisode masqué est filtré)
             assert result == 1
+
+    def test_count_avis_critiques_should_count_episodes_not_individual_avis(self):
+        """Test TDD Issue #148: Le compteur doit compter les ÉPISODES, pas les avis_critiques individuels.
+
+        IMPORTANT: Dans la vraie base MongoDB, episode_oid est stocké comme STRING, pas comme ObjectId!
+        Le code doit gérer cette conversion.
+        """
+        # Arrange: Simuler le scénario réel de l'issue #148
+        # - 69 épisodes NON masqués ont des avis critiques
+        # - 62 épisodes NON masqués ont été analysés
+        # - 1 épisode masqué a été analysé (ne doit PAS être compté)
+        # - Résultat attendu: 69 - 62 = 7 épisodes
+
+        # IDs d'épisodes NON masqués (simuler 100) - en ObjectId comme dans episodes.find()
+        non_masked_episode_ids = [ObjectId() for _ in range(100)]
+
+        # IDs d'épisodes avec avis - STOCKÉS COMME STRINGS dans avis_critiques (comme dans la vraie base!)
+        episodes_with_avis_str = [
+            str(eid) for eid in non_masked_episode_ids[:69]
+        ]  # 69 NON masqués
+        masked_episode_with_avis_1_str = (
+            "678cce5da414f229887780ab"  # Masqué  # pragma: allowlist secret
+        )
+        masked_episode_with_avis_2_str = (
+            "678cce7fa414f229887780db"  # Masqué  # pragma: allowlist secret
+        )
+
+        # IDs d'épisodes analysés - STOCKÉS COMME STRINGS dans cache (comme dans la vraie base!)
+        episodes_analyzed_str = [
+            str(eid) for eid in non_masked_episode_ids[:62]
+        ]  # 62 NON masqués
+        episodes_analyzed_str_with_masked = episodes_analyzed_str + [
+            masked_episode_with_avis_2_str
+        ]
+
+        with patch(
+            "back_office_lmelp.services.stats_service.mongodb_service"
+        ) as mock_mongodb:
+            # Configuration des mocks pour les 3 collections
+            mock_episodes_collection = type("MockCollection", (), {})()
+            mock_avis_critiques_collection = type("MockCollection", (), {})()
+            mock_cache_collection = type("MockCollection", (), {})()
+
+            # Configurer get_collection pour retourner la bonne collection selon le nom
+            collection_map = {
+                "episodes": mock_episodes_collection,
+                "avis_critiques": mock_avis_critiques_collection,
+                "livresauteurs_cache": mock_cache_collection,
+            }
+
+            def get_collection_side_effect(collection_name):
+                return collection_map.get(collection_name)
+
+            mock_mongodb.get_collection.side_effect = get_collection_side_effect
+
+            # Mock episodes_collection.find() → retourne des ObjectId (comme dans la vraie base)
+            mock_episodes_collection.find = lambda *args, **kwargs: [
+                {"_id": eid} for eid in non_masked_episode_ids
+            ]
+
+            # Mock avis_critiques_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
+            mock_avis_critiques_collection.distinct = (
+                lambda field: episodes_with_avis_str
+                + [masked_episode_with_avis_1_str, masked_episode_with_avis_2_str]
+            )
+
+            # Mock cache_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
+            mock_cache_collection.distinct = (
+                lambda field: episodes_analyzed_str_with_masked
+                if field == "episode_oid"
+                else []
+            )
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service._count_avis_critiques_without_analysis()
+
+            # Assert
+            # Résultat attendu: 69 épisodes avec avis (NON masqués) - 62 épisodes analysés (NON masqués) = 7
+            assert result == 7, f"Attendu 7 épisodes, obtenu {result}"
