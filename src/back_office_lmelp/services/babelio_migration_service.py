@@ -114,8 +114,10 @@ class BabelioMigrationService:
         Exclut les livres qui ont déjà été marqués avec babelio_not_found=true
         ou qui ont déjà une url_babelio (déjà résolus).
 
+        Groupe les entrées livre + auteur lorsque les deux sont problématiques.
+
         Returns:
-            Liste des cas problématiques non résolus
+            Liste des cas problématiques non résolus (avec groupement livre+auteur)
         """
         cases: list[dict[str, Any]] = []
 
@@ -126,36 +128,127 @@ class BabelioMigrationService:
         livres_collection = self.mongodb_service.db["livres"]
 
         # Récupérer tous les cas problématiques depuis MongoDB
-        for case in problematic_collection.find():
-            # Vérifier si ce livre est déjà résolu dans la collection livres
-            livre_id = case.get("livre_id")
-            if livre_id:
-                livre = livres_collection.find_one({"_id": ObjectId(livre_id)})
-                # Exclure si déjà marqué "not found" ou si a déjà une URL
-                if livre and (
-                    livre.get("babelio_not_found") or livre.get("url_babelio")
-                ):
-                    logger.debug(
-                        f"Livre {livre_id} déjà résolu, exclu des cas problématiques"
-                    )
-                    continue
+        all_cases = list(problematic_collection.find())
 
-            # Convertir ObjectId et datetime en strings pour Pydantic/FastAPI
-            serializable_case = {}
-            for key, value in case.items():
-                if isinstance(value, ObjectId):
-                    serializable_case[key] = str(value)
-                elif isinstance(value, datetime):
-                    serializable_case[key] = value.isoformat()
+        # Créer un index des cas auteur par auteur_id pour lookup rapide
+        auteur_cases_index: dict[str, dict[str, Any]] = {}
+        for case in all_cases:
+            if case.get("type") == "auteur":
+                auteur_id = case.get("auteur_id")
+                if auteur_id:
+                    auteur_cases_index[auteur_id] = case
+
+        # Traiter les cas livre et auteur
+        grouped_auteur_ids: set[str] = set()  # Track auteurs déjà groupés
+
+        for case in all_cases:
+            case_type = case.get("type")
+
+            # Traiter les cas livre
+            if case_type == "livre":
+                livre_id = case.get("livre_id")
+                livre = None
+                if livre_id:
+                    livre = livres_collection.find_one({"_id": ObjectId(livre_id)})
+                    # Exclure si déjà marqué "not found" ou si a déjà une URL
+                    if livre and (
+                        livre.get("babelio_not_found") or livre.get("url_babelio")
+                    ):
+                        logger.debug(
+                            f"Livre {livre_id} déjà résolu, exclu des cas problématiques"
+                        )
+                        continue
+
+                # Vérifier si l'auteur est aussi problématique
+                # IMPORTANT: Récupérer auteur_id depuis le document livre, pas depuis le cas
+                auteur_id = None
+                if livre and livre.get("auteur_id"):
+                    auteur_id = str(livre["auteur_id"])
+
+                if auteur_id and auteur_id in auteur_cases_index:
+                    # Grouper livre + auteur
+                    auteur_case = auteur_cases_index[auteur_id]
+                    grouped_case = self._create_grouped_case(case, auteur_case)
+                    cases.append(grouped_case)
+                    grouped_auteur_ids.add(auteur_id)
                 else:
-                    serializable_case[key] = value
+                    # Cas livre seul (pas de groupement)
+                    serializable_case = self._serialize_case(case)
+                    cases.append(serializable_case)
 
-            cases.append(serializable_case)
+            # Traiter les cas auteur (uniquement si non groupés)
+            elif case_type == "auteur":
+                auteur_id = case.get("auteur_id")
+                if auteur_id and auteur_id not in grouped_auteur_ids:
+                    # Auteur problématique sans livre problématique associé
+                    serializable_case = self._serialize_case(case)
+                    cases.append(serializable_case)
 
-        # Trier: livres d'abord, puis auteurs
-        cases.sort(key=lambda c: (c.get("type") != "livre", c.get("type")))
+        # Trier: livres groupés d'abord, puis livres seuls, puis auteurs
+        def sort_key(c: dict[str, Any]) -> tuple[int, str]:
+            case_type = c.get("type", "")
+            if case_type == "livre_auteur_groupe":
+                return (0, case_type)
+            elif case_type == "livre":
+                return (1, case_type)
+            else:
+                return (2, case_type)
+
+        cases.sort(key=sort_key)
 
         return cases
+
+    def _serialize_case(self, case: dict[str, Any]) -> dict[str, Any]:
+        """Sérialise un cas en convertissant ObjectId et datetime en strings.
+
+        Args:
+            case: Cas problématique brut depuis MongoDB
+
+        Returns:
+            Cas sérialisé pour JSON/FastAPI
+        """
+        serializable_case = {}
+        for key, value in case.items():
+            if isinstance(value, ObjectId):
+                serializable_case[key] = str(value)
+            elif isinstance(value, datetime):
+                serializable_case[key] = value.isoformat()
+            else:
+                serializable_case[key] = value
+        return serializable_case
+
+    def _create_grouped_case(
+        self, livre_case: dict[str, Any], auteur_case: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Crée un cas groupé livre + auteur.
+
+        Args:
+            livre_case: Cas problématique du livre
+            auteur_case: Cas problématique de l'auteur
+
+        Returns:
+            Cas groupé avec type "livre_auteur_groupe"
+        """
+        # Sérialiser les deux cas
+        livre_serialized = self._serialize_case(livre_case)
+        auteur_serialized = self._serialize_case(auteur_case)
+
+        # Créer le cas groupé avec les informations combinées
+        grouped = {
+            "type": "livre_auteur_groupe",
+            "livre_id": livre_serialized.get("livre_id"),
+            "auteur_id": auteur_serialized.get("auteur_id"),
+            "titre_attendu": livre_serialized.get("titre_attendu"),
+            "nom_auteur": auteur_serialized.get("nom_auteur"),
+            "auteur": livre_serialized.get("auteur"),  # Pour compatibilité
+            "raison": livre_serialized.get("raison"),  # Raison du livre
+            "raison_auteur": auteur_serialized.get("raison"),  # Raison de l'auteur
+            "url_babelio": livre_serialized.get("url_babelio", "N/A"),
+            "timestamp": livre_serialized.get("timestamp"),
+            "_id": livre_serialized.get("_id"),  # Garder l'ID du livre
+        }
+
+        return grouped
 
     def accept_suggestion(
         self,
@@ -206,10 +299,22 @@ class BabelioMigrationService:
             livre = livres_collection.find_one({"_id": livre_oid})
             if livre and livre.get("auteur_id"):
                 auteur_id = livre["auteur_id"]
-                # Ne pas écraser si l'auteur a déjà une URL
+                # Ne pas écraser si l'auteur a déjà une URL valide
+                # IMPORTANT: Matcher aussi url_babelio: None (pas seulement $exists: False)
                 result = auteurs_collection.update_one(
-                    {"_id": auteur_id, "url_babelio": {"$exists": False}},
-                    {"$set": {"url_babelio": babelio_author_url}},
+                    {
+                        "_id": auteur_id,
+                        "$or": [
+                            {"url_babelio": {"$exists": False}},
+                            {"url_babelio": None},
+                        ],
+                    },
+                    {
+                        "$set": {
+                            "url_babelio": babelio_author_url,
+                            "updated_at": datetime.now(UTC),
+                        }
+                    },
                 )
 
                 # Si l'auteur a été mis à jour, retirer aussi de problematic_cases
