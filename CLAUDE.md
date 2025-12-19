@@ -188,7 +188,8 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
    - ❌ BAD: `const mock = { _id: '123', user_name: 'John' }` (invented)
    - ✅ GOOD: First check real API/MongoDB, then copy exact structure
    - Example: `curl $API_URL/endpoint | jq '.[0]'` or `mcp__MongoDB__find --collection "..." --limit 1`
-   - **Why critical**: Tests can pass with invented mocks but fail in production (see Issue #96)
+   - **Why critical**: Tests can pass with invented mocks but fail in production (see Issue #96, #148)
+   - **Type handling**: MongoDB `distinct()` may return different types than `find()` - verify with real data
 3. **Use helper function pattern** for services with complex dependencies
 4. **Patch singleton instances** directly when using local imports
 5. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
@@ -297,6 +298,30 @@ authors = list(auteurs_collection.aggregate([...]))  # Materialize
 for author in authors:  # Sync iteration
     await process(author)
 ```
+
+### MongoDB Type Handling
+
+**CRITICAL**: Verify data types from MongoDB operations - don't assume
+
+```python
+# ❌ WRONG - Assuming distinct() returns same type as find()
+episode_ids_from_distinct = collection.distinct("episode_oid")  # Returns strings!
+episode_ids_from_find = {ep["_id"] for ep in episodes.find()}    # Returns ObjectId!
+intersection = set(episode_ids_from_distinct) & episode_ids_from_find  # Empty! str ≠ ObjectId
+
+# ✅ CORRECT - Convert types explicitly based on real data inspection
+from bson import ObjectId
+
+episode_ids_from_distinct = {
+    ObjectId(ep_id) if isinstance(ep_id, str) else ep_id
+    for ep_id in collection.distinct("episode_oid")
+    if ep_id is not None
+}
+episode_ids_from_find = {ep["_id"] for ep in episodes.find()}
+intersection = episode_ids_from_distinct & episode_ids_from_find  # Works!
+```
+
+**Why**: MongoDB field types may differ from `_id` types (strings vs ObjectId). Always inspect real data with MCP tools before implementing set operations or comparisons.
 
 ### Vue.js Lifecycle Cleanup
 
