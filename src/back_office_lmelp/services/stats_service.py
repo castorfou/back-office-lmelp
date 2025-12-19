@@ -146,21 +146,32 @@ class StatsService:
 
     def _count_avis_critiques_without_analysis(self) -> int:
         """
-        Compte les avis critiques extraits mais non analysés (Issue #128).
+        Compte les avis critiques extraits mais non analysés (Issue #128, #143).
 
         Un avis critique est considéré comme "analysé" s'il existe un document
         dans livresauteurs_cache qui référence cet avis critique.
 
+        Exclut les avis critiques des épisodes masqués (Issue #143).
+
         Returns:
-            Nombre d'avis critiques sans analyse
+            Nombre d'avis critiques sans analyse (épisodes non masqués uniquement)
         """
+        episodes_collection = self.mongodb_service.get_collection("episodes")
         avis_critiques_collection = self.mongodb_service.get_collection(
             "avis_critiques"
         )
         cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
 
-        # Compter total avis critiques
-        total_avis = avis_critiques_collection.count_documents({})
+        # Récupérer les IDs des épisodes NON masqués
+        non_masked_episodes = episodes_collection.find(
+            {"$or": [{"masked": False}, {"masked": {"$exists": False}}]}, {"_id": 1}
+        )
+        non_masked_episode_ids = [ep["_id"] for ep in non_masked_episodes]
+
+        # Compter les avis critiques des épisodes non masqués
+        total_avis = avis_critiques_collection.count_documents(
+            {"episode_oid": {"$in": non_masked_episode_ids}}
+        )
 
         # Compter les avis critiques analysés (présents dans le cache)
         # Utiliser distinct sur avis_critique_id dans le cache

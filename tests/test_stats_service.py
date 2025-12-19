@@ -372,3 +372,65 @@ Total livres traités : 14"""
 
             # Assert
             assert "📺 Avis critiques analysés : 38" in result
+
+    def test_count_avis_critiques_without_analysis_should_exclude_masked_episodes(self):
+        """Test TDD: Le compteur doit exclure les avis critiques des épisodes masqués (Issue #143)."""
+        # Arrange
+        non_masked_episode_id = ObjectId("678cce5da414f229887780aa")
+
+        # Mock episodes_collection.find() pour retourner épisodes non masqués
+        mock_episodes = [{"_id": non_masked_episode_id}]
+
+        # Mock avis_critiques_collection.count_documents() pour compter avis des épisodes non masqués
+        # 1 avis pour épisode non masqué
+        mock_total_avis_non_masked = 1
+
+        # Mock cache_collection.distinct() pour avis analysés
+        # 0 avis analysés
+        mock_analyzed_avis = []
+
+        with patch(
+            "back_office_lmelp.services.stats_service.mongodb_service"
+        ) as mock_mongodb:
+            # Configuration des mocks pour les 3 collections
+            mock_episodes_collection = mock_mongodb.get_collection.return_value
+            mock_avis_critiques_collection = mock_mongodb.get_collection.return_value
+            mock_cache_collection = mock_mongodb.get_collection.return_value
+
+            # Configurer get_collection pour retourner la bonne collection selon le nom
+            collection_map = {
+                "episodes": mock_episodes_collection,
+                "avis_critiques": mock_avis_critiques_collection,
+                "livresauteurs_cache": mock_cache_collection,
+            }
+
+            def get_collection_side_effect(collection_name):
+                return collection_map.get(collection_name)
+
+            mock_mongodb.get_collection.side_effect = get_collection_side_effect
+
+            # Configuration des mocks
+            mock_episodes_collection.find.return_value = mock_episodes
+            mock_avis_critiques_collection.count_documents.return_value = (
+                mock_total_avis_non_masked
+            )
+            mock_cache_collection.distinct.return_value = mock_analyzed_avis
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service._count_avis_critiques_without_analysis()
+
+            # Assert
+            # Vérifier que find a été appelé avec le bon filtre (épisodes non masqués)
+            mock_episodes_collection.find.assert_called_once_with(
+                {"$or": [{"masked": False}, {"masked": {"$exists": False}}]},
+                {"_id": 1},
+            )
+
+            # Vérifier que count_documents filtre sur les IDs des épisodes non masqués
+            mock_avis_critiques_collection.count_documents.assert_called_once_with(
+                {"episode_oid": {"$in": [non_masked_episode_id]}}
+            )
+
+            # Résultat attendu: 1 avis non masqué - 0 avis analysés = 1
+            assert result == 1
