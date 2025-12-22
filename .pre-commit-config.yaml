@@ -60,6 +60,7 @@ repos:
           (?x)^(
               data/.*|
               models/.*|
+              tests/fixtures/radiofrance/.*|
               \.cruft\.json
           )$
 

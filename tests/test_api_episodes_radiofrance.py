@@ -12,6 +12,7 @@ Architecture testée:
 Tests TDD avec mocks complets (pas de vraie DB/réseau).
 """
 
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -136,3 +137,54 @@ class TestFetchEpisodePageURL:
             assert response.status_code == 404
             data = response.json()
             assert "non trouvé" in data["detail"]
+
+    def test_fetch_episode_page_url_should_pass_date_to_service_issue_150(self, client):
+        """
+        RED TEST - Issue #150: L'endpoint doit transmettre la date au RadioFranceService.
+
+        GIVEN: Un épisode avec une date_diffusion
+        WHEN: POST /api/episodes/{episode_id}/fetch-page-url est appelé
+        THEN: RadioFranceService.search_episode_page_url est appelé avec titre ET date
+
+        Ce test vérifie que le bug de l'Issue #150 est corrigé:
+        - L'endpoint extrait date_diffusion de l'épisode
+        - L'endpoint transmet cette date au service RadioFrance
+        - Le service peut ainsi filtrer par date pour retourner l'URL correcte
+        """
+        episode_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        episode_title = "Les nouveaux ouvrages de Joël Dicker"
+        episode_date = "2022-04-24"  # Date de diffusion
+        found_url = "https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/les-nouveaux-ouvrages-4010930"
+
+        # Mock episode avec date (format MongoDB: datetime object, PAS string)
+        # CRITIQUE: MongoDB retourne datetime.datetime, pas une chaîne ISO
+        mock_episode = {
+            "_id": episode_id,
+            "titre": episode_title,
+            "date": datetime(2022, 4, 24),  # Type réel MongoDB
+            "emission": "Le Masque et la Plume",
+        }
+
+        # Mock RadioFranceService
+        with (
+            patch(
+                "back_office_lmelp.app.mongodb_service.get_episode_by_id",
+                return_value=mock_episode,
+            ),
+            patch("back_office_lmelp.app.mongodb_service.update_episode"),
+            patch(
+                "back_office_lmelp.services.radiofrance_service.RadioFranceService.search_episode_page_url",
+                new_callable=AsyncMock,
+                return_value=found_url,
+            ) as mock_search,
+        ):
+            # Act
+            response = client.post(f"/api/episodes/{episode_id}/fetch-page-url")
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert data["episode_page_url"] == found_url
+
+            # RED: Vérifier que search_episode_page_url a été appelé avec la date
+            mock_search.assert_called_once_with(episode_title, episode_date)
