@@ -184,15 +184,27 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 **CRITICAL Rules** (see [detailed guide](docs/dev/claude-ai-guide.md) for explanations):
 
 1. **Mock external dependencies** (MongoDB, APIs, services) - NO real database connections in unit tests
+
 2. **Create mocks from real API responses** - NEVER invent mock structures
    - ❌ BAD: `const mock = { _id: '123', user_name: 'John' }` (invented)
    - ✅ GOOD: First check real API/MongoDB, then copy exact structure
    - Example: `curl $API_URL/endpoint | jq '.[0]'` or `mcp__MongoDB__find --collection "..." --limit 1`
    - **Why critical**: Tests can pass with invented mocks but fail in production (see Issue #96, #148)
    - **Type handling**: MongoDB `distinct()` may return different types than `find()` - verify with real data
-3. **Use helper function pattern** for services with complex dependencies
-4. **Patch singleton instances** directly when using local imports
-5. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
+
+3. **CRITICAL: Use real data types in mocks** - Match exact types from source systems (Issue #150)
+   - ❌ BAD: `mock_episode = {"date": "2022-04-24T00:00:00"}` (string, but MongoDB returns datetime)
+   - ✅ GOOD: `mock_episode = {"date": datetime(2022, 4, 24)}` (actual MongoDB type)
+   - **Why critical**: Type mismatches cause runtime errors that tests don't catch
+   - **How to verify**: Use MCP tools or curl to inspect real data types BEFORE writing mocks
+   - **Example error**: `"T" in episode_date` fails when `episode_date` is datetime, not string
+   - **Prevention**: Always check `type(field_value)` on real data before mocking
+
+4. **Use helper function pattern** for services with complex dependencies
+
+5. **Patch singleton instances** directly when using local imports
+
+6. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
 
 ### Frontend Testing - Key Rules
 

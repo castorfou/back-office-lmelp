@@ -5,6 +5,7 @@ import os
 import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -479,10 +480,24 @@ async def fetch_episode_page_url(episode_id: str) -> dict[str, Any]:
         if not episode_title:
             raise HTTPException(status_code=400, detail="L'épisode n'a pas de titre")
 
+        # Récupérer la date de l'épisode
+        # CRITIQUE: MongoDB retourne datetime.datetime, PAS une chaîne ISO
+        # Convertir en YYYY-MM-DD pour RadioFranceService
+        episode_date_raw = episode_data.get("date", None)
+        episode_date = None
+        if episode_date_raw:
+            # MongoDB retourne datetime.datetime → convertir en "YYYY-MM-DD"
+            if isinstance(episode_date_raw, datetime):
+                episode_date = episode_date_raw.strftime("%Y-%m-%d")
+            else:
+                # Fallback si string (ne devrait pas arriver avec vraie DB)
+                date_str = str(episode_date_raw)
+                episode_date = date_str.split("T")[0].split(" ")[0]
+
         # Chercher l'URL de la page sur RadioFrance
         radiofrance_service = RadioFranceService()
         episode_page_url = await radiofrance_service.search_episode_page_url(
-            episode_title
+            episode_title, episode_date
         )
 
         if not episode_page_url:

@@ -27,11 +27,15 @@ class RadioFranceService:
         self.base_url = "https://www.radiofrance.fr"
         self.podcast_search_base = "/franceinter/podcasts/le-masque-et-la-plume"
 
-    async def search_episode_page_url(self, episode_title: str) -> str | None:
-        """Recherche l'URL de la page d'un épisode par son titre.
+    async def search_episode_page_url(
+        self, episode_title: str, episode_date: str | None = None
+    ) -> str | None:
+        """Recherche l'URL de la page d'un épisode par son titre et optionnellement sa date.
 
         Args:
             episode_title: Titre de l'épisode à rechercher
+            episode_date: Date de l'épisode au format YYYY-MM-DD (optionnel).
+                         Si fournie, seules les URLs dont la date correspond seront retournées.
 
         Returns:
             URL complète de la page de l'épisode, ou None si non trouvé
@@ -63,6 +67,36 @@ class RadioFranceService:
             # Parser le HTML avec BeautifulSoup
             soup = BeautifulSoup(html_content, "html.parser")
 
+            # Si episode_date fournie, utiliser la stratégie de filtrage par date
+            if episode_date:
+                logger.warning(
+                    f"🔍 Searching with date filter: {episode_date} for episode: {episode_title[:50]}..."
+                )
+                # Extraire toutes les URLs candidates
+                candidate_urls = self._extract_all_candidate_urls(soup)
+                logger.warning(
+                    f"🔍 Found {len(candidate_urls)} candidate URLs to check"
+                )
+
+                # Parcourir chaque URL et vérifier sa date
+                for url in candidate_urls:
+                    logger.warning(f"🔍 Checking URL: {url}")
+                    episode_date_from_page = await self._extract_episode_date(url)
+                    logger.warning(f"🔍   → Date extracted: {episode_date_from_page}")
+                    if episode_date_from_page and episode_date_from_page.startswith(
+                        episode_date
+                    ):
+                        logger.warning(
+                            f"✅ Found matching episode URL by date: {url} (date: {episode_date_from_page})"
+                        )
+                        return url
+
+                logger.warning(
+                    f"❌ No episode page URL found matching date {episode_date} for: {episode_title[:50]}..."
+                )
+                return None
+
+            # Stratégie sans filtrage par date (comportement original)
             # Stratégie 1 : Parser le JSON-LD (Schema.org ItemList)
             # Plus robuste car structure standardisée
             json_ld_url = self._parse_json_ld(soup)
@@ -104,28 +138,15 @@ class RadioFranceService:
             if url.endswith(static_page):
                 return False
 
-        # Les épisodes valides contiennent généralement :
-        # - "du-dimanche" ou "du-lundi" etc. (jour de diffusion)
-        # - Une date dans l'URL
-        # - Un ID numérique à la fin
-        # Exemple: /le-masque-et-la-plume-du-dimanche-10-decembre-2023-5870209
-        return "-du-" in url or any(
-            month in url
-            for month in [
-                "janvier",
-                "fevrier",
-                "mars",
-                "avril",
-                "mai",
-                "juin",
-                "juillet",
-                "aout",
-                "septembre",
-                "octobre",
-                "novembre",
-                "decembre",
-            ]
-        )
+        # Les épisodes valides se terminent par un ID numérique (4 chiffres minimum)
+        # Exemples valides:
+        # - /le-masque-et-la-plume-du-dimanche-10-decembre-2023-5870209
+        # - /les-nouveaux-ouvrages-de-francois-truffaut-joel-dicker-...-4010930
+        # Les URLs d'épisode se terminent toujours par -{ID_NUMERIQUE}
+        import re
+
+        # Pattern: se termine par un tiret suivi de 4 chiffres ou plus
+        return bool(re.search(r"-\d{4,}$", url))
 
     def _parse_json_ld(self, soup: BeautifulSoup) -> str | None:
         """Parse JSON-LD Schema.org ItemList pour extraire l'URL du premier résultat.
@@ -211,4 +232,112 @@ class RadioFranceService:
 
         except Exception as e:
             logger.debug(f"Error parsing HTML links: {e}")
+            return None
+
+    def _extract_all_candidate_urls(self, soup: BeautifulSoup) -> list[str]:
+        """Extrait toutes les URLs candidates depuis la page de recherche.
+
+        Utilise d'abord le JSON-LD ItemList, puis fallback sur les liens HTML.
+
+        Args:
+            soup: BeautifulSoup object du HTML
+
+        Returns:
+            Liste des URLs complètes des épisodes candidats
+        """
+        candidate_urls = []
+
+        try:
+            # Stratégie 1: JSON-LD ItemList
+            json_ld_scripts = soup.find_all("script", type="application/ld+json")
+            for script in json_ld_scripts:
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get("@type") == "ItemList":
+                        items = data.get("itemListElement", [])
+                        for item in items:
+                            url = item.get("url", "")
+                            if (
+                                self.podcast_search_base in url
+                                and self._is_valid_episode_url(url)
+                            ):
+                                candidate_urls.append(url)
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+
+            # Stratégie 2 (fallback): Liens HTML
+            if not candidate_urls:
+                links = soup.find_all("a", href=True)
+                for link in links:
+                    href = link.get("href", "")
+                    if (
+                        self.podcast_search_base in href
+                        and href != self.podcast_search_base
+                        and self._is_valid_episode_url(href)
+                    ):
+                        if href.startswith("/"):
+                            full_url = f"{self.base_url}{href}"
+                        else:
+                            full_url = href
+                        candidate_urls.append(full_url)
+
+        except Exception as e:
+            logger.debug(f"Error extracting candidate URLs: {e}")
+
+        return candidate_urls
+
+    async def _extract_episode_date(self, episode_url: str) -> str | None:
+        """Extrait la date de publication d'un épisode depuis son URL.
+
+        Fait une requête GET sur l'URL de l'épisode et extrait la date
+        depuis le JSON-LD (champ datePublished).
+
+        Args:
+            episode_url: URL complète de la page de l'épisode
+
+        Returns:
+            Date au format YYYY-MM-DD, ou None si non trouvée
+        """
+        try:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    episode_url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as response,
+            ):
+                if response.status != 200:
+                    logger.debug(
+                        f"Failed to fetch episode page {episode_url}: status {response.status}"
+                    )
+                    return None
+
+                html_content = await response.text()
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Chercher le JSON-LD avec datePublished
+                json_ld_scripts = soup.find_all("script", type="application/ld+json")
+                for script in json_ld_scripts:
+                    try:
+                        data = json.loads(script.string)
+
+                        # Chercher dans @graph si présent
+                        if isinstance(data, dict) and "@graph" in data:
+                            for item in data["@graph"]:
+                                if "datePublished" in item:
+                                    date_str = str(item["datePublished"])
+                                    # Format: 2022-04-24T09:00:00.000Z -> 2022-04-24
+                                    return date_str.split("T")[0]
+
+                        # Chercher directement dans data
+                        if isinstance(data, dict) and "datePublished" in data:
+                            date_str = str(data["datePublished"])
+                            return date_str.split("T")[0]
+
+                    except (json.JSONDecodeError, KeyError, TypeError, IndexError):
+                        continue
+
+                return None
+
+        except Exception as e:
+            logger.debug(f"Error extracting date from {episode_url}: {e}")
             return None
