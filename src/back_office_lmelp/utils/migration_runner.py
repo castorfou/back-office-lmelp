@@ -321,7 +321,17 @@ class MigrationRunner:
 
                     # Add to book_logs
                     self.book_logs.append(book_log)
-                    self.books_processed += 1
+
+                    # Issue #152: Compter les éléments individuels, pas les groupes
+                    # Compter le livre si traité
+                    items_count = 0
+                    if livre_updated or livre_status != "none":
+                        items_count += 1
+                    # Compter l'auteur si traité (pas si déjà lié)
+                    if auteur_updated:
+                        items_count += 1
+
+                    self.books_processed += items_count
                     self.last_update = datetime.now(UTC)
 
                     # Add summary to text logs
@@ -409,9 +419,12 @@ class MigrationRunner:
                     )
 
                     self.book_logs.append(book_log)
-                    self.books_processed += 1
+
+                    # Issue #152: Compter seulement si l'auteur a vraiment été traité
                     if auteur_updated:
+                        self.books_processed += 1
                         authors_completed += 1
+
                     self.last_update = datetime.now(UTC)
 
                     summary = f"Auteur: {nom_auteur} - {raison}"
