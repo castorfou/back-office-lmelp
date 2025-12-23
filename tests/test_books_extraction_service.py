@@ -27,6 +27,11 @@ def mock_avis_critique():
 |--------|-------|---------|------------------------------|
 | Test Auteur | Test Livre | Test Éditeur | **Critique**: "Très bon livre" - 8 |
 | Autre Auteur | Autre Livre | Autre Éditeur | **Autre Critique**: "Passable" - 6 |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
     }
 
@@ -270,10 +275,16 @@ class TestBooksExtractionService:
             "episode_oid": "other_episode_oid",
             "episode_title": "Autre Episode",
             "episode_date": "15 fév. 2025",
-            "summary": """## 1. LIVRES DISCUTÉS
+            "summary": """## 1. LIVRES DISCUTÉS AU PROGRAMME
+
 | Auteur | Titre | Éditeur |
 |--------|-------|---------|
 | Auteur X | Livre Y | Editeur Z |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
         }
 
@@ -487,3 +498,80 @@ class TestBooksExtractionService:
         assert (
             book["author_id"] == "68e2c3ba1391489c77ccdee1"
         )  # pragma: allowlist secret
+
+    def test_validate_markdown_format_detects_invalid_headers(self, books_service):
+        """Test TDD (Issue #161): détection de format markdown invalide."""
+        # Markdown avec format invalide (ancien format de l'épisode 11/04/2021)
+        invalid_summary = """## 1. LIVRES DU PROGRAMME PRINCIPAL
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Jonathan Coe | Billy Wilder et moi | Gallimard | **Frédéric Becbedé**: Note 10 |
+
+## 2. COUPS DE CŒUR PERSONNELS
+
+| Auteur | Titre | Éditeur | Critique |
+|--------|-------|---------|----------|
+| Pierre Nora | Jeunesse | Gallimard | Olivia de Lamberterie |
+"""
+
+        validation = books_service._validate_markdown_format(invalid_summary)
+
+        assert validation["valid"] is False
+        assert len(validation["missing_sections"]) == 2
+        assert "## 1. LIVRES DISCUTÉS AU PROGRAMME" in validation["missing_sections"][0]
+        assert "## 2. COUPS DE CŒUR DES CRITIQUES" in validation["missing_sections"][1]
+        assert "/avis_critiques" in validation["help_url"]
+
+    def test_validate_markdown_format_accepts_valid_headers(self, books_service):
+        """Test TDD (Issue #161): validation de format markdown correct."""
+        # Markdown avec format valide (format attendu)
+        valid_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Jonathan Coe | Billy Wilder et moi | Gallimard | **Frédéric Becbedé**: Note 10 |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique |
+|--------|-------|---------|----------|
+| Pierre Nora | Jeunesse | Gallimard | Olivia de Lamberterie |
+"""
+
+        validation = books_service._validate_markdown_format(valid_summary)
+
+        assert validation["valid"] is True
+        assert len(validation["missing_sections"]) == 0
+
+    @pytest.mark.asyncio
+    async def test_extract_books_raises_error_on_invalid_markdown_format(
+        self, books_service
+    ):
+        """Test TDD (Issue #161): extraction lève une erreur sur format invalide."""
+        # Avis critique avec format markdown invalide
+        invalid_avis = {
+            "_id": "test_invalid",
+            "episode_oid": "678ccf10a414f229887781b7",  # pragma: allowlist secret
+            "episode_title": "Épisode 11/04/2021",
+            "episode_date": "11 avril 2021",
+            "summary": """## 1. LIVRES DU PROGRAMME PRINCIPAL
+
+| Auteur | Titre | Éditeur |
+|--------|-------|---------|
+| Jonathan Coe | Billy Wilder et moi | Gallimard |
+
+## 2. COUPS DE CŒUR PERSONNELS
+
+| Auteur | Titre | Éditeur |
+|--------|-------|---------|
+| Pierre Nora | Jeunesse | Gallimard |
+""",
+        }
+
+        # L'extraction doit lever une ValueError avec un message explicite
+        with pytest.raises(
+            ValueError,
+            match=r"Format markdown invalide.*Régénérez le résumé.*avis_critiques",
+        ):
+            await books_service.extract_books_from_reviews([invalid_avis])

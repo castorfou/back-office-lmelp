@@ -30,6 +30,11 @@ class TestBabelioCacheEnrichment:
 | Auteur | Titre | Éditeur |
 |--------|-------|---------|
 | Albert Camus | L'Étranger | Gallimard |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
             "episode_oid": "test_episode_123",
             "episode_title": "Test Episode",
@@ -96,6 +101,11 @@ class TestBabelioCacheEnrichment:
 | Auteur | Titre | Éditeur |
 |--------|-------|---------|
 | Jean Dupont | Livre Rare | Petit Éditeur |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
             "episode_oid": "test_episode_456",
             "episode_title": "Test Episode 2",
@@ -160,6 +170,11 @@ class TestBabelioCacheEnrichment:
 | Albert Camus | L'Étranger | Gallimard |
 | Victor Hugo | Les Misérables | Le Livre de Poche |
 | Jean Martin | Titre Rare | Petit Éditeur |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
             "episode_oid": "test_episode_789",
             "episode_title": "Test Episode 3",
@@ -259,6 +274,11 @@ class TestBabelioCacheEnrichment:
 | Auteur | Titre | Éditeur |
 |--------|-------|---------|
 | Test Auteur | Test Livre | Test Éditeur |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
 """,
             "episode_oid": "test_episode_error",
             "episode_title": "Test Episode Error",
