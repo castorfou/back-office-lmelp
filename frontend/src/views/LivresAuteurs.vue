@@ -580,6 +580,8 @@ export default {
   navLock: false,
   // Issue #85: Prevent double loadBooksForEpisode during refreshEpisodeCache
   isRefreshing: false,
+  // Issue #160: Global lock to prevent race conditions during episode changes
+  changeEpisodeLock: false,
 
     };
   },
@@ -938,42 +940,58 @@ export default {
       if (this.isRefreshing) {
         return;
       }
-      // Réinitialiser les filtres
-      this.searchFilter = '';
-      this.sortOrder = 'rating_desc';
 
-      // Reset any previously fetched full episode
-      this.selectedEpisodeFull = null;
+      // Issue #160: Protection contre les race conditions
+      // Si un changement d'épisode est déjà en cours, ignorer ce nouvel appel
+      if (this.changeEpisodeLock) {
+        console.warn('[Issue #160] Changement d\'épisode déjà en cours, appel ignoré pour éviter une race condition');
+        return;
+      }
 
-      // Issue #156: Inverser l'ordre pour afficher d'abord titre/description/lien
-      // AVANT de charger les livres (opération lente)
-
-      // 1. D'ABORD: Récupérer les détails complets de l'épisode (description, corrections)
       try {
-        const ep = await episodeService.getEpisodeById(this.selectedEpisodeId);
-        this.selectedEpisodeFull = ep || null;
-      } catch (err) {
-        // Ne pas bloquer l'UI si l'endpoint n'est pas disponible
-        console.warn('Impossible de récupérer les détails complets de l\'épisode:', err.message || err);
-      }
+        // Verrouiller pour empêcher les changements concurrents
+        this.changeEpisodeLock = true;
 
-      // 2. ENSUITE: Fetch automatiquement l'URL de la page RadioFrance si elle n'existe pas encore
-      // Issue #89: Cela permet d'afficher rapidement le lien avant le chargement des livres
-      if (this.selectedEpisodeFull && !this.selectedEpisodeFull.episode_page_url) {
+        // Réinitialiser les filtres
+        this.searchFilter = '';
+        this.sortOrder = 'rating_desc';
+
+        // Reset any previously fetched full episode
+        this.selectedEpisodeFull = null;
+
+        // Issue #156: Inverser l'ordre pour afficher d'abord titre/description/lien
+        // AVANT de charger les livres (opération lente)
+
+        // 1. D'ABORD: Récupérer les détails complets de l'épisode (description, corrections)
         try {
-          const result = await episodeService.fetchEpisodePageUrl(this.selectedEpisodeId);
-          if (result.success && result.episode_page_url) {
-            // Mettre à jour l'épisode avec l'URL récupérée
-            this.selectedEpisodeFull.episode_page_url = result.episode_page_url;
-          }
+          const ep = await episodeService.getEpisodeById(this.selectedEpisodeId);
+          this.selectedEpisodeFull = ep || null;
         } catch (err) {
-          // Ne pas bloquer l'UI si le fetch échoue (épisode non trouvé sur RadioFrance, etc.)
-          console.warn('Impossible de récupérer l\'URL de la page RadioFrance:', err.message || err);
+          // Ne pas bloquer l'UI si l'endpoint n'est pas disponible
+          console.warn('Impossible de récupérer les détails complets de l\'épisode:', err.message || err);
         }
-      }
 
-      // 3. ENFIN: Charger les livres pour le nouvel épisode (opération lente)
-      await this.loadBooksForEpisode();
+        // 2. ENSUITE: Fetch automatiquement l'URL de la page RadioFrance si elle n'existe pas encore
+        // Issue #89: Cela permet d'afficher rapidement le lien avant le chargement des livres
+        if (this.selectedEpisodeFull && !this.selectedEpisodeFull.episode_page_url) {
+          try {
+            const result = await episodeService.fetchEpisodePageUrl(this.selectedEpisodeId);
+            if (result.success && result.episode_page_url) {
+              // Mettre à jour l'épisode avec l'URL récupérée
+              this.selectedEpisodeFull.episode_page_url = result.episode_page_url;
+            }
+          } catch (err) {
+            // Ne pas bloquer l'UI si le fetch échoue (épisode non trouvé sur RadioFrance, etc.)
+            console.warn('Impossible de récupérer l\'URL de la page RadioFrance:', err.message || err);
+          }
+        }
+
+        // 3. ENFIN: Charger les livres pour le nouvel épisode (opération lente)
+        await this.loadBooksForEpisode();
+      } finally {
+        // Issue #160: Toujours déverrouiller, même en cas d'erreur
+        this.changeEpisodeLock = false;
+      }
     },
 
     async selectPreviousEpisode() {
