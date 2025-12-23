@@ -945,10 +945,10 @@ export default {
       // Reset any previously fetched full episode
       this.selectedEpisodeFull = null;
 
-      // Charger les livres pour le nouvel épisode
-      await this.loadBooksForEpisode();
+      // Issue #156: Inverser l'ordre pour afficher d'abord titre/description/lien
+      // AVANT de charger les livres (opération lente)
 
-      // Essayer de récupérer les détails complets de l'épisode (description, corrections)
+      // 1. D'ABORD: Récupérer les détails complets de l'épisode (description, corrections)
       try {
         const ep = await episodeService.getEpisodeById(this.selectedEpisodeId);
         this.selectedEpisodeFull = ep || null;
@@ -957,7 +957,8 @@ export default {
         console.warn('Impossible de récupérer les détails complets de l\'épisode:', err.message || err);
       }
 
-      // Issue #89: Fetch automatiquement l'URL de la page RadioFrance si elle n'existe pas encore
+      // 2. ENSUITE: Fetch automatiquement l'URL de la page RadioFrance si elle n'existe pas encore
+      // Issue #89: Cela permet d'afficher rapidement le lien avant le chargement des livres
       if (this.selectedEpisodeFull && !this.selectedEpisodeFull.episode_page_url) {
         try {
           const result = await episodeService.fetchEpisodePageUrl(this.selectedEpisodeId);
@@ -970,6 +971,9 @@ export default {
           console.warn('Impossible de récupérer l\'URL de la page RadioFrance:', err.message || err);
         }
       }
+
+      // 3. ENFIN: Charger les livres pour le nouvel épisode (opération lente)
+      await this.loadBooksForEpisode();
     },
 
     async selectPreviousEpisode() {
