@@ -68,6 +68,13 @@ class BooksExtractionService:
             try:
                 books_from_review = await self._extract_books_from_single_review(avis)
                 all_extracted_books.extend(books_from_review)
+            except ValueError as e:
+                # Propager les erreurs de validation de format markdown
+                # pour que l'utilisateur puisse corriger le problème
+                if "Format markdown invalide" in str(e):
+                    raise
+                # Autres ValueError, continuer
+                continue
             except Exception as e:
                 error_msg = str(e)
 
@@ -104,6 +111,15 @@ class BooksExtractionService:
         episode_oid = avis_critique.get("episode_oid", "")
         episode_title = avis_critique.get("episode_title", "")
         episode_date = avis_critique.get("episode_date", "")
+
+        # Valider le format markdown avant extraction
+        validation = self._validate_markdown_format(summary)
+        if not validation["valid"]:
+            raise ValueError(
+                f"Format markdown invalide pour l'épisode {episode_oid}. "
+                f"Sections manquantes: {', '.join(validation['missing_sections'])}. "
+                f"Régénérez le résumé via {validation['help_url']}"
+            )
 
         # Prompt pour l'extraction
         system_prompt = """Tu es un expert en extraction d'informations bibliographiques depuis des critiques littéraires.
@@ -165,6 +181,48 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
             return self._extract_books_from_summary_fallback(
                 summary, episode_oid, episode_title, episode_date
             )
+
+    def _validate_markdown_format(self, summary: str) -> dict[str, Any]:
+        """
+        Valide que le markdown contient les sections attendues.
+
+        Args:
+            summary: Contenu markdown à valider
+
+        Returns:
+            {
+                "valid": bool,
+                "missing_sections": list[str],
+                "help_url": str
+            }
+        """
+        import re
+
+        missing_sections = []
+
+        # Vérifier la section "LIVRES DISCUTÉS AU PROGRAMME"
+        if not re.search(
+            r"## 1\. LIVRES DISCUTÉS AU PROGRAMME",
+            summary,
+        ):
+            missing_sections.append(
+                "Section '## 1. LIVRES DISCUTÉS AU PROGRAMME' manquante"
+            )
+
+        # Vérifier la section "COUPS DE CŒUR DES CRITIQUES"
+        if not re.search(
+            r"## 2\. COUPS DE CŒUR DES CRITIQUES",
+            summary,
+        ):
+            missing_sections.append(
+                "Section '## 2. COUPS DE CŒUR DES CRITIQUES' manquante"
+            )
+
+        return {
+            "valid": len(missing_sections) == 0,
+            "missing_sections": missing_sections,
+            "help_url": "/avis_critiques",
+        }
 
     def _extract_books_from_summary_fallback(
         self, summary: str, episode_oid: str, episode_title: str, episode_date: str
