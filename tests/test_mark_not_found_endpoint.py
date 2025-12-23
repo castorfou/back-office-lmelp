@@ -144,3 +144,37 @@ class TestMarkNotFoundEndpoint:
             data = response.json()
             assert data["status"] == "error"
             assert "Auteur" in data["message"]
+
+    def test_should_reject_invalid_item_type(self, client):
+        """Test TDD (RED): Le backend doit rejeter les types invalides comme 'livre_auteur_groupe'.
+
+        Problème business réel (Issue #153):
+        - Le frontend envoie item_type='livre_auteur_groupe' au lieu de 'livre'
+        - Le backend ne reconnaît que 'livre' et 'auteur'
+        - Résultat: Erreur 500 ou 404 au lieu de traiter correctement
+
+        Ce test vérifie que le backend rejette explicitement les types invalides.
+        """
+        # Arrange
+        livre_id = str(ObjectId())
+
+        with patch(
+            "back_office_lmelp.app.babelio_migration_service"
+        ) as mock_migration_service:
+            # Simuler que le service retourne False pour type invalide
+            mock_migration_service.mark_as_not_found.return_value = False
+
+            # Act - Envoyer un type invalide 'livre_auteur_groupe'
+            response = client.post(
+                "/api/babelio-migration/mark-not-found",
+                json={
+                    "item_id": livre_id,
+                    "reason": "Livre non disponible",
+                    "item_type": "livre_auteur_groupe",  # Type invalide
+                },
+            )
+
+            # Assert - Doit retourner une erreur 404
+            assert response.status_code == 404
+            data = response.json()
+            assert data["status"] == "error"

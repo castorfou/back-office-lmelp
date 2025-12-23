@@ -509,7 +509,8 @@ export default {
 
     async markNotFound(cas) {
       // Déterminer le type et l'ID selon le cas
-      const itemType = cas.type || 'livre';
+      // Issue #153: Normaliser 'livre_auteur_groupe' vers 'livre' pour le backend
+      const itemType = cas.type === 'auteur' ? 'auteur' : 'livre';
       const itemId = cas.type === 'auteur' ? cas.auteur_id : cas.livre_id;
       const itemName = cas.type === 'auteur' ? cas.nom_auteur : cas.titre_attendu;
       const reason = cas.type === 'auteur'
