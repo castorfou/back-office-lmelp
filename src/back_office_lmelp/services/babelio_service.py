@@ -1124,7 +1124,9 @@ class BabelioService:
                     auteur_link = soup.select_one('a[href*="/auteur/"]')
 
                 if auteur_link:
-                    author_name = auteur_link.get_text(strip=True)
+                    # Utiliser separator=' ' pour forcer un espace entre les éléments HTML
+                    # Cela évite les noms collés comme "DarioFranceschini" (Issue #159)
+                    author_name = auteur_link.get_text(separator=" ", strip=True)
                     if author_name:
                         if self._debug_log_enabled:
                             logger.info(
