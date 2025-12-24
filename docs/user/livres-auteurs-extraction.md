@@ -160,15 +160,37 @@ Un bouton "Traiter automatiquement les livres validés" permet de :
 - Éviter les doublons grâce à la vérification existence avant création
 - Marquer automatiquement les livres traités avec le statut "mongo" (en base)
 
+#### Auto-remplissage via URL Babelio
+Pour faciliter la saisie, les modales de validation et d'ajout manuel proposent un champ optionnel "URL Babelio" :
+
+**Fonctionnement** :
+- Collez une URL Babelio d'un livre (ex: `https://www.babelio.com/livres/Houellebecq-Les-Particules-elementaires/2172`)
+- Après 1 seconde, l'extraction automatique remplit les champs :
+  - **Titre** : Titre complet du livre
+  - **Auteur** : Nom de l'auteur (prénom et nom correctement espacés)
+  - **Éditeur** : Maison d'édition
+- Une indication "Chargement..." s'affiche pendant l'extraction
+- Les champs restent modifiables après auto-remplissage
+
+**Avantages** :
+- Gain de temps pour la saisie de nouvelles données
+- Garantit l'exactitude des informations (source Babelio)
+- Évite les erreurs de frappe
+- Utile pour les livres avec titres longs ou noms complexes
+
+**Remarque** : Cette fonctionnalité effectue uniquement une extraction de données sans mise à jour de la base. La sauvegarde se fait lors de la validation du formulaire.
+
 #### Validation manuelle des suggestions
 Pour les livres avec corrections proposées par Babelio :
 - Interface de validation permettant d'accepter ou modifier les suggestions
+- Champ optionnel "URL Babelio" pour auto-remplissage des informations
 - Sauvegarde des données corrigées dans les collections MongoDB
 - Mise à jour du statut de validation
 
 #### Ajout manuel des livres non trouvés
 Pour les livres non identifiés par Babelio :
 - Formulaire de saisie manuelle des informations (auteur, titre, éditeur)
+- Champ optionnel "URL Babelio" pour auto-remplissage rapide
 - Création forcée dans les collections avec marquage spécial
 - Traçabilité des ajouts manuels
 
