@@ -819,11 +819,11 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       // Appeler la validation
       await wrapper.vm.confirmValidation();
 
-      // Vérifier le bon format API
+      // Vérifier le bon format API (Issue #159: envoyer les données validées, pas celles du cache)
       expect(livresAuteursService.validateSuggestion).toHaveBeenCalledWith({
         cache_id: '64f1234567890abcdef11111', // pragma: allowlist secret
         episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
-        auteur: 'Alain Mabancou',
+        auteur: 'Alain Mabanckou', // Données validées par l'utilisateur
         titre: 'Ramsés de Paris',
         editeur: 'Seuil',
         avis_critique_id: undefined,

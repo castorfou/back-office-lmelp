@@ -156,6 +156,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
 - 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
+- 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)
 - ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées complètes
 - 🔗 **Gestion des références** : Liaison automatique entre épisodes, avis critiques, auteurs et livres
 - 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées

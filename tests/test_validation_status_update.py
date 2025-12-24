@@ -106,8 +106,12 @@ class TestValidationStatusUpdate:
         assert result["success"] is True
 
         # Vérifier que le cache est marqué comme traité avec le status 'mongo'
+        # Issue #159: metadata avec editeur est maintenant toujours passé
         mock_cache_service.mark_as_processed.assert_called_once_with(
-            ObjectId(cache_id_str), mock_author_id, mock_book_id
+            ObjectId(cache_id_str),
+            mock_author_id,
+            mock_book_id,
+            metadata={"editeur": "Seuil"},
         )
 
         # Vérifier que update_book_validation est appelé pour mettre à jour le status

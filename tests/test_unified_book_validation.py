@@ -67,8 +67,9 @@ class TestUnifiedBookValidation:
             assert metadata["suggested_title"] == "Tressaillir"
 
             # Vérifier que le cache est marqué comme traité
+            # Issue #159: metadata avec editeur est maintenant toujours passé
             mock_cache_service.mark_as_processed.assert_called_once_with(
-                cache_id, author_id, book_id
+                cache_id, author_id, book_id, metadata={"editeur": "Stock"}
             )
 
     def test_handle_book_validation_with_not_found_book_should_work_like_suggested(
@@ -128,8 +129,9 @@ class TestUnifiedBookValidation:
             assert metadata["suggested_title"] == "Une Obsession"
 
             # Vérifier que le cache est marqué comme traité (statut mongo)
+            # Issue #159: metadata avec editeur est maintenant toujours passé
             mock_cache_service.mark_as_processed.assert_called_once_with(
-                cache_id, author_id, book_id
+                cache_id, author_id, book_id, metadata={"editeur": "Dargaud"}
             )
 
     def test_handle_book_validation_should_handle_cache_id_lookup_for_both_cases(self):
@@ -190,3 +192,84 @@ class TestUnifiedBookValidation:
             mock_cache_service.get_books_by_episode_oid.assert_called_once_with(
                 "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
             )
+
+    def test_handle_book_validation_should_update_publisher_in_cache_when_validated(
+        self,
+    ):
+        """
+        RED Test TDD: La validation doit mettre à jour l'éditeur dans le cache (Issue #159).
+
+        Bug: Quand l'utilisateur change l'éditeur lors de la validation,
+        le nouveau éditeur est bien enregistré dans la collection livres,
+        MAIS l'ancien éditeur reste dans livresauteurs_cache.
+
+        Exemple: "Segers" → "Editions Seghers"
+        Le cache doit refléter "Editions Seghers", pas "Segers".
+        """
+        # ARRANGE
+        service = CollectionsManagementService()
+        cache_id = ObjectId("64a1b2c3d4e5f6789abcdef0")  # pragma: allowlist secret
+        author_id = ObjectId("64a1b2c3d4e5f6789abcdef1")  # pragma: allowlist secret
+        book_id = ObjectId("64a1b2c3d4e5f6789abcdef2")  # pragma: allowlist secret
+
+        # Données de validation avec changement d'éditeur
+        book_data = {
+            "cache_id": str(cache_id),
+            "auteur": "John Steinbeck",
+            "titre": "Jours de travail",
+            "editeur": "Segers",  # ANCIEN éditeur du cache
+            "user_validated_author": "John Steinbeck",
+            "user_validated_title": "Jours de travail",
+            "user_validated_publisher": "Editions Seghers",  # NOUVEAU éditeur validé
+            "suggested_author": "John Steinbeck",
+            "suggested_title": "Jours de travail",
+            "suggested_publisher": "Editions Seghers",
+        }
+
+        # ACT & ASSERT
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.livres_auteurs_cache_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            # Setup mocks
+            mock_mongodb.create_author_if_not_exists.return_value = author_id
+            mock_mongodb.create_book_if_not_exists.return_value = book_id
+            mock_mongodb.update_book_validation.return_value = True
+            mock_cache_service.mark_as_processed.return_value = True
+
+            # Act: Appeler la validation
+            result = service.handle_book_validation(book_data)
+
+            # Assert: La validation doit réussir
+            assert result["success"] is True
+            assert result["author_id"] == str(author_id)
+            assert result["book_id"] == str(book_id)
+
+            # Assert CRITIQUE: Le cache doit être mis à jour avec le NOUVEAU éditeur
+            # ❌ ÉCHEC ATTENDU (RED): actuellement mark_as_processed ne reçoit PAS le nouvel éditeur
+            mock_cache_service.mark_as_processed.assert_called_once()
+            call_args = mock_cache_service.mark_as_processed.call_args
+
+            # Vérifier les arguments de mark_as_processed
+            assert call_args[0][0] == cache_id  # cache_id
+            assert call_args[0][1] == author_id  # author_id
+            assert call_args[0][2] == book_id  # book_id
+
+            # ASSERTION CRITIQUE: metadata doit contenir le nouvel éditeur
+            # C'est ce qui ÉCHOUE actuellement (RED phase)
+            # kwargs contient les arguments nommés (metadata=...)
+            if "metadata" in call_args.kwargs:
+                metadata = call_args.kwargs["metadata"]
+                assert "editeur" in metadata, (
+                    "Le metadata doit contenir le champ 'editeur'"
+                )
+                assert metadata["editeur"] == "Editions Seghers", (
+                    f"Le cache doit être mis à jour avec le NOUVEAU éditeur 'Editions Seghers', pas '{metadata.get('editeur', 'ABSENT')}'"
+                )
+            else:
+                # ❌ ÉCHEC ATTENDU (RED): metadata n'est pas passé du tout
+                raise AssertionError(
+                    "Le metadata doit être passé à mark_as_processed pour mettre à jour l'éditeur dans le cache"
+                )

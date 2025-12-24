@@ -378,6 +378,34 @@
           <div class="editable-form">
             <h4>Validation finale (modifiable) :</h4>
 
+            <!-- Issue #159: Champ URL Babelio pour auto-remplissage -->
+            <div class="form-group babelio-url-group">
+              <label for="validation-babelio-url-input">
+                URL Babelio (optionnel) :
+                <button
+                  v-if="validationBabelioUrl && !validationExtractingFromUrl"
+                  @click="extractFromBabelioUrl('validation')"
+                  class="btn-extract-url"
+                  type="button"
+                  title="Extraire les informations depuis l'URL Babelio"
+                >
+                  🔄 Extraire
+                </button>
+                <span v-if="validationExtractingFromUrl" class="extracting-indicator">
+                  ⏳ Extraction en cours...
+                </span>
+              </label>
+              <input
+                id="validation-babelio-url-input"
+                v-model="validationBabelioUrl"
+                type="text"
+                class="form-control"
+                data-testid="validation-babelio-url-input"
+                placeholder="https://www.babelio.com/livres/..."
+              />
+              <div v-if="validationUrlError" class="url-error">{{ validationUrlError }}</div>
+            </div>
+
             <div class="form-group">
               <label for="validation-author-input">Auteur :</label>
               <input
@@ -446,6 +474,35 @@
         <h3>Ajouter manuellement un livre</h3>
 
         <div class="manual-add-form">
+          <!-- Issue #159: Champ URL Babelio pour auto-remplissage -->
+          <div class="form-group babelio-url-group">
+            <label for="manual-babelio-url-input">
+              URL Babelio (optionnel) :
+              <button
+                v-if="manualBabelioUrl && !manualExtractingFromUrl"
+                @click="extractFromBabelioUrl('manual')"
+                class="btn-extract-url"
+                type="button"
+                title="Extraire les informations depuis l'URL Babelio"
+              >
+                🔄 Extraire
+              </button>
+              <span v-if="manualExtractingFromUrl" class="extracting-indicator">
+                ⏳ Extraction en cours...
+              </span>
+            </label>
+            <input
+              id="manual-babelio-url-input"
+              v-model="manualBabelioUrl"
+              type="text"
+              class="form-control"
+              data-testid="manual-babelio-url-input"
+              placeholder="https://www.babelio.com/livres/..."
+              @keydown.stop
+            />
+            <div v-if="manualUrlError" class="url-error">{{ manualUrlError }}</div>
+          </div>
+
           <div class="form-group">
             <label for="author-input">Auteur :</label>
             <input
@@ -517,6 +574,8 @@ import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
+import debounce from 'lodash.debounce';
+import axios from 'axios';
 
 export default {
   name: 'LivresAuteurs',
@@ -559,6 +618,10 @@ export default {
         title: '',
         publisher: ''
       },
+      // Issue #159: URL Babelio pour auto-remplissage dans modal validation
+      validationBabelioUrl: '',
+      validationExtractingFromUrl: false,
+      validationUrlError: null,
 
       // Modal d'ajout manuel pour livres not_found
       showManualAddModal: false,
@@ -568,6 +631,10 @@ export default {
         title: '',
         publisher: ''
       },
+      // Issue #159: URL Babelio pour auto-remplissage dans modal ajout manuel
+      manualBabelioUrl: '',
+      manualExtractingFromUrl: false,
+      manualUrlError: null,
 
       // Contrôle d'affichage de la colonne YAML
       showYamlColumn: false,
@@ -696,6 +763,22 @@ export default {
 
       return filtered;
     }
+  },
+
+  watch: {
+    // Issue #159: Auto-déclenchement extraction URL Babelio (modal validation)
+    validationBabelioUrl: debounce(function(newUrl) {
+      if (newUrl && this.isValidBabelioUrl(newUrl)) {
+        this.extractFromBabelioUrl('validation');
+      }
+    }, 500),
+
+    // Issue #159: Auto-déclenchement extraction URL Babelio (modal ajout manuel)
+    manualBabelioUrl: debounce(function(newUrl) {
+      if (newUrl && this.isValidBabelioUrl(newUrl)) {
+        this.extractFromBabelioUrl('manual');
+      }
+    }, 500),
   },
 
   async mounted() {
@@ -1176,9 +1259,10 @@ export default {
           cache_id: book.cache_id, // Utiliser le cache_id du livre
           episode_oid: this.selectedEpisodeId,
           avis_critique_id: selectedEpisode?.avis_critique_id,
-          auteur: book.auteur,
-          titre: book.titre,
-          editeur: book.editeur,
+          // Issue #159: Utiliser les données validées par l'utilisateur au lieu des données d'origine
+          auteur: this.validationForm.author,
+          titre: this.validationForm.title,
+          editeur: this.validationForm.publisher,
           user_validated_author: this.validationForm.author,
           user_validated_title: this.validationForm.title,
           user_validated_publisher: this.validationForm.publisher
@@ -1234,9 +1318,10 @@ export default {
           cache_id: book.cache_id,
           episode_oid: this.selectedEpisodeId,
           avis_critique_id: selectedEpisode?.avis_critique_id,
-          auteur: book.auteur,
-          titre: book.titre,
-          editeur: book.editeur,
+          // Issue #159: Utiliser les données saisies par l'utilisateur au lieu des données d'origine
+          auteur: this.manualBookForm.author,
+          titre: this.manualBookForm.title,
+          editeur: this.manualBookForm.publisher || 'Éditeur inconnu',
           user_validated_author: this.manualBookForm.author,
           user_validated_title: this.manualBookForm.title,
           user_validated_publisher: this.manualBookForm.publisher || 'Éditeur inconnu',
@@ -1266,6 +1351,96 @@ export default {
       }
     },
 
+    // ========== MÉTHODES POUR ISSUE #159: URL BABELIO AUTO-FILL ==========
+
+    /**
+     * Valide si une URL est une URL Babelio valide
+     */
+    isValidBabelioUrl(url) {
+      return url && url.includes('babelio.com');
+    },
+
+    /**
+     * Extrait les informations depuis une URL Babelio
+     * @param {string} modalType - 'validation' ou 'manual'
+     */
+    async extractFromBabelioUrl(modalType) {
+      const isValidation = modalType === 'validation';
+      const url = isValidation ? this.validationBabelioUrl : this.manualBabelioUrl;
+
+      // Validation de l'URL
+      if (!this.isValidBabelioUrl(url)) {
+        const error = 'URL Babelio invalide';
+        if (isValidation) {
+          this.validationUrlError = error;
+        } else {
+          this.manualUrlError = error;
+        }
+        return;
+      }
+
+      // Réinitialiser les erreurs
+      if (isValidation) {
+        this.validationUrlError = null;
+        this.validationExtractingFromUrl = true;
+      } else {
+        this.manualUrlError = null;
+        this.manualExtractingFromUrl = true;
+      }
+
+      try {
+        // Appeler l'API backend pour extraire les données (Issue #159)
+        const response = await axios.post('/api/babelio/extract-from-url', {
+          babelio_url: url.trim(),
+        });
+
+        if (response.data.status === 'success' && response.data.data) {
+          const data = response.data.data;
+
+          // Remplir automatiquement les champs avec les données extraites
+          const form = isValidation ? this.validationForm : this.manualBookForm;
+
+          // Remplir le titre (priorité: titre extrait)
+          if (data.titre) {
+            form.title = data.titre;
+          }
+
+          // Remplir l'auteur (priorité: auteur extrait)
+          if (data.auteur) {
+            form.author = data.auteur;
+          }
+
+          // Remplir l'éditeur (priorité: éditeur extrait)
+          if (data.editeur) {
+            form.publisher = data.editeur;
+          }
+
+        } else {
+          const error = response.data.message || 'Erreur lors de l\'extraction';
+          if (isValidation) {
+            this.validationUrlError = error;
+          } else {
+            this.manualUrlError = error;
+          }
+        }
+      } catch (error) {
+        const errorMsg = error.response?.data?.message || error.message || 'Erreur lors de l\'extraction';
+        if (isValidation) {
+          this.validationUrlError = errorMsg;
+        } else {
+          this.manualUrlError = errorMsg;
+        }
+        console.error('Erreur extraction URL Babelio:', error);
+      } finally {
+        // Arrêter l'indicateur de chargement
+        if (isValidation) {
+          this.validationExtractingFromUrl = false;
+        } else {
+          this.manualExtractingFromUrl = false;
+        }
+      }
+    },
+
     /**
      * Récupère les suggestions pour le livre actuellement en cours de validation
      */
@@ -1286,6 +1461,10 @@ export default {
         title: '',
         publisher: ''
       };
+      // Issue #159: Réinitialiser les champs URL Babelio
+      this.validationBabelioUrl = '';
+      this.validationUrlError = null;
+      this.validationExtractingFromUrl = false;
     },
 
     /**
@@ -1299,6 +1478,10 @@ export default {
         title: '',
         publisher: ''
       };
+      // Issue #159: Réinitialiser les champs URL Babelio
+      this.manualBabelioUrl = '';
+      this.manualUrlError = null;
+      this.manualExtractingFromUrl = false;
     },
 
 
@@ -2567,5 +2750,67 @@ export default {
 .episode-incomplete {
   color: #f97316; /* orange-500 */
   font-weight: 500;
+}
+
+/* ========== STYLES POUR ISSUE #159: URL BABELIO AUTO-FILL ========== */
+
+/* Groupe du champ URL Babelio */
+.babelio-url-group {
+  background: #f0f9ff;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+  margin-bottom: 1rem;
+}
+
+.babelio-url-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #0369a1;
+}
+
+/* Bouton d'extraction */
+.btn-extract-url {
+  background: #0284c7;
+  color: white;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  margin-left: auto;
+}
+
+.btn-extract-url:hover {
+  background: #0369a1;
+  transform: translateY(-1px);
+}
+
+.btn-extract-url:active {
+  transform: translateY(0);
+}
+
+/* Indicateur d'extraction en cours */
+.extracting-indicator {
+  font-size: 0.85rem;
+  color: #0369a1;
+  font-style: italic;
+  margin-left: auto;
+}
+
+/* Message d'erreur URL */
+.url-error {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  color: #991b1b;
+  font-size: 0.85rem;
 }
 </style>

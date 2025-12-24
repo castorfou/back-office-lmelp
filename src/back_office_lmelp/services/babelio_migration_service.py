@@ -457,6 +457,43 @@ class BabelioMigrationService:
         logger.info(f"📊 Résultat retry: status={result.get('status')}")
         return result
 
+    async def extract_from_babelio_url(self, babelio_url: str) -> dict[str, Any]:
+        """Extrait les données depuis une URL Babelio sans mise à jour (Issue #159).
+
+        Args:
+            babelio_url: URL Babelio complète
+
+        Returns:
+            Dict avec les données extraites (titre, auteur, editeur, url_livre, url_auteur)
+
+        Raises:
+            ValueError: Si l'URL n'est pas valide
+            Exception: En cas d'erreur de scraping
+        """
+        # Valider l'URL Babelio
+        if not babelio_url or "babelio.com" not in babelio_url.lower():
+            raise ValueError("URL invalide: doit être une URL Babelio")
+
+        # Scraper les données de la page livre (toutes les méthodes sont async)
+        titre = await self.babelio_service.fetch_full_title_from_url(babelio_url)
+        auteur_url = await self.babelio_service.fetch_author_url_from_page(babelio_url)
+        editeur = await self.babelio_service.fetch_publisher_from_url(babelio_url)
+
+        # Extraire le nom de l'auteur depuis son URL
+        auteur = None
+        if auteur_url:
+            auteur = await self.babelio_service._scrape_author_from_book_page(
+                babelio_url
+            )
+
+        return {
+            "titre": titre,
+            "auteur": auteur,
+            "editeur": editeur,
+            "url_livre": babelio_url,
+            "url_auteur": auteur_url,
+        }
+
     async def update_from_babelio_url(
         self, item_id: str, babelio_url: str, item_type: str = "livre"
     ) -> dict[str, Any]:

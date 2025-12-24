@@ -154,6 +154,7 @@ class TestSuggestedToMongoStatusUpdate:
             assert result["success"] is True
 
             # CRITICAL: Vérifier que mark_as_processed est appelé
+            # Issue #159: metadata avec editeur est maintenant toujours passé
             mock_cache_service.mark_as_processed.assert_called_once_with(
-                cache_id, author_id, book_id
+                cache_id, author_id, book_id, metadata={"editeur": "Éditions de Minuit"}
             )

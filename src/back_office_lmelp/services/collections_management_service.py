@@ -304,20 +304,20 @@ class CollectionsManagementService:
                 )
 
                 # Issue #85: Préparer metadata pour le cache (persister babelio_publisher si présent)
+                # Issue #159: Ajouter l'éditeur validé pour mettre à jour le cache
                 cache_metadata = {}
                 if "babelio_publisher" in book_data and book_data["babelio_publisher"]:
                     cache_metadata["babelio_publisher"] = book_data["babelio_publisher"]
 
+                # Issue #159: Toujours mettre à jour l'éditeur dans le cache avec la valeur validée
+                # Cela garantit que le cache reflète l'éditeur final (user_validated ou suggested)
+                cache_metadata["editeur"] = publisher
+
                 # Marquer comme traité dans le cache (statut mongo)
-                # Issue #85: Passer metadata si enrichissement Babelio
-                if cache_metadata:
-                    livres_auteurs_cache_service.mark_as_processed(
-                        cache_id, author_id, book_id, metadata=cache_metadata
-                    )
-                else:
-                    livres_auteurs_cache_service.mark_as_processed(
-                        cache_id, author_id, book_id
-                    )
+                # Issue #85/#159: Passer metadata avec enrichissement Babelio et éditeur validé
+                livres_auteurs_cache_service.mark_as_processed(
+                    cache_id, author_id, book_id, metadata=cache_metadata
+                )
 
                 # Issue #67: Mise à jour du summary dans avis_critiques
                 avis_critique_id = book_data.get("avis_critique_id")

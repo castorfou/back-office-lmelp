@@ -158,6 +158,12 @@ class UpdateFromBabelioUrlRequest(BaseModel):
     item_type: str = "livre"  # "livre" ou "auteur"
 
 
+class ExtractFromBabelioUrlRequest(BaseModel):
+    """Modèle pour extraire les données depuis une URL Babelio (Issue #159)."""
+
+    babelio_url: str
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Gestion du cycle de vie de l'application."""
@@ -1860,6 +1866,45 @@ async def retry_with_title(request: RetryWithTitleRequest) -> dict[str, Any]:
         new_title=request.new_title,
         author=request.author,
     )
+
+
+@app.post("/api/babelio/extract-from-url")
+async def extract_from_babelio_url(
+    request: ExtractFromBabelioUrlRequest,
+) -> JSONResponse:
+    """Extrait les données depuis une URL Babelio sans mise à jour (Issue #159)."""
+    try:
+        # Scraper les données depuis l'URL Babelio
+        scraped_data = await babelio_migration_service.extract_from_babelio_url(
+            request.babelio_url
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "data": scraped_data,
+            },
+        )
+    except ValueError as e:
+        # Erreur de validation d'URL
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": str(e),
+            },
+        )
+    except Exception as e:
+        # Autres erreurs (scraping, réseau, etc.)
+        logger.error(f"Error extracting from Babelio URL: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": str(e),
+            },
+        )
 
 
 @app.post("/api/babelio-migration/start")
