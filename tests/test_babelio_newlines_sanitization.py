@@ -42,7 +42,8 @@ class TestBabelioNewlinesSanitization:
                 self.status = 200
                 self._html = html
 
-            async def text(self):
+            async def text(self, encoding=None):
+                # Support for encoding parameter added in Issue #167
                 return self._html
 
             async def __aenter__(self):
@@ -145,7 +146,8 @@ class TestBabelioNewlinesSanitization:
                 self.status = 200
                 self._html = html
 
-            async def text(self):
+            async def text(self, encoding=None):
+                # Support for encoding parameter added in Issue #167
                 return self._html
 
             async def __aenter__(self):
