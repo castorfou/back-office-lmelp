@@ -275,7 +275,9 @@ class BabelioService:
                         try:
                             # Babelio retourne du JSON valide mais avec le mauvais Content-Type
                             # On récupère le texte brut puis on parse le JSON manuellement
-                            text_content = await response.text()
+                            # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                            # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                            text_content = await response.text(encoding="cp1252")
                             results: list[dict[str, Any]] = json.loads(text_content)
 
                             if self._debug_log_enabled:
@@ -698,7 +700,9 @@ class BabelioService:
                     )
                     return None
 
-                html = await response.text()
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                html = await response.text(encoding="cp1252")
                 soup = BeautifulSoup(html, "lxml")
 
                 # Priorité 1: h1 (contient juste le titre, sans nom d'auteur)
@@ -765,7 +769,9 @@ class BabelioService:
                     )
                     return None
 
-                html = await response.text()
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                html = await response.text(encoding="cp1252")
                 soup = BeautifulSoup(html, "lxml")
 
                 # Sélecteur CSS pour l'éditeur: lien avec classe tiny_links dark
@@ -1016,7 +1022,9 @@ class BabelioService:
                         )
                     return None
 
-                html = await response.text()
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                html = await response.text(encoding="cp1252")
                 soup = BeautifulSoup(html, "lxml")
 
                 # Sélecteur CSS pour l'auteur: premier lien pointant vers /auteur/
@@ -1113,7 +1121,9 @@ class BabelioService:
                     )
                     return None
 
-                html = await response.text()
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                html = await response.text(encoding="cp1252")
                 soup = BeautifulSoup(html, "lxml")
 
                 # Stratégie 1: Chercher un lien avec classe 'livre_auteur'
