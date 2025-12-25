@@ -29,6 +29,8 @@ class MongoDBService:
         self.auteurs_collection: Collection | None = None
         self.livres_collection: Collection | None = None
         self.editeurs_collection: Collection | None = None
+        self.critiques_collection: Collection | None = None
+        self.emissions_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -42,6 +44,8 @@ class MongoDBService:
             self.auteurs_collection = self.db.auteurs
             self.livres_collection = self.db.livres
             self.editeurs_collection = self.db.editeurs
+            self.critiques_collection = self.db.critiques
+            self.emissions_collection = self.db.emissions
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -53,6 +57,8 @@ class MongoDBService:
             self.auteurs_collection = None
             self.livres_collection = None
             self.editeurs_collection = None
+            self.critiques_collection = None
+            self.emissions_collection = None
             return False
 
     def disconnect(self) -> None:

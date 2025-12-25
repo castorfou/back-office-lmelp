@@ -16,6 +16,8 @@ from rapidfuzz import fuzz
 from thefuzz import process
 
 from .middleware import EnrichedLoggingMiddleware
+from .models.critique import Critique
+from .models.emission import Emission
 from .models.episode import Episode
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
@@ -23,6 +25,7 @@ from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
 from .services.calibre_service import calibre_service
 from .services.collections_management_service import collections_management_service
+from .services.critiques_extraction_service import critiques_extraction_service
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
@@ -2025,6 +2028,288 @@ async def openapi_reduced() -> JSONResponse:
         return JSONResponse(content=reduced)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# ============================================================================
+# ENDPOINTS CRITIQUES ET EMISSIONS (Issue #154)
+# ============================================================================
+
+
+@app.get("/api/episodes/{episode_id}/critiques-detectes")
+async def get_detected_critiques(episode_id: str) -> JSONResponse:
+    """
+    Extrait les critiques détectés dans l'avis critique d'un épisode.
+
+    Returns:
+        Liste des critiques détectés avec leur statut de matching
+    """
+    try:
+        from bson import ObjectId
+
+        if (
+            mongodb_service.avis_critiques_collection is None
+            or mongodb_service.critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # Récupérer l'avis critique pour cet épisode
+        avis_critique = mongodb_service.avis_critiques_collection.find_one(
+            {"episode_oid": ObjectId(episode_id)}
+        )
+
+        if not avis_critique:
+            raise HTTPException(
+                status_code=404, detail="Aucun avis critique trouvé pour cet épisode"
+            )
+
+        # Extraire les critiques depuis le summary
+        summary = avis_critique.get("summary", "")
+        detected_names = critiques_extraction_service.extract_critiques_from_summary(
+            summary
+        )
+
+        # Récupérer tous les critiques existants
+        existing_critiques = list(mongodb_service.critiques_collection.find({}))
+
+        # Pour chaque nom détecté, chercher une correspondance
+        results = []
+        for detected_name in detected_names:
+            match = critiques_extraction_service.find_matching_critique(
+                detected_name, existing_critiques
+            )
+
+            if match:
+                # Critique existant trouvé
+                results.append(
+                    {
+                        "detected_name": detected_name,
+                        "status": "existing",
+                        "match_type": match["match_type"],
+                        "matched_critique": match["nom"],
+                    }
+                )
+            else:
+                # Nouveau critique
+                results.append(
+                    {
+                        "detected_name": detected_name,
+                        "status": "new",
+                        "match_type": None,
+                        "matched_critique": None,
+                    }
+                )
+
+        return JSONResponse(
+            content={
+                "episode_id": episode_id,
+                "avis_critique_id": str(avis_critique["_id"]),
+                "detected_critiques": results,
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de l'extraction des critiques: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/critiques")
+async def create_critique(request: Request) -> JSONResponse:
+    """
+    Crée un nouveau critique.
+
+    Body: {
+        "nom": "Prénom Nom",
+        "animateur": false
+    }
+    """
+    try:
+        if mongodb_service.critiques_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        data = await request.json()
+
+        # Valider les données
+        if not data.get("nom"):
+            raise HTTPException(status_code=400, detail="Le champ 'nom' est requis")
+
+        # Vérifier que le critique n'existe pas déjà
+        existing = mongodb_service.critiques_collection.find_one({"nom": data["nom"]})
+        if existing:
+            raise HTTPException(
+                status_code=409, detail="Un critique avec ce nom existe déjà"
+            )
+
+        # Préparer les données pour MongoDB
+        critique_data = Critique.for_mongodb_insert(
+            {"nom": data["nom"], "animateur": data.get("animateur", False)}
+        )
+
+        # Insérer dans MongoDB
+        result = mongodb_service.critiques_collection.insert_one(critique_data)
+
+        # Récupérer le critique créé
+        created_critique = mongodb_service.critiques_collection.find_one(
+            {"_id": result.inserted_id}
+        )
+
+        if not created_critique:
+            raise HTTPException(
+                status_code=500, detail="Erreur lors de la création du critique"
+            )
+
+        critique = Critique(created_critique)
+
+        return JSONResponse(content=critique.to_dict(), status_code=201)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la création du critique: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.put("/api/critiques/{critique_id}/variantes")
+async def add_variante(critique_id: str, request: Request) -> JSONResponse:
+    """
+    Ajoute une variante à un critique existant.
+
+    Body: {
+        "variante": "Nouvelle variante"
+    }
+    """
+    try:
+        from bson import ObjectId
+
+        if mongodb_service.critiques_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        data = await request.json()
+        variante = data.get("variante")
+
+        if not variante:
+            raise HTTPException(
+                status_code=400, detail="Le champ 'variante' est requis"
+            )
+
+        # Récupérer le critique
+        critique_doc = mongodb_service.critiques_collection.find_one(
+            {"_id": ObjectId(critique_id)}
+        )
+
+        if not critique_doc:
+            raise HTTPException(status_code=404, detail="Critique non trouvé")
+
+        critique = Critique(critique_doc)
+
+        # Ajouter la variante
+        critique.add_variante(variante)
+
+        # Mettre à jour dans MongoDB
+        result = mongodb_service.critiques_collection.update_one(
+            {"_id": ObjectId(critique_id)},
+            {
+                "$set": {
+                    "variantes": critique.variantes,
+                    "updated_at": critique.updated_at,
+                }
+            },
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Critique non trouvé")
+
+        return JSONResponse(content=critique.to_dict())
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ajout de la variante: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/emissions")
+async def create_emission(request: Request) -> JSONResponse:
+    """
+    Crée une nouvelle émission.
+
+    Body: {
+        "episode_id": "ObjectId",
+        "avis_critique_id": "ObjectId",
+        "animateur_id": "ObjectId" (optionnel)
+    }
+    """
+    try:
+        from bson import ObjectId
+
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.emissions_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        data = await request.json()
+
+        # Valider les données
+        if not data.get("episode_id") or not data.get("avis_critique_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="Les champs 'episode_id' et 'avis_critique_id' sont requis",
+            )
+
+        # Récupérer l'épisode pour copier date et durée
+        episode = mongodb_service.episodes_collection.find_one(
+            {"_id": ObjectId(data["episode_id"])}
+        )
+
+        if not episode:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        # Préparer les données pour MongoDB
+        emission_data = Emission.for_mongodb_insert(
+            {
+                "episode_id": ObjectId(data["episode_id"]),
+                "avis_critique_id": ObjectId(data["avis_critique_id"]),
+                "date": episode.get("date"),
+                "duree": episode.get("duree"),
+                "animateur_id": (
+                    ObjectId(data["animateur_id"]) if data.get("animateur_id") else None
+                ),
+                "avis_ids": [],  # Sera rempli dans une future issue
+            }
+        )
+
+        # Insérer dans MongoDB
+        result = mongodb_service.emissions_collection.insert_one(emission_data)
+
+        # Récupérer l'émission créée
+        created_emission = mongodb_service.emissions_collection.find_one(
+            {"_id": result.inserted_id}
+        )
+
+        if not created_emission:
+            raise HTTPException(
+                status_code=500, detail="Erreur lors de la création de l'émission"
+            )
+
+        emission = Emission(created_emission)
+
+        return JSONResponse(content=emission.to_dict(), status_code=201)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de l'émission: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Variables globales pour la gestion propre du serveur
