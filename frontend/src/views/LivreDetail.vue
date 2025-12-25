@@ -23,21 +23,41 @@
       <!-- En-tête livre -->
       <div class="livre-header">
         <div class="livre-header-container">
-          <!-- Icône Babelio à gauche (Issue #124) -->
-          <a
-            v-if="livre.url_babelio"
-            :href="livre.url_babelio"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="babelio-logo-link"
-            title="Voir sur Babelio"
-          >
-            <img
-              src="@/assets/babelio-symbol-liaison.svg"
-              alt="Icône Babelio"
-              class="babelio-logo"
-            />
-          </a>
+          <!-- Icônes externes à gauche -->
+          <div class="external-links">
+            <!-- Icône Babelio (Issue #124) -->
+            <a
+              v-if="livre.url_babelio"
+              :href="livre.url_babelio"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="external-logo-link"
+              title="Voir sur Babelio"
+            >
+              <img
+                src="@/assets/babelio-symbol-liaison.svg"
+                alt="Icône Babelio"
+                class="external-logo"
+              />
+            </a>
+
+            <!-- Icône Anna's Archive (Issue #165) -->
+            <a
+              :href="getAnnasArchiveUrl()"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="external-logo-link"
+              title="Rechercher sur Anna's Archive"
+              data-test="annas-archive-link"
+            >
+              <img
+                src="@/assets/annas-archive-icon.svg"
+                alt="Icône Anna's Archive"
+                class="external-logo"
+                data-test="annas-archive-icon"
+              />
+            </a>
+          </div>
 
           <!-- Informations du livre à droite -->
           <div class="livre-info">
@@ -172,6 +192,24 @@ export default {
       const date = new Date(dateString);
       const options = { year: 'numeric', month: 'long', day: 'numeric' };
       return date.toLocaleDateString('fr-FR', options);
+    },
+    getAnnasArchiveUrl() {
+      // Issue #165: Générer l'URL de recherche Anna's Archive
+      if (!this.livre) return '';
+
+      const titre = this.livre.titre || '';
+      const auteur = this.livre.auteur_nom || '';
+      const searchQuery = `${titre} - ${auteur}`;
+
+      // Encoder l'URL selon le format Anna's Archive :
+      // - Remplacer espaces par +
+      // - Encoder les caractères spéciaux y compris ' et !
+      const encodedQuery = encodeURIComponent(searchQuery)
+        .replace(/%20/g, '+')      // Espaces → +
+        .replace(/'/g, '%27')       // Apostrophes → %27
+        .replace(/!/g, '%21');      // Points d'exclamation → %21
+
+      return `https://fr.annas-archive.org/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
     }
   }
 };
@@ -239,19 +277,25 @@ export default {
   align-items: center;
 }
 
-/* Icône Babelio à gauche (Issue #124) */
-.babelio-logo-link {
+/* Icônes externes à gauche (Issues #124, #165) */
+.external-links {
   flex-shrink: 0;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.external-logo-link {
   display: block;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.babelio-logo-link:hover {
+.external-logo-link:hover {
   transform: scale(1.05);
   opacity: 0.9;
 }
 
-.babelio-logo {
+.external-logo {
   width: 80px;
   height: 80px;
   border-radius: 8px;

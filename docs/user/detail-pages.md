@@ -75,8 +75,8 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  [📘]  📖 L'Étranger                                         │
-│  Babelio ✍️ Auteur : Albert Camus                           │
+│  [📘] [A]  📖 L'Étranger                                     │
+│  Babelio  Anna's ✍️ Auteur : Albert Camus                  │
 │         🏢 Éditeur : Gallimard                               │
 │         📅 Mentionné dans 2 épisodes                         │
 └─────────────────────────────────────────────────────────────┘
@@ -97,7 +97,9 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 ### Informations affichées
 
 - **Titre du livre** : Affiché en haut de page
-- **Lien Babelio** : Icône 80x80px cliquable vers la fiche Babelio du livre (si disponible)
+- **Liens externes** : Icônes 80x80px cliquables vers les services externes
+  - **Babelio** : Fiche du livre sur Babelio.com (si disponible)
+  - **Anna's Archive** : Recherche du livre sur Anna's Archive (toujours disponible)
 - **Auteur** : Nom de l'auteur (clickable)
 - **Éditeur** : Maison d'édition
 - **Nombre d'épisodes** : Total des mentions dans les émissions
@@ -109,6 +111,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 ### Actions disponibles
 
 - **Cliquer sur l'icône Babelio** : Ouverture de la fiche livre sur Babelio.com (nouvel onglet)
+- **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet)
 - **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
 - **Cliquer sur un épisode** : Navigation vers la validation bibliographique avec l'épisode pré-sélectionné
 - **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
