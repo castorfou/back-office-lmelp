@@ -41,7 +41,18 @@ Cet affichage permet de suivre rapidement la progression du traitement des livre
 ## Navigation et fonctionnalités
 
 ### Sélection d'épisode
+
 Commencez par choisir un épisode dans la liste déroulante "Choisir un épisode avec avis critiques". Seuls les épisodes ayant des avis critiques analysés sont disponibles.
+
+#### Indicateurs visuels de statut
+
+Chaque épisode dans la liste déroulante affiche une pastille de couleur indiquant son statut de traitement :
+
+- **🟢 Pastille verte** : Épisode traité - tous les livres ont été validés et intégrés dans les collections MongoDB
+- **⚪ Pastille grise** : Épisode non traité - aucun livre n'a encore été analysé ou intégré
+- **🔴 Pastille rouge** : Épisode avec problèmes - certains livres ont des données incomplètes nécessitant une révision manuelle
+
+Ces indicateurs permettent d'identifier rapidement les épisodes nécessitant une attention particulière et de suivre la progression du traitement global des avis critiques.
 
 ### Lien vers la page RadioFrance
 
