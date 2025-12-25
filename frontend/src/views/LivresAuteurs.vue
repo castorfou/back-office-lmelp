@@ -35,22 +35,11 @@
               >
                 ◀️ Précédent
               </button>
-              <select
-                id="episode-select"
+              <EpisodeDropdown
                 v-model="selectedEpisodeId"
-                @change="onEpisodeChange"
-                class="form-control"
-              >
-                <option value="">-- Sélectionner un épisode --</option>
-                <option
-                  v-for="episode in (episodesWithReviews || [])"
-                  :key="episode.id"
-                  :value="episode.id"
-                  :class="getEpisodeClass(episode)"
-                >
-                  {{ formatEpisodeOption(episode) }}
-                </option>
-              </select>
+                :episodes="episodesWithReviews || []"
+                @update:modelValue="onEpisodeChange"
+              />
               <button
                 class="nav-episode-btn next-btn"
                 @click.prevent="selectNextEpisode"
@@ -571,6 +560,7 @@
 import { livresAuteursService, episodeService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
 import BiblioValidationCell from '../components/BiblioValidationCell.vue';
+import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
@@ -583,6 +573,7 @@ export default {
   components: {
     Navigation,
     BiblioValidationCell,
+    EpisodeDropdown,
   },
 
   data() {
@@ -1135,19 +1126,42 @@ export default {
     },
 
     /**
+     * Centre la liste déroulante sur l'épisode sélectionné quand on l'ouvre
+     * Issue #164: Améliorer UX en centrant sur l'épisode actuel
+     */
+    scrollToSelectedEpisode() {
+      if (!this.selectedEpisodeId || !this.$refs.episodeSelect) return;
+
+      this.$nextTick(() => {
+        const selectElement = this.$refs.episodeSelect;
+        const selectedOption = selectElement.querySelector(`option[value="${this.selectedEpisodeId}"]`);
+
+        if (selectedOption) {
+          // Calculer l'index de l'option sélectionnée (en comptant l'option par défaut)
+          const selectedIndex = Array.from(selectElement.options).indexOf(selectedOption);
+
+          // Définir selectedIndex pour que le navigateur scroll automatiquement
+          selectElement.selectedIndex = selectedIndex;
+        }
+      });
+    },
+
+    /**
      * Formate l'affichage d'un épisode dans la liste
+     * Issue #164: Utilise des pastilles de couleur pour les statuts
      */
     formatEpisodeOption(episode) {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
 
-      // Indicateur visuel pour les épisodes avec livres incomplets (⚠️ = livres à valider)
+      // 🔴 Pastille rouge pour les épisodes avec livres incomplets (livres à valider)
       if (episode.has_incomplete_books === true) {
-        return `⚠️ ${date} - ${title}`;
+        return `🔴 ${date} - ${title}`;
       }
 
-      // Préfixe * pour les épisodes déjà visualisés (tous validés)
-      const prefix = episode.has_cached_books ? '* ' : '';
+      // 🟢 Pastille verte pour les épisodes déjà traités (tous validés)
+      // ⚪ Pastille grise pour les épisodes non traités
+      const prefix = episode.has_cached_books ? '🟢 ' : '⚪ ';
       return `${prefix}${date} - ${title}`;
     },
 
@@ -2419,6 +2433,12 @@ export default {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* Issue #164: Limiter la hauteur de la liste déroulante à 8 éléments */
+#episode-select {
+  max-height: 20em; /* Environ 8 lignes avec la taille de police actuelle */
+  overflow-y: auto;
 }
 
 .btn-icon-refresh {

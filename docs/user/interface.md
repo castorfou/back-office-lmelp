@@ -86,19 +86,32 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 #### Apparence
 - **Type** : Menu déroulant (dropdown)
 - **Placeholder** : "Choisir un épisode"
-- **Contenu** : Titres complets des épisodes
+- **Contenu** : Titres complets des épisodes avec indicateurs de statut
 - **Tri** : Chronologique (plus récents en premier)
+- **Hauteur** : Affiche environ 8 épisodes simultanément avec défilement
+
+#### Indicateurs visuels de statut
+
+Chaque épisode dans la liste affiche une pastille de couleur indiquant son statut :
+
+- **🟢 Pastille verte** : Épisode traité - tous les livres ont été validés et intégrés dans les collections MongoDB
+- **⚪ Pastille grise** : Épisode non traité - aucun livre n'a encore été analysé ou intégré
+- **🔴 Pastille rouge** : Épisode avec problèmes - certains livres ont des données incomplètes nécessitant une révision manuelle
 
 #### Utilisation
 1. **Cliquez** sur le menu déroulant
-2. **Faites défiler** la liste si nécessaire
+2. **Faites défiler** la liste si nécessaire (environ 8 épisodes visibles)
 3. **Sélectionnez** l'épisode souhaité
 4. **Confirmez** en cliquant sur votre choix
+
+La liste se centre automatiquement sur l'épisode sélectionné lors de la ré-ouverture du menu déroulant.
 
 #### États visuels
 - **Inactif** : Bordure grise, texte placeholder
 - **Ouvert** : Bordure bleue, liste déroulante visible
-- **Sélectionné** : Titre de l'épisode affiché
+- **Sélectionné** : Titre de l'épisode affiché avec sa pastille de statut
+- **Option survolée** : Fond gris clair (#f5f5f5)
+- **Option sélectionnée** : Fond bleu clair (#e8edff)
 
 ### 2. Métadonnées de l'épisode
 

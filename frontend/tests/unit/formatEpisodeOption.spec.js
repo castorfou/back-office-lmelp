@@ -1,6 +1,7 @@
 /**
  * Tests unitaires pour formatEpisodeOption()
  * Vérifie l'affichage des indicateurs visuels pour les épisodes
+ * Issue #164: Pastilles de couleur (🟢 traité, ⚪ non traité, 🔴 problème)
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -22,7 +23,7 @@ describe('formatEpisodeOption', () => {
     formatEpisodeOption = wrapper.vm.formatEpisodeOption
   })
 
-  it('should add ⚠️ prefix when episode has incomplete books', () => {
+  it('should add 🔴 prefix when episode has incomplete books', () => {
     const episode = {
       date: '2025-01-12',
       titre: 'Les nouvelles pages du polar',
@@ -32,10 +33,10 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('⚠️ 12/01/2025 - Les nouvelles pages du polar')
+    expect(result).toBe('🔴 12/01/2025 - Les nouvelles pages du polar')
   })
 
-  it('should add * prefix when episode has cached books but all validated', () => {
+  it('should add 🟢 prefix when episode has cached books but all validated', () => {
     const episode = {
       date: '2025-01-12',
       titre: 'Les nouvelles pages du polar',
@@ -45,10 +46,10 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('* 12/01/2025 - Les nouvelles pages du polar')
+    expect(result).toBe('🟢 12/01/2025 - Les nouvelles pages du polar')
   })
 
-  it('should not add prefix when has_cached_books is false', () => {
+  it('should add ⚪ prefix when has_cached_books is false', () => {
     const episode = {
       date: '2025-01-05',
       titre: 'Littérature contemporaine',
@@ -58,10 +59,10 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('05/01/2025 - Littérature contemporaine')
+    expect(result).toBe('⚪ 05/01/2025 - Littérature contemporaine')
   })
 
-  it('should not add prefix when has_cached_books is undefined', () => {
+  it('should add ⚪ prefix when has_cached_books is undefined', () => {
     const episode = {
       date: '2025-01-05',
       titre: 'Littérature contemporaine'
@@ -70,7 +71,7 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('05/01/2025 - Littérature contemporaine')
+    expect(result).toBe('⚪ 05/01/2025 - Littérature contemporaine')
   })
 
   it('should use titre_corrige if present', () => {
@@ -84,10 +85,10 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('* 12/01/2025 - Titre corrigé')
+    expect(result).toBe('🟢 12/01/2025 - Titre corrigé')
   })
 
-  it('should prioritize ⚠️ over * when has_incomplete_books is true', () => {
+  it('should prioritize 🔴 over 🟢 when has_incomplete_books is true', () => {
     const episode = {
       date: '2025-01-12',
       titre: 'Titre original',
@@ -98,6 +99,6 @@ describe('formatEpisodeOption', () => {
 
     const result = formatEpisodeOption(episode)
 
-    expect(result).toBe('⚠️ 12/01/2025 - Titre corrigé')
+    expect(result).toBe('🔴 12/01/2025 - Titre corrigé')
   })
 })
