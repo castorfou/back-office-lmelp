@@ -2044,8 +2044,6 @@ async def get_detected_critiques(episode_id: str) -> JSONResponse:
         Liste des critiques détectés avec leur statut de matching
     """
     try:
-        from bson import ObjectId
-
         if (
             mongodb_service.avis_critiques_collection is None
             or mongodb_service.critiques_collection is None
@@ -2055,8 +2053,9 @@ async def get_detected_critiques(episode_id: str) -> JSONResponse:
             )
 
         # Récupérer l'avis critique pour cet épisode
+        # Note: episode_oid est stocké en STRING dans MongoDB, pas en ObjectId
         avis_critique = mongodb_service.avis_critiques_collection.find_one(
-            {"episode_oid": ObjectId(episode_id)}
+            {"episode_oid": episode_id}
         )
 
         if not avis_critique:
