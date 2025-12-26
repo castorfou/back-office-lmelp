@@ -77,6 +77,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-identification-critiques"
+            @click="navigateToIdentificationCritiques"
+          >
+            <div class="function-icon">👥</div>
+            <h3>Identification des Critiques</h3>
+            <p>Gestion et identification automatique des critiques littéraires</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-babelio-test"
             @click="navigateToBabelioTest"
           >
@@ -323,6 +334,10 @@ export default {
 
     navigateToLivresAuteurs() {
       this.$router.push('/livres-auteurs');
+    },
+
+    navigateToIdentificationCritiques() {
+      this.$router.push('/identification-critiques');
     },
 
     navigateToBabelioTest() {
