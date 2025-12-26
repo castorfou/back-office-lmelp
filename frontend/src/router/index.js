@@ -13,6 +13,7 @@ import AuteurDetail from '../views/AuteurDetail.vue';
 import LivreDetail from '../views/LivreDetail.vue';
 import MasquerEpisodes from '../views/MasquerEpisodes.vue';
 import CalibreLibrary from '../views/CalibreLibrary.vue';
+import IdentificationCritiques from '../views/IdentificationCritiques.vue';
 
 const routes = [
   {
@@ -93,6 +94,14 @@ const routes = [
     component: CalibreLibrary,
     meta: {
       title: 'Bibliothèque Calibre - Back-office LMELP'
+    }
+  },
+  {
+    path: '/identification-critiques',
+    name: 'IdentificationCritiques',
+    component: IdentificationCritiques,
+    meta: {
+      title: 'Identification des Critiques - Back-office LMELP'
     }
   }
 ];
