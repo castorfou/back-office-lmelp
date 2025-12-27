@@ -9,7 +9,8 @@ class Episode:
 
     def __init__(self, data: dict[str, Any]):
         """Initialise un épisode à partir des données MongoDB."""
-        self.id: str = data.get("_id") or ""
+        _id = data.get("_id")
+        self.id: str = str(_id) if _id is not None else ""
         self.titre: str = data.get("titre") or ""
         self.date: datetime | None = data.get("date")
         self.type: str = data.get("type") or ""

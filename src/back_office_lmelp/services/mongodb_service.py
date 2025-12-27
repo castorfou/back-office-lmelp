@@ -29,6 +29,8 @@ class MongoDBService:
         self.auteurs_collection: Collection | None = None
         self.livres_collection: Collection | None = None
         self.editeurs_collection: Collection | None = None
+        self.critiques_collection: Collection | None = None
+        self.emissions_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -42,6 +44,8 @@ class MongoDBService:
             self.auteurs_collection = self.db.auteurs
             self.livres_collection = self.db.livres
             self.editeurs_collection = self.db.editeurs
+            self.critiques_collection = self.db.critiques
+            self.emissions_collection = self.db.emissions
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -53,6 +57,8 @@ class MongoDBService:
             self.auteurs_collection = None
             self.livres_collection = None
             self.editeurs_collection = None
+            self.critiques_collection = None
+            self.emissions_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -1542,6 +1548,87 @@ class MongoDBService:
                 f"Erreur lors de la récupération de l'avis critique pour l'épisode {episode_oid}: {e}"
             )
             return None
+
+    # ========== EMISSIONS METHODS (Issue #154) ==========
+
+    def get_all_emissions(self) -> list[dict[str, Any]]:
+        """Récupère toutes les émissions avec tri par date décroissante."""
+        if self.emissions_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        emissions = list(self.emissions_collection.find().sort("date", -1))
+        return emissions
+
+    def get_emission_by_episode_id(self, episode_id: str) -> dict[str, Any] | None:
+        """Récupère une émission par episode_id."""
+        if self.emissions_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        episode_oid = ObjectId(episode_id)
+        result = self.emissions_collection.find_one({"episode_id": episode_oid})
+        return dict(result) if result else None
+
+    def create_emission(self, emission_data: dict[str, Any]) -> str:
+        """
+        Crée une nouvelle émission dans la collection.
+
+        Args:
+            emission_data: Données préparées via Emission.for_mongodb_insert()
+
+        Returns:
+            ID de l'émission créée (string)
+        """
+        if self.emissions_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        result = self.emissions_collection.insert_one(emission_data)
+        return str(result.inserted_id)
+
+    def get_critiques_by_episode(self, episode_id: str) -> list[dict[str, Any]]:
+        """
+        Récupère les critiques d'un épisode via avis_critiques.summary.
+        Utilise CritiquesExtractionService pour parser le summary.
+
+        Returns:
+            Liste de dictionnaires {id, nom, animateur}
+        """
+        from back_office_lmelp.services.critiques_extraction_service import (
+            critiques_extraction_service,
+        )
+
+        # 1. Récupérer avis_critique pour cet épisode
+        avis = self.get_critical_review_by_episode_oid(episode_id)
+        if not avis:
+            return []
+
+        # 2. Extraire noms via CritiquesExtractionService
+        detected_names = critiques_extraction_service.extract_critiques_from_summary(
+            avis.get("summary", "")
+        )
+
+        # 3. Matcher avec collection critiques
+        if self.critiques_collection is None:
+            return []
+        all_critiques = list(self.critiques_collection.find())
+        matched_critiques = []
+
+        for name in detected_names:
+            match = critiques_extraction_service.find_matching_critique(
+                name, all_critiques
+            )
+            if match:
+                critique_doc = next(
+                    c for c in all_critiques if c["nom"] == match["nom"]
+                )
+                matched_critiques.append(
+                    {
+                        "id": str(critique_doc["_id"]),
+                        "nom": critique_doc["nom"],
+                        "animateur": critique_doc.get("animateur", False),
+                    }
+                )
+
+        return matched_critiques
 
 
 # Instance globale du service

@@ -443,4 +443,52 @@ export const calibreService = {
   }
 };
 
+/**
+ * Service pour la gestion des émissions
+ */
+export const emissionsService = {
+  /**
+   * Récupère toutes les émissions
+   * Déclenche auto-conversion si collection vide
+   * @returns {Promise<Array>} Liste des émissions avec données enrichies
+   */
+  async getAllEmissions() {
+    const response = await api.get('/emissions', {
+      timeout: EXTENDED_TIMEOUT  // Auto-conversion peut prendre du temps
+    });
+    return response.data;
+  },
+
+  /**
+   * Récupère les détails complets d'une émission par ID
+   * @param {string} emissionId - ID de l'émission
+   * @returns {Promise<Object>} Détails complets (episode, books, critiques, summary)
+   */
+  async getEmissionDetails(emissionId) {
+    const response = await api.get(`/emissions/${emissionId}/details`);
+    return response.data;
+  },
+
+  /**
+   * Récupère les détails complets d'une émission par date
+   * @param {string} dateStr - Date au format YYYYMMDD (ex: "20251212")
+   * @returns {Promise<Object>} Détails complets (episode, books, critiques, summary)
+   */
+  async getEmissionByDate(dateStr) {
+    const response = await api.get(`/emissions/by-date/${dateStr}`);
+    return response.data;
+  },
+
+  /**
+   * Déclenche manuellement l'auto-conversion episodes → emissions
+   * @returns {Promise<Object>} Statistiques de conversion
+   */
+  async autoConvertEpisodes() {
+    const response = await api.post('/emissions/auto-convert', null, {
+      timeout: EXTENDED_TIMEOUT
+    });
+    return response.data;
+  },
+};
+
 export default api;

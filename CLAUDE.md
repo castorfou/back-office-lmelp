@@ -200,11 +200,27 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
    - **Example error**: `"T" in episode_date` fails when `episode_date` is datetime, not string
    - **Prevention**: Always check `type(field_value)` on real data before mocking
 
-4. **Use helper function pattern** for services with complex dependencies
+4. **MANDATORY: Verify MongoDB field types with collection-schema BEFORE any implementation** (Issue #154)
+   - **NEVER assume field types** - String vs ObjectId confusion causes production bugs
+   - **Always run**: `mcp__MongoDB__collection-schema --database "masque_et_la_plume" --collection "collection_name"`
+   - **Example**: `avis_critiques.episode_oid` is **String**, but `episodes._id` is **ObjectId** → requires conversion
+   - ❌ BAD: `find({"_id": {"$in": distinct("episode_oid")}})` - Type mismatch! String ≠ ObjectId
+   - ✅ GOOD: `find({"_id": {"$in": [ObjectId(id) for id in distinct("episode_oid")]}})` - Explicit conversion
+   - **Critical fields to verify**:
+     - `_id` fields (usually ObjectId, but check!)
+     - Foreign key fields (`episode_oid`, `book_id`, etc.) - may be String or ObjectId
+     - Date fields (Date vs String)
+   - **When to check**: Before ANY new endpoint, query, or aggregation implementation
+   - **Why mocks don't catch this**: Mocks return data directly without executing real MongoDB queries
+     - ❌ `mock.find.return_value = [...]` bypasses type validation
+     - ✅ Add explicit assertions in tests: `assert all(isinstance(id, ObjectId) for id in ids_list)`
+     - See [test_api_critiques_endpoints.py:199-208](tests/test_api_critiques_endpoints.py#L199-L208) for example
 
-5. **Patch singleton instances** directly when using local imports
+5. **Use helper function pattern** for services with complex dependencies
 
-6. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
+6. **Patch singleton instances** directly when using local imports
+
+7. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
 
 ### Frontend Testing - Key Rules
 

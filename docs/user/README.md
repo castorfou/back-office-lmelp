@@ -307,6 +307,7 @@ En cas de problème :
 
 - **[Guide de l'interface](interface.md)** : Détails sur chaque élément
 - **[Gestion des épisodes](episodes.md)** : Fonctionnalités avancées
+- **[Page Émissions](emissions.md)** : Consultation des émissions structurées avec livres et critiques
 - **[Recherche avancée](advanced-search.md)** : Guide complet de la recherche avec filtres et pagination
 - **[Résolution de problèmes](troubleshooting.md)** : Solutions aux problèmes courants
 

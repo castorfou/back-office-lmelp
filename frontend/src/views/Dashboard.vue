@@ -46,6 +46,14 @@
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.authors_without_url_babelio != null) ? collectionsStatistics.authors_without_url_babelio : '...' }}</div>
             <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
+          <div class="stat-card clickable-stat" @click="navigateToIdentificationCritiques">
+            <div class="stat-value">{{ critiquesManquantsCount !== null ? critiquesManquantsCount : '...' }}</div>
+            <div class="stat-label">Critiques manquants</div>
+          </div>
+          <div class="stat-card clickable-stat" @click="navigateToEmissions">
+            <div class="stat-value">{{ episodesSansEmissionCount !== null ? episodesSansEmissionCount : '...' }}</div>
+            <div class="stat-label">Épisodes sans émission</div>
+          </div>
         </div>
       </section>
 
@@ -53,6 +61,17 @@
       <section class="functions-section">
         <h2>Fonctions disponibles</h2>
         <div class="functions-grid">
+          <div
+            class="function-card clickable"
+            data-testid="function-emissions"
+            @click="navigateToEmissions"
+          >
+            <div class="function-icon">📺</div>
+            <h3>Émissions</h3>
+            <p>Affichage structuré des émissions avec livres discutés et critiques présents</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div
             class="function-card clickable"
             data-testid="function-episode-edit"
@@ -72,6 +91,17 @@
             <div class="function-icon">📚</div>
             <h3>Livres et Auteurs</h3>
             <p>Extraction des informations bibliographiques depuis les avis critiques</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-identification-critiques"
+            @click="navigateToIdentificationCritiques"
+          >
+            <div class="function-icon">👥</div>
+            <h3>Identification des Critiques</h3>
+            <p>Gestion et identification automatique des critiques littéraires</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -156,6 +186,7 @@
 </template>
 
 <script>
+import axios from 'axios';
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
@@ -194,6 +225,8 @@ export default {
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
+      critiquesManquantsCount: null,
+      episodesSansEmissionCount: null,
       loading: true,
       error: null
     };
@@ -272,6 +305,7 @@ export default {
   async mounted() {
     await this.loadStatistics();
     await this.loadCollectionsStatistics();
+    await this.loadCritiquesManquants();
   },
 
   methods: {
@@ -304,6 +338,8 @@ export default {
         // y compris books_without_url_babelio et authors_without_url_babelio
         const stats = await livresAuteursService.getCollectionsStatistics();
         this.collectionsStatistics = stats;
+        // Issue #154: Charger le compteur épisodes sans émission
+        this.episodesSansEmissionCount = stats.episodes_sans_emission;
       } catch (error) {
         console.error('Erreur lors du chargement des statistiques des collections:', error);
         // Garder les valeurs null en cas d'erreur pour afficher '...'
@@ -317,12 +353,30 @@ export default {
       }
     },
 
+    async loadCritiquesManquants() {
+      try {
+        const response = await axios.get('/api/stats/critiques-manquants');
+        this.critiquesManquantsCount = response.data.count;
+      } catch (error) {
+        console.error('Erreur lors du chargement du nombre de critiques manquants:', error);
+        this.critiquesManquantsCount = null; // Afficher '...' en cas d'erreur
+      }
+    },
+
     navigateToEpisodes() {
       this.$router.push('/episodes');
     },
 
+    navigateToEmissions() {
+      this.$router.push('/emissions');
+    },
+
     navigateToLivresAuteurs() {
       this.$router.push('/livres-auteurs');
+    },
+
+    navigateToIdentificationCritiques() {
+      this.$router.push('/identification-critiques');
     },
 
     navigateToBabelioTest() {
