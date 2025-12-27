@@ -46,6 +46,10 @@
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.authors_without_url_babelio != null) ? collectionsStatistics.authors_without_url_babelio : '...' }}</div>
             <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
+          <div class="stat-card clickable-stat" @click="navigateToIdentificationCritiques">
+            <div class="stat-value">{{ critiquesManquantsCount !== null ? critiquesManquantsCount : '...' }}</div>
+            <div class="stat-label">Critiques manquants</div>
+          </div>
         </div>
       </section>
 
@@ -167,6 +171,7 @@
 </template>
 
 <script>
+import axios from 'axios';
 import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
@@ -205,6 +210,7 @@ export default {
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
+      critiquesManquantsCount: null,
       loading: true,
       error: null
     };
@@ -283,6 +289,7 @@ export default {
   async mounted() {
     await this.loadStatistics();
     await this.loadCollectionsStatistics();
+    await this.loadCritiquesManquants();
   },
 
   methods: {
@@ -325,6 +332,16 @@ export default {
           couples_suggested_pas_en_base: '--',
           couples_not_found_pas_en_base: '--'
         };
+      }
+    },
+
+    async loadCritiquesManquants() {
+      try {
+        const response = await axios.get('/api/stats/critiques-manquants');
+        this.critiquesManquantsCount = response.data.count;
+      } catch (error) {
+        console.error('Erreur lors du chargement du nombre de critiques manquants:', error);
+        this.critiquesManquantsCount = null; // Afficher '...' en cas d'erreur
       }
     },
 

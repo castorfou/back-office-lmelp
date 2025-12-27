@@ -11,8 +11,9 @@ class CritiquesExtractionService:
         """
         Extrait les noms des critiques depuis un summary d'avis critique.
 
-        Le summary contient des patterns comme **Prénom Nom**: "Commentaire"
-        dans les tableaux markdown.
+        Le summary contient deux types de patterns:
+        1. **Prénom Nom**: dans les avis détaillés (section "LIVRES DISCUTÉS")
+        2. Noms dans la colonne "Critique" des tableaux de coups de cœur
 
         Args:
             summary: Texte du summary (format Markdown/HTML)
@@ -23,28 +24,54 @@ class CritiquesExtractionService:
         if not summary:
             return []
 
-        # Pattern pour détecter **Prénom Nom**: dans le texte
-        # Capture le texte entre ** et **: en s'assurant qu'il contient au moins un espace
-        # (pour avoir prénom + nom)
-        pattern = r"\*\*([^*]+)\*\*:"
-
-        matches = re.findall(pattern, summary)
-
-        if not matches:
-            return []
-
-        # Nettoyer les noms et supprimer les doublons
         critiques = []
         seen = set()
 
-        for match in matches:
-            # Nettoyer le nom (trim espaces)
-            nom = match.strip()
+        # Pattern 1: **Prénom Nom**: dans les avis détaillés
+        pattern_bold = r"\*\*([^*]+)\*\*:"
+        matches_bold = re.findall(pattern_bold, summary)
 
-            # Vérifier que c'est un nom valide (au moins un prénom et un nom)
+        for match in matches_bold:
+            nom = match.strip()
             if " " in nom and nom not in seen:
                 critiques.append(nom)
                 seen.add(nom)
+
+        # Pattern 2: Colonne "Critique" des tableaux de coups de cœur
+        # Format: | Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+        # Chercher les lignes de tableaux et extraire la 4ème colonne (index 3)
+        # On cherche spécifiquement après "## 2. COUPS DE CŒUR"
+        coups_de_coeur_section = re.search(
+            r"## 2\. COUPS DE C[ΕŒ]UR.*?(?=##|$)", summary, re.DOTALL
+        )
+
+        if coups_de_coeur_section:
+            section_text = coups_de_coeur_section.group(0)
+
+            # Pattern pour extraire TOUTES les colonnes d'une ligne de tableau
+            # Format: | col1 | col2 | col3 | col4 | col5 | col6 |
+            # On split par | et on garde les colonnes 1-6 (indices 0-5 après split)
+            lines = section_text.split("\n")
+
+            for line in lines:
+                if line.strip().startswith("|"):
+                    columns = [col.strip() for col in line.split("|")]
+
+                    # Vérifier qu'on a au moins 5 colonnes (pour atteindre la colonne Critique)
+                    # Structure: colonne 0 vide, puis Auteur, Titre, Éditeur, Critique, Note, Commentaire
+                    if len(columns) >= 5:
+                        critique_name = columns[4].strip()
+
+                        # Filtrer les headers et les séparateurs
+                        if (
+                            critique_name
+                            and " " in critique_name  # Au moins prénom + nom
+                            and not critique_name.startswith("-")  # Pas un séparateur
+                            and critique_name.lower() != "critique"  # Pas le header
+                            and critique_name not in seen
+                        ):
+                            critiques.append(critique_name)
+                            seen.add(critique_name)
 
         return critiques
 

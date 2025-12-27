@@ -29,6 +29,22 @@ SUMMARY_SAMPLE_2 = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 22 juin 2025
 | Adrien Bosc | L'invention de Tristan | Stock | **Laurent Chalumeau**: Très bien mené - 8 <br> **Patricia Martin**: Absolument flamboyant - 9 <br> **Hubert Artus**: Beaucoup aimé - 7 <br> **Raphaël Léris**: Intéressant - 7 | 7.8 | 4 | Patricia Martin | |
 """
 
+SUMMARY_SAMPLE_3 = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 01 juin 2025
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne | Nb critiques | Coup de cœur | Chef d'œuvre |
+|--------|-------|---------|------------------------------|--------------|-------------|-------------|-------------|
+| Johanne Rigoulot | La vie continuée de Nelly Arcan | Les Avril | **Patricia Martin**: "Un livre qui a du style" - 9 <br> **Arnaud Viviant**: "Dévoré d'une traite" - 9 <br> **Jean-Marc Proust**: "Important" - 8 <br> **Elisabeth Philippe**: "Ne m'a pas totalement convaincue" - 6 | 8.0 | 4 | Patricia Martin, Arnaud Viviant | |
+
+## 2. COUPS DE CŒUR DES CRITIQUES du 01 juin 2025
+
+| Auteur | Titre | Éditeur | Critique | Note | Commentaire |
+|--------|-------|---------|----------|------|-------------|
+| Franck Courtès | À pied d'oeuvre | Folio | Arnaud Viviant | 9.0 | "Raconte l'esclavage moderne" |
+| Nathalie Quintane | Chemoule, un chat français | POL | Elisabeth Philippe | 9.0 | "Drôle, doux, poétique" |
+| Hervé Bourhis | Paul : La résurrection | Casterman | Jérôme Garcin | 9.0 | "Appris des choses" |
+| Hafid Aggoune | Le mari de la comtesse de Ségur | Reconnaissance | Jean-Marc Proust | 9.0 | "Histoire du mari" |
+"""
+
 
 @pytest.fixture
 def service():
@@ -37,17 +53,22 @@ def service():
 
 
 def test_extract_critiques_from_summary_sample1(service):
-    """Test d'extraction des critiques du premier exemple."""
+    """Test d'extraction des critiques du premier exemple.
+
+    Doit extraire:
+    - Les critiques avec pattern **Nom**: (dans la section "Avis détaillés")
+    - Les critiques dans la colonne "Critique" des tableaux de coups de cœur
+    """
     critiques = service.extract_critiques_from_summary(SUMMARY_SAMPLE_1)
 
-    # Vérifier que tous les critiques avec pattern **Nom**: ont été détectés
-    # Note: Rebecca Manzoni apparaît dans la colonne "Critique" sans le pattern **:
-    # et ne sera donc pas extrait (ce qui est OK pour l'issue #154)
+    # Vérifier que TOUS les critiques ont été détectés
+    # (pattern **Nom**: + colonne "Critique" des coups de cœur)
     expected_names = [
         "Blandine Rinkel",
         "Arnaud Viviant",
         "Elisabeth Philippe",
         "Jean-Marc Proust",
+        "Rebecca Manzoni",  # Animatrice dans la colonne "Critique"
     ]
 
     assert len(critiques) == len(expected_names)
@@ -64,6 +85,28 @@ def test_extract_critiques_from_summary_sample2(service):
         "Patricia Martin",
         "Hubert Artus",
         "Raphaël Léris",
+    ]
+
+    assert len(critiques) == len(expected_names)
+    for name in expected_names:
+        assert name in critiques
+
+
+def test_extract_critiques_from_summary_sample3_with_jerome_garcin(service):
+    """Test d'extraction incluant Jérôme Garcin (animateur).
+
+    Vérifie que les animateurs dans la colonne "Critique" des coups de cœur
+    sont bien extraits.
+    """
+    critiques = service.extract_critiques_from_summary(SUMMARY_SAMPLE_3)
+
+    # Vérifier que Jérôme Garcin (animateur) est extrait
+    expected_names = [
+        "Patricia Martin",
+        "Arnaud Viviant",
+        "Jean-Marc Proust",
+        "Elisabeth Philippe",
+        "Jérôme Garcin",  # Animateur dans la colonne "Critique"
     ]
 
     assert len(critiques) == len(expected_names)

@@ -2115,6 +2115,219 @@ async def get_detected_critiques(episode_id: str) -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/api/stats/critiques-manquants")
+async def get_critiques_manquants_count() -> JSONResponse:
+    """
+    Compte le nombre d'épisodes avec des critiques manquants.
+
+    Returns:
+        {"count": nombre d'épisodes avec critiques manquants}
+    """
+    try:
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.avis_critiques_collection is None
+            or mongodb_service.critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # Récupérer tous les episode_oid qui ont des avis critiques (strings)
+        episode_ids_with_reviews = set(
+            mongodb_service.avis_critiques_collection.distinct("episode_oid")
+        )
+
+        # Convertir les episode_oid en ObjectId pour récupérer les épisodes
+        from bson import ObjectId
+
+        episode_object_ids = [
+            ObjectId(ep_id) for ep_id in episode_ids_with_reviews if ep_id
+        ]
+
+        # Récupérer les épisodes pour vérifier le statut masqué
+        # Issue #107: Filtrer les épisodes masqués
+        episodes_data = list(
+            mongodb_service.episodes_collection.find(
+                {"_id": {"$in": episode_object_ids}}
+            )
+        )
+
+        # Compter combien d'épisodes ont au moins un critique "new" (manquant)
+        episodes_with_missing_critiques = 0
+
+        # Récupérer tous les critiques existants une seule fois
+        existing_critiques = list(mongodb_service.critiques_collection.find({}))
+
+        for episode_data in episodes_data:
+            # Filtrer les épisodes masqués
+            episode = Episode(episode_data)
+            if episode.masked:
+                continue
+
+            episode_id = str(episode_data["_id"])
+
+            # Récupérer l'avis critique
+            avis_critique = mongodb_service.avis_critiques_collection.find_one(
+                {"episode_oid": episode_id}
+            )
+
+            if not avis_critique:
+                continue
+
+            # Extraire les critiques détectés
+            summary = avis_critique.get("summary", "")
+            detected_names = (
+                critiques_extraction_service.extract_critiques_from_summary(summary)
+            )
+
+            # Vérifier si au moins un critique est "new" (manquant)
+            has_missing = False
+            for detected_name in detected_names:
+                match = critiques_extraction_service.find_matching_critique(
+                    detected_name, existing_critiques
+                )
+                if not match:
+                    # Ce critique est "new" (manquant)
+                    has_missing = True
+                    break
+
+            if has_missing:
+                episodes_with_missing_critiques += 1
+
+        return JSONResponse(content={"count": episodes_with_missing_critiques})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors du comptage des critiques manquants: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/episodes-with-avis-critiques")
+async def get_episodes_with_avis_critiques() -> JSONResponse:
+    """
+    Récupère la liste des épisodes qui ont des avis critiques associés.
+
+    Returns:
+        Liste des épisodes avec avis critiques
+    """
+    try:
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.avis_critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        from bson import ObjectId
+
+        # Récupérer tous les episode_oid qui ont des avis critiques (ce sont des strings)
+        episode_ids_with_reviews = set(
+            mongodb_service.avis_critiques_collection.distinct("episode_oid")
+        )
+
+        # Convertir les strings en ObjectId pour la recherche dans episodes
+        episode_object_ids = [
+            ObjectId(ep_id) for ep_id in episode_ids_with_reviews if ep_id
+        ]
+
+        # Récupérer les épisodes correspondants
+        episodes = list(
+            mongodb_service.episodes_collection.find(
+                {"_id": {"$in": episode_object_ids}}
+            )
+        )
+
+        # Convertir en format JSON compatible avec EpisodeDropdown
+        # (même structure que /api/episodes-with-reviews)
+        episodes_json = []
+        for episode_data in episodes:
+            from back_office_lmelp.models.episode import Episode
+
+            episode = Episode(episode_data)
+
+            # Issue #107: Filtrer les épisodes masqués
+            if episode.masked:
+                continue
+
+            # Utiliser to_summary_dict() pour cohérence avec /api/episodes-with-reviews
+            episode_dict = episode.to_summary_dict()
+
+            # Ajouter les flags pour les pastilles de couleur dans EpisodeDropdown
+            episode_oid = str(episode_data["_id"])
+
+            # Pour la page Identification Critiques, les pastilles reflètent UNIQUEMENT
+            # le statut des critiques (pas des livres):
+            # - 🟢 Vert: TOUS les critiques ont été créés
+            # - ⚪ Gris: AUCUN critique n'a été créé
+            # - 🔴 Rouge: CERTAINS critiques créés ET CERTAINS "new"
+            num_new_critiques = 0
+            num_existing_critiques = 0
+
+            avis_critique = mongodb_service.avis_critiques_collection.find_one(
+                {"episode_oid": episode_oid}
+            )
+            if (
+                avis_critique
+                and avis_critique.get("summary")
+                and mongodb_service.critiques_collection is not None
+            ):
+                # Extraire les critiques détectés
+                detected_critiques = (
+                    critiques_extraction_service.extract_critiques_from_summary(
+                        avis_critique["summary"]
+                    )
+                )
+                if detected_critiques:
+                    # Récupérer les critiques existants
+                    existing_critiques = list(
+                        mongodb_service.critiques_collection.find()
+                    )
+                    # Compter les critiques "new" vs existants
+                    for detected_name in detected_critiques:
+                        match = critiques_extraction_service.find_matching_critique(
+                            detected_name, existing_critiques
+                        )
+                        if match:
+                            num_existing_critiques += 1
+                        else:
+                            num_new_critiques += 1
+
+            total_critiques = num_new_critiques + num_existing_critiques
+
+            # Déterminer les flags selon la logique:
+            # - Si aucun critique: gris (has_cached_books=False)
+            # - Si tous créés: vert (has_cached_books=True, has_incomplete_books=False)
+            # - Si certains créés et certains new: rouge (has_cached_books=True, has_incomplete_books=True)
+            if total_critiques == 0:
+                # Aucun critique détecté → Gris
+                episode_dict["has_cached_books"] = False
+                episode_dict["has_incomplete_books"] = False
+            elif num_new_critiques == 0:
+                # Tous les critiques ont été créés → Vert
+                episode_dict["has_cached_books"] = True
+                episode_dict["has_incomplete_books"] = False
+            else:
+                # Au moins un critique "new" → Rouge
+                episode_dict["has_cached_books"] = True
+                episode_dict["has_incomplete_books"] = True
+
+            episodes_json.append(episode_dict)
+
+        # Issue #154: Trier par date décroissante (le plus récent en premier)
+        episodes_json.sort(key=lambda ep: ep.get("date") or "", reverse=True)
+
+        return JSONResponse(content=episodes_json)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des épisodes: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.post("/api/critiques")
 async def create_critique(request: Request) -> JSONResponse:
     """
@@ -2122,6 +2335,7 @@ async def create_critique(request: Request) -> JSONResponse:
 
     Body: {
         "nom": "Prénom Nom",
+        "variantes": ["Variante 1", "Variante 2"],  # Optionnel
         "animateur": false
     }
     """
@@ -2137,16 +2351,62 @@ async def create_critique(request: Request) -> JSONResponse:
         if not data.get("nom"):
             raise HTTPException(status_code=400, detail="Le champ 'nom' est requis")
 
-        # Vérifier que le critique n'existe pas déjà
+        # Préparer les variantes (enlever les doublons et les vides)
+        variantes = data.get("variantes", [])
+        if variantes:
+            # Enlever les doublons et les chaînes vides
+            variantes = list({v.strip() for v in variantes if v and v.strip()})
+            # Enlever la variante si elle est identique au nom
+            variantes = [v for v in variantes if v != data["nom"]]
+
+        # Vérifier si un critique avec ce nom existe déjà
         existing = mongodb_service.critiques_collection.find_one({"nom": data["nom"]})
         if existing:
-            raise HTTPException(
-                status_code=409, detail="Un critique avec ce nom existe déjà"
+            # Comportement: Au lieu de rejeter, ajouter les variantes au critique existant
+            # (Issue #154: permettre d'ajouter des variantes via l'interface de création)
+            existing_variantes = set(existing.get("variantes", []))
+            new_variantes = existing_variantes.union(set(variantes))
+
+            # Mettre à jour le critique avec les nouvelles variantes
+            from datetime import datetime
+
+            mongodb_service.critiques_collection.update_one(
+                {"_id": existing["_id"]},
+                {
+                    "$set": {
+                        "variantes": list(new_variantes),
+                        "updated_at": datetime.now(),
+                    }
+                },
             )
 
-        # Préparer les données pour MongoDB
+            # Récupérer le critique mis à jour
+            updated_critique = mongodb_service.critiques_collection.find_one(
+                {"_id": existing["_id"]}
+            )
+
+            if not updated_critique:
+                raise HTTPException(
+                    status_code=500, detail="Erreur lors de la mise à jour du critique"
+                )
+
+            critique = Critique(updated_critique)
+
+            return JSONResponse(
+                content={
+                    **critique.to_dict(),
+                    "message": "Variantes ajoutées au critique existant",
+                },
+                status_code=200,
+            )
+
+        # Préparer les données pour MongoDB (nouveau critique)
         critique_data = Critique.for_mongodb_insert(
-            {"nom": data["nom"], "animateur": data.get("animateur", False)}
+            {
+                "nom": data["nom"],
+                "variantes": variantes,
+                "animateur": data.get("animateur", False),
+            }
         )
 
         # Insérer dans MongoDB
