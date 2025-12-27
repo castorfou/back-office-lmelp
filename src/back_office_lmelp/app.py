@@ -2,12 +2,14 @@
 
 import logging
 import os
+import re
 import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any
 
+from bson import ObjectId
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -835,6 +837,292 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+# ========== EMISSIONS ENDPOINTS (Issue #154) ==========
+
+
+@app.get("/api/emissions", response_model=list[dict[str, Any]])
+async def get_all_emissions() -> list[dict[str, Any]]:
+    """
+    Récupère toutes les émissions.
+    Si la collection emissions est vide, déclenche l'auto-conversion.
+
+    Returns:
+        Liste des émissions avec données enrichies (episode, avis_critique)
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        emissions = mongodb_service.get_all_emissions()
+
+        # Auto-conversion si collection vide
+        if len(emissions) == 0:
+            logger.info("Collection emissions vide - déclenchement auto-conversion")
+            await auto_convert_episodes_to_emissions()
+            emissions = mongodb_service.get_all_emissions()
+
+        # Enrichir avec données episode et avis_critique
+        enriched_emissions = []
+        for emission in emissions:
+            episode_data = mongodb_service.get_episode_by_id(
+                str(emission["episode_id"])
+            )
+            avis_data = mongodb_service.get_avis_critique_by_id(
+                str(emission["avis_critique_id"])
+            )
+
+            emission_dict = Emission(emission).to_dict()
+            emission_dict["episode"] = (
+                Episode(episode_data).to_summary_dict() if episode_data else None
+            )
+            emission_dict["has_avis_critique"] = avis_data is not None
+
+            enriched_emissions.append(emission_dict)
+
+        return enriched_emissions
+
+    except Exception as e:
+        logger.error(f"Erreur get_all_emissions: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/emissions/auto-convert", response_model=dict[str, Any])
+async def auto_convert_episodes_to_emissions() -> dict[str, Any]:
+    """
+    Convertit automatiquement tous les épisodes (avec avis critiques) en émissions.
+
+    Logique :
+    1. Récupérer tous les avis_critiques
+    2. Pour chaque avis, créer une émission si elle n'existe pas déjà
+    3. Détecter animateur_id en cherchant les critiques avec animateur=true
+
+    Returns:
+        Statistiques de conversion (created, skipped, errors)
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        created_count = 0
+        skipped_count = 0
+        errors = []
+
+        # 1. Récupérer tous les avis_critiques
+        all_avis = mongodb_service.get_all_critical_reviews()
+
+        for avis in all_avis:
+            try:
+                episode_oid = avis.get("episode_oid")
+                if not episode_oid:
+                    continue
+
+                # 2. Vérifier si émission existe déjà
+                existing = mongodb_service.get_emission_by_episode_id(episode_oid)
+                if existing:
+                    skipped_count += 1
+                    continue
+
+                # 3. Récupérer données épisode
+                episode_data = mongodb_service.get_episode_by_id(episode_oid)
+                if not episode_data:
+                    errors.append(f"Épisode {episode_oid} non trouvé")
+                    continue
+
+                episode = Episode(episode_data)
+
+                # 3b. Skip épisodes masqués
+                if episode.masked:
+                    skipped_count += 1
+                    continue
+
+                # 4. Détecter animateur_id
+                critiques = mongodb_service.get_critiques_by_episode(episode_oid)
+                animateur_id = None
+                for critique in critiques:
+                    if critique.get("animateur", False):
+                        animateur_id = critique["id"]
+                        break  # Prendre le premier animateur trouvé
+
+                # 5. Créer émission
+                emission_data = Emission.for_mongodb_insert(
+                    {
+                        "episode_id": episode_oid,
+                        "avis_critique_id": str(avis["_id"]),
+                        "date": episode.date,
+                        "duree": episode.duree,
+                        "animateur_id": animateur_id,
+                        "avis_ids": [],  # Vide pour l'instant (future issue)
+                    }
+                )
+
+                mongodb_service.create_emission(emission_data)
+                created_count += 1
+
+            except Exception as e:
+                errors.append(f"Erreur pour avis {avis.get('_id')}: {str(e)}")
+
+        return {
+            "success": True,
+            "created": created_count,
+            "skipped": skipped_count,
+            "total_processed": len(all_avis),
+            "errors": errors,
+        }
+
+    except Exception as e:
+        logger.error(f"Erreur auto_convert_episodes_to_emissions: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/emissions/by-date/{date_str}", response_model=dict[str, Any])
+async def get_emission_by_date(date_str: str) -> dict[str, Any]:
+    """
+    Récupère une émission par sa date (format YYYYMMDD).
+
+    Args:
+        date_str: Date au format YYYYMMDD (ex: "20251212")
+
+    Returns:
+        Mêmes données que /api/emissions/{emission_id}/details
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Valider format date YYYYMMDD
+    if not re.match(r"^\d{8}$", date_str):
+        raise HTTPException(
+            status_code=400, detail="Format de date invalide. Attendu: YYYYMMDD"
+        )
+
+    try:
+        # Convertir string YYYYMMDD en datetime
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+        target_date_start = datetime(year, month, day)
+        target_date_end = datetime(year, month, day, 23, 59, 59)
+
+        # Chercher émission avec cette date (range query pour matcher le jour complet)
+        if mongodb_service.emissions_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+        emission_data = mongodb_service.emissions_collection.find_one(
+            {"date": {"$gte": target_date_start, "$lte": target_date_end}}
+        )
+
+        if not emission_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucune émission trouvée pour la date {date_str}",
+            )
+
+        emission_id_str = str(emission_data["_id"])
+
+        # Réutiliser la logique de get_emission_details
+        result = await get_emission_details(emission_id_str)
+        return dict(result) if isinstance(result, dict) else result
+
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date invalide") from None
+    except Exception as e:
+        logger.error(f"Erreur get_emission_by_date: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/emissions/{emission_id}/details", response_model=dict[str, Any])
+async def get_emission_details(emission_id: str) -> dict[str, Any]:
+    """
+    Récupère les détails complets d'une émission.
+
+    Args:
+        emission_id: ID de l'émission (ObjectId string)
+
+    Returns:
+        Dictionnaire avec toutes les données (emission, episode, books, critiques, summary)
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Valider format ObjectId
+    if not re.match(r"^[0-9a-fA-F]{24}$", emission_id):
+        raise HTTPException(status_code=400, detail="Format d'ID invalide")
+
+    try:
+        # 1. Récupérer émission
+        if mongodb_service.emissions_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+        emission_data = mongodb_service.emissions_collection.find_one(
+            {"_id": ObjectId(emission_id)}
+        )
+        if not emission_data:
+            raise HTTPException(status_code=404, detail="Émission non trouvée")
+
+        emission = Emission(emission_data)
+
+        # 2. Récupérer épisode
+        episode_data = mongodb_service.get_episode_by_id(emission.episode_id)
+        if not episode_data:
+            raise HTTPException(status_code=404, detail="Épisode associé non trouvé")
+
+        episode = Episode(episode_data)
+
+        # 3. Récupérer avis_critique
+        avis_data = mongodb_service.get_avis_critique_by_id(emission.avis_critique_id)
+        if not avis_data:
+            raise HTTPException(
+                status_code=404, detail="Avis critique associé non trouvé"
+            )
+
+        # 4. Récupérer livres via endpoint existant
+        books = await get_livres_auteurs(episode_oid=emission.episode_id)
+
+        # 5. Récupérer critiques de cet épisode
+        critiques = mongodb_service.get_critiques_by_episode(emission.episode_id)
+
+        # 6. Construire réponse
+        return {
+            "emission": emission.to_dict(),
+            "episode": {
+                "id": episode.id,
+                "titre": episode.titre,
+                "date": episode.date.isoformat() if episode.date else None,
+                "description": episode.description,
+                "duree": episode.duree,
+                "episode_page_url": episode.episode_page_url,
+            },
+            "summary": avis_data.get("summary", ""),
+            "books": books,
+            "critiques": critiques,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur get_emission_details: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/verify-babelio", response_model=dict[str, Any])

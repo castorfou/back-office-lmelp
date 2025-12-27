@@ -50,6 +50,10 @@
             <div class="stat-value">{{ critiquesManquantsCount !== null ? critiquesManquantsCount : '...' }}</div>
             <div class="stat-label">Critiques manquants</div>
           </div>
+          <div class="stat-card clickable-stat" @click="navigateToEmissions">
+            <div class="stat-value">{{ episodesSansEmissionCount !== null ? episodesSansEmissionCount : '...' }}</div>
+            <div class="stat-label">Épisodes sans émission</div>
+          </div>
         </div>
       </section>
 
@@ -57,6 +61,17 @@
       <section class="functions-section">
         <h2>Fonctions disponibles</h2>
         <div class="functions-grid">
+          <div
+            class="function-card clickable"
+            data-testid="function-emissions"
+            @click="navigateToEmissions"
+          >
+            <div class="function-icon">📺</div>
+            <h3>Émissions</h3>
+            <p>Affichage structuré des émissions avec livres discutés et critiques présents</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div
             class="function-card clickable"
             data-testid="function-episode-edit"
@@ -211,6 +226,7 @@ export default {
       babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
       critiquesManquantsCount: null,
+      episodesSansEmissionCount: null,
       loading: true,
       error: null
     };
@@ -322,6 +338,8 @@ export default {
         // y compris books_without_url_babelio et authors_without_url_babelio
         const stats = await livresAuteursService.getCollectionsStatistics();
         this.collectionsStatistics = stats;
+        // Issue #154: Charger le compteur épisodes sans émission
+        this.episodesSansEmissionCount = stats.episodes_sans_emission;
       } catch (error) {
         console.error('Erreur lors du chargement des statistiques des collections:', error);
         // Garder les valeurs null en cas d'erreur pour afficher '...'
@@ -347,6 +365,10 @@ export default {
 
     navigateToEpisodes() {
       this.$router.push('/episodes');
+    },
+
+    navigateToEmissions() {
+      this.$router.push('/emissions');
     },
 
     navigateToLivresAuteurs() {

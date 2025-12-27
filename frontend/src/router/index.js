@@ -103,6 +103,22 @@ const routes = [
     meta: {
       title: 'Identification des Critiques - Back-office LMELP'
     }
+  },
+  {
+    path: '/emissions/:date',
+    name: 'EmissionDetail',
+    component: () => import('../views/Emissions.vue'),
+    meta: {
+      title: 'Émission - Back-office LMELP'
+    }
+  },
+  {
+    path: '/emissions',
+    name: 'Emissions',
+    component: () => import('../views/Emissions.vue'),
+    meta: {
+      title: 'Émissions - Back-office LMELP'
+    }
   }
 ];
 

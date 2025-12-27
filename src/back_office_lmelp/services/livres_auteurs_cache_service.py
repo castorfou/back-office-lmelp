@@ -366,6 +366,41 @@ class LivresAuteursCacheService:
             treated_avis_ids, masked_episode_oids
         )
 
+        # Compter les épisodes sans émission (Issue #154)
+        # Logique : épisodes NON MASQUÉS qui ont avis_critiques mais pas d'émission
+        try:
+            avis_critiques_collection = self.mongodb_service.get_collection(
+                "avis_critiques"
+            )
+            emissions_collection = self.mongodb_service.get_collection("emissions")
+
+            # Récupérer tous les episode_oid depuis avis_critiques
+            all_avis = list(avis_critiques_collection.find({}, {"episode_oid": 1}))
+            episodes_with_avis = {
+                avis["episode_oid"] for avis in all_avis if avis.get("episode_oid")
+            }
+
+            # IMPORTANT: Exclure les épisodes masqués (déjà calculé ci-dessus)
+            # masked_episode_oids contient les IDs en string
+            episodes_with_avis_non_masques = episodes_with_avis - set(
+                masked_episode_oids
+            )
+
+            # Récupérer tous les episode_id depuis emissions
+            all_emissions = list(emissions_collection.find({}, {"episode_id": 1}))
+            episodes_with_emission = {
+                str(emission["episode_id"]) for emission in all_emissions
+            }
+
+            # Calculer la différence (épisodes NON MASQUÉS qui ont avis mais pas d'émission)
+            episodes_sans_emission = (
+                episodes_with_avis_non_masques - episodes_with_emission
+            )
+            stats["episodes_sans_emission"] = len(episodes_sans_emission)
+        except Exception as e:
+            print(f"Erreur lors du comptage des épisodes sans émission: {e}")
+            stats["episodes_sans_emission"] = 0
+
         return stats
 
     def get_untreated_avis_critiques_count(self) -> int:
