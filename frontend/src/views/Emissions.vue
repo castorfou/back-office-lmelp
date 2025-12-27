@@ -307,6 +307,9 @@ export default {
         titre: emission.episode?.titre || 'Sans titre',
         date: emission.date,
         numero_emission: emission.episode?.numero_emission || null,
+        // Désactiver les pastilles pour les émissions (en attendant définition de leur signification)
+        has_cached_books: null,
+        has_incomplete_books: null,
       }));
     });
 

@@ -82,6 +82,11 @@ export default {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
 
+      // Si has_cached_books et has_incomplete_books sont null, pas de pastille
+      if (episode.has_cached_books === null && episode.has_incomplete_books === null) {
+        return `${date} - ${title}`;
+      }
+
       // 🔴 Pastille rouge pour les épisodes avec livres incomplets
       if (episode.has_incomplete_books === true) {
         return `🔴 ${date} - ${title}`;
