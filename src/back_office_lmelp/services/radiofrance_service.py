@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -63,19 +64,24 @@ class RadioFranceService:
             self.client = None
 
     async def search_episode_page_url(
-        self, episode_title: str, episode_date: str | None = None
+        self, episode_title: str, episode_date: str | datetime | None = None
     ) -> str | None:
         """Recherche l'URL de la page d'un épisode par son titre et optionnellement sa date.
 
         Args:
             episode_title: Titre de l'épisode à rechercher
             episode_date: Date de l'épisode au format YYYY-MM-DD (optionnel).
-                         Si fournie, seules les URLs dont la date correspond seront retournées.
+                         Si fournie, seules les URLs dont la date correspondent seront retournées.
+                         Accepte aussi un datetime object (comme retourné par MongoDB).
 
         Returns:
             URL complète de la page de l'épisode, ou None si non trouvé
         """
         try:
+            # Convertir datetime en string si nécessaire (MongoDB retourne des datetime)
+            if episode_date is not None and not isinstance(episode_date, str):
+                # Assume it's a datetime object
+                episode_date = episode_date.strftime("%Y-%m-%d")
             # Construire l'URL de recherche
             search_query = quote_plus(episode_title)
             search_url = (

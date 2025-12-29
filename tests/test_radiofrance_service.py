@@ -339,3 +339,76 @@ class TestRadioFranceService:
                 f"L'URL correcte du 24/04/2022 devrait être retournée. Got: {result}"
             )
             assert result.startswith("https://www.radiofrance.fr")
+
+    @pytest.mark.asyncio
+    async def test_search_episode_page_url_should_handle_datetime_object_as_date(
+        self, radiofrance_service
+    ):
+        """RED TEST - Should handle datetime object as episode_date parameter.
+
+        GIVEN: Un datetime object (comme retourné par MongoDB)
+        WHEN: search_episode_page_url() est appelé avec ce datetime
+        THEN: Devrait le convertir en string YYYY-MM-DD et faire la recherche correctement
+
+        Issue: L'appel depuis avis_critiques_generation_service.py passe
+        episode.get("date") qui est un datetime de MongoDB, pas une string.
+        Cela cause l'erreur: "startswith first arg must be str or a tuple of str, not datetime.datetime"
+        """
+        from datetime import datetime
+
+        # GIVEN: datetime object (comme retourné par MongoDB)
+        episode_date_datetime = datetime(2019, 9, 15)
+
+        # Mock simple pour vérifier la conversion
+        search_html = """
+        <script type="application/ld+json">
+        {"@type":"ItemList","itemListElement":[
+          {"@type":"ListItem","position":1,"url":"https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/test-episode-4105208"}
+        ]}
+        </script>
+        """
+
+        episode_html = """
+        <script type="application/ld+json">
+        {
+          "@type": "PodcastEpisode",
+          "datePublished": "2019-09-15T09:00:00.000Z"
+        }
+        </script>
+        """
+
+        mock_search_response = Mock()
+        mock_search_response.status = 200
+        mock_search_response.text = AsyncMock(return_value=search_html)
+        mock_search_response.__aenter__ = AsyncMock(return_value=mock_search_response)
+        mock_search_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_episode_response = Mock()
+        mock_episode_response.status = 200
+        mock_episode_response.text = AsyncMock(return_value=episode_html)
+        mock_episode_response.__aenter__ = AsyncMock(return_value=mock_episode_response)
+        mock_episode_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = Mock()
+
+        # Session get retourne différents mocks selon l'URL
+        def mock_get(url, **kwargs):
+            if "search=" in url:
+                return mock_search_response
+            else:
+                return mock_episode_response
+
+        mock_session.get = mock_get
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            # RED: Ce test doit ÉCHOUER avant la correction car datetime n'a pas .startswith()
+            episode_title = "Test Episode"
+            result = await radiofrance_service.search_episode_page_url(
+                episode_title, episode_date_datetime
+            )
+
+            # THEN: Devrait retourner l'URL malgré le datetime object
+            assert result is not None
+            assert "test-episode" in result
