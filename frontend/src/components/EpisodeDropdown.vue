@@ -82,6 +82,14 @@ export default {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
 
+      // Logique pour les épisodes avec has_summary (page GenerationAvisCritiques)
+      if (episode.has_summary !== undefined && episode.has_summary !== null) {
+        // 🟢 Pastille verte pour les épisodes avec summary
+        const prefix = episode.has_summary ? '🟢 ' : '⚪ ';
+        return `${prefix}${date} - ${title}`;
+      }
+
+      // Logique pour les livres/auteurs (page LivresAuteurs)
       // Si has_cached_books et has_incomplete_books sont null, pas de pastille
       if (episode.has_cached_books === null && episode.has_incomplete_books === null) {
         return `${date} - ${title}`;

@@ -524,6 +524,25 @@ export const avisCritiquesService = {
   async saveAvisCritiques(data) {
     const response = await api.post('/avis-critiques/save', data);
     return response.data;
+  },
+
+  /**
+   * Récupère la liste des épisodes qui ont des avis critiques
+   * @returns {Promise<Array>} Liste des épisodes avec summary
+   */
+  async getEpisodesWithSummaries() {
+    const response = await api.get('/episodes-with-summaries');
+    return response.data;
+  },
+
+  /**
+   * Récupère le summary existant pour un épisode
+   * @param {string} episodeId - ID de l'épisode
+   * @returns {Promise<Object>} Summary, metadata et timestamps
+   */
+  async getSummaryByEpisode(episodeId) {
+    const response = await api.get(`/avis-critiques/by-episode/${episodeId}`);
+    return response.data;
   }
 };
 

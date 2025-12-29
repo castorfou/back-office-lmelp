@@ -2764,6 +2764,133 @@ async def get_episodes_sans_avis_critiques() -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/api/episodes-with-summaries")
+async def get_episodes_with_summaries() -> JSONResponse:
+    """
+    Liste épisodes qui ont des avis critiques.
+
+    Returns:
+        Liste des épisodes avec summary (id, titre, date, transcription_length, has_episode_page_url, has_summary)
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.avis_critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # 1. Get all episode IDs that have avis_critiques
+        avis_critiques = list(
+            mongodb_service.avis_critiques_collection.find({}, {"episode_oid": 1})
+        )
+        episode_ids_with_avis = {
+            avis["episode_oid"] for avis in avis_critiques if avis.get("episode_oid")
+        }
+
+        if not episode_ids_with_avis:
+            return JSONResponse(content=[])
+
+        # 2. Convert string IDs to ObjectId and find episodes
+        object_ids = [ObjectId(eid) for eid in episode_ids_with_avis if eid]
+
+        episodes = list(
+            mongodb_service.episodes_collection.find(
+                {"_id": {"$in": object_ids}, "masked": {"$ne": True}},
+                {"titre": 1, "date": 1, "transcription": 1, "episode_page_url": 1},
+            )
+            .sort([("date", -1)])
+            .limit(100)
+        )
+
+        # 3. Format response
+        result = []
+        for ep in episodes:
+            result.append(
+                {
+                    "id": str(ep["_id"]),
+                    "titre": ep.get("titre", ""),
+                    "date": ep.get("date").isoformat() if ep.get("date") else None,
+                    "transcription_length": len(ep.get("transcription", "")),
+                    "has_episode_page_url": bool(ep.get("episode_page_url")),
+                    "episode_page_url": ep.get("episode_page_url"),
+                    "has_summary": True,  # All episodes in this endpoint have summaries
+                }
+            )
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur récupération épisodes avec summaries: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/avis-critiques/by-episode/{episode_id}")
+async def get_summary_by_episode(episode_id: str) -> JSONResponse:
+    """
+    Récupère le summary existant pour un épisode.
+
+    Args:
+        episode_id: ID de l'épisode
+
+    Returns:
+        summary, summary_phase1, metadata, created_at, updated_at
+
+    Raises:
+        404: Aucun avis critique trouvé pour cet épisode
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if mongodb_service.avis_critiques_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        avis = mongodb_service.avis_critiques_collection.find_one(
+            {"episode_oid": episode_id}
+        )
+
+        if not avis:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucun avis critique trouvé pour l'épisode {episode_id}",
+            )
+
+        result = {
+            "summary": avis.get("summary", ""),
+            "summary_phase1": avis.get("summary_phase1", ""),
+            "metadata": avis.get("metadata_source", {}),
+            "created_at": (
+                avis["created_at"].isoformat() if avis.get("created_at") else None
+            ),
+            "updated_at": (
+                avis["updated_at"].isoformat() if avis.get("updated_at") else None
+            ),
+        }
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur récupération summary pour épisode {episode_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.post("/api/avis-critiques/generate", response_model=GenerateAvisCritiquesResponse)
 async def generate_avis_critiques(
     request: GenerateAvisCritiquesRequest,
