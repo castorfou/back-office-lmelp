@@ -22,10 +22,10 @@
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </a>
-          <a :href="lmelpAvisCritiquesUrl" class="stat-card clickable-stat" target="_blank" rel="noopener noreferrer">
+          <div class="stat-card clickable-stat" @click="navigateToGenerationAvis">
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.episodes_without_avis_critiques != null) ? collectionsStatistics.episodes_without_avis_critiques : '...' }}</div>
             <div class="stat-label">Épisodes sans avis critiques</div>
-          </a>
+          </div>
           <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.avis_critiques_without_analysis != null) ? collectionsStatistics.avis_critiques_without_analysis : '...' }}</div>
             <div class="stat-label">Avis critiques sans analyse</div>
@@ -69,6 +69,17 @@
             <div class="function-icon">📺</div>
             <h3>Émissions</h3>
             <p>Affichage structuré des émissions avec livres discutés et critiques présents</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-generation-avis"
+            @click="navigateToGenerationAvis"
+          >
+            <div class="function-icon">🤖</div>
+            <h3>Génération Avis Critiques (LLM)</h3>
+            <p>Génération automatique 2 phases depuis transcriptions</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -397,6 +408,10 @@ export default {
 
     navigateToCalibre() {
       this.$router.push('/calibre');
+    },
+
+    navigateToGenerationAvis() {
+      this.$router.push('/generation-avis-critiques');
     }
   }
 };

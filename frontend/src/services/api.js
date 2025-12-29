@@ -491,4 +491,40 @@ export const emissionsService = {
   },
 };
 
+/**
+ * Service pour la génération d'avis critiques en 2 phases LLM
+ */
+export const avisCritiquesService = {
+  /**
+   * Récupère la liste des épisodes sans avis critiques
+   * @returns {Promise<Array>} Liste des épisodes avec transcription mais sans avis
+   */
+  async getEpisodesSansAvis() {
+    const response = await api.get('/episodes-sans-avis-critiques');
+    return response.data;
+  },
+
+  /**
+   * Génère un avis critique en 2 phases LLM
+   * @param {Object} data - Données de génération {episode_id}
+   * @returns {Promise<Object>} Résultat de génération (summary, metadata, corrections)
+   */
+  async generateAvisCritiques(data) {
+    const response = await api.post('/avis-critiques/generate', data, {
+      timeout: 180000  // 3 minutes
+    });
+    return response.data;
+  },
+
+  /**
+   * Sauvegarde un avis critique dans MongoDB
+   * @param {Object} data - Données à sauvegarder {episode_id, summary, summary_phase1, metadata}
+   * @returns {Promise<Object>} Résultat de sauvegarde
+   */
+  async saveAvisCritiques(data) {
+    const response = await api.post('/avis-critiques/save', data);
+    return response.data;
+  }
+};
+
 export default api;
