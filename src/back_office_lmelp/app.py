@@ -2734,9 +2734,7 @@ async def get_episodes_sans_avis_critiques() -> JSONResponse:
                     },
                 },
                 {"titre": 1, "date": 1, "transcription": 1, "episode_page_url": 1},
-            )
-            .sort([("date", -1)])
-            .limit(100)
+            ).sort([("date", -1)])
         )
 
         # 3. Format response
@@ -2805,9 +2803,7 @@ async def get_episodes_with_summaries() -> JSONResponse:
             mongodb_service.episodes_collection.find(
                 {"_id": {"$in": object_ids}, "masked": {"$ne": True}},
                 {"titre": 1, "date": 1, "transcription": 1, "episode_page_url": 1},
-            )
-            .sort([("date", -1)])
-            .limit(100)
+            ).sort([("date", -1)])
         )
 
         # 3. Format response

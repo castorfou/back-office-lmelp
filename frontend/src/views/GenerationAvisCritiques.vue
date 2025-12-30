@@ -19,7 +19,7 @@
 
         <div v-else>
           <label for="episode-dropdown" class="form-label">
-            Choisir un épisode ({{ allEpisodes.length || 0 }} disponibles)
+            Choisir un épisode ({{ allEpisodes.length || 0 }} disponibles: 🟢{{ episodesWithSummaryCount }} / ⚪{{ episodesWithoutSummaryCount }})
           </label>
 
           <div class="episode-select-wrapper">
@@ -88,16 +88,6 @@
         <!-- Afficher directement le summary Phase 2 (corrigé) -->
         <div class="markdown-preview">
           <div v-html="renderMarkdown(generationResult.summary)"></div>
-
-          <div v-if="generationResult.corrections_applied && generationResult.corrections_applied.length" class="corrections">
-            <h3>Corrections appliquées</h3>
-            <ul>
-              <li v-for="(corr, idx) in generationResult.corrections_applied" :key="idx">
-                <strong>{{ corr.field }}:</strong>
-                <del>{{ corr.before }}</del> → <ins>{{ corr.after }}</ins>
-              </li>
-            </ul>
-          </div>
         </div>
 
         <div v-if="generationResult.warnings && generationResult.warnings.length" class="warnings alert">
@@ -166,6 +156,49 @@ export default {
       if (!generationResult.value) return false;
       const summary = generationResult.value.summary || '';
       return summary.trim().length === 0;
+    });
+
+    // Validation robuste du summary pour détecter les générations échouées
+    const validateSummary = (result) => {
+      if (!result || result.summary === undefined || result.summary === null) {
+        return { valid: false, error: 'Aucun summary généré' };
+      }
+
+      const summary = result.summary.trim();
+
+      // 1. Vérifier que le summary n'est pas vide
+      if (summary.length === 0) {
+        return { valid: false, error: 'Summary vide' };
+      }
+
+      // 2. Vérifier que le summary n'est pas suspicieusement long (> 50000 caractères)
+      // Signe d'un tableau markdown tronqué/malformé
+      if (summary.length > 50000) {
+        return { valid: false, error: 'Summary trop long (probablement malformé/tronqué)' };
+      }
+
+      // 3. Détecter les séquences d'espaces anormalement longues (bug LLM)
+      // Rechercher 100+ espaces consécutifs (signe de génération malformée)
+      const hasLongSpaces = /\s{100,}/.test(summary);
+      if (hasLongSpaces) {
+        return { valid: false, error: 'Summary malformé (espaces consécutifs anormaux détectés)' };
+      }
+
+      // 4. Vérifier la présence de la structure markdown attendue
+      if (!summary.includes('## 1. LIVRES DISCUTÉS')) {
+        return { valid: false, error: 'Structure markdown manquante (pas de section "LIVRES DISCUTÉS")' };
+      }
+
+      return { valid: true, error: null };
+    };
+
+    // Compteurs séparés pour pastilles vertes/grises
+    const episodesWithSummaryCount = computed(() => {
+      return allEpisodes.value.filter(ep => ep.has_summary === true).length;
+    });
+
+    const episodesWithoutSummaryCount = computed(() => {
+      return allEpisodes.value.filter(ep => ep.has_summary === false).length;
     });
 
     // Load all episodes (with and without summaries)
@@ -327,9 +360,20 @@ export default {
         setPhase('phase2');
         await new Promise(resolve => setTimeout(resolve, 300));
 
+        // VALIDATION: Vérifier que le summary est valide AVANT sauvegarde
+        const validation = validateSummary(result);
+        if (!validation.valid) {
+          // Ne PAS sauvegarder, ne PAS changer la pastille
+          error.value = `Génération échouée: ${validation.error}. Le résultat n'a pas été sauvegardé.`;
+          console.error('Validation échouée:', validation.error, 'Summary length:', result?.summary?.length);
+          // Afficher quand même le résultat pour diagnostic
+          generationResult.value = result;
+          return;
+        }
+
         setPhase('save');
 
-        // Sauvegarde automatique
+        // Sauvegarde automatique (seulement si validation OK)
         await avisCritiquesService.saveAvisCritiques({
           episode_id: selectedEpisodeId.value,
           summary: result.summary,
@@ -340,7 +384,7 @@ export default {
         // Afficher le résultat
         generationResult.value = result;
 
-        // Mettre à jour la pastille (passer de gris à vert)
+        // Mettre à jour la pastille (passer de gris à vert) seulement si validation OK
         const episodeIndex = allEpisodes.value.findIndex(ep => ep.id === selectedEpisodeId.value);
         if (episodeIndex !== -1) {
           allEpisodes.value[episodeIndex].has_summary = true;
@@ -405,7 +449,9 @@ export default {
       hasNextEpisode,
       episodeHasSummary,
       selectPreviousEpisode,
-      selectNextEpisode
+      selectNextEpisode,
+      episodesWithSummaryCount,
+      episodesWithoutSummaryCount
     };
   }
 };
@@ -612,53 +658,6 @@ main {
 
 .markdown-preview :deep(tr:nth-child(even)) {
   background: #fafafa;
-}
-
-.corrections {
-  background: #e8f5e9;
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 6px;
-  border-left: 4px solid #4caf50;
-}
-
-.corrections h3 {
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-  color: #2e7d32;
-  font-size: 1.1rem;
-}
-
-.corrections ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.corrections li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #c8e6c9;
-}
-
-.corrections li:last-child {
-  border-bottom: none;
-}
-
-.corrections del {
-  color: #d32f2f;
-  text-decoration: line-through;
-  background: #ffebee;
-  padding: 2px 4px;
-  border-radius: 3px;
-}
-
-.corrections ins {
-  color: #388e3c;
-  font-weight: bold;
-  text-decoration: none;
-  background: #e8f5e9;
-  padding: 2px 4px;
-  border-radius: 3px;
 }
 
 .warnings {

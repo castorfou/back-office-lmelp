@@ -7,6 +7,8 @@ import * as api from '../../services/api.js';
 vi.mock('../../services/api.js', () => ({
   avisCritiquesService: {
     getEpisodesSansAvis: vi.fn(),
+    getEpisodesWithSummaries: vi.fn(),
+    getSummaryByEpisode: vi.fn(),
     generateAvisCritiques: vi.fn(),
     saveAvisCritiques: vi.fn()
   },
@@ -25,6 +27,9 @@ describe('GenerationAvisCritiques.vue', () => {
     // Mock par défaut pour episodeService.fetchEpisodePageUrl (éviter erreurs dans tests existants)
     api.episodeService.fetchEpisodePageUrl.mockResolvedValue({});
 
+    // Mock par défaut pour getEpisodesWithSummaries (éviter erreurs dans tests existants)
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+
     router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -36,17 +41,21 @@ describe('GenerationAvisCritiques.vue', () => {
   });
 
   it('loads episodes sans avis on mount', async () => {
-    const mockEpisodes = [
+    const mockEpisodesWithout = [
       {
         id: '123',
         titre: 'Episode Test',
         date: '2025-01-15T00:00:00',
         transcription_length: 5000,
-        has_episode_page_url: true
+        has_episode_page_url: true,
+        has_summary: false
       }
     ];
+    const mockEpisodesWith = [];
 
-    api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodesWithout);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue(mockEpisodesWith);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -56,7 +65,8 @@ describe('GenerationAvisCritiques.vue', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(api.avisCritiquesService.getEpisodesSansAvis).toHaveBeenCalledTimes(1);
-    expect(wrapper.vm.episodesSansAvis).toEqual(mockEpisodes);
+    expect(api.avisCritiquesService.getEpisodesWithSummaries).toHaveBeenCalledTimes(1);
+    expect(wrapper.vm.allEpisodes).toEqual(mockEpisodesWithout);
   });
 
   it('displays loading state while fetching episodes', async () => {
@@ -117,6 +127,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -138,6 +149,7 @@ describe('GenerationAvisCritiques.vue', () => {
 
   it('disables dropdown when no episodes available', async () => {
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue([]);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -162,6 +174,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -188,6 +201,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -214,6 +228,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -244,6 +259,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     wrapper = mount(GenerationAvisCritiques, {
       global: { plugins: [router] }
@@ -267,6 +283,7 @@ describe('GenerationAvisCritiques.vue', () => {
     });
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockReturnValue(generationPromise);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -313,6 +330,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -342,6 +360,7 @@ describe('GenerationAvisCritiques.vue', () => {
     const errorMessage = 'Erreur génération LLM';
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockRejectedValue(new Error(errorMessage));
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -378,6 +397,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -409,6 +429,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -451,6 +472,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -484,6 +506,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     wrapper = mount(GenerationAvisCritiques, {
@@ -516,6 +539,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
     api.avisCritiquesService.saveAvisCritiques.mockResolvedValue({ success: true, avis_critique_id: 'avis123' });
 
@@ -564,6 +588,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
     api.avisCritiquesService.saveAvisCritiques.mockResolvedValue({ success: true });
 
@@ -605,6 +630,7 @@ describe('GenerationAvisCritiques.vue', () => {
     const errorMessage = 'Erreur sauvegarde MongoDB';
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
     api.avisCritiquesService.saveAvisCritiques.mockRejectedValue(new Error(errorMessage));
 
@@ -650,6 +676,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
     api.episodeService.fetchEpisodePageUrl.mockResolvedValue({});
 
@@ -704,6 +731,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
 
     // Mock fetch URL avec délai
@@ -768,6 +796,7 @@ describe('GenerationAvisCritiques.vue', () => {
     };
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue(mockGenerationResult);
     api.episodeService.fetchEpisodePageUrl.mockRejectedValue(new Error('Network error'));
 
@@ -807,6 +836,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     // Mock génération avec summary VIDE (échec LLM)
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
@@ -857,6 +887,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     // Mock génération avec summary VIDE
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
@@ -902,6 +933,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     // Première génération: échec (summary vide)
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValueOnce({
@@ -970,6 +1002,7 @@ describe('GenerationAvisCritiques.vue', () => {
     ];
 
     api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodes);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
 
     // Génération avec summary VALIDE
     api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
@@ -1007,5 +1040,223 @@ describe('GenerationAvisCritiques.vue', () => {
     // Le bouton Sauvegarder doit être activé
     const saveBtn = wrapper.find('button.btn-success');
     expect(saveBtn.attributes('disabled')).toBeUndefined();
+  });
+
+  describe('Failed generation validation', () => {
+    it('should NOT save and NOT change badge when summary is empty', async () => {
+      const mockEpisodesWithout = [
+        {
+          id: '123',
+          titre: 'Episode Test',
+          date: '2025-01-15T00:00:00',
+          transcription_length: 5000,
+          has_episode_page_url: true,
+          has_summary: false
+        }
+      ];
+      const mockEpisodesWith = [];
+
+      api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodesWithout);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+      api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue(mockEpisodesWith);
+
+      // Mock génération avec summary vide
+      api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
+        summary: '',  // VIDE
+        summary_phase1: 'Phase 1 summary',
+        metadata: {}
+      });
+
+      wrapper = mount(GenerationAvisCritiques, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      wrapper.vm.selectedEpisodeId = '123';
+      await wrapper.vm.$nextTick();
+
+      const generateBtn = wrapper.find('button.btn-primary');
+      await generateBtn.trigger('click');
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Vérifier que saveAvisCritiques n'a PAS été appelé
+      expect(api.avisCritiquesService.saveAvisCritiques).not.toHaveBeenCalled();
+
+      // Vérifier que la pastille n'a PAS changé (toujours false)
+      expect(wrapper.vm.allEpisodes[0].has_summary).toBe(false);
+
+      // Vérifier qu'un message d'erreur est affiché
+      expect(wrapper.vm.error).toBeTruthy();
+      expect(wrapper.vm.error).toContain('Summary vide');
+    });
+
+    it('should NOT save and NOT change badge when summary is too long (malformed)', async () => {
+      const mockEpisodesWithout = [
+        {
+          id: '123',
+          titre: 'Episode Test',
+          date: '2025-01-15T00:00:00',
+          transcription_length: 5000,
+          has_episode_page_url: true,
+          has_summary: false
+        }
+      ];
+      const mockEpisodesWith = [];
+
+      api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodesWithout);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+      api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue(mockEpisodesWith);
+
+      // Mock génération avec summary trop long (> 50000 caractères)
+      const longSummary = 'A'.repeat(60000);
+      api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
+        summary: longSummary,
+        summary_phase1: 'Phase 1 summary',
+        metadata: {}
+      });
+
+      wrapper = mount(GenerationAvisCritiques, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      wrapper.vm.selectedEpisodeId = '123';
+      await wrapper.vm.$nextTick();
+
+      const generateBtn = wrapper.find('button.btn-primary');
+      await generateBtn.trigger('click');
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Vérifier que saveAvisCritiques n'a PAS été appelé
+      expect(api.avisCritiquesService.saveAvisCritiques).not.toHaveBeenCalled();
+
+      // Vérifier que la pastille n'a PAS changé (toujours false)
+      expect(wrapper.vm.allEpisodes[0].has_summary).toBe(false);
+
+      // Vérifier qu'un message d'erreur est affiché
+      expect(wrapper.vm.error).toBeTruthy();
+      expect(wrapper.vm.error).toContain('trop long');
+    });
+
+    it('should NOT save and NOT change badge when summary lacks expected markdown structure', async () => {
+      const mockEpisodesWithout = [
+        {
+          id: '123',
+          titre: 'Episode Test',
+          date: '2025-01-15T00:00:00',
+          transcription_length: 5000,
+          has_episode_page_url: true,
+          has_summary: false
+        }
+      ];
+      const mockEpisodesWith = [];
+
+      api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodesWithout);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+      api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue(mockEpisodesWith);
+
+      // Mock génération avec summary sans structure attendue
+      api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
+        summary: 'Some random text without proper markdown structure',
+        summary_phase1: 'Phase 1 summary',
+        metadata: {}
+      });
+
+      wrapper = mount(GenerationAvisCritiques, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      wrapper.vm.selectedEpisodeId = '123';
+      await wrapper.vm.$nextTick();
+
+      const generateBtn = wrapper.find('button.btn-primary');
+      await generateBtn.trigger('click');
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Vérifier que saveAvisCritiques n'a PAS été appelé
+      expect(api.avisCritiquesService.saveAvisCritiques).not.toHaveBeenCalled();
+
+      // Vérifier que la pastille n'a PAS changé (toujours false)
+      expect(wrapper.vm.allEpisodes[0].has_summary).toBe(false);
+
+      // Vérifier qu'un message d'erreur est affiché
+      expect(wrapper.vm.error).toBeTruthy();
+      expect(wrapper.vm.error).toContain('Structure markdown manquante');
+    });
+
+    it('should save and change badge when summary is valid', async () => {
+      const mockEpisodesWithout = [
+        {
+          id: '123',
+          titre: 'Episode Test',
+          date: '2025-01-15T00:00:00',
+          transcription_length: 5000,
+          has_episode_page_url: true,
+          has_summary: false
+        }
+      ];
+      const mockEpisodesWith = [];
+
+      api.avisCritiquesService.getEpisodesSansAvis.mockResolvedValue(mockEpisodesWithout);
+    api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue([]);
+      api.avisCritiquesService.getEpisodesWithSummaries.mockResolvedValue(mockEpisodesWith);
+
+      // Mock génération avec summary VALIDE
+      const validSummary = '## 1. LIVRES DISCUTÉS\n\nTitre: Test Book\nAuteur: Test Author';
+      api.avisCritiquesService.generateAvisCritiques.mockResolvedValue({
+        summary: validSummary,
+        summary_phase1: 'Phase 1 summary',
+        metadata: {}
+      });
+
+      api.avisCritiquesService.saveAvisCritiques.mockResolvedValue({});
+
+      wrapper = mount(GenerationAvisCritiques, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      wrapper.vm.selectedEpisodeId = '123';
+      await wrapper.vm.$nextTick();
+
+      const generateBtn = wrapper.find('button.btn-primary');
+      await generateBtn.trigger('click');
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Vérifier que saveAvisCritiques A été appelé
+      expect(api.avisCritiquesService.saveAvisCritiques).toHaveBeenCalledWith({
+        episode_id: '123',
+        summary: validSummary,
+        summary_phase1: 'Phase 1 summary',
+        metadata: {}
+      });
+
+      // Vérifier que la pastille A changé (devient true)
+      expect(wrapper.vm.allEpisodes[0].has_summary).toBe(true);
+
+      // Vérifier qu'il n'y a PAS de message d'erreur
+      expect(wrapper.vm.error).toBe(null);
+    });
   });
 });
