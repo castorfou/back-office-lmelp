@@ -2,6 +2,7 @@ title: 👤 Guide utilisateur
 nav:
   - Démarrage rapide: README.md
   - Gestion des épisodes: episodes.md
+  - Génération LLM avis critiques: generation-avis-critiques-llm.md
   - Masquage des épisodes: episode-masking.md
   - Page Émissions: emissions.md
   - Recherche avancée: advanced-search.md
