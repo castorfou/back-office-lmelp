@@ -59,16 +59,18 @@ code .
 > Dev Containers: Open in container
 ```
 
-2. **Configuration MongoDB** :
+2. **Configuration MongoDB et Azure OpenAI** :
 ```bash
 # Fichier .env
 MONGODB_URL=mongodb://localhost:27017/masque_et_la_plume
 API_HOST=0.0.0.0
 API_PORT=8000
 
-# Azure OpenAI (pour fonctionnalités futures)
+# Azure OpenAI (requis pour génération LLM d'avis critiques)
 AZURE_OPENAI_API_KEY=your_key_here
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2025-03-01-preview
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 ```
 
 ## 🎮 Lancement
@@ -134,6 +136,19 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 💾 **Auto-save** : Sauvegarde directe des corrections dans `titre` et `description`
 - 🔄 **Gestion d'erreurs** : Retry automatique et messages explicites
 - 📱 **Interface responsive** : Compatible mobile/desktop
+
+#### Génération LLM d'Avis Critiques (2 phases)
+- 🤖 **Génération automatique** : Résumés structurés depuis transcriptions Whisper
+- 🔄 **Processus en 2 phases** :
+  - **Phase 1 (Brut)** : Extraction informations depuis transcription (livres, critiques, coups de cœur)
+  - **Phase 2 (Corrigé)** : Correction orthographique noms/titres via page RadioFrance
+- 📋 **Interface 3 onglets** : Visualisation Phase 1 / Phase 2 / Différences côte à côte
+- 📅 **Dates en français** : Format "dimanche 1 octobre 2017" (mapping manuel des mois)
+- ✅ **Validation robuste** : 5 critères anti-malformations (sections manquantes, espaces excessifs, longueur)
+- 🔄 **Régénération** : Bouton orange pour relancer génération si résumé vide
+- 💾 **Sauvegarde sélective** : Bouton désactivé si résumé vide ou invalide
+- ⚠️ **Alertes visuelles** : Warning explicite en cas de génération LLM incomplète
+- 🎯 **Double validation** : Frontend (UX rapide) + Backend (sécurité HTTP 400)
 
 #### Masquage des Épisodes
 - 🚫 **Gestion de visibilité** : Masquer/afficher les épisodes sans les supprimer
@@ -266,6 +281,12 @@ GET /api/books                               # Tous les livres de la collection
 
 # Vérification orthographique Babelio
 POST /api/verify-babelio          # Vérifier auteurs/livres/éditeurs
+
+# Génération LLM d'avis critiques (Issue #171)
+GET /api/avis-critiques/episodes-sans-avis  # Episodes sans avis critiques
+POST /api/avis-critiques/generate            # Génération 2 phases (phase1 + phase2)
+POST /api/avis-critiques/save                # Sauvegarde avec validation (5 critères)
+GET /api/avis-critiques/{episode_id}         # Récupérer avis existant
 
 # Pages de détail (Issue #96)
 GET /api/auteur/{id}              # Détails d'un auteur avec ses livres
@@ -448,13 +469,13 @@ Temps total : ~10-15 minutes de commit à production.
 - ✅ **Gestion des Collections** : Dashboard statistiques, traitement automatique, validation manuelle, ajout manuel
 - ✅ **Vérification Babelio** : Correction orthographique automatique auteurs/livres
 - ✅ **Recherche Textuelle** : Moteur de recherche multi-entités avec extraction de contexte
+- ✅ **Génération LLM d'avis critiques** : 2 phases (extraction + correction), validation robuste, interface 3 onglets
 - ✅ Tests complets validés (backend + frontend)
 - ✅ CI/CD pipeline avec validation complète
 - ✅ Architecture full-stack (FastAPI + Vue.js 3)
 - ✅ Documentation MkDocs + GitHub Pages avec Material Design
 
 ### Versions futures
-- 🤖 **IA** : Suggestions de corrections via Azure OpenAI
 - 🔍 **Recherche avancée** : Filtres par date, type, recherche sémantique
 - 📊 **Analytics** : Statistiques de correction et qualité
 - 👥 **Multi-user** : Gestion des utilisateurs et permissions
