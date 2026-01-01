@@ -71,6 +71,7 @@ class TestGenerateSummaryPhase1:
         ):
             await service.generate_summary_phase1("transcription", "2025-01-15")
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_generate_summary_phase1_empty_transcription_raises(self):
         """Test Phase 1 raise ValueError si transcription vide."""
