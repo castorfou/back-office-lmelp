@@ -3076,7 +3076,7 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
 
         if existing:
             # Update
-            result = mongodb_service.avis_critiques_collection.update_one(
+            mongodb_service.avis_critiques_collection.update_one(
                 {"episode_oid": request.episode_id}, {"$set": avis_data}
             )
             avis_id = str(existing["_id"])
@@ -3084,8 +3084,10 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
         else:
             # Insert
             avis_data["created_at"] = datetime.now(UTC)
-            result = mongodb_service.avis_critiques_collection.insert_one(avis_data)
-            avis_id = str(result.inserted_id)
+            insert_result = mongodb_service.avis_critiques_collection.insert_one(
+                avis_data
+            )
+            avis_id = str(insert_result.inserted_id)
             logger.info(f"Avis critique créé: {avis_id}")
 
         return JSONResponse(content={"success": True, "avis_critique_id": avis_id})
