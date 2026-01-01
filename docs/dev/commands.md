@@ -4,6 +4,7 @@
   - [lancement backend - frontend](#lancement-backend---frontend)
   - [lancement des tests](#lancement-des-tests)
   - [les infos sur les services frontend - backend](#les-infos-sur-les-services-frontend---backend)
+  - [Les commandes `mkdocs`](#les-commandes-mkdocs)
   - [Les commandes `gh`](#les-commandes-gh)
   - ["Failed to add the ECDSA host key ..." - maj du ssh known\_host](#failed-to-add-the-ecdsa-host-key----maj-du-ssh-known_host)
   - [reseau port utilise](#reseau-port-utilise)
@@ -95,9 +96,25 @@ curl -s "$BACKEND_URL/openapi.json" | jq
 curl -s "$BACKEND_URL/openapi_reduced.json" | jq
 ```
 
-
 cf dans `CLAUDE.md` tous les usages possibles
 
+## Les commandes `mkdocs`
+
+le port par défaut de mkdocs utilisé par `mkdocs serve` est **8000**.
+
+Ce qui est en conflit avec le port API du backoffice-backend.
+
+Donc en mode développement, lancer mkdocs de cette façon (exemple sur le port 8081)
+
+```bash
+mkdocs serve -a localhost:8081
+```
+
+et pour faire un test de génération strict de la doc tel qu'utilisé en CI/CD
+
+```bash
+mkdocs build --strict
+```
 
 ## Les commandes `gh`
 
