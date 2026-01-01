@@ -350,8 +350,4 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 
 ## Références techniques
 
-Pour plus de détails techniques sur le fonctionnement interne :
-
-- [Service de génération LLM](../dev/llm-generation-service.md) (à créer)
-- [Validation des résumés](../dev/summary-validation.md) (à créer)
-- [Intégration Azure OpenAI](../dev/azure-openai-integration.md) (à créer)
+Pour plus de détails techniques sur le fonctionnement interne, consultez la [documentation développeur - Génération LLM d'avis critiques](../dev/llm-avis-critiques-generation.md).
