@@ -63,6 +63,31 @@
           </div>
         </div>
 
+      <!-- Légende des statuts -->
+      <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="legend-section">
+        <div class="legend-box">
+          <h6>Statuts des livres :</h6>
+          <ul class="legend-list">
+            <li>
+              <span class="badge bg-success">🟢</span>
+              <strong>Mongo</strong>: Livre trouvé et stocké dans MongoDB
+            </li>
+            <li>
+              <span class="badge bg-secondary">⚪</span>
+              <strong>Gris</strong>: Épisode sans analyse (pas d'entrée dans livresauteurs_cache)
+            </li>
+            <li>
+              <span class="badge bg-warning">🟠</span>
+              <strong>Suggested</strong>: Livre suggéré par Babelio (à vérifier)
+            </li>
+            <li>
+              <span class="badge bg-danger">🔴</span>
+              <strong>Rouge</strong>: Analyse incomplète (certains livres pas au statut "mongo")
+            </li>
+          </ul>
+        </div>
+      </section>
+
         <!-- Détails de l'épisode (accordéon replié) -->
         <div v-if="selectedEpisode" class="episode-details-accordion">
           <button
@@ -107,6 +132,9 @@
         </div>
       </section>
 
+
+
+
       <!-- Section simplifiée : nombre de livres extraits seulement -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
         <div class="simple-stats">
@@ -147,30 +175,7 @@
         </div>
       </section>
 
-      <!-- Légende des statuts -->
-      <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="legend-section">
-        <div class="legend-box">
-          <h6>Statuts des livres :</h6>
-          <ul class="legend-list">
-            <li>
-              <span class="badge bg-success">🟢</span>
-              <strong>Mongo</strong>: Livre trouvé et stocké dans MongoDB
-            </li>
-            <li>
-              <span class="badge bg-secondary">⚪</span>
-              <strong>Gris</strong>: Épisode sans analyse (pas d'entrée dans livresauteurs_cache)
-            </li>
-            <li>
-              <span class="badge bg-warning">🟠</span>
-              <strong>Suggested</strong>: Livre suggéré par Babelio (à vérifier)
-            </li>
-            <li>
-              <span class="badge bg-danger">🔴</span>
-              <strong>Rouge</strong>: Analyse incomplète (certains livres pas au statut "mongo")
-            </li>
-          </ul>
-        </div>
-      </section>
+
 
       <!-- État de chargement -->
       <div v-if="selectedEpisodeId && loading" class="loading-state">
