@@ -189,6 +189,13 @@ export default {
         return { valid: false, error: 'Structure markdown manquante (pas de section "LIVRES DISCUTÉS")' };
       }
 
+      // 5. Vérifier la présence de la section "COUPS DE CŒUR DES CRITIQUES"
+      // Cette section est toujours présente dans les générations réussies
+      // Son absence indique une génération incomplète
+      if (!summary.includes('2. COUPS DE CŒUR DES CRITIQUES')) {
+        return { valid: false, error: 'Génération incomplète (pas de section "2. COUPS DE CŒUR DES CRITIQUES")' };
+      }
+
       return { valid: true, error: null };
     };
 

@@ -2953,6 +2953,60 @@ async def generate_avis_critiques(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+def _validate_summary(summary: str) -> tuple[bool, str | None]:
+    """
+    Valide un summary d'avis critique pour détecter les générations échouées.
+
+    Critères de validation:
+    1. Summary non vide
+    2. Summary pas trop long (>50000 caractères = signe de malformation)
+    3. Pas d'espaces consécutifs anormaux (100+ espaces = bug LLM)
+    4. Structure markdown attendue présente (section 1 "LIVRES DISCUTÉS")
+    5. Section 2 "COUPS DE CŒUR DES CRITIQUES" présente (génération complète)
+
+    Args:
+        summary: Le summary à valider
+
+    Returns:
+        Tuple (is_valid, error_message)
+    """
+    if not summary or summary is None:
+        return False, "Aucun summary fourni"
+
+    summary_stripped = summary.strip()
+
+    # 1. Vérifier que le summary n'est pas vide
+    if len(summary_stripped) == 0:
+        return False, "Summary vide"
+
+    # 2. Vérifier que le summary n'est pas suspicieusement long (> 50000 caractères)
+    # Signe d'un tableau markdown tronqué/malformé
+    if len(summary_stripped) > 50000:
+        return False, "Summary trop long (probablement malformé/tronqué)"
+
+    # 3. Détecter les séquences d'espaces anormalement longues (bug LLM)
+    # Rechercher 100+ espaces consécutifs (signe de génération malformée)
+    import re
+
+    if re.search(r"\s{100,}", summary):
+        return False, "Summary malformé (espaces consécutifs anormaux détectés)"
+
+    # 4. Vérifier la présence de la structure markdown attendue
+    if "## 1. LIVRES DISCUTÉS" not in summary:
+        return False, 'Structure markdown manquante (pas de section "LIVRES DISCUTÉS")'
+
+    # 5. Vérifier la présence de la section "COUPS DE CŒUR DES CRITIQUES"
+    # Cette section est toujours présente dans les générations réussies
+    # Son absence indique une génération incomplète
+    if "2. COUPS DE CŒUR DES CRITIQUES" not in summary:
+        return (
+            False,
+            'Génération incomplète (pas de section "2. COUPS DE CŒUR DES CRITIQUES")',
+        )
+
+    return True, None
+
+
 @app.post("/api/avis-critiques/save")
 async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse:
     """
@@ -2974,6 +3028,17 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
         if mongodb_service.avis_critiques_collection is None:
             raise HTTPException(
                 status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # VALIDATION: Vérifier que le summary est valide AVANT sauvegarde
+        is_valid, error_message = _validate_summary(request.summary)
+        if not is_valid:
+            logger.warning(
+                f"Tentative de sauvegarde d'un summary invalide pour épisode {request.episode_id}: {error_message}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Summary invalide: {error_message}. Le résultat n'a pas été sauvegardé.",
             )
 
         # Récupérer les infos de l'épisode pour episode_title et episode_date
@@ -3025,6 +3090,9 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
 
         return JSONResponse(content={"success": True, "avis_critique_id": avis_id})
 
+    except HTTPException:
+        # Re-raise HTTPException telles quelles (400, 404, etc.)
+        raise
     except Exception as e:
         logger.error(f"Erreur sauvegarde avis: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

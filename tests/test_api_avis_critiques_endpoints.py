@@ -380,3 +380,153 @@ class TestGetSummaryByEpisode:
             assert data["metadata"] == {}
             assert data["created_at"] is None
             assert data["updated_at"] is None
+
+
+class TestSaveAvisCritiquesValidation:
+    """Tests pour la validation du summary lors de la sauvegarde."""
+
+    def test_should_reject_empty_summary(self, client):
+        """Doit rejeter un summary vide."""
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": "",
+            "summary_phase1": "Phase 1",
+            "metadata": {},
+        }
+
+        response = client.post("/api/avis-critiques/save", json=request_data)
+
+        assert response.status_code == 400
+        assert "Aucun summary fourni" in response.json()["detail"]
+
+    def test_should_reject_summary_with_excessive_spaces(self, client):
+        """Doit rejeter un summary avec espaces consécutifs anormaux (bug LLM)."""
+        # Simuler le cas réel: header correct + 1M espaces
+        malformed_summary = (
+            "## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019\n\n"
+            "| Auteur | Titre | Éditeur | Avis détaillés des critiques"
+            + (" " * 150)  # 150 espaces consécutifs (> 100)
+        )
+
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": malformed_summary,
+            "summary_phase1": "Phase 1",
+            "metadata": {},
+        }
+
+        response = client.post("/api/avis-critiques/save", json=request_data)
+
+        assert response.status_code == 400
+        assert "espaces consécutifs anormaux" in response.json()["detail"]
+
+    def test_should_reject_summary_without_required_structure(self, client):
+        """Doit rejeter un summary sans la structure markdown attendue."""
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": "Ceci est un summary sans structure markdown correcte.",
+            "summary_phase1": "Phase 1",
+            "metadata": {},
+        }
+
+        response = client.post("/api/avis-critiques/save", json=request_data)
+
+        assert response.status_code == 400
+        assert "Structure markdown manquante" in response.json()["detail"]
+
+    def test_should_reject_summary_without_coups_de_coeur_section(self, client):
+        """Doit rejeter un summary sans la section 'COUPS DE CŒUR DES CRITIQUES'.
+
+        Cette section est toujours présente dans les générations réussies.
+        Son absence indique une génération incomplète/échouée.
+        """
+        # Summary avec section 1 mais sans section 2 (génération incomplète)
+        incomplete_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Test Author | Test Title | Test Editor | Critique test |
+
+Fin abrupte sans section coups de cœur..."""
+
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": incomplete_summary,
+            "summary_phase1": "Phase 1",
+            "metadata": {},
+        }
+
+        response = client.post("/api/avis-critiques/save", json=request_data)
+
+        assert response.status_code == 400
+        assert "COUPS DE CŒUR" in response.json()["detail"]
+
+    def test_should_reject_summary_too_long(self, client):
+        """Doit rejeter un summary trop long (>50000 caractères)."""
+        # Générer un summary > 50000 caractères
+        long_summary = "## 1. LIVRES DISCUTÉS\n\n" + ("A" * 60000)
+
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": long_summary,
+            "summary_phase1": "Phase 1",
+            "metadata": {},
+        }
+
+        response = client.post("/api/avis-critiques/save", json=request_data)
+
+        assert response.status_code == 400
+        assert "trop long" in response.json()["detail"]
+
+    def test_should_accept_valid_summary(self, client):
+        """Doit accepter un summary valide."""
+        valid_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Test Author | Test Title | Test Editor | Excellent livre |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+- **Test Author** recommande vivement ce livre
+
+## 3. ANALYSE CRITIQUE
+
+Excellent épisode avec des critiques pertinentes."""
+
+        mock_episode = {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),  # pragma: allowlist secret
+            "titre": "Épisode Test",
+            "date": datetime(2025, 1, 15),
+        }
+
+        request_data = {
+            "episode_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "summary": valid_summary,
+            "summary_phase1": "Phase 1 summary",
+            "metadata": {"animateur": "Jérôme Garcin"},
+        }
+
+        with patch("back_office_lmelp.app.mongodb_service") as mock_service:
+            # Mock get_episode_by_id
+            mock_service.get_episode_by_id.return_value = mock_episode
+
+            # Mock find_one (aucun avis existant)
+            mock_service.avis_critiques_collection.find_one.return_value = None
+
+            # Mock insert_one
+            mock_result = type("obj", (object,), {"inserted_id": ObjectId()})()
+            mock_service.avis_critiques_collection.insert_one.return_value = mock_result
+
+            response = client.post("/api/avis-critiques/save", json=request_data)
+
+            assert response.status_code == 200
+            assert response.json()["success"] is True
+            assert "avis_critique_id" in response.json()
+
+            # Vérifier que insert_one a bien été appelé avec le summary valide
+            mock_service.avis_critiques_collection.insert_one.assert_called_once()
+            saved_data = mock_service.avis_critiques_collection.insert_one.call_args[0][
+                0
+            ]
+            assert saved_data["summary"] == valid_summary
