@@ -18,39 +18,77 @@
       <section class="statistics-section">
         <h2>Informations générales</h2>
         <div class="stats-grid">
-          <a :href="lmelpFrontOfficeUrl" class="stat-card clickable-stat" target="_blank" rel="noopener noreferrer">
+          <a
+            :href="lmelpFrontOfficeUrl"
+            class="stat-card clickable-stat"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="tooltips.lastUpdate"
+          >
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </a>
-          <div class="stat-card clickable-stat" @click="navigateToGenerationAvis">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToGenerationAvis"
+            :title="tooltips.episodesSansAvis"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.episodes_without_avis_critiques != null) ? collectionsStatistics.episodes_without_avis_critiques : '...' }}</div>
             <div class="stat-label">Épisodes sans avis critiques</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToLivresAuteurs"
+            :title="tooltips.avisSansAnalyse"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.avis_critiques_without_analysis != null) ? collectionsStatistics.avis_critiques_without_analysis : '...' }}</div>
             <div class="stat-label">Avis critiques sans analyse</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToLivresAuteurs"
+            :title="tooltips.livresSuggeres"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_suggested_pas_en_base !== null) ? collectionsStatistics.couples_suggested_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres suggérés</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToLivresAuteurs">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToLivresAuteurs"
+            :title="tooltips.livresNonTrouves"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== null) ? collectionsStatistics.couples_not_found_pas_en_base : '...' }}</div>
             <div class="stat-label">Livres non trouvés</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToBabelioMigration">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToBabelioMigration"
+            :title="tooltips.livresSansLienBabelio"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.books_without_url_babelio != null) ? collectionsStatistics.books_without_url_babelio : '...' }}</div>
             <div class="stat-label">Livres sans lien Babelio</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToBabelioMigration">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToBabelioMigration"
+            :title="tooltips.auteursSansLienBabelio"
+          >
             <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.authors_without_url_babelio != null) ? collectionsStatistics.authors_without_url_babelio : '...' }}</div>
             <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToIdentificationCritiques">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToIdentificationCritiques"
+            :title="tooltips.critiquesManquants"
+          >
             <div class="stat-value">{{ critiquesManquantsCount !== null ? critiquesManquantsCount : '...' }}</div>
             <div class="stat-label">Critiques manquants</div>
           </div>
-          <div class="stat-card clickable-stat" @click="navigateToEmissions">
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToEmissions"
+            :title="tooltips.episodesSansEmission"
+          >
             <div class="stat-value">{{ episodesSansEmissionCount !== null ? episodesSansEmissionCount : '...' }}</div>
             <div class="stat-label">Épisodes sans émission</div>
           </div>
@@ -232,6 +270,17 @@ export default {
         books_without_url_babelio: null,
         authors_without_url_babelio: null,
         last_episode_date: null
+      },
+      tooltips: {
+        lastUpdate: `Date du dernier épisode en base\nCollection: episodes\nRequête: episodes.find().sort({diffusion: -1}).limit(1)`,
+        episodesSansAvis: `Formule: COUNT(episodes non masqués) - COUNT(avis_critiques non masqués)\nCollections: episodes, avis_critiques\nFiltres: masked ≠ true`,
+        avisSansAnalyse: `Formule: COUNT(avis non masqués) - COUNT(livresauteurs_cache non masqués)\nCollections: avis_critiques, livresauteurs_cache, episodes\nFiltres: masked ≠ true`,
+        livresSuggeres: `Livres avec statut "suggested" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "suggested"`,
+        livresNonTrouves: `Livres avec statut "not_found" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "not_found"`,
+        livresSansLienBabelio: `Livres sans URL Babelio et non marqués "not_found"\nCollection: livres\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
+        auteursSansLienBabelio: `Auteurs sans URL Babelio et non marqués "not_found"\nCollection: auteurs\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
+        critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
+        episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`
       },
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,

@@ -6,6 +6,7 @@ nav:
   - Page Émissions: emissions.md
   - Recherche avancée: advanced-search.md
   - Pages de détail: detail-pages.md
+  - Compteurs et statistiques: compteurs-et-statistiques.md
   - Vérification Babelio: babelio-verification.md
   - Correction automatique résumés: automatic-summary-correction.md
   - Integration Calibre: calibre-integration.md

@@ -137,9 +137,41 @@ class StatsService:
             {"$or": [{"masked": False}, {"masked": {"$exists": False}}]}
         )
 
-        # Compter les épisodes avec avis critiques (distincts)
-        episodes_with_avis = avis_critiques_collection.distinct("episode_oid")
-        episodes_with_avis_count: int = len(episodes_with_avis)
+        # FIX: Utiliser aggregation pour filtrer les avis dont l'épisode est masqué
+        # Seuls les avis_critiques avec épisode non masqué doivent être comptés
+        pipeline = [
+            {
+                "$lookup": {
+                    "from": "episodes",
+                    "let": {"episode_oid_str": "$episode_oid"},
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$eq": [{"$toString": "$_id"}, "$$episode_oid_str"]
+                                }
+                            }
+                        }
+                    ],
+                    "as": "episode",
+                }
+            },
+            {"$unwind": "$episode"},
+            {
+                "$match": {
+                    "$or": [
+                        {"episode.masked": {"$ne": True}},
+                        {"episode.masked": {"$exists": False}},
+                    ]
+                }
+            },
+            {"$group": {"_id": "$episode_oid"}},
+        ]
+
+        episodes_with_avis_non_masques = list(
+            avis_critiques_collection.aggregate(pipeline)
+        )
+        episodes_with_avis_count = len(episodes_with_avis_non_masques)
 
         # Retourner la différence
         return int(max(0, non_masked_count - episodes_with_avis_count))

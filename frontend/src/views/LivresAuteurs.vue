@@ -147,6 +147,31 @@
         </div>
       </section>
 
+      <!-- Légende des statuts -->
+      <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="legend-section">
+        <div class="legend-box">
+          <h6>Statuts des livres :</h6>
+          <ul class="legend-list">
+            <li>
+              <span class="badge bg-success">🟢</span>
+              <strong>Mongo</strong>: Livre trouvé et stocké dans MongoDB
+            </li>
+            <li>
+              <span class="badge bg-secondary">⚪</span>
+              <strong>Gris</strong>: Épisode sans analyse (pas d'entrée dans livresauteurs_cache)
+            </li>
+            <li>
+              <span class="badge bg-warning">🟠</span>
+              <strong>Suggested</strong>: Livre suggéré par Babelio (à vérifier)
+            </li>
+            <li>
+              <span class="badge bg-danger">🔴</span>
+              <strong>Rouge</strong>: Analyse incomplète (certains livres pas au statut "mongo")
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- État de chargement -->
       <div v-if="selectedEpisodeId && loading" class="loading-state">
         <div class="loader"></div>
@@ -2832,5 +2857,68 @@ export default {
   border-radius: 4px;
   color: #991b1b;
   font-size: 0.85rem;
+}
+
+/* Legend styles */
+.legend-section {
+  margin: 1rem 0;
+}
+
+.legend-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+}
+
+.legend-box h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+.legend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.legend-list li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+.badge.bg-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.badge.bg-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.badge.bg-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.badge.bg-danger {
+  background-color: #dc3545;
+  color: white;
 }
 </style>

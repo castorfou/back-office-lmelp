@@ -19,7 +19,7 @@
 
         <div v-else>
           <label for="episode-dropdown" class="form-label">
-            Choisir un épisode ({{ allEpisodes.length || 0 }} disponibles: 🟢{{ episodesWithSummaryCount }} / ⚪{{ episodesWithoutSummaryCount }})
+            Choisir un épisode ({{ allEpisodes.length || 0 }} disponibles: 🟢 {{ episodesWithSummaryCount }} / ⚪ {{ episodesWithoutSummaryCount }})
           </label>
 
           <div class="episode-select-wrapper">
@@ -47,6 +47,24 @@
           >
             Suivant ▶️
           </button>
+        </div>
+
+        <!-- Légende des pastilles -->
+        <div class="legend-box">
+          <h6>Légende des pastilles :</h6>
+          <ul class="legend-list">
+            <li>
+              🟢 {{ episodesWithSummaryCount }} :
+              Épisodes avec avis critique généré
+            </li>
+            <li>
+              ⚪ {{ episodesWithoutSummaryCount }}:
+              Épisodes SANS avis critique (avec transcription disponible)
+            </li>
+          </ul>
+          <p class="legend-formula">
+            <em>Total affiché: {{ allEpisodes.length }} épisodes non masqués avec transcription</em>
+          </p>
         </div>
 
         <!-- Bouton Générer OU Régénérer -->
@@ -716,5 +734,61 @@ main {
 
 .diff-view {
   margin-top: 1rem;
+}
+
+.legend-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.legend-box h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+.legend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.legend-list li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+.badge.bg-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.badge.bg-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.legend-formula {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
 }
 </style>
