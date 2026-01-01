@@ -923,7 +923,8 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
 async def get_all_emissions() -> list[dict[str, Any]]:
     """
     Récupère toutes les émissions.
-    Si la collection emissions est vide, déclenche l'auto-conversion.
+    Déclenche l'auto-conversion à chaque chargement pour convertir
+    les nouveaux épisodes avec avis critiques.
 
     Returns:
         Liste des émissions avec données enrichies (episode, avis_critique)
@@ -936,13 +937,12 @@ async def get_all_emissions() -> list[dict[str, Any]]:
         print(f"⚠️ {memory_check}")
 
     try:
-        emissions = mongodb_service.get_all_emissions()
+        # Auto-conversion systématique à chaque chargement
+        logger.info("Déclenchement auto-conversion des nouveaux épisodes")
+        await auto_convert_episodes_to_emissions()
 
-        # Auto-conversion si collection vide
-        if len(emissions) == 0:
-            logger.info("Collection emissions vide - déclenchement auto-conversion")
-            await auto_convert_episodes_to_emissions()
-            emissions = mongodb_service.get_all_emissions()
+        # Récupérer toutes les émissions (y compris nouvellement créées)
+        emissions = mongodb_service.get_all_emissions()
 
         # Enrichir avec données episode et avis_critique
         enriched_emissions = []
