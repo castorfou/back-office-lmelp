@@ -113,27 +113,72 @@ class RadioFranceService:
                 logger.warning(
                     f"🔍 Searching with date filter: {episode_date} for episode: {episode_title[:50]}..."
                 )
-                # Extraire toutes les URLs candidates
-                candidate_urls = self._extract_all_candidate_urls(soup)
-                logger.warning(
-                    f"🔍 Found {len(candidate_urls)} candidate URLs to check"
-                )
 
-                # Parcourir chaque URL et vérifier sa date
-                for url in candidate_urls:
-                    logger.warning(f"🔍 Checking URL: {url}")
-                    episode_date_from_page = await self._extract_episode_date(url)
-                    logger.warning(f"🔍   → Date extracted: {episode_date_from_page}")
-                    if episode_date_from_page and episode_date_from_page.startswith(
-                        episode_date
-                    ):
+                # PAGINATION: Essayer plusieurs pages de résultats
+                # Garde-fou 1: Limiter à 10 pages max pour éviter boucle infinie
+                max_pages = 10
+                page = 1
+
+                while page <= max_pages:
+                    # Construire l'URL avec pagination (?p=2, ?p=3, etc.)
+                    if page == 1:
+                        paginated_url = search_url  # Première page (pas de &p=1)
+                        paginated_soup = soup  # Réutiliser soup déjà chargé
+                    else:
+                        paginated_url = f"{search_url}&p={page}"
+                        logger.warning(f"🔍 Trying page {page}: {paginated_url}")
+
+                        # Charger la page suivante
+                        async with (
+                            aiohttp.ClientSession() as session,
+                            session.get(
+                                paginated_url, timeout=aiohttp.ClientTimeout(total=10)
+                            ) as response,
+                        ):
+                            if response.status != 200:
+                                logger.warning(
+                                    f"Page {page} returned status {response.status}, stopping pagination"
+                                )
+                                break
+
+                            paginated_html = await response.text()
+                            paginated_soup = BeautifulSoup(
+                                paginated_html, "html.parser"
+                            )
+
+                    # Extraire les URLs candidates de cette page
+                    candidate_urls = self._extract_all_candidate_urls(paginated_soup)
+                    logger.warning(
+                        f"🔍 Page {page}: Found {len(candidate_urls)} candidate URLs"
+                    )
+
+                    # Garde-fou 2: Si aucun résultat, on a atteint la fin
+                    if not candidate_urls:
                         logger.warning(
-                            f"✅ Found matching episode URL by date: {url} (date: {episode_date_from_page})"
+                            f"🔍 Page {page} has no results, stopping pagination"
                         )
-                        return url
+                        break
+
+                    # Parcourir chaque URL et vérifier sa date
+                    for url in candidate_urls:
+                        logger.warning(f"🔍 Checking URL: {url}")
+                        episode_date_from_page = await self._extract_episode_date(url)
+                        logger.warning(
+                            f"🔍   → Date extracted: {episode_date_from_page}"
+                        )
+                        if episode_date_from_page and episode_date_from_page.startswith(
+                            episode_date
+                        ):
+                            logger.warning(
+                                f"✅ Found matching episode URL by date on page {page}: {url} (date: {episode_date_from_page})"
+                            )
+                            return url
+
+                    # Passer à la page suivante
+                    page += 1
 
                 logger.warning(
-                    f"❌ No episode page URL found matching date {episode_date} for: {episode_title[:50]}..."
+                    f"❌ No episode page URL found matching date {episode_date} after checking {page - 1} page(s) for: {episode_title[:50]}..."
                 )
                 return None
 
