@@ -8,11 +8,16 @@ Le service utilise deux stratégies de parsing :
 2. Fallback sur parsing HTML des liens <a href> si JSON-LD absent
 """
 
+import asyncio
 import json
 import logging
+import os
+from datetime import datetime
+from typing import Any
 from urllib.parse import quote_plus
 
 import aiohttp
+import openai
 from bs4 import BeautifulSoup
 
 
@@ -27,20 +32,56 @@ class RadioFranceService:
         self.base_url = "https://www.radiofrance.fr"
         self.podcast_search_base = "/franceinter/podcasts/le-masque-et-la-plume"
 
+        # Configuration Azure OpenAI pour extraction de métadonnées par LLM
+        self.azure_endpoint = os.getenv("AZURE_ENDPOINT")
+        self.api_key = os.getenv("AZURE_API_KEY")
+        self.api_version = os.getenv("AZURE_API_VERSION", "2024-09-01-preview")
+        self.deployment_name = os.getenv("AZURE_DEPLOYMENT_NAME", "gpt-4o")
+
+        # Configuration client OpenAI
+        if (
+            self.azure_endpoint
+            and self.api_key
+            and self.azure_endpoint.strip()
+            and self.api_key.strip()
+        ):
+            try:
+                self.client = openai.AzureOpenAI(
+                    api_key=self.api_key,
+                    api_version=self.api_version,
+                    azure_endpoint=self.azure_endpoint,
+                )
+                logger.info("✅ Azure OpenAI client initialisé pour RadioFranceService")
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Erreur initialisation Azure OpenAI client: {type(e).__name__}: {e}"
+                )
+                self.client = None
+        else:
+            logger.info(
+                "ℹ️ Azure OpenAI client non configuré pour RadioFranceService (extraction JSON-LD uniquement)"
+            )
+            self.client = None
+
     async def search_episode_page_url(
-        self, episode_title: str, episode_date: str | None = None
+        self, episode_title: str, episode_date: str | datetime | None = None
     ) -> str | None:
         """Recherche l'URL de la page d'un épisode par son titre et optionnellement sa date.
 
         Args:
             episode_title: Titre de l'épisode à rechercher
             episode_date: Date de l'épisode au format YYYY-MM-DD (optionnel).
-                         Si fournie, seules les URLs dont la date correspond seront retournées.
+                         Si fournie, seules les URLs dont la date correspondent seront retournées.
+                         Accepte aussi un datetime object (comme retourné par MongoDB).
 
         Returns:
             URL complète de la page de l'épisode, ou None si non trouvé
         """
         try:
+            # Convertir datetime en string si nécessaire (MongoDB retourne des datetime)
+            if episode_date is not None and not isinstance(episode_date, str):
+                # Assume it's a datetime object
+                episode_date = episode_date.strftime("%Y-%m-%d")
             # Construire l'URL de recherche
             search_query = quote_plus(episode_title)
             search_url = (
@@ -72,27 +113,72 @@ class RadioFranceService:
                 logger.warning(
                     f"🔍 Searching with date filter: {episode_date} for episode: {episode_title[:50]}..."
                 )
-                # Extraire toutes les URLs candidates
-                candidate_urls = self._extract_all_candidate_urls(soup)
-                logger.warning(
-                    f"🔍 Found {len(candidate_urls)} candidate URLs to check"
-                )
 
-                # Parcourir chaque URL et vérifier sa date
-                for url in candidate_urls:
-                    logger.warning(f"🔍 Checking URL: {url}")
-                    episode_date_from_page = await self._extract_episode_date(url)
-                    logger.warning(f"🔍   → Date extracted: {episode_date_from_page}")
-                    if episode_date_from_page and episode_date_from_page.startswith(
-                        episode_date
-                    ):
+                # PAGINATION: Essayer plusieurs pages de résultats
+                # Garde-fou 1: Limiter à 10 pages max pour éviter boucle infinie
+                max_pages = 10
+                page = 1
+
+                while page <= max_pages:
+                    # Construire l'URL avec pagination (?p=2, ?p=3, etc.)
+                    if page == 1:
+                        paginated_url = search_url  # Première page (pas de &p=1)
+                        paginated_soup = soup  # Réutiliser soup déjà chargé
+                    else:
+                        paginated_url = f"{search_url}&p={page}"
+                        logger.warning(f"🔍 Trying page {page}: {paginated_url}")
+
+                        # Charger la page suivante
+                        async with (
+                            aiohttp.ClientSession() as session,
+                            session.get(
+                                paginated_url, timeout=aiohttp.ClientTimeout(total=10)
+                            ) as response,
+                        ):
+                            if response.status != 200:
+                                logger.warning(
+                                    f"Page {page} returned status {response.status}, stopping pagination"
+                                )
+                                break
+
+                            paginated_html = await response.text()
+                            paginated_soup = BeautifulSoup(
+                                paginated_html, "html.parser"
+                            )
+
+                    # Extraire les URLs candidates de cette page
+                    candidate_urls = self._extract_all_candidate_urls(paginated_soup)
+                    logger.warning(
+                        f"🔍 Page {page}: Found {len(candidate_urls)} candidate URLs"
+                    )
+
+                    # Garde-fou 2: Si aucun résultat, on a atteint la fin
+                    if not candidate_urls:
                         logger.warning(
-                            f"✅ Found matching episode URL by date: {url} (date: {episode_date_from_page})"
+                            f"🔍 Page {page} has no results, stopping pagination"
                         )
-                        return url
+                        break
+
+                    # Parcourir chaque URL et vérifier sa date
+                    for url in candidate_urls:
+                        logger.warning(f"🔍 Checking URL: {url}")
+                        episode_date_from_page = await self._extract_episode_date(url)
+                        logger.warning(
+                            f"🔍   → Date extracted: {episode_date_from_page}"
+                        )
+                        if episode_date_from_page and episode_date_from_page.startswith(
+                            episode_date
+                        ):
+                            logger.warning(
+                                f"✅ Found matching episode URL by date on page {page}: {url} (date: {episode_date_from_page})"
+                            )
+                            return url
+
+                    # Passer à la page suivante
+                    page += 1
 
                 logger.warning(
-                    f"❌ No episode page URL found matching date {episode_date} for: {episode_title[:50]}..."
+                    f"❌ No episode page URL found matching date {episode_date} after checking {page - 1} page(s) for: {episode_title[:50]}..."
                 )
                 return None
 
@@ -341,3 +427,296 @@ class RadioFranceService:
         except Exception as e:
             logger.debug(f"Error extracting date from {episode_url}: {e}")
             return None
+
+    async def extract_episode_metadata(self, episode_url: str) -> dict[str, Any]:
+        """
+        Scrape métadonnées depuis page RadioFrance épisode.
+
+        Stratégie avec fallback LLM pour vieilles pages (2019) sans JSON-LD:
+        1. Fetch HTML avec aiohttp
+        2. Parse JSON-LD (PodcastEpisode @type) si disponible
+        3. Si JSON-LD absent, utiliser LLM pour extraire depuis texte complet
+        4. Extraire: animateur, critiques, date, image_url
+
+        Returns:
+            {
+                "animateur": str,
+                "critiques": list[str],
+                "date": str (ISO),
+                "image_url": str,
+                "description": str,
+                "page_text": str  # Contenu textuel complet de la page
+            }
+        """
+        if not episode_url:
+            return {}
+
+        try:
+            import aiohttp
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    episode_url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as response,
+            ):
+                if response.status != 200:
+                    logger.warning(
+                        f"RadioFrance metadata extraction status {response.status}"
+                    )
+                    return {}
+
+                html_content = await response.text()
+
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            # Extraire tout le texte visible de la page (pour Phase 2)
+            page_text = soup.get_text(separator="\n", strip=True)
+
+            # Stratégie 1: Parse JSON-LD (pages récentes 2024+)
+            metadata = self._parse_json_ld_podcast_episode(soup)
+
+            if metadata:
+                logger.info("✅ Métadonnées extraites via JSON-LD")
+                # Ajouter le contenu textuel complet
+                metadata["page_text"] = page_text
+                return metadata
+
+            # Stratégie 2 (fallback): LLM extraction pour vieilles pages (2019)
+            logger.info(
+                "📝 JSON-LD absent, tentative extraction LLM depuis texte complet..."
+            )
+
+            # Utiliser LLM pour extraire métadonnées
+            llm_metadata = await self._extract_metadata_with_llm(page_text)
+
+            if llm_metadata:
+                logger.info("✅ Métadonnées extraites via LLM")
+                # Ajouter le contenu textuel complet
+                llm_metadata["page_text"] = page_text
+                return llm_metadata
+
+            logger.warning("⚠️ Aucune métadonnée extraite (JSON-LD et LLM ont échoué)")
+            return {}
+
+        except Exception as e:
+            logger.error(f"Erreur extraction métadonnées RadioFrance: {e}")
+            return {}
+
+    def _parse_json_ld_podcast_episode(self, soup: BeautifulSoup) -> dict[str, Any]:
+        """Parse JSON-LD PodcastEpisode pour extraire métadonnées."""
+        try:
+            json_ld_scripts = soup.find_all("script", type="application/ld+json")
+
+            for script in json_ld_scripts:
+                try:
+                    data = json.loads(script.string)
+
+                    if isinstance(data, dict) and data.get("@type") == "PodcastEpisode":
+                        # Extraire animateur (author[0].name)
+                        animateur = ""
+                        authors = data.get("author", [])
+                        if authors and len(authors) > 0:
+                            animateur = authors[0].get("name", "")
+
+                        # Extraire date
+                        date_published = data.get("datePublished", "")
+
+                        # Extraire image
+                        image_url = data.get("image", "")
+
+                        # Extraire description
+                        description = data.get("description", "")
+
+                        # Parser titre pour critiques
+                        episode_name = data.get("name", "")
+                        critiques = self._parse_critics_from_title(episode_name)
+
+                        # Si description disponible, essayer aussi
+                        if description and not critiques:
+                            critiques = self._parse_critics_from_title(description)
+
+                        return {
+                            "animateur": animateur,
+                            "critiques": critiques,
+                            "date": date_published,
+                            "image_url": image_url,
+                            "description": description,
+                        }
+
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+
+            return {}
+
+        except Exception as e:
+            logger.debug(f"Erreur parsing JSON-LD PodcastEpisode: {e}")
+            return {}
+
+    async def _extract_metadata_with_llm(self, page_text: str) -> dict[str, Any]:
+        """
+        Extrait métadonnées depuis texte de page RadioFrance avec LLM.
+
+        Utilisé comme fallback pour les vieilles pages (2019) sans JSON-LD.
+
+        Args:
+            page_text: Texte complet extrait de la page HTML
+
+        Returns:
+            {
+                "animateur": str,
+                "critiques": list[str],
+                "date": str (ISO format YYYY-MM-DD)
+            }
+            Retourne {} si extraction échoue
+        """
+        if not page_text or not page_text.strip():
+            return {}
+
+        if not self.client:
+            logger.warning(
+                "⚠️ Client OpenAI non configuré, impossible d'extraire métadonnées par LLM"
+            )
+            return {}
+
+        try:
+            # Limiter le texte pour éviter tokens excessifs (garder ~10000 premiers caractères)
+            truncated_text = page_text[:10000]
+
+            prompt = f"""Analyse cette page web de l'émission "Le Masque et la Plume" de France Inter et extrais les informations suivantes:
+
+1. Le nom de l'animateur (généralement Jérôme Garcin)
+2. Les noms complets des critiques présents dans l'émission
+3. La date de l'émission au format YYYY-MM-DD
+
+Texte de la page:
+{truncated_text}
+
+Réponds UNIQUEMENT avec un objet JSON valide au format suivant:
+{{
+  "animateur": "Prénom Nom",
+  "critiques": ["Prénom Nom1", "Prénom Nom2", "Prénom Nom3"],
+  "date": "YYYY-MM-DD"
+}}
+
+Si une information n'est pas trouvée, utilise une chaîne vide pour animateur/date ou une liste vide pour critiques.
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+
+            logger.info("🤖 Envoi requête LLM pour extraction métadonnées...")
+
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=self.deployment_name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Tu es un assistant qui extrait des informations structurées depuis des pages web. Tu réponds UNIQUEMENT en JSON valide.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=500,
+                    temperature=0.1,
+                ),
+                timeout=30,
+            )
+
+            llm_response = response.choices[0].message.content.strip()
+
+            # Parser la réponse JSON
+            # Le LLM peut parfois entourer le JSON avec ```json ... ```, on le nettoie
+            import re
+
+            llm_response = re.sub(r"```json\s*", "", llm_response)
+            llm_response = re.sub(r"```\s*$", "", llm_response)
+
+            metadata = json.loads(llm_response)
+
+            # Validation du format
+            if not isinstance(metadata, dict):
+                logger.warning("⚠️ Réponse LLM n'est pas un dictionnaire")
+                return {}
+
+            # Normaliser le format de sortie
+            result = {
+                "animateur": metadata.get("animateur", ""),
+                "critiques": metadata.get("critiques", []),
+                "date": metadata.get("date", ""),
+                "image_url": "",  # LLM ne peut pas extraire l'URL d'image
+                "description": "",  # Pas nécessaire pour la correction Phase 2
+            }
+
+            # Vérifier qu'on a au moins l'animateur ou des critiques
+            if not result["animateur"] and not result["critiques"]:
+                logger.warning("⚠️ LLM n'a trouvé ni animateur ni critiques")
+                return {}
+
+            logger.info(
+                f"✅ LLM extraction réussie: animateur={result['animateur']}, "
+                f"{len(result['critiques'])} critiques"
+            )
+
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️ Erreur parsing JSON depuis LLM: {e}")
+            from contextlib import suppress
+
+            with suppress(Exception):
+                logger.debug(f"Réponse LLM invalide: {llm_response[:200]}")
+            return {}
+        except TimeoutError:
+            logger.warning("⚠️ Timeout lors de l'extraction LLM")
+            return {}
+        except Exception as e:
+            logger.error(
+                f"❌ Erreur extraction métadonnées par LLM: {type(e).__name__}: {e}"
+            )
+            return {}
+
+    def _parse_critics_from_title(self, title: str) -> list[str]:
+        """
+        Extrait noms critiques du titre épisode.
+
+        Patterns RadioFrance:
+        - "... avec Nom1, Nom2, Nom3"
+        - "... par Nom1, Nom2"
+
+        Returns:
+            ["Nom1 Complet", "Nom2 Complet"]
+        """
+        import re
+
+        if not title:
+            return []
+
+        critiques = []
+
+        # Pattern 1: "avec Nom1, Nom2"
+        match_avec = re.search(r"avec\s+([^\.]+)", title, re.IGNORECASE)
+        if match_avec:
+            names_part = match_avec.group(1)
+            # Split par virgules ou "et"
+            names = re.split(r",|\set\s", names_part)
+            critiques = [name.strip() for name in names if name.strip()]
+
+        # Pattern 2: "par Nom1, Nom2"
+        if not critiques:
+            match_par = re.search(r"par\s+([^\.]+)", title, re.IGNORECASE)
+            if match_par:
+                names_part = match_par.group(1)
+                names = re.split(r",|\set\s", names_part)
+                critiques = [name.strip() for name in names if name.strip()]
+
+        # Nettoyer les noms (enlever caractères superflus)
+        critiques = [
+            re.sub(r"[^\w\s\-]", "", name).strip()
+            for name in critiques
+            if len(name.strip()) > 3  # Éviter les initiales seules
+        ]
+
+        return critiques
+
+
+# Singleton instance
+radiofrance_service = RadioFranceService()

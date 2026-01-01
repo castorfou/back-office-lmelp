@@ -221,6 +221,7 @@ fi
 log "Lancement du backend FastAPI..."
 cd "$PROJECT_ROOT"
 export BABELIO_DEBUG_LOG=1
+export AVIS_CRITIQUES_DEBUG_LOG=1
 PYTHONPATH="$PROJECT_ROOT/src" python -m back_office_lmelp.app &
 BACKEND_PID=$!
 log "Backend démarré (PID: $BACKEND_PID)"

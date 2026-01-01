@@ -38,7 +38,12 @@
       "Bash(bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); echo \"\"Backend URL: $BACKEND_URL\"\"')",
       "Bash(ls:*)",
       "Bash(PYTHONPATH=/workspaces/back-office-lmelp/src ruff check:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(bash -c 'BACKEND_URL=$\\(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url\\); curl \"\"$BACKEND_URL/\"\" 2>/dev/null | head -3')",
+      "Bash(bash -c 'FRONTEND_URL=$\\(/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --url\\); curl -s \"\"$FRONTEND_URL\"\" 2>/dev/null | head -3')",
+      "Bash(bash -c 'BACKEND_URL=$\\(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url\\); curl -s \"\"$BACKEND_URL/api/episodes-sans-avis-critiques\"\" | jq \"\".[0] | {id, titre, date}\"\" | head -10')",
+      "Bash(pre-commit run:*)",
+      "Bash(mkdocs build:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

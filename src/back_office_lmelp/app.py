@@ -1,12 +1,30 @@
 """Application FastAPI principale."""
 
-import logging
+# CRITIQUE (Issue #171): Charger .env AVANT tous les imports de services
+# Les singletons lisent os.getenv() dans __init__() au moment de l'import
+# Si load_dotenv() n'est pas appelé avant, toutes les variables sont vides
+from dotenv import load_dotenv  # noqa: E402, I001
+
+load_dotenv()
+
+# ruff: noqa: E402
+# Justification: load_dotenv() DOIT être appelé avant tous les imports de services
+# car les singletons lisent les variables d'environnement dans __init__()
+import logging  # noqa: I001
+
+# Configure logging AVANT les imports pour voir les logs d'initialisation des services
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 import os
 import re
 import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
@@ -21,6 +39,9 @@ from .middleware import EnrichedLoggingMiddleware
 from .models.critique import Critique
 from .models.emission import Emission
 from .models.episode import Episode
+from .services.avis_critiques_generation_service import (
+    avis_critiques_generation_service,
+)
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
 from .services.babelio_service import babelio_service
@@ -120,6 +141,33 @@ class AddManualBookRequest(BaseModel):
     user_entered_author: str
     user_entered_title: str
     user_entered_publisher: str | None = None
+
+
+# Modèles pour la génération d'avis critiques (Issue #171)
+class GenerateAvisCritiquesRequest(BaseModel):
+    """Modèle pour la génération d'avis critiques."""
+
+    episode_id: str
+
+
+class GenerateAvisCritiquesResponse(BaseModel):
+    """Modèle pour la réponse de génération d'avis critiques."""
+
+    success: bool
+    summary: str
+    summary_phase1: str
+    metadata: dict[str, Any]
+    corrections_applied: list[dict[str, Any]]
+    warnings: list[str]
+
+
+class SaveAvisCritiquesRequest(BaseModel):
+    """Modèle pour la sauvegarde d'avis critiques."""
+
+    episode_id: str
+    summary: str
+    summary_phase1: str
+    metadata: dict[str, Any]
 
 
 # Nouveaux modèles pour la migration Babelio (Issue #124)
@@ -291,6 +339,35 @@ async def health() -> dict[str, str]:
     response time minimal and avoid polluting logs.
     """
     return {"status": "ok"}
+
+
+@app.get("/debug/azure-config")
+async def debug_azure_config() -> dict[str, Any]:
+    """Debug endpoint pour vérifier la configuration Azure OpenAI (Issue #171).
+
+    TEMPORAIRE - À supprimer après résolution du problème.
+    """
+    return {
+        "env_vars": {
+            "AZURE_ENDPOINT": os.getenv("AZURE_ENDPOINT", "NOT_SET"),
+            "AZURE_API_KEY": (
+                "***" + os.getenv("AZURE_API_KEY", "NOT_SET")[-4:]
+                if os.getenv("AZURE_API_KEY")
+                else "NOT_SET"
+            ),
+            "AZURE_API_VERSION": os.getenv("AZURE_API_VERSION", "NOT_SET"),
+            "AZURE_DEPLOYMENT_NAME": os.getenv("AZURE_DEPLOYMENT_NAME", "NOT_SET"),
+        },
+        "service_instance": {
+            "azure_endpoint": avis_critiques_generation_service.azure_endpoint
+            or "None",
+            "api_key_set": bool(avis_critiques_generation_service.api_key),
+            "api_version": avis_critiques_generation_service.api_version or "None",
+            "deployment_name": avis_critiques_generation_service.deployment_name
+            or "None",
+            "client_initialized": avis_critiques_generation_service.client is not None,
+        },
+    }
 
 
 @app.get("/api/episodes", response_model=list[dict[str, Any]])
@@ -846,7 +923,8 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
 async def get_all_emissions() -> list[dict[str, Any]]:
     """
     Récupère toutes les émissions.
-    Si la collection emissions est vide, déclenche l'auto-conversion.
+    Déclenche l'auto-conversion à chaque chargement pour convertir
+    les nouveaux épisodes avec avis critiques.
 
     Returns:
         Liste des émissions avec données enrichies (episode, avis_critique)
@@ -859,13 +937,12 @@ async def get_all_emissions() -> list[dict[str, Any]]:
         print(f"⚠️ {memory_check}")
 
     try:
-        emissions = mongodb_service.get_all_emissions()
+        # Auto-conversion systématique à chaque chargement
+        logger.info("Déclenchement auto-conversion des nouveaux épisodes")
+        await auto_convert_episodes_to_emissions()
 
-        # Auto-conversion si collection vide
-        if len(emissions) == 0:
-            logger.info("Collection emissions vide - déclenchement auto-conversion")
-            await auto_convert_episodes_to_emissions()
-            emissions = mongodb_service.get_all_emissions()
+        # Récupérer toutes les émissions (y compris nouvellement créées)
+        emissions = mongodb_service.get_all_emissions()
 
         # Enrichir avec données episode et avis_critique
         enriched_emissions = []
@@ -2613,6 +2690,413 @@ async def get_episodes_with_avis_critiques() -> JSONResponse:
         raise
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des épisodes: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/episodes-sans-avis-critiques")
+async def get_episodes_sans_avis_critiques() -> JSONResponse:
+    """
+    Liste épisodes avec transcription mais sans avis critique.
+
+    Returns:
+        Liste des épisodes (id, titre, date, transcription_length, has_episode_page_url)
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.avis_critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # 1. Get episode IDs that have avis_critiques
+        avis_critiques = list(
+            mongodb_service.avis_critiques_collection.find({}, {"episode_oid": 1})
+        )
+        episode_ids_with_avis = {avis["episode_oid"] for avis in avis_critiques}
+
+        # 2. Find episodes with transcription but not in the set
+        # Issue #107: Exclure les épisodes masqués
+        episodes = list(
+            mongodb_service.episodes_collection.find(
+                {
+                    "transcription": {"$exists": True, "$nin": [None, ""]},
+                    "masked": {"$ne": True},  # Exclure les épisodes masqués
+                    "_id": {
+                        "$nin": [ObjectId(eid) for eid in episode_ids_with_avis if eid]
+                    },
+                },
+                {"titre": 1, "date": 1, "transcription": 1, "episode_page_url": 1},
+            ).sort([("date", -1)])
+        )
+
+        # 3. Format response
+        result = []
+        for ep in episodes:
+            result.append(
+                {
+                    "id": str(ep["_id"]),
+                    "titre": ep.get("titre", ""),
+                    "date": ep.get("date").isoformat() if ep.get("date") else None,
+                    "transcription_length": len(ep.get("transcription", "")),
+                    "has_episode_page_url": bool(ep.get("episode_page_url")),
+                    "episode_page_url": ep.get(
+                        "episode_page_url"
+                    ),  # Retourner l'URL elle-même
+                }
+            )
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur récupération épisodes sans avis: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/episodes-with-summaries")
+async def get_episodes_with_summaries() -> JSONResponse:
+    """
+    Liste épisodes qui ont des avis critiques.
+
+    Returns:
+        Liste des épisodes avec summary (id, titre, date, transcription_length, has_episode_page_url, has_summary)
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if (
+            mongodb_service.episodes_collection is None
+            or mongodb_service.avis_critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # 1. Get all episode IDs that have avis_critiques
+        avis_critiques = list(
+            mongodb_service.avis_critiques_collection.find({}, {"episode_oid": 1})
+        )
+        episode_ids_with_avis = {
+            avis["episode_oid"] for avis in avis_critiques if avis.get("episode_oid")
+        }
+
+        if not episode_ids_with_avis:
+            return JSONResponse(content=[])
+
+        # 2. Convert string IDs to ObjectId and find episodes
+        object_ids = [ObjectId(eid) for eid in episode_ids_with_avis if eid]
+
+        episodes = list(
+            mongodb_service.episodes_collection.find(
+                {"_id": {"$in": object_ids}, "masked": {"$ne": True}},
+                {"titre": 1, "date": 1, "transcription": 1, "episode_page_url": 1},
+            ).sort([("date", -1)])
+        )
+
+        # 3. Format response
+        result = []
+        for ep in episodes:
+            result.append(
+                {
+                    "id": str(ep["_id"]),
+                    "titre": ep.get("titre", ""),
+                    "date": ep.get("date").isoformat() if ep.get("date") else None,
+                    "transcription_length": len(ep.get("transcription", "")),
+                    "has_episode_page_url": bool(ep.get("episode_page_url")),
+                    "episode_page_url": ep.get("episode_page_url"),
+                    "has_summary": True,  # All episodes in this endpoint have summaries
+                }
+            )
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur récupération épisodes avec summaries: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/avis-critiques/by-episode/{episode_id}")
+async def get_summary_by_episode(episode_id: str) -> JSONResponse:
+    """
+    Récupère le summary existant pour un épisode.
+
+    Args:
+        episode_id: ID de l'épisode
+
+    Returns:
+        summary, summary_phase1, metadata, created_at, updated_at
+
+    Raises:
+        404: Aucun avis critique trouvé pour cet épisode
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if mongodb_service.avis_critiques_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        avis = mongodb_service.avis_critiques_collection.find_one(
+            {"episode_oid": episode_id}
+        )
+
+        if not avis:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucun avis critique trouvé pour l'épisode {episode_id}",
+            )
+
+        result = {
+            "summary": avis.get("summary", ""),
+            "summary_phase1": avis.get("summary_phase1", ""),
+            "metadata": avis.get("metadata_source", {}),
+            "created_at": (
+                avis["created_at"].isoformat() if avis.get("created_at") else None
+            ),
+            "updated_at": (
+                avis["updated_at"].isoformat() if avis.get("updated_at") else None
+            ),
+        }
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur récupération summary pour épisode {episode_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/avis-critiques/generate", response_model=GenerateAvisCritiquesResponse)
+async def generate_avis_critiques(
+    request: GenerateAvisCritiquesRequest,
+) -> GenerateAvisCritiquesResponse:
+    """
+    Génère un avis critique en 2 phases LLM (Phase 1 + Phase 2 avec correction).
+
+    Args:
+        request: episode_id
+
+    Returns:
+        success, summary, summary_phase1, metadata, corrections_applied, warnings
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if mongodb_service.episodes_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # 1. Fetch episode
+        episode = mongodb_service.get_episode_by_id(request.episode_id)
+        if not episode:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        transcription = episode.get("transcription")
+        if not transcription:
+            raise HTTPException(status_code=400, detail="Épisode sans transcription")
+
+        # 2. Extract date
+        episode_date = episode.get("date")
+        if isinstance(episode_date, datetime):
+            episode_date_str = episode_date.strftime("%Y-%m-%d")
+        else:
+            episode_date_str = str(episode_date).split("T")[0] if episode_date else ""
+
+        # 3. Get episode page URL for metadata extraction
+        episode_page_url = episode.get("episode_page_url")
+
+        # 4. Generate full summary (Phase 1 + Phase 2)
+        # Le service attendra automatiquement si l'URL est en cours de fetch
+        result = await avis_critiques_generation_service.generate_full_summary(
+            transcription, episode_date_str, episode_page_url, request.episode_id
+        )
+
+        return GenerateAvisCritiquesResponse(
+            success=True,
+            summary=result["summary"],
+            summary_phase1=result["summary_phase1"],
+            metadata=result["metadata"],
+            corrections_applied=result["corrections_applied"],
+            warnings=result["warnings"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur génération avis: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _validate_summary(summary: str) -> tuple[bool, str | None]:
+    """
+    Valide un summary d'avis critique pour détecter les générations échouées.
+
+    Critères de validation:
+    1. Summary non vide
+    2. Summary pas trop long (>50000 caractères = signe de malformation)
+    3. Pas d'espaces consécutifs anormaux (100+ espaces = bug LLM)
+    4. Structure markdown attendue présente (section 1 "LIVRES DISCUTÉS")
+    5. Section 2 "COUPS DE CŒUR DES CRITIQUES" présente (génération complète)
+
+    Args:
+        summary: Le summary à valider
+
+    Returns:
+        Tuple (is_valid, error_message)
+    """
+    if not summary or summary is None:
+        return False, "Aucun summary fourni"
+
+    summary_stripped = summary.strip()
+
+    # 1. Vérifier que le summary n'est pas vide
+    if len(summary_stripped) == 0:
+        return False, "Summary vide"
+
+    # 2. Vérifier que le summary n'est pas suspicieusement long (> 50000 caractères)
+    # Signe d'un tableau markdown tronqué/malformé
+    if len(summary_stripped) > 50000:
+        return False, "Summary trop long (probablement malformé/tronqué)"
+
+    # 3. Détecter les séquences d'espaces anormalement longues (bug LLM)
+    # Rechercher 100+ espaces consécutifs (signe de génération malformée)
+    import re
+
+    if re.search(r"\s{100,}", summary):
+        return False, "Summary malformé (espaces consécutifs anormaux détectés)"
+
+    # 4. Vérifier la présence de la structure markdown attendue
+    if "## 1. LIVRES DISCUTÉS" not in summary:
+        return False, 'Structure markdown manquante (pas de section "LIVRES DISCUTÉS")'
+
+    # 5. Vérifier la présence de la section "COUPS DE CŒUR DES CRITIQUES"
+    # Cette section est toujours présente dans les générations réussies
+    # Son absence indique une génération incomplète
+    if "2. COUPS DE CŒUR DES CRITIQUES" not in summary:
+        return (
+            False,
+            'Génération incomplète (pas de section "2. COUPS DE CŒUR DES CRITIQUES")',
+        )
+
+    return True, None
+
+
+@app.post("/api/avis-critiques/save")
+async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse:
+    """
+    Sauvegarde un avis critique généré dans MongoDB.
+
+    Args:
+        request: episode_id, summary, summary_phase1, metadata
+
+    Returns:
+        success, avis_critique_id
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        if mongodb_service.avis_critiques_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # VALIDATION: Vérifier que le summary est valide AVANT sauvegarde
+        is_valid, error_message = _validate_summary(request.summary)
+        if not is_valid:
+            logger.warning(
+                f"Tentative de sauvegarde d'un summary invalide pour épisode {request.episode_id}: {error_message}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Summary invalide: {error_message}. Le résultat n'a pas été sauvegardé.",
+            )
+
+        # Récupérer les infos de l'épisode pour episode_title et episode_date
+        episode = mongodb_service.get_episode_by_id(request.episode_id)
+        if not episode:
+            raise HTTPException(status_code=404, detail="Épisode non trouvé")
+
+        episode_title = episode.get("titre", "")
+        episode_date_obj = episode.get("date")
+        if isinstance(episode_date_obj, datetime):
+            episode_date = episode_date_obj.strftime("%Y-%m-%d")
+        else:
+            episode_date = (
+                str(episode_date_obj).split("T")[0] if episode_date_obj else ""
+            )
+
+        # Vérifier si avis existe déjà
+        existing = mongodb_service.avis_critiques_collection.find_one(
+            {"episode_oid": request.episode_id}
+        )
+
+        # Nettoyer metadata pour ne pas stocker page_text (trop volumineux)
+        metadata_clean = {k: v for k, v in request.metadata.items() if k != "page_text"}
+
+        avis_data = {
+            "episode_oid": request.episode_id,
+            "episode_title": episode_title,
+            "episode_date": episode_date,
+            "summary": request.summary,
+            "summary_phase1": request.summary_phase1,
+            "summary_origin": "llm_generation_phase2",
+            "metadata_source": metadata_clean,
+            "updated_at": datetime.now(UTC),
+        }
+
+        if existing:
+            # Update
+            mongodb_service.avis_critiques_collection.update_one(
+                {"episode_oid": request.episode_id}, {"$set": avis_data}
+            )
+            avis_id = str(existing["_id"])
+            logger.info(f"Avis critique mis à jour: {avis_id}")
+        else:
+            # Insert
+            avis_data["created_at"] = datetime.now(UTC)
+            insert_result = mongodb_service.avis_critiques_collection.insert_one(
+                avis_data
+            )
+            avis_id = str(insert_result.inserted_id)
+            logger.info(f"Avis critique créé: {avis_id}")
+
+        return JSONResponse(content={"success": True, "avis_critique_id": avis_id})
+
+    except HTTPException:
+        # Re-raise HTTPException telles quelles (400, 404, etc.)
+        raise
+    except Exception as e:
+        logger.error(f"Erreur sauvegarde avis: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

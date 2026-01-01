@@ -14,6 +14,7 @@ import LivreDetail from '../views/LivreDetail.vue';
 import MasquerEpisodes from '../views/MasquerEpisodes.vue';
 import CalibreLibrary from '../views/CalibreLibrary.vue';
 import IdentificationCritiques from '../views/IdentificationCritiques.vue';
+import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
 
 const routes = [
   {
@@ -102,6 +103,14 @@ const routes = [
     component: IdentificationCritiques,
     meta: {
       title: 'Identification des Critiques - Back-office LMELP'
+    }
+  },
+  {
+    path: '/generation-avis-critiques',
+    name: 'GenerationAvisCritiques',
+    component: GenerationAvisCritiques,
+    meta: {
+      title: 'Génération Avis Critiques - Back-office LMELP'
     }
   },
   {

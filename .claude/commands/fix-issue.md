@@ -8,8 +8,8 @@ Utilise une todo list pour garder la trace complète de ce travail, et être sû
 7. Vérifie que tout passe (tests, lint, typecheck)
 8. Demande à l'utilisateur de tester globalement (potentiellement refais une passe entre les points 4 à 8) jusqu'à satisfaction
 9. Appelle la slash-command interne de claude  `/stocke-memoire` pour garder une trace résumée des points saillants de ces apprentissages/modifications
-10. Met à jour README.md et CLAUDE.md si necessaire, utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne.
-11. Met à jour la documentation utilisateur et développeur (sous /docs), utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne.
+10. Met à jour README.md et CLAUDE.md si necessaire, utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne @CLAUDE.md
+11. Met à jour la documentation utilisateur et développeur (sous /docs), utilise les bonnes pratiques de rédaction décrites dans ta mémoire interne @CLAUDE.md
 12. Commit de façon atomique avec un message descriptif (precommit te forcera à faire quelques modifications) et push ces modifs
 13. Fais un test `mkdocs build --strict` et corrige les erreurs eventuelles
 14. Verifie l'etat de la CI/CD (gh run view). Attend jusqu'à la fin de l'execution avant de continuer. Et corrige toutes les erreurs avant d'aller plus loin.

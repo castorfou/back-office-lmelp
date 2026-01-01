@@ -14,7 +14,10 @@ const api = axios.create({
 });
 
 // Timeout étendu pour les opérations longues (extraction/validation de livres)
-const EXTENDED_TIMEOUT = 120000; // 120 secondes (2 minutes)
+const EXTENDED_TIMEOUT = 240000; // 240 secondes (4 minutes)
+
+// Timeout pour auto-conversion emissions (peut traiter de nombreux épisodes)
+const EMISSIONS_TIMEOUT = 600000; // 600 secondes (10 minutes)
 
 // Intercepteur pour gérer les erreurs globalement
 api.interceptors.response.use(
@@ -449,12 +452,12 @@ export const calibreService = {
 export const emissionsService = {
   /**
    * Récupère toutes les émissions
-   * Déclenche auto-conversion si collection vide
+   * Déclenche auto-conversion à chaque chargement
    * @returns {Promise<Array>} Liste des émissions avec données enrichies
    */
   async getAllEmissions() {
     const response = await api.get('/emissions', {
-      timeout: EXTENDED_TIMEOUT  // Auto-conversion peut prendre du temps
+      timeout: EMISSIONS_TIMEOUT  // Auto-conversion systématique peut traiter de nombreux épisodes
     });
     return response.data;
   },
@@ -485,10 +488,65 @@ export const emissionsService = {
    */
   async autoConvertEpisodes() {
     const response = await api.post('/emissions/auto-convert', null, {
-      timeout: EXTENDED_TIMEOUT
+      timeout: EMISSIONS_TIMEOUT  // Peut traiter de nombreux épisodes
     });
     return response.data;
   },
+};
+
+/**
+ * Service pour la génération d'avis critiques en 2 phases LLM
+ */
+export const avisCritiquesService = {
+  /**
+   * Récupère la liste des épisodes sans avis critiques
+   * @returns {Promise<Array>} Liste des épisodes avec transcription mais sans avis
+   */
+  async getEpisodesSansAvis() {
+    const response = await api.get('/episodes-sans-avis-critiques');
+    return response.data;
+  },
+
+  /**
+   * Génère un avis critique en 2 phases LLM
+   * @param {Object} data - Données de génération {episode_id}
+   * @returns {Promise<Object>} Résultat de génération (summary, metadata, corrections)
+   */
+  async generateAvisCritiques(data) {
+    const response = await api.post('/avis-critiques/generate', data, {
+      timeout: 180000  // 3 minutes
+    });
+    return response.data;
+  },
+
+  /**
+   * Sauvegarde un avis critique dans MongoDB
+   * @param {Object} data - Données à sauvegarder {episode_id, summary, summary_phase1, metadata}
+   * @returns {Promise<Object>} Résultat de sauvegarde
+   */
+  async saveAvisCritiques(data) {
+    const response = await api.post('/avis-critiques/save', data);
+    return response.data;
+  },
+
+  /**
+   * Récupère la liste des épisodes qui ont des avis critiques
+   * @returns {Promise<Array>} Liste des épisodes avec summary
+   */
+  async getEpisodesWithSummaries() {
+    const response = await api.get('/episodes-with-summaries');
+    return response.data;
+  },
+
+  /**
+   * Récupère le summary existant pour un épisode
+   * @param {string} episodeId - ID de l'épisode
+   * @returns {Promise<Object>} Summary, metadata et timestamps
+   */
+  async getSummaryByEpisode(episodeId) {
+    const response = await api.get(`/avis-critiques/by-episode/${episodeId}`);
+    return response.data;
+  }
 };
 
 export default api;

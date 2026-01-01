@@ -4,8 +4,10 @@ nav:
   - Architecture: architecture.md
   - API Reference: api.md
   - Guide Claude AI: claude-ai-guide.md
+  - Commandes usuelles: commands.md
   - Workflow de développement: development-workflow.md
   - Script de démarrage: start-dev-script.md
+  - Génération LLM avis critiques: llm-avis-critiques-generation.md
   - Validation Bibliographique: biblio-verification-flow.md
   - Traitement données biblio: bibliographic-data-processing.md
   - Ramasse-miettes summaries: summary-garbage-collector.md
