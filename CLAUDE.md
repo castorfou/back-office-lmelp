@@ -222,11 +222,48 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
 
 7. **Verify database updates** with `mock_collection.update_one.assert_called_with(...)`
 
+8. **Mock MongoDB cursors to match actual code patterns**:
+   ```python
+   # ❌ BAD - Mock doesn't match code usage
+   mock_collection.find.return_value.sort.return_value.limit.return_value = data
+   # Code does: list(collection.find().sort()) → .limit() never called
+
+   # ✅ GOOD - Mock matches actual pattern
+   mock_collection.find.return_value.sort.return_value = iter(data)
+   # Code does: list(collection.find().sort()) → consumes iterator
+   ```
+
+9. **Skip tests conditionally for external services**:
+   ```python
+   skip_if_no_service = pytest.mark.skipif(
+       os.getenv("SERVICE_ENDPOINT") is None,
+       reason="Service non configuré (CI/CD)"
+   )
+
+   @skip_if_no_service
+   def test_external_api_call(self):
+       """Test s'exécute uniquement si SERVICE_ENDPOINT configuré."""
+       # Test with real service credentials
+   ```
+
 ### Frontend Testing - Key Rules
 
 1. **Reset mocks between tests**: Use `vi.resetAllMocks()` in `beforeEach`
 2. **Prefer `mockResolvedValueOnce`** over persistent `mockImplementation`
 3. **Watch for mock pollution**: Closures in `mockImplementation` persist across tests
+4. **Direct method calls over button triggers** for reliable state access:
+   ```javascript
+   // ❌ AVOID - wrapper.vm.error may be null after trigger
+   const button = wrapper.find('button');
+   await button.trigger('click');
+   expect(wrapper.vm.error).toBeTruthy();  // May fail
+
+   // ✅ PREFER - Direct method call guarantees state synchronization
+   wrapper.vm.selectedValue = 'test';
+   await wrapper.vm.$nextTick();
+   await wrapper.vm.methodUnderTest();
+   expect(wrapper.vm.error).toBeTruthy();  // Reliable
+   ```
 
 ### FastAPI Best Practices
 
@@ -351,6 +388,37 @@ intersection = episode_ids_from_distinct & episode_ids_from_find  # Works!
 
 **Why**: MongoDB field types may differ from `_id` types (strings vs ObjectId). Always inspect real data with MCP tools before implementing set operations or comparisons.
 
+### MongoDB DateTime vs String Handling
+
+**CRITICAL**: MongoDB returns `datetime` objects, but string operations expect `str`
+
+```python
+# ❌ WRONG - Assumes date is always string
+async def search_by_date(episode_date: str | None) -> str | None:
+    if episode_date and episode_date.startswith("2024"):  # Crash if datetime!
+        return url
+
+# ✅ CORRECT - Accept both types and convert
+from datetime import datetime
+
+async def search_by_date(episode_date: str | datetime | None) -> str | None:
+    """Accept both string and datetime from MongoDB."""
+    # Convert datetime to string if necessary
+    if episode_date and not isinstance(episode_date, str):
+        episode_date = episode_date.strftime("%Y-%m-%d")
+
+    # Now safe to use string operations
+    if episode_date and episode_date.startswith("2024"):
+        return url
+```
+
+**Why this matters**:
+- MongoDB `find()` returns `datetime` objects for date fields
+- String operations like `startswith()`, `split()`, `in` fail on datetime
+- **Error**: `TypeError: startswith first arg must be str, not datetime.datetime`
+
+**Pattern**: Always convert at function entry, update type hints accordingly
+
 ### Vue.js Lifecycle Cleanup
 
 **CRITICAL**: Always clean up timers/intervals in `beforeUnmount()`
@@ -399,6 +467,55 @@ stopPolling() {
 ```
 
 **Advantages**: More control, proper cleanup, no infinite reconnection.
+
+### External API Pagination with Guard Rails
+
+**When searching external APIs that paginate results:**
+
+```python
+async def search_with_pagination(query: str, target_date: str) -> str | None:
+    """Search external API with pagination support.
+
+    Guard rails:
+    1. Max pages limit (prevent infinite loops)
+    2. Stop on empty results (detect end of pagination)
+    3. Timeout per page (prevent hanging)
+    """
+    max_pages = 10  # Guard rail 1: Prevent infinite loops
+    page = 1
+
+    while page <= max_pages:
+        # Build paginated URL (?p=2, ?p=3, etc.)
+        url = f"{base_url}?q={query}" if page == 1 else f"{base_url}?q={query}&p={page}"
+
+        # Guard rail 3: Timeout per page request
+        async with session.get(url, timeout=10) as response:
+            if response.status != 200:
+                logger.warning(f"Page {page} returned {response.status}, stopping")
+                break
+
+            results = parse_results(await response.text())
+
+            # Guard rail 2: Stop if no results (end of pagination)
+            if not results:
+                logger.warning(f"Page {page} has no results, stopping pagination")
+                break
+
+            # Check each result for match
+            for result in results:
+                if matches_criteria(result, target_date):
+                    logger.info(f"✅ Found match on page {page}")
+                    return result
+
+        page += 1
+
+    return None  # Not found after all pages
+```
+
+**Why guard rails are critical**:
+- ❌ Without max_pages: Infinite loop if item doesn't exist
+- ❌ Without empty check: Unnecessary requests beyond last page
+- ❌ Without timeout: Hanging requests can block entire process
 
 ### Business Logic First
 
@@ -470,6 +587,53 @@ if not result:
     if result:
         result = scrape_from_author_page(result)
 ```
+
+### Validation - Double Layer Pattern
+
+**For critical operations (LLM saves, payments, data modifications):**
+
+```python
+# BACKEND - Security validation (app.py)
+def _validate_summary(summary: str) -> tuple[bool, str | None]:
+    """Validate LLM-generated summary."""
+    if not summary or not summary.strip():
+        return False, "Le résumé est vide"
+    if len(summary) > 50000:
+        return False, "Résumé anormalement long (malformé)"
+    if re.search(r' {100,}', summary):
+        return False, "Trop d'espaces consécutifs (bug LLM)"
+    if "SECTION_REQUISE" not in summary:
+        return False, "Section requise manquante"
+    return True, None
+
+@app.post("/api/save")
+async def save(data: dict):
+    is_valid, error = _validate_summary(data["summary"])
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    db.save(data)  # Save only if valid
+```
+
+```javascript
+// FRONTEND - UX validation (Component.vue)
+async saveSummary() {
+  // Same validation criteria as backend
+  const validation = this.validateSummary(this.summary);
+  if (!validation.isValid) {
+    this.error = validation.error;  // Show error immediately
+    return;  // Stop before API call
+  }
+
+  // Call API only if frontend validation passes
+  await axios.post('/api/save', { summary: this.summary });
+}
+```
+
+**Benefits**:
+- ✅ Frontend: Immediate feedback (no network wait)
+- ✅ Backend: Security (validation enforced server-side)
+- ✅ Consistency: Same validation logic both sides
+- ✅ UX: Clear error messages with HTTP 400
 
 ### Debug Logging Strategy
 
