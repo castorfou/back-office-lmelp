@@ -1,6 +1,7 @@
 """Tests pour le service de génération d'avis critiques en 2 phases LLM."""
 
 import asyncio
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,9 +15,17 @@ from tests.fixtures.transcription_samples import (
 )
 
 
+# Skip tous les tests si Azure OpenAI n'est pas configuré (CI/CD)
+skip_if_no_azure = pytest.mark.skipif(
+    os.getenv("AZURE_ENDPOINT") is None,
+    reason="Azure OpenAI non configuré (variables d'environnement manquantes)",
+)
+
+
 class TestGenerateSummaryPhase1:
     """Tests pour la génération Phase 1 (transcription → markdown)."""
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_generate_summary_phase1_success(self):
         """Test Phase 1 génère markdown valide depuis transcription."""
@@ -43,6 +52,7 @@ class TestGenerateSummaryPhase1:
             )
             assert "|" in result  # Markdown table
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_generate_summary_phase1_invalid_format_raises(self):
         """Test Phase 1 raise ValueError si format markdown invalide."""
@@ -78,6 +88,7 @@ class TestGenerateSummaryPhase1:
         with pytest.raises(ValueError, match="Client Azure OpenAI non configuré"):
             await service.generate_summary_phase1("transcription", "2025-01-15")
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_generate_summary_phase1_timeout_retries(self):
         """Test Phase 1 retry en cas de timeout."""
@@ -170,6 +181,7 @@ Pas de tableau ici.
 class TestEnhanceSummaryPhase2:
     """Tests pour la Phase 2 (correction avec métadonnées)."""
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_enhance_summary_phase2_applies_corrections(self):
         """Test Phase 2 corrige noms avec metadata."""
@@ -205,6 +217,7 @@ class TestEnhanceSummaryPhase2:
             assert "Patricia Martin" in result
             assert "Patricia Martine" not in result
 
+    @skip_if_no_azure
     @pytest.mark.asyncio
     async def test_enhance_summary_phase2_fallback_on_error(self):
         """Test Phase 2 fallback vers Phase 1 si erreur."""

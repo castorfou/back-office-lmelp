@@ -32,9 +32,9 @@ class TestGetEpisodesSansAvisCritiques:
             # Mock avis_critiques collection (aucun avis)
             mock_service.avis_critiques_collection.find.return_value = []
 
-            # Mock episodes collection
+            # Mock episodes collection - le code utilise list(find().sort())
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-sans-avis-critiques")
 
@@ -70,9 +70,9 @@ class TestGetEpisodesSansAvisCritiques:
             # Mock avis_critiques collection
             mock_service.avis_critiques_collection.find.return_value = mock_avis
 
-            # Mock episodes collection
+            # Mock episodes collection - le code utilise list(find().sort())
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-sans-avis-critiques")
 
@@ -102,7 +102,7 @@ class TestGetEpisodesSansAvisCritiques:
             ]
 
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-sans-avis-critiques")
 
@@ -134,7 +134,7 @@ class TestGetEpisodesSansAvisCritiques:
             mock_service.avis_critiques_collection.find.return_value = []
 
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-sans-avis-critiques")
 
@@ -166,7 +166,7 @@ class TestGetEpisodesSansAvisCritiques:
             mock_service.avis_critiques_collection.find.return_value = []
 
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-sans-avis-critiques")
 
@@ -217,9 +217,9 @@ class TestGetEpisodesWithSummaries:
             # Mock avis_critiques collection
             mock_service.avis_critiques_collection.find.return_value = mock_avis
 
-            # Mock episodes collection
+            # Mock episodes collection - le code utilise list(find().sort())
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-with-summaries")
 
@@ -268,7 +268,7 @@ class TestGetEpisodesWithSummaries:
             mock_service.avis_critiques_collection.find.return_value = mock_avis
 
             mock_find = mock_service.episodes_collection.find.return_value
-            mock_find.sort.return_value.limit.return_value = mock_episodes
+            mock_find.sort.return_value = iter(mock_episodes)
 
             response = client.get("/api/episodes-with-summaries")
 

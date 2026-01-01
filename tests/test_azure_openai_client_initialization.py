@@ -6,9 +6,17 @@ from unittest.mock import patch
 import pytest
 
 
+# Skip tous les tests si Azure OpenAI n'est pas configuré (CI/CD)
+skip_if_no_azure = pytest.mark.skipif(
+    os.getenv("AZURE_ENDPOINT") is None,
+    reason="Azure OpenAI non configuré (variables d'environnement manquantes)",
+)
+
+
 class TestDotenvLoadingInApp:
     """Test CRITIQUE pour le problème root cause (Issue #171)."""
 
+    @skip_if_no_azure
     def test_app_must_load_dotenv_before_service_imports(self):
         """Test que app.py charge .env AVANT d'importer les services singletons.
 
@@ -36,6 +44,7 @@ class TestDotenvLoadingInApp:
 class TestAzureOpenAIClientInitialization:
     """Tests pour diagnostiquer l'initialisation du client Azure OpenAI."""
 
+    @skip_if_no_azure
     def test_environment_variables_are_loaded(self):
         """Test que les variables d'environnement Azure OpenAI sont chargées."""
         # GIVEN: Variables définies dans .env
