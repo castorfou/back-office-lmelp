@@ -14,7 +14,10 @@ const api = axios.create({
 });
 
 // Timeout étendu pour les opérations longues (extraction/validation de livres)
-const EXTENDED_TIMEOUT = 120000; // 120 secondes (2 minutes)
+const EXTENDED_TIMEOUT = 240000; // 240 secondes (4 minutes)
+
+// Timeout pour auto-conversion emissions (peut traiter de nombreux épisodes)
+const EMISSIONS_TIMEOUT = 600000; // 600 secondes (10 minutes)
 
 // Intercepteur pour gérer les erreurs globalement
 api.interceptors.response.use(
@@ -449,12 +452,12 @@ export const calibreService = {
 export const emissionsService = {
   /**
    * Récupère toutes les émissions
-   * Déclenche auto-conversion si collection vide
+   * Déclenche auto-conversion à chaque chargement
    * @returns {Promise<Array>} Liste des émissions avec données enrichies
    */
   async getAllEmissions() {
     const response = await api.get('/emissions', {
-      timeout: EXTENDED_TIMEOUT  // Auto-conversion peut prendre du temps
+      timeout: EMISSIONS_TIMEOUT  // Auto-conversion systématique peut traiter de nombreux épisodes
     });
     return response.data;
   },
@@ -485,7 +488,7 @@ export const emissionsService = {
    */
   async autoConvertEpisodes() {
     const response = await api.post('/emissions/auto-convert', null, {
-      timeout: EXTENDED_TIMEOUT
+      timeout: EMISSIONS_TIMEOUT  // Peut traiter de nombreux épisodes
     });
     return response.data;
   },
