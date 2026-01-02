@@ -59,16 +59,27 @@ export function createAccentInsensitiveRegex(term) {
 
   while (i < normalized.length) {
     const char = normalized[i];
+    const nextChar = i + 1 < normalized.length ? normalized[i + 1] : null;
+    const prevChar = i > 0 ? normalized[i - 1] : null;
 
     // Detect "oe" sequence → can match "oe" or "œ" (Issue #173)
-    if (char === 'o' && i + 1 < normalized.length && normalized[i + 1] === 'e') {
+    if (char === 'o' && nextChar === 'e') {
       result.push('(?:[oòóôöõøōŏő][eèéêëēĕėęě]|œ)');
       i += 2;  // Skip both characters
     }
     // Detect "ae" sequence → can match "ae" or "æ" (Issue #173)
-    else if (char === 'a' && i + 1 < normalized.length && normalized[i + 1] === 'e') {
+    else if (char === 'a' && nextChar === 'e') {
       result.push('(?:[aàâäáãåāăą][eèéêëēĕėęě]|æ)');
       i += 2;  // Skip both characters
+    }
+    // Detect space after letter (Issue #173 - optional apostrophe)
+    // Ex: "d Ormesson" should match "d' Ormesson" AND "l ami" should match "l'ami"
+    else if (char === ' ' && prevChar && /[a-z]/.test(prevChar)) {
+      // Space after letter → may have optional apostrophe before space
+      // Pattern: ['\u2019]? ? (optional apostrophe + optional space)
+      // Matches: "d Ormesson" → "d' Ormesson" AND "l ami" → "l'ami"
+      result.push("['\u2019]? ?");
+      i += 1;
     }
     else {
       // Escape special regex characters

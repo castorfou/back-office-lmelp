@@ -361,6 +361,37 @@ class TestTypographicCharactersRegex:
         assert pattern.search("l'ami") is not None  # Typographique
         assert pattern.search("L'AMI") is not None  # Uppercase
 
+    def test_search_without_apostrophe_should_match_with_apostrophe(self):
+        """
+        GIVEN: Recherche "d Ormesson" (SANS apostrophe)
+        WHEN: Regex généré
+        THEN: Doit matcher "Jean d' Ormesson" (AVEC apostrophe + espace)
+        Issue #173: Cas réel de la base MongoDB
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        # Test 1: Recherche "d Ormesson" doit matcher "d' Ormesson"
+        regex_pattern = create_accent_insensitive_regex("d Ormesson")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert (
+            pattern.search("Jean d' Ormesson") is not None
+        )  # Apostrophe simple + espace
+        assert (
+            pattern.search("Jean d' Ormesson") is not None
+        )  # Apostrophe typo + espace
+        assert pattern.search("Jean d Ormesson") is not None  # Sans apostrophe
+
+        # Test 2: Recherche "l ami" doit matcher "l'ami"
+        regex_pattern2 = create_accent_insensitive_regex("l ami")
+        pattern2 = re.compile(regex_pattern2, re.IGNORECASE)
+
+        assert pattern2.search("l'ami") is not None
+        assert pattern2.search("l'ami") is not None
+        assert pattern2.search("l ami") is not None
+
 
 class TestMongoDBServiceTypographicCharacters:
     """Tests d'intégration pour caractères typographiques dans MongoDB Service."""

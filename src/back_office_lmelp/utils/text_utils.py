@@ -84,24 +84,29 @@ def create_accent_insensitive_regex(term: str) -> str:
     i = 0
     while i < len(normalized_term.lower()):
         char = normalized_term.lower()[i]
+        next_char = (
+            normalized_term.lower()[i + 1]
+            if i + 1 < len(normalized_term.lower())
+            else None
+        )
 
         # Détecter les séquences "oe" et "ae" pour gérer les ligatures (Issue #173)
-        if (
-            char == "o"
-            and i + 1 < len(normalized_term.lower())
-            and normalized_term.lower()[i + 1] == "e"
-        ):
+        if char == "o" and next_char == "e":
             # Séquence "oe" → peut matcher "oe" ou "œ"
             result.append("(?:[oòóôöõøōŏő][eèéêëēĕėęě]|œ)")
             i += 2  # Sauter les 2 caractères
-        elif (
-            char == "a"
-            and i + 1 < len(normalized_term.lower())
-            and normalized_term.lower()[i + 1] == "e"
-        ):
+        elif char == "a" and next_char == "e":
             # Séquence "ae" → peut matcher "ae" ou "æ"
             result.append("(?:[aàâäáãåāăą][eèéêëēĕėęě]|æ)")
             i += 2  # Sauter les 2 caractères
+        # Détecter un espace qui suit une lettre (Issue #173 - apostrophe optionnelle)
+        # Ex: "d Ormesson" doit matcher "d' Ormesson" ET "l ami" doit matcher "l'ami"
+        elif char == " " and i > 0 and normalized_term.lower()[i - 1].isalpha():
+            # Espace après lettre → peut avoir apostrophe optionnelle avant l'espace
+            # Pattern: ['']? ?  (apostrophe optionnelle + espace optionnel)
+            # Ceci matche: "d Ormesson" → "d' Ormesson" ET "l ami" → "l'ami"
+            result.append("['']? ?")
+            i += 1
         else:
             # Caractère normal : utiliser le mapping ou le caractère tel quel
             result.append(accent_map.get(char, char))

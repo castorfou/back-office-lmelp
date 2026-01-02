@@ -90,5 +90,23 @@ describe('textUtils.js - Typographic Characters Support (Issue #173)', () => {
       expect(result).toContain('<strong');
       expect(result).toContain('Marie\u2013Claire');
     });
+
+    it('should match search without apostrophe to text with apostrophe (Issue #173)', () => {
+      // Test case 1: "d Ormesson" should match "d' Ormesson"
+      const pattern1 = createAccentInsensitiveRegex('d Ormesson');
+      const regex1 = new RegExp(pattern1, 'i');
+
+      expect(regex1.test("Jean d' Ormesson")).toBe(true);  // Apostrophe simple + espace
+      expect(regex1.test("Jean d\u2019 Ormesson")).toBe(true);  // Apostrophe typo + espace
+      expect(regex1.test("Jean d Ormesson")).toBe(true);   // Sans apostrophe
+
+      // Test case 2: "l ami" should match "l'ami"
+      const pattern2 = createAccentInsensitiveRegex('l ami');
+      const regex2 = new RegExp(pattern2, 'i');
+
+      expect(regex2.test("l'ami")).toBe(true);
+      expect(regex2.test("l\u2019ami")).toBe(true);
+      expect(regex2.test("l ami")).toBe(true);
+    });
   });
 });
