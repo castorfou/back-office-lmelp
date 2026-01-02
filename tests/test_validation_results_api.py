@@ -261,7 +261,11 @@ class TestValidationResultsAPI:
             assert book_data["babelio_publisher"] == "Audie-Fluide glacial"
 
     def test_red_avis_critique_editeur_should_be_updated_with_babelio_publisher(self):
-        """RED Test (Issue #85): L'avis_critique doit être mis à jour avec babelio_publisher quand auto-processing."""
+        """Test (Issue #174): L'avis_critique NE DOIT PAS contenir le champ 'editeur' lors de l'auto-processing.
+
+        Le champ 'editeur' appartient uniquement à la collection 'livres', pas 'avis_critiques'.
+        Le summary markdown est mis à jour avec l'éditeur enrichi, mais pas le document avis_critiques lui-même.
+        """
         episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
         avis_critique_id = ObjectId(
             "68c718a16e51b9428ab88066"  # pragma: allowlist secret
@@ -311,24 +315,25 @@ class TestValidationResultsAPI:
             )
             assert response.status_code == 200
 
-            # RED TEST: Vérifier que mongodb_service.update_avis_critique a été appelé
-            # avec le nouvel éditeur (babelio_publisher)
+            # Vérifier que mongodb_service.update_avis_critique a été appelé
             mock_mongodb.update_avis_critique.assert_called_once()
             call_args = mock_mongodb.update_avis_critique.call_args[0]
 
             # Vérifier que c'est bien l'avis_critique_id
             assert call_args[0] == str(avis_critique_id)
 
-            # Vérifier que l'update dict contient editeur ET summary avec la valeur babelio_publisher
+            # Issue #174: Vérifier que l'update dict NE CONTIENT PAS le champ 'editeur'
             update_dict = call_args[1]
-            assert "editeur" in update_dict, (
-                "editeur doit être dans l'update de avis_critique"
-            )
-            assert update_dict["editeur"] == "Audie-Fluide glacial", (
-                f"avis_critique editeur doit être 'Audie-Fluide glacial' (Babelio), pas {update_dict.get('editeur')}"
+            assert "editeur" not in update_dict, (
+                "ERREUR: Le champ 'editeur' ne doit PAS être dans avis_critiques. "
+                "L'éditeur appartient à la collection 'livres', pas 'avis_critiques'."
             )
 
-            # Issue #85: Vérifier que le summary est aussi mis à jour
+            # Issue #85: Vérifier que le summary est mis à jour avec l'éditeur enrichi (dans le markdown)
             assert "summary" in update_dict, (
-                "summary doit être mis à jour avec le nouvel éditeur Babelio"
+                "summary doit être mis à jour avec le nouvel éditeur Babelio dans le markdown"
+            )
+            # Vérifier que le summary markdown contient l'éditeur enrichi
+            assert "Audie-Fluide glacial" in update_dict["summary"], (
+                "Le summary markdown doit contenir l'éditeur enrichi 'Audie-Fluide glacial'"
             )

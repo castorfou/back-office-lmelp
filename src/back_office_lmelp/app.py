@@ -1371,15 +1371,14 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                                 corrected_publisher=book_result.babelio_publisher,
                             )
 
-                            # Mettre à jour l'avis_critique avec le summary et l'éditeur mis à jour
+                            # Mettre à jour l'avis_critique avec le summary mis à jour
                             mongodb_service.update_avis_critique(
                                 request.avis_critique_id,
                                 {
                                     "summary": updated_summary,
-                                    "editeur": book_result.babelio_publisher,
                                 },
                             )
-                            print("   ✅ Summary and editeur updated in avis_critique")
+                            print("   ✅ Summary updated in avis_critique")
 
                 except Exception as auto_processing_error:
                     # Ne pas faire échouer l'endpoint si l'auto-processing échoue
