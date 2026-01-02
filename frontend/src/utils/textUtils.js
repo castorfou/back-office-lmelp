@@ -1,23 +1,40 @@
 /**
  * Text utilities for accent-insensitive search and highlighting
  * Issue #92: Implement accent-insensitive search
+ * Issue #173: Add support for typographic characters (ligatures, dashes, apostrophes)
  */
 
 /**
- * Normalizes a string by removing accents (NFD decomposition + removing diacritics)
+ * Normalizes a string by removing accents and normalizing typographic characters
  * @param {string} str - The string to normalize
- * @returns {string} - The string without accents
+ * @returns {string} - The string without accents and with normalized typography
  */
 export function removeAccents(str) {
-  return str
+  // Step 1: NFD decomposition + remove diacritics (Issue #92)
+  let normalized = str
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+
+  // Step 2: Normalize ligatures (Issue #173)
+  // œ (U+0153) → oe, Œ (U+0152) → oe
+  normalized = normalized.replace(/œ/g, 'oe').replace(/Œ/g, 'Oe');
+  // æ (U+00E6) → ae, Æ (U+00C6) → ae
+  normalized = normalized.replace(/æ/g, 'ae').replace(/Æ/g, 'Ae');
+
+  // Step 3: Normalize dashes and apostrophes (Issue #173)
+  // – (U+2013 en dash) → - (hyphen)
+  normalized = normalized.replace(/\u2013/g, '-');
+  // ' (U+2019 right single quotation) → ' (simple apostrophe)
+  normalized = normalized.replace(/\u2019/g, "'");
+
+  return normalized;
 }
 
 /**
  * Creates an accent-insensitive regex pattern for highlighting
- * @param {string} term - The search term (e.g., "carrere")
- * @returns {string} - A regex pattern that matches accented variants
+ * Supports ligatures, typographic characters, and accented variants
+ * @param {string} term - The search term (e.g., "carrere", "oeuvre", "l'ami")
+ * @returns {string} - A regex pattern that matches accented and typographic variants
  */
 export function createAccentInsensitiveRegex(term) {
   const accentMap = {
@@ -29,24 +46,58 @@ export function createAccentInsensitiveRegex(term) {
     'c': '[cç]',
     'n': '[nñń]',
     'y': '[yÿý]',
+    '-': '[-\u2013]',   // Hyphen + en dash (Issue #173)
+    "'": "['\u2019]",   // Simple + typographic apostrophe (Issue #173)
   };
 
-  // Normalize the term first (remove accents)
+  // Normalize the term first (remove accents, convert ligatures, normalize typography)
   const normalized = removeAccents(term.toLowerCase());
 
-  // Build regex pattern with accent variants
-  const pattern = normalized
-    .split('')
-    .map(char => {
+  // Build regex pattern with accent variants and ligature support
+  const result = [];
+  let i = 0;
+
+  while (i < normalized.length) {
+    const char = normalized[i];
+    const nextChar = i + 1 < normalized.length ? normalized[i + 1] : null;
+    const prevChar = i > 0 ? normalized[i - 1] : null;
+
+    // Detect "oe" sequence → can match "oe" or "œ" (Issue #173)
+    if (char === 'o' && nextChar === 'e') {
+      result.push('(?:[oòóôöõøōŏő][eèéêëēĕėęě]|œ)');
+      i += 2;  // Skip both characters
+    }
+    // Detect "ae" sequence → can match "ae" or "æ" (Issue #173)
+    else if (char === 'a' && nextChar === 'e') {
+      result.push('(?:[aàâäáãåāăą][eèéêëēĕėęě]|æ)');
+      i += 2;  // Skip both characters
+    }
+    // Detect space after letter (Issue #173 - optional apostrophe and punctuation)
+    // Ex: "d Ormesson" should match "d' Ormesson" AND "l ami" should match "l'ami"
+    // Ex: "os I" should match "Paracuellos, Intégrale"
+    else if (char === ' ' && prevChar && /[a-z]/.test(prevChar)) {
+      // Space after letter → may have optional punctuation and/or apostrophe before space
+      // Pattern: [,.]?['\u2019]? ? (optional punctuation + optional apostrophe + optional space)
+      // Matches:
+      //   - "d Ormesson" → "d' Ormesson" (apostrophe)
+      //   - "l ami" → "l'ami" (apostrophe without space)
+      //   - "os I" → "Paracuellos, Intégrale" (comma + space)
+      //   - "os I" → "Paracuellos. Intégrale" (period + space)
+      result.push("[,.]?['\u2019]? ?");
+      i += 1;
+    }
+    else {
       // Escape special regex characters
       if (/[.*+?^${}()|[\]\\]/.test(char)) {
-        return '\\' + char;
+        result.push('\\' + char);
+      } else {
+        result.push(accentMap[char] || char);
       }
-      return accentMap[char] || char;
-    })
-    .join('');
+      i += 1;
+    }
+  }
 
-  return pattern;
+  return result.join('');
 }
 
 /**

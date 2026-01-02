@@ -620,6 +620,108 @@ describe('CalibreLibrary', () => {
     });
   });
 
+  describe('Typographic Characters Search (Issue #173)', () => {
+    it('should find book with ligature oe when searching for oeuvre', async () => {
+      // Arrange
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 1
+      });
+
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          { id: 1, title: 'L\u2019\u0153uvre au noir', authors: ['Marguerite Yourcenar'], read: null }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await flushPromises();
+
+      // Act - Search with "oeuvre" (without ligature)
+      const searchInput = wrapper.find('[data-testid="search-input"]');
+      await searchInput.setValue('oeuvre');
+      await wrapper.vm.$nextTick();
+
+      // Assert - Should find the book with "œuvre" (with ligature)
+      const bookCards = wrapper.findAll('[data-testid="book-card"]');
+      expect(bookCards.length).toBe(1);
+      expect(bookCards[0].text()).toContain('œuvre');
+    });
+
+    it('should find book with em dash when searching with simple hyphen', async () => {
+      // Arrange
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 1
+      });
+
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          { id: 1, title: 'Marie\u2013Claire Blais', authors: ['Author'], read: null }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await flushPromises();
+
+      // Act - Search with simple hyphen
+      const searchInput = wrapper.find('[data-testid="search-input"]');
+      await searchInput.setValue('Marie-Claire');
+      await wrapper.vm.$nextTick();
+
+      // Assert - Should find the book with em dash
+      const bookCards = wrapper.findAll('[data-testid="book-card"]');
+      expect(bookCards.length).toBe(1);
+    });
+
+    it('should find author with typographic apostrophe when searching with simple apostrophe', async () => {
+      // Arrange
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 1
+      });
+
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          { id: 1, title: 'Test Book', authors: ['L\u2019auteur inconnu'], read: null }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: {
+          plugins: [router]
+        }
+      });
+
+      await flushPromises();
+
+      // Act - Search with simple apostrophe
+      const searchInput = wrapper.find('[data-testid="search-input"]');
+      await searchInput.setValue("l'auteur");
+      await wrapper.vm.$nextTick();
+
+      // Assert - Should find the author with typographic apostrophe
+      const bookCards = wrapper.findAll('[data-testid="book-card"]');
+      expect(bookCards.length).toBe(1);
+    });
+  });
+
   describe('Error Handling', () => {
     it('should display error message when API call fails', async () => {
       // Arrange

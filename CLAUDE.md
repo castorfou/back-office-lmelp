@@ -545,19 +545,45 @@ await asyncio.sleep(5)  # 5 seconds between Babelio requests
 
 **Why**: Prevents ban/throttling from external services.
 
-### Text Normalization for Matching
+### Text Normalization for Accent and Typographic Insensitivity
 
-**Chain normalizations for reliable matching:**
+**Pattern recommandé**: Utiliser `create_accent_insensitive_regex()` pour toutes les recherches textuelles.
 
+**Normalisations automatiques**:
+- **Accents**: é ↔ e, à ↔ a, ô ↔ o, etc.
+- **Ligatures**: œ ↔ oe, æ ↔ ae
+- **Tirets**: – (cadratin U+2013) ↔ - (simple U+002D)
+- **Apostrophes**: ' (typographique U+2019) ↔ ' (simple U+0027)
+
+**Backend (Python)**:
 ```python
-def normalize_text(text: str) -> str:
-    """Normalize text for reliable matching."""
-    text = text.lower()
-    text = text.replace('œ', 'oe').replace('æ', 'ae')  # Ligatures
-    text = text.replace(''', "'")  # Typographic apostrophes
-    text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
-    return text
+from ..utils.text_utils import create_accent_insensitive_regex
+
+# Créer un pattern regex insensible aux accents et caractères typographiques
+regex_pattern = create_accent_insensitive_regex(search_term)
+
+# Utiliser avec MongoDB $regex
+search_query = {"field": {"$regex": regex_pattern, "$options": "i"}}
 ```
+
+**Frontend (JavaScript)**:
+```javascript
+import { removeAccents } from '@/utils/textUtils';
+
+// Normaliser pour comparaison simple
+const normalized = removeAccents(searchText.toLowerCase());
+const match = removeAccents(data.toLowerCase()).includes(normalized);
+```
+
+**Exemples concrets**:
+- Recherche `"oeuvre"` trouve `"L'Œuvre au noir"` (ligature œ)
+- Recherche `"Marie-Claire"` trouve `"Marie–Claire Blais"` (tiret cadratin)
+- Recherche `"l'ami"` trouve `"L'ami retrouvé"` (apostrophe typographique)
+- Recherche `"carrere"` trouve `"Carrère"` (accents)
+
+**Références**:
+- Issue #92: Recherche insensible aux accents
+- Issue #173: Support des caractères typographiques (ligatures, tirets, apostrophes)
 
 ### Separation of Concerns - MongoDB Collections
 

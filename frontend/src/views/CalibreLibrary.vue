@@ -155,7 +155,7 @@
 
 <script>
 import { calibreService } from '../services/api.js';
-import { highlightSearchTermAccentInsensitive } from '../utils/textUtils.js';
+import { highlightSearchTermAccentInsensitive, removeAccents } from '../utils/textUtils.js';
 import Navigation from '../components/Navigation.vue';
 
 export default {
@@ -209,12 +209,17 @@ export default {
         }
       }
 
-      // Apply search filter (case-insensitive, title and author)
+      // Apply search filter (case-insensitive, accent-insensitive, typographic-insensitive)
+      // Issue #173: Support for typographic characters (œ, –, ')
       if (this.searchText.trim()) {
-        const search = this.searchText.toLowerCase().trim();
+        const search = removeAccents(this.searchText.toLowerCase().trim());
         result = result.filter(book => {
-          const titleMatch = book.title?.toLowerCase().includes(search);
-          const authorMatch = book.authors?.some(author => author.toLowerCase().includes(search));
+          const titleNormalized = removeAccents(book.title?.toLowerCase() || '');
+          const authorsNormalized = book.authors?.map(a => removeAccents(a.toLowerCase())) || [];
+
+          const titleMatch = titleNormalized.includes(search);
+          const authorMatch = authorsNormalized.some(author => author.includes(search));
+
           return titleMatch || authorMatch;
         });
       }
