@@ -108,5 +108,24 @@ describe('textUtils.js - Typographic Characters Support (Issue #173)', () => {
       expect(regex2.test("l\u2019ami")).toBe(true);
       expect(regex2.test("l ami")).toBe(true);
     });
+
+    it('should match search without punctuation to text with punctuation (Issue #173)', () => {
+      // Test case 1: "os I" should match "Paracuellos, Intégrale"
+      const pattern1 = createAccentInsensitiveRegex('os I');
+      const regex1 = new RegExp(pattern1, 'i');
+
+      expect(regex1.test("Paracuellos, Intégrale")).toBe(true);  // Virgule + espace
+      expect(regex1.test("Paracuellos,Intégrale")).toBe(true);   // Virgule sans espace
+      expect(regex1.test("Paracuellos. Intégrale")).toBe(true);  // Point + espace
+      expect(regex1.test("Paracuellos Intégrale")).toBe(true);   // Sans ponctuation
+
+      // Test case 2: "los E" should match "ellos, et"
+      const pattern2 = createAccentInsensitiveRegex('los E');
+      const regex2 = new RegExp(pattern2, 'i');
+
+      expect(regex2.test("Paracuellos, et")).toBe(true);
+      expect(regex2.test("Paracuellos. Et")).toBe(true);
+      expect(regex2.test("Paracuellos Et")).toBe(true);
+    });
   });
 });

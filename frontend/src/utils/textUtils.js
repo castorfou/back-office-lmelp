@@ -72,13 +72,18 @@ export function createAccentInsensitiveRegex(term) {
       result.push('(?:[aàâäáãåāăą][eèéêëēĕėęě]|æ)');
       i += 2;  // Skip both characters
     }
-    // Detect space after letter (Issue #173 - optional apostrophe)
+    // Detect space after letter (Issue #173 - optional apostrophe and punctuation)
     // Ex: "d Ormesson" should match "d' Ormesson" AND "l ami" should match "l'ami"
+    // Ex: "os I" should match "Paracuellos, Intégrale"
     else if (char === ' ' && prevChar && /[a-z]/.test(prevChar)) {
-      // Space after letter → may have optional apostrophe before space
-      // Pattern: ['\u2019]? ? (optional apostrophe + optional space)
-      // Matches: "d Ormesson" → "d' Ormesson" AND "l ami" → "l'ami"
-      result.push("['\u2019]? ?");
+      // Space after letter → may have optional punctuation and/or apostrophe before space
+      // Pattern: [,.]?['\u2019]? ? (optional punctuation + optional apostrophe + optional space)
+      // Matches:
+      //   - "d Ormesson" → "d' Ormesson" (apostrophe)
+      //   - "l ami" → "l'ami" (apostrophe without space)
+      //   - "os I" → "Paracuellos, Intégrale" (comma + space)
+      //   - "os I" → "Paracuellos. Intégrale" (period + space)
+      result.push("[,.]?['\u2019]? ?");
       i += 1;
     }
     else {

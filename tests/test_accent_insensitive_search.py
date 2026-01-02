@@ -392,6 +392,36 @@ class TestTypographicCharactersRegex:
         assert pattern2.search("l'ami") is not None
         assert pattern2.search("l ami") is not None
 
+    def test_search_without_punctuation_should_match_with_punctuation(self):
+        """
+        GIVEN: Recherche "os I" (SANS ponctuation entre les mots)
+        WHEN: Regex généré
+        THEN: Doit matcher "Paracuellos, Intégrale" (AVEC virgule + espace)
+        Issue #173: Extension pour ponctuation optionnelle
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        # Test 1: Recherche "os I" doit matcher "ellos, Intégrale"
+        regex_pattern = create_accent_insensitive_regex("os I")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert pattern.search("Paracuellos, Intégrale") is not None  # Virgule + espace
+        assert (
+            pattern.search("Paracuellos,Intégrale") is not None
+        )  # Virgule sans espace
+        assert pattern.search("Paracuellos. Intégrale") is not None  # Point + espace
+        assert pattern.search("Paracuellos Intégrale") is not None  # Sans ponctuation
+
+        # Test 2: Recherche "los E" doit matcher "ellos, et"
+        regex_pattern2 = create_accent_insensitive_regex("los E")
+        pattern2 = re.compile(regex_pattern2, re.IGNORECASE)
+
+        assert pattern2.search("Paracuellos, et") is not None
+        assert pattern2.search("Paracuellos. Et") is not None
+        assert pattern2.search("Paracuellos Et") is not None
+
 
 class TestMongoDBServiceTypographicCharacters:
     """Tests d'intégration pour caractères typographiques dans MongoDB Service."""

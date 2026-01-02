@@ -99,13 +99,18 @@ def create_accent_insensitive_regex(term: str) -> str:
             # Séquence "ae" → peut matcher "ae" ou "æ"
             result.append("(?:[aàâäáãåāăą][eèéêëēĕėęě]|æ)")
             i += 2  # Sauter les 2 caractères
-        # Détecter un espace qui suit une lettre (Issue #173 - apostrophe optionnelle)
+        # Détecter un espace qui suit une lettre (Issue #173 - apostrophe et ponctuation optionnelles)
         # Ex: "d Ormesson" doit matcher "d' Ormesson" ET "l ami" doit matcher "l'ami"
+        # Ex: "os I" doit matcher "Paracuellos, Intégrale"
         elif char == " " and i > 0 and normalized_term.lower()[i - 1].isalpha():
-            # Espace après lettre → peut avoir apostrophe optionnelle avant l'espace
-            # Pattern: ['']? ?  (apostrophe optionnelle + espace optionnel)
-            # Ceci matche: "d Ormesson" → "d' Ormesson" ET "l ami" → "l'ami"
-            result.append("['']? ?")
+            # Espace après lettre → peut avoir apostrophe et/ou ponctuation optionnelles avant l'espace
+            # Pattern: [,.]?['']? ?  (ponctuation optionnelle + apostrophe optionnelle + espace optionnel)
+            # Ceci matche:
+            #   - "d Ormesson" → "d' Ormesson" (apostrophe)
+            #   - "l ami" → "l'ami" (apostrophe sans espace)
+            #   - "os I" → "Paracuellos, Intégrale" (virgule + espace)
+            #   - "os I" → "Paracuellos. Intégrale" (point + espace)
+            result.append("[,.]?['']? ?")
             i += 1
         else:
             # Caractère normal : utiliser le mapping ou le caractère tel quel
