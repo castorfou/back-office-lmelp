@@ -478,7 +478,19 @@ class MongoDBService:
     def search_episodes(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans les épisodes."""
+        """Recherche textuelle insensible aux accents et caractères typographiques dans les épisodes.
+
+        Args:
+            query: Terme de recherche (ex: "etranger" trouvera "L'Étranger")
+            limit: Nombre maximum de résultats à retourner
+            offset: Offset pour la pagination
+
+        Returns:
+            Dict avec clés "episodes" (liste de résultats) et "total_count"
+
+        Note:
+            Issue #173: Recherche insensible aux accents et caractères typographiques
+        """
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
 
@@ -486,22 +498,26 @@ class MongoDBService:
             return {"episodes": [], "total_count": 0}
 
         try:
-            # Recherche simple avec regex pour insensibilité à la casse uniquement
-            query_escaped = query.strip()
+            from ..utils.text_utils import create_accent_insensitive_regex
+
+            query_stripped = query.strip()
+
+            # Créer un regex insensible aux accents et caractères typographiques (Issue #173)
+            regex_pattern = create_accent_insensitive_regex(query_stripped)
 
             # Recherche dans les champs titre, description et transcription
             search_query = {
                 "$or": [
-                    {"titre": {"$regex": query_escaped, "$options": "i"}},
-                    {"titre_corrige": {"$regex": query_escaped, "$options": "i"}},
-                    {"description": {"$regex": query_escaped, "$options": "i"}},
+                    {"titre": {"$regex": regex_pattern, "$options": "i"}},
+                    {"titre_corrige": {"$regex": regex_pattern, "$options": "i"}},
+                    {"description": {"$regex": regex_pattern, "$options": "i"}},
                     {
                         "description_corrigee": {
-                            "$regex": query_escaped,
+                            "$regex": regex_pattern,
                             "$options": "i",
                         }
                     },
-                    {"transcription": {"$regex": query_escaped, "$options": "i"}},
+                    {"transcription": {"$regex": regex_pattern, "$options": "i"}},
                 ]
             }
 

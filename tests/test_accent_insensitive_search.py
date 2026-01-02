@@ -419,3 +419,29 @@ class TestMongoDBServiceTypographicCharacters:
         # Vérifier que le regex contient les deux types de tirets
         regex_pattern = search_query["titre"]["$regex"]
         assert "[-–]" in regex_pattern  # Charset avec tiret simple et cadratin
+
+    def test_search_episodes_should_use_accent_insensitive_regex(self, mocker):
+        """
+        GIVEN: Base contient épisode avec titre "L'Étranger"
+        WHEN: Utilisateur cherche 'etranger' (sans accent)
+        THEN: search_episodes utilise create_accent_insensitive_regex (Issue #173)
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        mock_collection = mocker.MagicMock()
+        mock_collection.count_documents.return_value = 1
+        mock_collection.find.return_value.sort.return_value.skip.return_value.limit.return_value = [
+            {"_id": "789", "titre": "L'Étranger", "date": "2024-01-01"}
+        ]
+
+        service = MongoDBService()
+        service.episodes_collection = mock_collection
+
+        service.search_episodes("etranger", limit=10, offset=0)
+
+        call_args = mock_collection.count_documents.call_args
+        search_query = call_args[0][0]
+
+        # Vérifier que le regex est insensible aux accents (contient charsets)
+        titre_regex = search_query["$or"][0]["titre"]["$regex"]
+        assert "[eèéêëēĕėęě]" in titre_regex  # Charset pour 'e' avec variantes
