@@ -270,3 +270,152 @@ class TestAdvancedSearchEndpointAccentInsensitive:
         data = response.json()
         assert data["results"]["livres_total_count"] == 1
         assert data["results"]["livres"][0]["titre"] == "Simone Émonet"
+
+
+class TestTypographicCharactersRegex:
+    """Tests pour les caractères typographiques (Issue #173)."""
+
+    def test_ligature_oe_should_match_oe_sequence(self):
+        """
+        GIVEN: Un terme de recherche 'oeuvre' (sans ligature)
+        WHEN: create_accent_insensitive_regex est appelé
+        THEN: Le regex doit matcher 'œuvre' (avec ligature œ)
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        regex_pattern = create_accent_insensitive_regex("oeuvre")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        # Doit matcher les deux formes
+        assert pattern.search("oeuvre") is not None  # Sans ligature
+        assert pattern.search("œuvre") is not None  # Avec ligature œ
+        assert pattern.search("ŒUVRE") is not None  # Majuscule
+
+    def test_ligature_oe_in_word_should_match(self):
+        """
+        GIVEN: Recherche 'coeur' (sans ligature)
+        WHEN: Regex généré
+        THEN: Doit matcher 'cœur' (avec ligature)
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        regex_pattern = create_accent_insensitive_regex("coeur")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert pattern.search("coeur") is not None
+        assert pattern.search("cœur") is not None
+        assert pattern.search("Cœur") is not None
+
+    def test_ligature_ae_should_match_ae_sequence(self):
+        """
+        GIVEN: Recherche 'aegis' (sans ligature)
+        WHEN: Regex généré
+        THEN: Doit matcher 'ægis' (avec ligature æ)
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        regex_pattern = create_accent_insensitive_regex("aegis")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert pattern.search("aegis") is not None
+        assert pattern.search("ægis") is not None
+        assert pattern.search("Ægis") is not None
+
+    def test_em_dash_should_match_hyphen(self):
+        """
+        GIVEN: Recherche 'Marie-Claire' (tiret simple)
+        WHEN: Regex généré
+        THEN: Doit matcher 'Marie–Claire' (tiret cadratin –)
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        regex_pattern = create_accent_insensitive_regex("Marie-Claire")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert pattern.search("Marie-Claire") is not None  # Tiret simple
+        assert pattern.search("Marie–Claire") is not None  # Tiret cadratin
+        assert pattern.search("marie-claire") is not None  # Lowercase
+
+    def test_typographic_apostrophe_should_match_simple_apostrophe(self):
+        """
+        GIVEN: Recherche "l'ami" (apostrophe simple)
+        WHEN: Regex généré
+        THEN: Doit matcher "l'ami" (apostrophe typographique ')
+        """
+        import re
+
+        from back_office_lmelp.utils.text_utils import create_accent_insensitive_regex
+
+        regex_pattern = create_accent_insensitive_regex("l'ami")
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+
+        assert pattern.search("l'ami") is not None  # Simple
+        assert pattern.search("l'ami") is not None  # Typographique
+        assert pattern.search("L'AMI") is not None  # Uppercase
+
+
+class TestMongoDBServiceTypographicCharacters:
+    """Tests d'intégration pour caractères typographiques dans MongoDB Service."""
+
+    def test_search_auteurs_finds_oe_ligature(self, mocker):
+        """
+        GIVEN: Base contient auteur avec 'œ' dans le nom
+        WHEN: Utilisateur cherche 'oeuvre' (sans ligature)
+        THEN: Le regex généré contient le pattern pour matcher 'œ'
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        mock_collection = mocker.MagicMock()
+        mock_collection.count_documents.return_value = 1
+        mock_collection.find.return_value.skip.return_value.limit.return_value = [
+            {"_id": "123", "nom": "L'Œuvre au noir"}
+        ]
+
+        service = MongoDBService()
+        service.auteurs_collection = mock_collection
+
+        service.search_auteurs("oeuvre", limit=10, offset=0)
+
+        call_args = mock_collection.count_documents.call_args
+        search_query = call_args[0][0]
+
+        # Vérifier que le regex contient le pattern pour ligature œ
+        regex_pattern = search_query["nom"]["$regex"]
+        assert (
+            "œ" in regex_pattern or "(?:" in regex_pattern
+        )  # Regex avec groupe pour ligature
+
+    def test_search_livres_finds_em_dash(self, mocker):
+        """
+        GIVEN: Base contient livre avec tiret cadratin "Marie–Claire"
+        WHEN: Utilisateur cherche 'Marie-Claire' (tiret simple)
+        THEN: Le regex généré contient le pattern pour matcher '–'
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        mock_collection = mocker.MagicMock()
+        mock_collection.count_documents.return_value = 1
+        mock_collection.find.return_value.skip.return_value.limit.return_value = [
+            {"_id": "456", "titre": "Marie–Claire", "auteur_id": None}
+        ]
+
+        service = MongoDBService()
+        service.livres_collection = mock_collection
+        service.auteurs_collection = None
+
+        service.search_livres("Marie-Claire", limit=10, offset=0)
+
+        call_args = mock_collection.count_documents.call_args
+        search_query = call_args[0][0]
+
+        # Vérifier que le regex contient les deux types de tirets
+        regex_pattern = search_query["titre"]["$regex"]
+        assert "[-–]" in regex_pattern  # Charset avec tiret simple et cadratin
