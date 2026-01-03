@@ -109,19 +109,58 @@ class TestGetEmissionDetails:
             "_id": mock_emission["avis_critique_id"],
             "summary": "## 1. LIVRES DISCUTÉS\n**Auteur Exemple**: Livre test",
         }
-
-        mock_books = [{"auteur": "Auteur Exemple", "titre": "Livre test"}]
         mock_critiques = [{"id": "123", "nom": "Jérôme Garcin", "animateur": True}]
 
-        with (
-            patch("back_office_lmelp.app.mongodb_service") as mock_service,
-            patch("back_office_lmelp.app.get_livres_auteurs") as mock_books_endpoint,
-        ):
+        # Setup mock data for collections
+        book_id = ObjectId("68e2c3ba1391489c77ccdee2")  # pragma: allowlist secret
+        author_id = ObjectId("68e2c3ba1391489c77ccdee1")  # pragma: allowlist secret
+
+        mock_cache_entry = {
+            "episode_oid": str(mock_emission["episode_id"]),
+            "book_id": book_id,
+            "author_id": author_id,
+            "status": "mongo",
+        }
+
+        mock_livre = {
+            "_id": book_id,
+            "titre": "Livre test",
+            "auteur_id": author_id,
+            "editeur": "Éditeur test",
+        }
+
+        mock_auteur = {
+            "_id": author_id,
+            "nom": "Auteur Exemple",
+        }
+
+        with patch("back_office_lmelp.app.mongodb_service") as mock_service:
             mock_service.emissions_collection.find_one.return_value = mock_emission
             mock_service.get_episode_by_id.return_value = mock_episode
             mock_service.get_avis_critique_by_id.return_value = mock_avis
             mock_service.get_critiques_by_episode.return_value = mock_critiques
-            mock_books_endpoint.return_value = mock_books
+
+            # Mock cache collection
+            mock_cache_collection = MagicMock()
+            mock_cache_collection.find.return_value = iter([mock_cache_entry])
+
+            # Mock livres collection
+            mock_livres_collection = MagicMock()
+            mock_livres_collection.find.return_value = iter([mock_livre])
+
+            # Mock auteurs collection
+            mock_auteurs_collection = MagicMock()
+            mock_auteurs_collection.find.return_value = iter([mock_auteur])
+
+            # Setup get_collection to return cache mock
+            def get_collection_mock(collection_name):
+                if collection_name == "livresauteurs_cache":
+                    return mock_cache_collection
+                return MagicMock()
+
+            mock_service.get_collection.side_effect = get_collection_mock
+            mock_service.livres_collection = mock_livres_collection
+            mock_service.auteurs_collection = mock_auteurs_collection
 
             emission_id = str(mock_emission["_id"])
             response = client.get(f"/api/emissions/{emission_id}/details")
@@ -137,6 +176,103 @@ class TestGetEmissionDetails:
             assert data["episode"]["titre"] == mock_episode["titre"]
             assert len(data["books"]) == 1
             assert len(data["critiques"]) == 1
+
+    def test_should_use_livres_auteurs_collections_not_cache(
+        self, client, mock_emission, mock_episode
+    ):
+        """Issue #177: Doit utiliser les collections livres/auteurs, pas livresauteurs_cache.
+
+        Test d'intégration qui démontre le problème business:
+        - Le cache contient des valeurs CACHE_AUTHOR/CACHE_TITLE (fausses données)
+        - Les collections contiennent les vraies données (Laurent Mauvignier, La Maison Vide)
+        - La réponse API DOIT contenir les données des collections, PAS du cache
+        """
+        mock_avis = {
+            "_id": mock_emission["avis_critique_id"],
+            "summary": "## 1. LIVRES DISCUTÉS\n**Laurent Mauvignier**: La Maison Vide",
+        }
+        mock_critiques = [{"id": "123", "nom": "Jérôme Garcin", "animateur": True}]
+
+        # Mock cache entries (WRONG VALUES - should NOT appear in response)
+        book_id = ObjectId("68e2c3ba1391489c77ccdee2")  # pragma: allowlist secret
+        author_id = ObjectId("68e2c3ba1391489c77ccdee1")  # pragma: allowlist secret
+        mock_cache_entries = [
+            {
+                "_id": ObjectId("68e2c3babf26cd8dd9a0a334"),  # pragma: allowlist secret
+                "episode_oid": str(mock_emission["episode_id"]),
+                "book_id": book_id,
+                "author_id": author_id,
+                "status": "mongo",
+                # Cache fields (WRONG VALUES - should NOT appear in response)
+                "auteur": "CACHE_AUTHOR_NAME",
+                "titre": "CACHE_BOOK_TITLE",
+                "editeur": "CACHE_PUBLISHER",
+            }
+        ]
+
+        # Mock authoritative collection data (CORRECT VALUES - should appear in response)
+        mock_livre = {
+            "_id": book_id,
+            "titre": "La Maison Vide",  # Authoritative title
+            "auteur_id": author_id,
+            "editeur": "Éditions de Minuit",
+            "url_babelio": "https://www.babelio.com/livres/Mauvignier-La-Maison-vide/1234",
+        }
+
+        mock_auteur = {
+            "_id": author_id,
+            "nom": "Laurent Mauvignier",  # Authoritative author name
+            "url_babelio": "https://www.babelio.com/auteur/Laurent-Mauvignier/5678",
+        }
+
+        with patch("back_office_lmelp.app.mongodb_service") as mock_service:
+            # Mock emissions/episode/avis/critiques (standard setup)
+            mock_service.emissions_collection.find_one.return_value = mock_emission
+            mock_service.get_episode_by_id.return_value = mock_episode
+            mock_service.get_avis_critique_by_id.return_value = mock_avis
+            mock_service.get_critiques_by_episode.return_value = mock_critiques
+
+            # Mock cache collection query (returns cache entries)
+            mock_cache_collection = MagicMock()
+            mock_cache_collection.find.return_value = iter(mock_cache_entries)
+
+            # Mock livres collection query (returns authoritative data)
+            mock_livres_collection = MagicMock()
+            mock_livres_collection.find.return_value = iter([mock_livre])
+
+            # Mock auteurs collection query (returns authoritative data)
+            mock_auteurs_collection = MagicMock()
+            mock_auteurs_collection.find.return_value = iter([mock_auteur])
+
+            # Setup get_collection to return appropriate mock based on collection name
+            def get_collection_mock(collection_name):
+                if collection_name == "livresauteurs_cache":
+                    return mock_cache_collection
+                return MagicMock()
+
+            mock_service.get_collection.side_effect = get_collection_mock
+            mock_service.livres_collection = mock_livres_collection
+            mock_service.auteurs_collection = mock_auteurs_collection
+
+            emission_id = str(mock_emission["_id"])
+            response = client.get(f"/api/emissions/{emission_id}/details")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # CRITICAL ASSERTION: Books must come from collections, NOT cache
+            books = data["books"]
+            assert len(books) == 1
+
+            # Verify data comes from livres/auteurs collections
+            assert books[0]["titre"] == "La Maison Vide"  # From livres.titre
+            assert books[0]["auteur"] == "Laurent Mauvignier"  # From auteurs.nom
+            assert books[0]["editeur"] == "Éditions de Minuit"  # From livres.editeur
+
+            # MUST NOT contain cache values
+            assert books[0]["titre"] != "CACHE_BOOK_TITLE"
+            assert books[0]["auteur"] != "CACHE_AUTHOR_NAME"
+            assert books[0]["editeur"] != "CACHE_PUBLISHER"
 
 
 class TestGetEmissionByDate:

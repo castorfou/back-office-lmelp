@@ -143,15 +143,22 @@
             <ul>
               <li v-for="book in selectedEmissionDetails.books" :key="book._id || book.titre">
                 <router-link
+                  v-if="book.auteur_id"
+                  :to="`/auteur/${book.auteur_id}`"
+                  class="author-link"
+                >
+                  {{ book.auteur }}
+                </router-link>
+                <span v-else>{{ book.auteur }}</span>
+                <span> - </span>
+                <router-link
                   v-if="book.livre_id"
                   :to="`/livre/${book.livre_id}`"
                   class="book-link"
                 >
-                  <strong>{{ book.auteur }}</strong> - {{ book.titre }}
+                  <strong>{{ book.titre }}</strong>
                 </router-link>
-                <span v-else>
-                  <strong>{{ book.auteur }}</strong> - {{ book.titre }}
-                </span>
+                <strong v-else>{{ book.titre }}</strong>
               </li>
             </ul>
           </div>
@@ -795,11 +802,13 @@ main {
   border-bottom: none;
 }
 
+.author-link,
 .book-link {
   color: #0066cc;
   text-decoration: none;
 }
 
+.author-link:hover,
 .book-link:hover {
   text-decoration: underline;
 }
