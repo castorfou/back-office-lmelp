@@ -3084,10 +3084,11 @@ def _validate_summary(summary: str) -> tuple[bool, str | None]:
         return False, "Summary trop long (probablement malformé/tronqué)"
 
     # 3. Détecter les séquences d'espaces anormalement longues (bug LLM)
-    # Rechercher 100+ espaces consécutifs (signe de génération malformée)
+    # Rechercher 10000+ espaces consécutifs (signe de génération malformée)
+    # Note: 100 était trop restrictif et bloquait le formatage des tableaux markdown
     import re
 
-    if re.search(r"\s{100,}", summary):
+    if re.search(r"\s{10000,}", summary):
         return False, "Summary malformé (espaces consécutifs anormaux détectés)"
 
     # 4. Vérifier la présence de la structure markdown attendue
