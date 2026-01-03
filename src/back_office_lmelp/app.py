@@ -847,6 +847,106 @@ async def get_livres_auteurs(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+async def get_livres_from_collections(episode_oid: str) -> list[dict[str, Any]]:
+    """Get books for episode from authoritative livres/auteurs collections.
+
+    Uses livresauteurs_cache as intermediary to find which books have been
+    validated and moved to livres/auteurs collections (status="mongo").
+    Then fetches actual data from those authoritative collections.
+
+    Args:
+        episode_oid: Episode identifier (String type, 24 hex characters)
+
+    Returns:
+        List of books with author info from livres/auteurs collections
+
+    Raises:
+        HTTPException: If episode_oid format is invalid
+    """
+    from bson import ObjectId
+
+    # Validation de episode_oid
+    if not episode_oid or not episode_oid.strip():
+        raise HTTPException(
+            status_code=422, detail="episode_oid is required and cannot be empty"
+        )
+
+    # Validation du format episode_oid (ObjectId MongoDB : 24 caractères hexadécimaux)
+    if len(episode_oid) != 24 or not all(
+        c in "0123456789abcdefABCDEF" for c in episode_oid
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="episode_oid must be a valid MongoDB ObjectId (24 hex characters)",
+        )
+
+    # Step 1: Get validated cache entries that link to livres/auteurs
+    # Only get entries with status="mongo" (already moved to collections)
+    cache_collection = mongodb_service.get_collection("livresauteurs_cache")
+    validated_cache = list(
+        cache_collection.find(
+            {
+                "episode_oid": episode_oid,
+                "status": "mongo",
+                "book_id": {"$exists": True},
+                "author_id": {"$exists": True},
+            }
+        )
+    )
+
+    if not validated_cache:
+        return []
+
+    # Step 2: Extract unique book_ids
+    livre_ids = [ObjectId(cache["book_id"]) for cache in validated_cache]
+
+    # Step 3: Query livres collection for actual book data
+    livres_dict = {}
+    if mongodb_service.livres_collection is not None:
+        for livre in mongodb_service.livres_collection.find(
+            {"_id": {"$in": livre_ids}}
+        ):
+            livres_dict[livre["_id"]] = livre
+
+    # Step 4: Query auteurs collection for author data
+    auteur_ids = [
+        livre.get("auteur_id")
+        for livre in livres_dict.values()
+        if livre.get("auteur_id")
+    ]
+    auteurs_dict = {}
+    if mongodb_service.auteurs_collection is not None:
+        for auteur in mongodb_service.auteurs_collection.find(
+            {"_id": {"$in": auteur_ids}}
+        ):
+            auteurs_dict[auteur["_id"]] = auteur
+
+    # Step 5: Build response using data from livres/auteurs (not cache!)
+    books = []
+    for livre_id in livre_ids:
+        if livre_id not in livres_dict:
+            continue  # Skip if livre not found
+
+        livre = livres_dict[livre_id]
+        auteur = auteurs_dict.get(livre.get("auteur_id"))
+
+        books.append(
+            {
+                "_id": str(livre["_id"]),
+                "livre_id": str(livre["_id"]),
+                "titre": livre.get("titre", ""),  # From livres collection
+                "auteur": auteur.get("nom", "")
+                if auteur
+                else "",  # From auteurs collection
+                "auteur_id": str(livre.get("auteur_id", "")),
+                "editeur": livre.get("editeur", ""),  # From livres collection
+                "url_babelio": livre.get("url_babelio", ""),  # From livres collection
+            }
+        )
+
+    return books
+
+
 @app.get("/api/episodes-with-reviews", response_model=list[dict[str, Any]])
 async def get_episodes_with_reviews() -> list[dict[str, Any]]:
     """Récupère la liste des épisodes qui ont des avis critiques associés."""
@@ -1173,8 +1273,8 @@ async def get_emission_details(emission_id: str) -> dict[str, Any]:
                 status_code=404, detail="Avis critique associé non trouvé"
             )
 
-        # 4. Récupérer livres via endpoint existant
-        books = await get_livres_auteurs(episode_oid=emission.episode_id)
+        # 4. Récupérer livres depuis collections livres/auteurs (Issue #177)
+        books = await get_livres_from_collections(episode_oid=str(emission.episode_id))
 
         # 5. Récupérer critiques de cet épisode
         critiques = mongodb_service.get_critiques_by_episode(emission.episode_id)
