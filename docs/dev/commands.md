@@ -118,6 +118,15 @@ mkdocs build --strict
 
 ## Les commandes `gh`
 
+
+2 types de pager pour gh: scrollable (less) ou normal (cat)
+
+Pour activer le pager en mode normal pour un assistant IA
+
+```bash
+gh config set pager cat
+```
+
 Créer et checkout branche depuis issue #5
 
 ```bash
