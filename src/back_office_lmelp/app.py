@@ -3136,6 +3136,13 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
             logger.warning(
                 f"Tentative de sauvegarde d'un summary invalide pour épisode {request.episode_id}: {error_message}"
             )
+            # Log complet du summary pour diagnostic
+            logger.error("=" * 80)
+            logger.error("❌ VALIDATION ÉCHEC - CONTENU COMPLET DU SUMMARY:")
+            logger.error(f"Longueur: {len(request.summary)} caractères")
+            logger.error("-" * 80)
+            logger.error(request.summary)
+            logger.error("=" * 80)
             raise HTTPException(
                 status_code=400,
                 detail=f"Summary invalide: {error_message}. Le résultat n'a pas été sauvegardé.",
