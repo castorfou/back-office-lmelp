@@ -31,8 +31,39 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
+| `AVIS_CRITIQUES_DEBUG_LOG` | Active les logs de debug pour génération LLM des avis critiques | `0` (désactivé) | `1`, `true` |
 | `BABELIO_CACHE_LOG` | Active les logs détaillés du cache Babelio | `0` (désactivé) | `1`, `true`, `yes` |
 | `BABELIO_DEBUG_LOG` | Active les logs de debug détaillés du service Babelio (matching, scraping) | `0` (désactivé) | `1`, `true` |
+
+### Usage `AVIS_CRITIQUES_DEBUG_LOG`
+
+Active les logs de debug pour la génération des avis critiques avec Azure OpenAI LLM. Écrit les sorties brutes du LLM dans des fichiers (`/tmp/avis_critiques_debug/`) pour inspection.
+
+```bash
+# Désactivé par défaut en production
+python -m back_office_lmelp.app
+
+# Activer les logs de debug pour diagnostiquer une génération échouée
+AVIS_CRITIQUES_DEBUG_LOG=1 python -m back_office_lmelp.app
+```
+
+**Fichiers de debug créés** (si activé):
+- `phase1_raw_<timestamp>.md` : Sortie brute LLM Phase 1 (génération initiale)
+- `phase2_raw_<timestamp>.md` : Sortie brute LLM Phase 2 (correction)
+- `validation_failed_<episode_id>_<timestamp>.md` : Summary rejeté par validation
+
+**Note importante**: Le script de développement `scripts/start-dev.sh` active **automatiquement** `AVIS_CRITIQUES_DEBUG_LOG=1`. En production, cette variable doit rester désactivée.
+
+Exemples de logs générés avec `AVIS_CRITIQUES_DEBUG_LOG=1` :
+```
+================================================================================
+📄 PHASE 1 - RAW LLM OUTPUT (BEFORE VALIDATION)
+   📁 Fichier debug: /tmp/avis_critiques_debug/phase1_raw_20260104_153045.md
+   Length: 2847 characters
+   Has header: True
+   Has tables: True
+================================================================================
+```
 
 ### Usage `BABELIO_CACHE_LOG`
 
@@ -98,10 +129,11 @@ AZURE_OPENAI_API_VERSION=2024-02-01
 AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
 
 # Debug (désactivé par défaut en production)
+AVIS_CRITIQUES_DEBUG_LOG=0
 BABELIO_CACHE_LOG=0
 BABELIO_DEBUG_LOG=0
 
-# Note: scripts/start-dev.sh active automatiquement BABELIO_DEBUG_LOG=1
+# Note: scripts/start-dev.sh active automatiquement les variables de debug en dev
 ```
 
 ## Notes importantes
