@@ -140,12 +140,23 @@ class AvisCritiquesGenerationService:
 
                 # Log raw output BEFORE validation (for diagnosis)
                 if self._debug_log_enabled:
+                    from pathlib import Path
+
+                    # Créer répertoire de debug si nécessaire
+                    debug_dir = Path("/tmp/avis_critiques_debug")
+                    debug_dir.mkdir(exist_ok=True)
+
+                    # Écrire le contenu dans un fichier
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    debug_file = debug_dir / f"phase1_raw_{timestamp}.md"
+                    debug_file.write_text(summary, encoding="utf-8")
+
                     logger.info("=" * 80)
                     logger.info("📄 PHASE 1 - RAW LLM OUTPUT (BEFORE VALIDATION)")
                     logger.info(f"   Length: {len(summary)} chars")
-                    logger.info(f"   Preview (first 500):\n{summary[:500]}")
                     logger.info(f"   Has header: {'## 1. LIVRES DISCUT' in summary}")
                     logger.info(f"   Has tables: {'|' in summary}")
+                    logger.info(f"   📁 Fichier debug: {debug_file}")
                     logger.info("=" * 80)
 
                 # Validation format markdown
@@ -633,12 +644,12 @@ COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le
         # Log comparaison Phase 1 vs Phase 2 pour debug
         if self._debug_log_enabled:
             logger.info("=" * 80)
-            logger.info("🔍 COMPARAISON PHASE 1 vs PHASE 2 (premiers 500 chars):")
-            logger.info("📄 summary_phase1 (brut):")
-            logger.info(summary_phase1[:500] + "...")
+            logger.info("🔍 COMPARAISON PHASE 1 vs PHASE 2:")
+            logger.info("📄 summary_phase1 (brut) - CONTENU COMPLET:")
+            logger.info(summary_phase1)
             logger.info("-" * 80)
-            logger.info("📄 summary (phase2, corrigé):")
-            logger.info(summary_phase2[:500] + "...")
+            logger.info("📄 summary (phase2, corrigé) - CONTENU COMPLET:")
+            logger.info(summary_phase2)
             logger.info("=" * 80)
 
         return {
