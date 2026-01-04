@@ -683,6 +683,19 @@ self._debug_log_enabled = os.getenv("FEATURE_DEBUG_LOG", "0").lower() in ("1", "
 if self._debug_log_enabled:
     logger.info(f"🔍 [DEBUG] verify_book: search_term='{search_term}'")
     logger.info(f"🔍 [DEBUG] _find_best_book_match: {len(books)} livre(s)")
+
+# 3. Pour contenus volumineux : écrire dans des fichiers (évite saturation terminal)
+if self._debug_log_enabled:
+    from pathlib import Path
+    from datetime import datetime
+
+    debug_dir = Path("/tmp/feature_debug")
+    debug_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    debug_file = debug_dir / f"output_{timestamp}.txt"
+    debug_file.write_text(large_content, encoding="utf-8")
+
+    logger.info(f"📁 Fichier debug: {debug_file}")
 ```
 
 **Avantages** :
@@ -690,16 +703,20 @@ if self._debug_log_enabled:
 - ✅ Pas de pollution en production (désactivé par défaut)
 - ✅ Facilite le debugging des problèmes complexes (matching, scraping, etc.)
 - ✅ Historique conservé pour comprendre les décisions passées
+- ✅ Fichiers debug partageables dans issues GitHub (diagnostics post-mortem)
+- ✅ Pas de saturation terminal avec contenus volumineux (>1MB)
 
 **Convention de nommage** :
-- Pattern : `{FEATURE}_DEBUG_LOG` (ex: `BABELIO_DEBUG_LOG`, `CALIBRE_DEBUG_LOG`)
+- Pattern : `{FEATURE}_DEBUG_LOG` (ex: `AVIS_CRITIQUES_DEBUG_LOG`, `BABELIO_DEBUG_LOG`)
 - Valeurs : `0` (défaut, désactivé) ou `1`/`true` (activé)
 - Scope : Une variable par feature/service majeur
+- Répertoire debug : `/tmp/{feature}_debug/` pour fichiers temporaires
 
 **Configuration développement** :
 ```bash
 # scripts/start-dev.sh active automatiquement les logs debug pertinents
-export BABELIO_DEBUG_LOG=1  # Activé en dev pour diagnostic matching
+export BABELIO_DEBUG_LOG=1
+export AVIS_CRITIQUES_DEBUG_LOG=1
 
 # En production : toujours désactivé (valeur par défaut)
 ```
@@ -709,8 +726,13 @@ export BABELIO_DEBUG_LOG=1  # Activé en dev pour diagnostic matching
 - Étapes de scraping et parsing
 - Décisions de fallback
 - Résultats intermédiaires de traitements complexes
+- Sorties brutes de LLM (génération de contenu)
+- Contenu rejeté par validation (diagnostics d'échec)
 
-**Documentation** : Voir [environment-variables.md](docs/dev/environment-variables.md) pour la liste complète des variables de debug disponibles.
+**Documentation** :
+- Variables disponibles : Voir `docs/user/debug-logging.md`
+- Configuration Docker : Voir docker-lmelp issue #38
+- Variables d'environnement dev : Voir `docs/dev/environment-variables.md`
 
 ## Documentation Guidelines
 
