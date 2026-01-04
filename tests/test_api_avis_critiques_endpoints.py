@@ -405,7 +405,7 @@ class TestSaveAvisCritiquesValidation:
         malformed_summary = (
             "## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019\n\n"
             "| Auteur | Titre | Éditeur | Avis détaillés des critiques"
-            + (" " * 150)  # 150 espaces consécutifs (> 100)
+            + (" " * 15000)  # 15000 espaces consécutifs (> 10000)
         )
 
         request_data = {

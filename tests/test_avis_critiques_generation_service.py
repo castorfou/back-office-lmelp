@@ -11,6 +11,7 @@ from back_office_lmelp.services.avis_critiques_generation_service import (
 )
 from tests.fixtures.transcription_samples import (
     EXPECTED_SUMMARY_PHASE1_SAMPLE_1,
+    TRANSCRIPTION_EPISODE_2017_04_09,
     TRANSCRIPTION_SAMPLE_1,
 )
 
@@ -125,11 +126,35 @@ class TestGenerateSummaryPhase1:
             assert "## 1. LIVRES DISCUTÉS" in result
             assert call_count == 2  # Retry happened
 
+    @skip_if_no_azure
+    @pytest.mark.asyncio
+    async def test_generate_summary_episode_2017_04_09_should_succeed(self):
+        """
+        Integration test: Episode 09/04/2017 should generate valid summary.
+
+        This episode has 5 books discussed (Ma Petite France, Norma, Marlène, etc.).
+        LLM should NOT return 'Aucun livre discuté' message.
+        Fixes Issue #181.
+        """
+        service = AvisCritiquesGenerationService()
+
+        result = await service.generate_summary_phase1(
+            TRANSCRIPTION_EPISODE_2017_04_09, "2017-04-09"
+        )
+
+        # Business requirement: Valid markdown with books
+        assert "## 1. LIVRES DISCUTÉS AU PROGRAMME" in result
+        assert "|" in result  # Has markdown tables
+        assert len(result) >= 200
+
+        # CRITICAL: Should NOT return "no books" message (incorrect prompt)
+        assert "Aucun livre discuté" not in result
+
 
 class TestValidateMarkdownFormat:
     """Tests pour la validation du format markdown."""
 
-    def test_is_valid_markdown_format_success(self):
+    def test_validate_markdown_format_valid_summary(self):
         """Test validation réussit avec format valide."""
         service = AvisCritiquesGenerationService()
 
@@ -146,20 +171,26 @@ class TestValidateMarkdownFormat:
 Aucun coup de cœur supplémentaire.
 """
 
-        assert service._is_valid_markdown_format(valid_summary) is True
+        result = service._validate_markdown_format(valid_summary)
 
-    def test_is_valid_markdown_format_missing_title(self):
-        """Test validation échoue sans titre de section."""
+        assert result["valid"] is True
+        assert len(result["errors"]) == 0
+        assert "summary_preview" in result
+
+    def test_validate_markdown_format_missing_header(self):
+        """Test validation détecte header manquant."""
         service = AvisCritiquesGenerationService()
 
-        invalid_summary = """
-Juste du texte sans titre de section.
-"""
+        invalid_summary = "Juste du texte sans titre de section."
 
-        assert service._is_valid_markdown_format(invalid_summary) is False
+        result = service._validate_markdown_format(invalid_summary)
 
-    def test_is_valid_markdown_format_missing_table(self):
-        """Test validation échoue sans tableau markdown."""
+        assert result["valid"] is False
+        assert "Section principale manquante" in result["errors"][0]
+        assert len(result["summary_preview"]) > 0
+
+    def test_validate_markdown_format_missing_table(self):
+        """Test validation détecte tableau manquant."""
         service = AvisCritiquesGenerationService()
 
         invalid_summary = """
@@ -168,15 +199,41 @@ Juste du texte sans titre de section.
 Pas de tableau ici.
 """
 
-        assert service._is_valid_markdown_format(invalid_summary) is False
+        result = service._validate_markdown_format(invalid_summary)
 
-    def test_is_valid_markdown_format_too_short(self):
-        """Test validation échoue si texte trop court."""
+        assert result["valid"] is False
+        assert any("tableau markdown" in err for err in result["errors"])
+
+    def test_validate_markdown_format_too_short(self):
+        """Test validation détecte contenu trop court."""
         service = AvisCritiquesGenerationService()
 
         short_summary = "## 1. | Test |"
 
-        assert service._is_valid_markdown_format(short_summary) is False
+        result = service._validate_markdown_format(short_summary)
+
+        assert result["valid"] is False
+        assert any("trop court" in err for err in result["errors"])
+
+    def test_validate_markdown_format_detects_no_books_message(self):
+        """Test validation rejette le message 'no books' incorrect."""
+        service = AvisCritiquesGenerationService()
+
+        no_books_message = "Aucun livre discuté dans cet épisode."
+
+        result = service._validate_markdown_format(no_books_message)
+
+        assert result["valid"] is False
+        assert any("Aucun livre discuté" in err for err in result["errors"])
+
+    def test_validate_markdown_format_provides_preview(self):
+        """Test validation inclut preview dans résultats."""
+        service = AvisCritiquesGenerationService()
+
+        result = service._validate_markdown_format("Short")
+
+        assert "summary_preview" in result
+        assert len(result["summary_preview"]) > 0
 
 
 class TestEnhanceSummaryPhase2:

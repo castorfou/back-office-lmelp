@@ -43,7 +43,8 @@
       "Bash(bash -c 'FRONTEND_URL=$\\(/workspaces/back-office-lmelp/.claude/get-frontend-info.sh --url\\); curl -s \"\"$FRONTEND_URL\"\" 2>/dev/null | head -3')",
       "Bash(bash -c 'BACKEND_URL=$\\(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url\\); curl -s \"\"$BACKEND_URL/api/episodes-sans-avis-critiques\"\" | jq \"\".[0] | {id, titre, date}\"\" | head -10')",
       "Bash(pre-commit run:*)",
-      "Bash(mkdocs build:*)"
+      "Bash(mkdocs build:*)",
+      "Bash(gh run watch:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

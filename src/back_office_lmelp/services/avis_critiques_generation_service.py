@@ -138,16 +138,47 @@ class AvisCritiquesGenerationService:
 
                 summary = response.choices[0].message.content
 
+                # Log raw output BEFORE validation (for diagnosis)
+                if self._debug_log_enabled:
+                    from pathlib import Path
+
+                    # Créer répertoire de debug si nécessaire
+                    debug_dir = Path("/tmp/avis_critiques_debug")
+                    debug_dir.mkdir(exist_ok=True)
+
+                    # Écrire le contenu dans un fichier
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    debug_file = debug_dir / f"phase1_raw_{timestamp}.md"
+                    debug_file.write_text(summary, encoding="utf-8")
+
+                    logger.info("=" * 80)
+                    logger.info("📄 PHASE 1 - RAW LLM OUTPUT (BEFORE VALIDATION)")
+                    logger.info(f"   Length: {len(summary)} chars")
+                    logger.info(f"   Has header: {'## 1. LIVRES DISCUT' in summary}")
+                    logger.info(f"   Has tables: {'|' in summary}")
+                    logger.info(f"   📁 Fichier debug: {debug_file}")
+                    logger.info("=" * 80)
+
                 # Validation format markdown
-                if not self._is_valid_markdown_format(summary):
+                validation = self._validate_markdown_format(summary)
+
+                if not validation["valid"]:
+                    error_details = "\n  - ".join(validation["errors"])
+                    logger.error("❌ PHASE 1 - VALIDATION FAILED")
+                    logger.error(f"  Erreurs: {len(validation['errors'])}")
+                    for i, err in enumerate(validation["errors"], 1):
+                        logger.error(f"    {i}. {err}")
+                    logger.error(f"  Aperçu: {validation['summary_preview']}...")
+
                     raise ValueError(
-                        "Format markdown invalide: structure attendue non trouvée"
+                        f"Format markdown invalide:\n  - {error_details}\n\n"
+                        f"Aperçu du contenu reçu:\n{validation['summary_preview']}..."
                     )
 
                 if self._debug_log_enabled:
-                    logger.info(f"Phase 1 réussie: {len(summary)} caractères générés")
-                    # Log extrait Phase 1 pour debug (premiers 500 chars)
-                    logger.info(f"📄 PHASE 1 OUTPUT (extrait):\n{summary[:500]}...")
+                    logger.info(
+                        f"✅ Phase 1 réussie: {len(summary)} caractères générés"
+                    )
 
                 return summary  # type: ignore[no-any-return]
 
@@ -183,8 +214,10 @@ Les livres du programme principal sont introduits APRÈS le courrier, générale
 - "Parlons maintenant de..."
 - "Le premier livre de ce soir..."
 
-IMPORTANT: Si après avoir ignoré le courrier de la semaine, cette transcription ne contient PAS de discussions sur des livres, réponds simplement:
-"Aucun livre discuté dans cet épisode. Cette émission semble porter sur d'autres sujets (cinéma, théâtre, musique)."
+IMPORTANT: Cette émission porte TOUJOURS sur des livres (type "livres").
+Il y a TOUJOURS au moins un livre discuté au programme principal.
+EXIGENCE ABSOLUE: Tu DOIS retourner les deux tableaux markdown.
+Si tu ne trouves pas de livres après le courrier, relis attentivement la transcription.
 
 Voici la transcription:
 {transcription}
@@ -279,18 +312,47 @@ RAPPEL FINAL:
 
 Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiques, et TOUS les avis individuels."""
 
-    def _is_valid_markdown_format(self, summary: str) -> bool:
-        """Valide le format markdown du summary."""
-        # Vérifier présence des titres de section (accepter variantes accentuées)
+    def _validate_markdown_format(self, summary: str) -> dict[str, Any]:
+        """
+        Valide le format markdown avec diagnostic détaillé.
+
+        Returns:
+            Dict avec:
+            - valid (bool): True si valide
+            - errors (list[str]): Liste des problèmes détectés
+            - summary_preview (str): Premiers 200 caractères
+        """
+        errors = []
+
+        # Check 1: Section principale manquante
         if not re.search(r"## 1\. LIVRES DISCUT", summary):
-            return False
+            errors.append(
+                "Section principale manquante: '## 1. LIVRES DISCUTÉS AU PROGRAMME' "
+                "non trouvée"
+            )
 
-        # Vérifier présence de tableaux markdown
+        # Check 2: Tableaux markdown absents
         if "|" not in summary:
-            return False
+            errors.append("Aucun tableau markdown détecté (pipe '|' absent)")
 
-        # Longueur minimale
-        return len(summary) >= 200
+        # Check 3: Contenu trop court
+        if len(summary) < 200:
+            errors.append(
+                f"Contenu trop court: {len(summary)} caractères (minimum: 200)"
+            )
+
+        # Check 4: Détection message "no books" incorrect
+        if "Aucun livre discuté" in summary:
+            errors.append(
+                "ERREUR: Message 'Aucun livre discuté' détecté - "
+                "prompt incorrect (tous les épisodes ont des livres)"
+            )
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "summary_preview": summary[:200] if summary else "(vide)",
+        }
 
     async def enhance_summary_phase2(
         self,
@@ -346,14 +408,15 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
             summary_phase2 = response.choices[0].message.content
 
             # Validation: structure préservée
-            if not self._is_valid_markdown_format(summary_phase2):
-                logger.warning(
-                    "Phase 2 a cassé la structure markdown, fallback Phase 1"
-                )
+            validation = self._validate_markdown_format(summary_phase2)
+
+            if not validation["valid"]:
+                logger.warning("⚠️  Phase 2 a cassé le format, retour à Phase 1")
+                logger.warning(f"  Problèmes: {', '.join(validation['errors'])}")
                 return summary_phase1
 
             if self._debug_log_enabled:
-                logger.info(f"Phase 2 réussie: {len(summary_phase2)} caractères")
+                logger.info(f"✅ Phase 2 réussie: {len(summary_phase2)} caractères")
                 # Log extrait Phase 2 pour debug (premiers 500 chars)
                 logger.info(f"📄 PHASE 2 OUTPUT (extrait):\n{summary_phase2[:500]}...")
 
@@ -581,12 +644,12 @@ COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le
         # Log comparaison Phase 1 vs Phase 2 pour debug
         if self._debug_log_enabled:
             logger.info("=" * 80)
-            logger.info("🔍 COMPARAISON PHASE 1 vs PHASE 2 (premiers 500 chars):")
-            logger.info("📄 summary_phase1 (brut):")
-            logger.info(summary_phase1[:500] + "...")
+            logger.info("🔍 COMPARAISON PHASE 1 vs PHASE 2:")
+            logger.info("📄 summary_phase1 (brut) - CONTENU COMPLET:")
+            logger.info(summary_phase1)
             logger.info("-" * 80)
-            logger.info("📄 summary (phase2, corrigé):")
-            logger.info(summary_phase2[:500] + "...")
+            logger.info("📄 summary (phase2, corrigé) - CONTENU COMPLET:")
+            logger.info(summary_phase2)
             logger.info("=" * 80)
 
         return {

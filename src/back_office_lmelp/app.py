@@ -3084,10 +3084,11 @@ def _validate_summary(summary: str) -> tuple[bool, str | None]:
         return False, "Summary trop long (probablement malformé/tronqué)"
 
     # 3. Détecter les séquences d'espaces anormalement longues (bug LLM)
-    # Rechercher 100+ espaces consécutifs (signe de génération malformée)
+    # Rechercher 10000+ espaces consécutifs (signe de génération malformée)
+    # Note: 100 était trop restrictif et bloquait le formatage des tableaux markdown
     import re
 
-    if re.search(r"\s{100,}", summary):
+    if re.search(r"\s{10000,}", summary):
         return False, "Summary malformé (espaces consécutifs anormaux détectés)"
 
     # 4. Vérifier la présence de la structure markdown attendue
@@ -3117,6 +3118,9 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
     Returns:
         success, avis_critique_id
     """
+    from datetime import datetime
+    from pathlib import Path
+
     memory_check = memory_guard.check_memory_limit()
     if memory_check:
         if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
@@ -3135,6 +3139,24 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
             logger.warning(
                 f"Tentative de sauvegarde d'un summary invalide pour épisode {request.episode_id}: {error_message}"
             )
+
+            # Écrire le contenu dans un fichier pour diagnostic
+            debug_dir = Path("/tmp/avis_critiques_debug")
+            debug_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_file = (
+                debug_dir / f"validation_failed_{request.episode_id}_{timestamp}.md"
+            )
+            debug_file.write_text(request.summary, encoding="utf-8")
+
+            logger.error("=" * 80)
+            logger.error("❌ VALIDATION ÉCHEC - SUMMARY INVALIDE")
+            logger.error(f"Épisode: {request.episode_id}")
+            logger.error(f"Erreur: {error_message}")
+            logger.error(f"Longueur: {len(request.summary)} caractères")
+            logger.error(f"📁 Fichier debug: {debug_file}")
+            logger.error("=" * 80)
+
             raise HTTPException(
                 status_code=400,
                 detail=f"Summary invalide: {error_message}. Le résultat n'a pas été sauvegardé.",
