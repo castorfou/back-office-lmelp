@@ -321,7 +321,7 @@ Puis redémarrez le conteneur.
 ## Ressources complémentaires
 
 - **Guide développeur :** [Documentation technique](../dev/claude-ai-guide.md)
-- **Stratégie de debug logging :** [CLAUDE.md](../../CLAUDE.md#debug-logging-strategy)
+- **Stratégie de debug logging :** [CLAUDE.md](https://github.com/castorfou/back-office-lmelp/blob/main/CLAUDE.md#debug-logging-strategy)
 - **Variables d'environnement backend :** [environment-variables.md](../dev/environment-variables.md)
 
 ---
