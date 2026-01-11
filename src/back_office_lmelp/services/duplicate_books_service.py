@@ -82,15 +82,16 @@ class DuplicateBooksService:
         results = list(self.mongodb_service.livres_collection.aggregate(pipeline))
 
         # Transformer le résultat pour correspondre au format attendu
+        # CRITICAL: Convertir ObjectId en str pour sérialisation JSON
         formatted_results = []
         for group in results:
             formatted_results.append(
                 {
                     "url_babelio": group["_id"],
                     "count": group["count"],
-                    "book_ids": group["book_ids"],
+                    "book_ids": [str(book_id) for book_id in group["book_ids"]],
                     "titres": group["titres"],
-                    "auteur_ids": group["auteur_ids"],
+                    "auteur_ids": [str(auteur_id) for auteur_id in group["auteur_ids"]],
                 }
             )
 
