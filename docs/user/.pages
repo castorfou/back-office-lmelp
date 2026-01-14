@@ -10,6 +10,7 @@ nav:
   - Compteurs et statistiques: compteurs-et-statistiques.md
   - Vérification Babelio: babelio-verification.md
   - Correction automatique résumés: automatic-summary-correction.md
+  - Gestion des doublons: gestion-doublons.md
   - Integration Calibre: calibre-integration.md
   - Logs de debug: debug-logging.md
   - Résolution de problèmes: troubleshooting.md
