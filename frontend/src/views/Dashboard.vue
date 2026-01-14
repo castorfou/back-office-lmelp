@@ -92,6 +92,14 @@
             <div class="stat-value">{{ episodesSansEmissionCount !== null ? episodesSansEmissionCount : '...' }}</div>
             <div class="stat-label">Épisodes sans émission</div>
           </div>
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToDuplicates"
+            :title="tooltips.doublons"
+          >
+            <div class="stat-value">{{ totalDuplicatesCount !== null ? totalDuplicatesCount : '...' }}</div>
+            <div class="stat-label">Doublons</div>
+          </div>
         </div>
       </section>
 
@@ -177,6 +185,17 @@
             </div>
             <h3>Liaison Babelio</h3>
             <p>Lier Auteurs et Livres aux pages Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-duplicates"
+            @click="navigateToDuplicates"
+          >
+            <div class="function-icon">🔗</div>
+            <h3>Gestion des Doublons</h3>
+            <p>Détection et fusion des livres en doublon (même URL Babelio)</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -280,19 +299,28 @@ export default {
         livresSansLienBabelio: `Livres sans URL Babelio et non marqués "not_found"\nCollection: livres\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
         auteursSansLienBabelio: `Auteurs sans URL Babelio et non marqués "not_found"\nCollection: auteurs\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
         critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
-        episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`
+        episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`,
+        doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`
       },
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,
       calibreIcon: calibreIcon,
       critiquesManquantsCount: null,
       episodesSansEmissionCount: null,
+      duplicateBooksCount: null,
+      duplicateAuthorsCount: null,
       loading: true,
       error: null
     };
   },
 
   computed: {
+    totalDuplicatesCount() {
+      if (this.duplicateBooksCount === null || this.duplicateAuthorsCount === null) {
+        return null;
+      }
+      return this.duplicateBooksCount + this.duplicateAuthorsCount;
+    },
     formattedLastUpdate() {
       // Issue #128: Utiliser last_episode_date depuis collectionsStatistics
       const lastDate = this.collectionsStatistics?.last_episode_date || this.statistics.lastUpdateDate;
@@ -363,9 +391,13 @@ export default {
   },
 
   async mounted() {
-    await this.loadStatistics();
-    await this.loadCollectionsStatistics();
-    await this.loadCritiquesManquants();
+    // Charger toutes les statistiques en parallèle pour un affichage simultané
+    await Promise.all([
+      this.loadStatistics(),
+      this.loadCollectionsStatistics(),
+      this.loadCritiquesManquants(),
+      this.loadDuplicateStatistics()
+    ]);
   },
 
   methods: {
@@ -423,6 +455,21 @@ export default {
       }
     },
 
+    async loadDuplicateStatistics() {
+      try {
+        const [booksResponse, authorsResponse] = await Promise.all([
+          axios.get('/api/books/duplicates/statistics'),
+          axios.get('/api/authors/duplicates/statistics')
+        ]);
+        this.duplicateBooksCount = booksResponse.data.total_duplicates;
+        this.duplicateAuthorsCount = authorsResponse.data.total_duplicates;
+      } catch (error) {
+        console.error('Erreur lors du chargement des stats doublons:', error);
+        this.duplicateBooksCount = null;
+        this.duplicateAuthorsCount = null;
+      }
+    },
+
     navigateToEpisodes() {
       this.$router.push('/episodes');
     },
@@ -461,6 +508,10 @@ export default {
 
     navigateToGenerationAvis() {
       this.$router.push('/generation-avis-critiques');
+    },
+
+    navigateToDuplicates() {
+      this.$router.push('/duplicates');
     }
   }
 };
