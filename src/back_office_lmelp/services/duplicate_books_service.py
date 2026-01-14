@@ -271,22 +271,6 @@ class DuplicateBooksService:
                 {"$pull": {"livres": {"$in": duplicate_ids_str}}},
             )
 
-        # Étape 8: Logger dans merge_history
-        history_collection = self.mongodb_service.get_collection(
-            "duplicate_books_merge_history"
-        )
-        history_collection.insert_one(
-            {
-                "url_babelio": url_babelio,
-                "primary_book_id": primary_book["_id"],
-                "deleted_book_ids": duplicate_ids,
-                "merged_episodes_count": len(unique_episodes),
-                "merged_avis_critiques_count": len(unique_avis),
-                "babelio_data": {"titre": official_titre, "editeur": official_editeur},
-                "timestamp": datetime.now(UTC),
-            }
-        )
-
         return {
             "success": True,
             "primary_book_id": str(primary_book["_id"]),
@@ -309,10 +293,7 @@ class DuplicateBooksService:
         Returns:
             {
                 "total_groups": int,
-                "total_duplicates": int,
-                "merged_count": int,
-                "skipped_count": int,
-                "pending_count": int
+                "total_duplicates": int
             }
         """
         assert self.mongodb_service.livres_collection is not None, (
@@ -337,21 +318,9 @@ class DuplicateBooksService:
         # (on ne compte pas le livre principal)
         total_duplicates = sum(group["count"] - 1 for group in duplicate_groups)
 
-        # Compter les groupes fusionnés
-        history_collection = self.mongodb_service.get_collection(
-            "duplicate_books_merge_history"
-        )
-        merged_count = history_collection.count_documents({})
-
-        # Compter les groupes en attente
-        pending_count = total_groups - merged_count
-
         return {
             "total_groups": total_groups,
             "total_duplicates": total_duplicates,
-            "merged_count": merged_count,
-            "skipped_count": 0,  # TODO: Implémenter skip list persistante
-            "pending_count": pending_count,
         }
 
     async def merge_batch(
@@ -382,4 +351,208 @@ class DuplicateBooksService:
             "type": "complete",
             "message": "Batch processing not yet implemented",
             "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+    # ========== DUPLICATE AUTHORS METHODS ==========
+
+    async def find_duplicate_authors_by_url(self) -> list[dict[str, Any]]:
+        """
+        Trouve tous les groupes d'auteurs en doublon par url_babelio.
+
+        Utilise une aggregation MongoDB pour grouper les auteurs
+        ayant la même url_babelio.
+
+        Returns:
+            Liste de groupes de doublons avec détails complets:
+            [{
+                "url_babelio": str,
+                "count": int,
+                "auteur_ids": list[str],
+                "noms": list[str],
+                ...
+            }]
+        """
+        assert self.mongodb_service.auteurs_collection is not None, (
+            "auteurs_collection must be initialized"
+        )
+
+        pipeline: list[dict[str, Any]] = [
+            # Étape 1: Ne garder que les auteurs avec url_babelio
+            {"$match": {"url_babelio": {"$ne": None, "$exists": True}}},
+            # Étape 2: Grouper par url_babelio
+            {
+                "$group": {
+                    "_id": "$url_babelio",
+                    "count": {"$sum": 1},
+                    "auteur_ids": {"$push": "$_id"},
+                    "noms": {"$push": "$nom"},
+                }
+            },
+            # Étape 3: Ne garder que les groupes avec count > 1 (doublons)
+            {"$match": {"count": {"$gt": 1}}},
+            # Étape 4: Trier par count décroissant
+            {"$sort": {"count": -1}},
+        ]
+
+        results = list(self.mongodb_service.auteurs_collection.aggregate(pipeline))
+
+        # Transformer le résultat pour sérialisation JSON
+        formatted_results = []
+        for group in results:
+            formatted_results.append(
+                {
+                    "url_babelio": group["_id"],
+                    "count": group["count"],
+                    "auteur_ids": [str(auteur_id) for auteur_id in group["auteur_ids"]],
+                    "noms": group["noms"],
+                }
+            )
+
+        return formatted_results
+
+    async def merge_duplicate_authors(
+        self, url_babelio: str, auteur_ids: list[str]
+    ) -> dict[str, Any]:
+        """
+        Fusionne un groupe d'auteurs en doublon.
+
+        Algorithme:
+        1. Scraper Babelio pour nom officiel
+        2. Sélectionner auteur primaire (oldest created_at)
+        3. Fusionner livres (union)
+        4. Mettre à jour auteur primaire avec nom officiel
+        5. Mettre à jour références dans livres collection
+        6. Supprimer doublons
+        7. Logger dans merge_history
+
+        Args:
+            url_babelio: URL Babelio du groupe
+            auteur_ids: Liste des IDs d'auteurs à fusionner
+
+        Returns:
+            {
+                "success": bool,
+                "primary_auteur_id": str,
+                "deleted_auteur_ids": list[str],
+                "merged_data": {"nom": str},
+                "livres_merged": int,
+                "logs": list[str],
+                "error": str | None
+            }
+        """
+        # Récupérer les auteurs de la base
+        object_ids = [ObjectId(auteur_id) for auteur_id in auteur_ids]
+        assert self.mongodb_service.auteurs_collection is not None, (
+            "auteurs_collection must be initialized"
+        )
+        auteurs = list(
+            self.mongodb_service.auteurs_collection.find({"_id": {"$in": object_ids}})
+        )
+
+        if not auteurs:
+            return {
+                "success": False,
+                "error": "No authors found with given IDs",
+                "primary_auteur_id": None,
+                "deleted_auteur_ids": [],
+                "merged_data": {},
+                "livres_merged": 0,
+                "logs": [],
+            }
+
+        # Étape 1: Scraper Babelio pour nom officiel
+        official_nom = await self.babelio_service.fetch_author_name_from_url(
+            url_babelio
+        )
+
+        # Étape 2: Sélectionner auteur primaire (plus ancien)
+        auteurs.sort(key=lambda a: a.get("created_at", datetime.now(UTC)))
+        primary_auteur = auteurs[0]
+        duplicates = auteurs[1:]
+
+        # Étape 3: Fusionner livres (union)
+        all_livres = []
+        for auteur in auteurs:
+            all_livres.extend(auteur.get("livres", []))
+
+        unique_livres = list(set(all_livres))  # Déduplication
+
+        # Étape 4: Mettre à jour auteur primaire
+        self.mongodb_service.auteurs_collection.update_one(
+            {"_id": primary_auteur["_id"]},
+            {
+                "$set": {
+                    "nom": official_nom,
+                    "updated_at": datetime.now(UTC),
+                },
+                "$addToSet": {
+                    "livres": {"$each": unique_livres},
+                },
+            },
+        )
+
+        # Étape 5: Mettre à jour références dans livres collection
+        duplicate_ids = [auteur["_id"] for auteur in duplicates]
+        duplicate_ids_str = [str(auteur_id) for auteur_id in duplicate_ids]
+
+        if duplicate_ids:
+            assert self.mongodb_service.livres_collection is not None, (
+                "livres_collection must be initialized"
+            )
+            # Mettre à jour tous les livres qui référencent les doublons
+            self.mongodb_service.livres_collection.update_many(
+                {"auteur_id": {"$in": duplicate_ids}},
+                {"$set": {"auteur_id": primary_auteur["_id"]}},
+            )
+
+            # Étape 6: Supprimer auteurs en doublon
+            self.mongodb_service.auteurs_collection.delete_many(
+                {"_id": {"$in": duplicate_ids}}
+            )
+
+        return {
+            "success": True,
+            "primary_auteur_id": str(primary_auteur["_id"]),
+            "deleted_auteur_ids": duplicate_ids_str,
+            "merged_data": {"nom": official_nom},
+            "livres_merged": len(unique_livres),
+            "logs": [
+                f"Primary author: {primary_auteur['_id']}",
+                f"Deleted: {len(duplicate_ids)} duplicates",
+                f"Merged: {len(unique_livres)} livres",
+            ],
+            "error": None,
+        }
+
+    async def get_duplicate_authors_statistics(self) -> dict[str, Any]:
+        """
+        Récupère les statistiques des doublons d'auteurs.
+
+        Returns:
+            {
+                "total_groups": int,
+                "total_duplicates": int
+            }
+        """
+        assert self.mongodb_service.auteurs_collection is not None, (
+            "auteurs_collection must be initialized"
+        )
+
+        # Compter les groupes de doublons
+        pipeline: list[dict[str, Any]] = [
+            {"$match": {"url_babelio": {"$ne": None, "$exists": True}}},
+            {"$group": {"_id": "$url_babelio", "count": {"$sum": 1}}},
+            {"$match": {"count": {"$gt": 1}}},
+        ]
+
+        duplicate_groups = list(
+            self.mongodb_service.auteurs_collection.aggregate(pipeline)
+        )
+
+        total_groups = len(duplicate_groups)
+        total_duplicates = sum(group["count"] - 1 for group in duplicate_groups)
+
+        return {
+            "total_groups": total_groups,
+            "total_duplicates": total_duplicates,
         }

@@ -425,8 +425,6 @@ class TestGetDuplicateStatistics:
         Statistics:
             - total_groups: Nombre de groupes de doublons
             - total_duplicates: Nombre total de livres en doublon
-            - merged_count: Nombre de groupes fusionnés
-            - pending_count: Nombre de groupes en attente
         """
         # Mock aggregate: 2 groupes de doublons
         mock_aggregate_result = [
@@ -441,11 +439,6 @@ class TestGetDuplicateStatistics:
             mock_aggregate_result
         )
 
-        # Mock history collection: 1 groupe déjà fusionné
-        mock_history_collection = Mock()
-        mock_history_collection.count_documents.return_value = 1
-        mock_mongodb_service.get_collection.return_value = mock_history_collection
-
         # Execute
         result = await duplicate_books_service.get_duplicate_statistics()
 
@@ -455,5 +448,3 @@ class TestGetDuplicateStatistics:
             "Should have 3 duplicate books "
             "(2-1=1 from first group + 3-1=2 from second group)"
         )
-        assert result["merged_count"] == 1, "Should have 1 merged group"
-        assert result["pending_count"] == 1, "Should have 1 pending group (2 - 1)"

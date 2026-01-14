@@ -795,6 +795,59 @@ class BabelioService:
             logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
             return None
 
+    async def fetch_author_name_from_url(self, babelio_url: str) -> str | None:
+        """Scrape le nom d'auteur depuis une page auteur Babelio.
+
+        Args:
+            babelio_url: URL complète Babelio auteur (ex: https://www.babelio.com/auteur/...)
+
+        Returns:
+            Nom de l'auteur ou None si non trouvé
+
+        Exemple:
+            author_name = await service.fetch_author_name_from_url(
+                "https://www.babelio.com/auteur/Christian-Thorel/165895"
+            )
+            # → "Christian Thorel"
+
+        Note:
+            Utilise BeautifulSoup4 avec le sélecteur h1
+            pour extraire le nom depuis la page auteur.
+        """
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            session = await self._get_session()
+
+            async with session.get(babelio_url) as response:
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
+                    )
+                    return None
+
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96)
+                html = await response.text(encoding="cp1252")
+                soup = BeautifulSoup(html, "lxml")
+
+                # Sur une page auteur, le h1 contient le nom de l'auteur
+                h1_tag = soup.find("h1")
+                if h1_tag:
+                    author_raw = str(h1_tag.get_text())
+                    # Nettoyer les sauts de ligne et espaces multiples
+                    author_name = " ".join(author_raw.split())
+                    logger.debug(f"Nom auteur trouvé pour {babelio_url}: {author_name}")
+                    return author_name
+
+                logger.debug(f"Nom auteur non trouvé pour {babelio_url}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping auteur pour {babelio_url}: {e}")
+            return None
+
     async def verify_publisher(self, publisher_name: str) -> dict[str, Any]:
         """Vérifie l'orthographe d'un nom d'éditeur.
 

@@ -1,144 +1,233 @@
 <template>
   <div class="duplicate-books-container">
-    <h1>Gestion des doublons de livres</h1>
+    <!-- Navigation -->
+    <Navigation pageTitle="Gestion des Doublons" />
 
-    <!-- Statistics Card -->
-    <div v-if="statistics" class="statistics-card">
-      <h2>Statistiques</h2>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-label">Groupes de doublons</span>
-          <span class="stat-value">{{ statistics.total_groups }}</span>
+    <main>
+      <!-- Statistics Card -->
+      <section v-if="statistics || authorsStatistics" class="card statistics-card">
+        <h2>Statistiques</h2>
+
+        <!-- Statistiques Livres -->
+        <h3 class="stats-section-title">📚 Livres</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">Groupes de doublons</span>
+            <span class="stat-value">{{ statistics.total_groups }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Livres en doublon</span>
+            <span class="stat-value">{{ statistics.total_duplicates }}</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Livres en doublon</span>
-          <span class="stat-value">{{ statistics.total_duplicates }}</span>
+
+        <!-- Statistiques Auteurs -->
+        <h3 class="stats-section-title">👤 Auteurs</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">Groupes de doublons</span>
+            <span class="stat-value">{{ authorsStatistics?.total_groups || 0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Auteurs en doublon</span>
+            <span class="stat-value">{{ authorsStatistics?.total_duplicates || 0 }}</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Groupes fusionnés</span>
-          <span class="stat-value">{{ statistics.merged_count }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">En attente</span>
-          <span class="stat-value">{{ statistics.pending_count }}</span>
-        </div>
+      </section>
+
+      <!-- Loading State -->
+      <div v-if="loading" class="loading">
+        Chargement des doublons...
       </div>
-    </div>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="loading">
-      Chargement des doublons...
-    </div>
+      <!-- Error State -->
+      <div v-if="error" class="alert alert-error">
+        {{ error }}
+      </div>
 
-    <!-- Error State -->
-    <div v-if="error" class="error-message">
-      {{ error }}
-    </div>
-
-    <!-- Duplicate Groups List -->
-    <div v-if="!loading && !error && duplicateGroups.length > 0" class="groups-container">
-      <div class="groups-header">
-        <h2>Groupes de doublons ({{ duplicateGroups.length }})</h2>
+      <!-- Global Batch Merge Button -->
+      <div v-if="!loading && !error && (duplicateAuthors.length > 0 || duplicateGroups.length > 0)" class="global-batch-container">
         <button
-          class="btn btn-primary"
-          :disabled="isBatchRunning"
-          @click="startBatchMerge"
+          class="btn btn-primary btn-large"
+          :disabled="isGlobalBatchRunning"
+          @click="startGlobalBatchMerge"
         >
-          {{ isBatchRunning ? 'Fusion en cours...' : 'Fusionner tous les groupes' }}
+          {{ isGlobalBatchRunning ? globalBatchStatus : 'Tout fusionner (auteurs puis livres)' }}
         </button>
-      </div>
 
-      <!-- Batch Progress -->
-      <div v-if="isBatchRunning" class="batch-progress">
-        <div class="progress-bar">
-          <div
-            class="progress-fill"
-            :style="{ width: batchProgressPercent + '%' }"
-          ></div>
-        </div>
-        <p>{{ batchProgress.current }} / {{ batchProgress.total }} groupes traités</p>
-      </div>
-
-      <!-- Groups List -->
-      <div class="groups-list">
-        <div
-          v-for="group in duplicateGroups"
-          :key="group.url_babelio"
-          class="group-card"
-          :class="{ 'group-processing': processingGroup === group.url_babelio }"
-        >
-          <div class="group-header">
-            <div class="group-info">
-              <h3>{{ group.titres[0] }}</h3>
-              <p class="group-count">{{ group.count }} livres en doublon</p>
-              <a
-                :href="group.url_babelio"
-                target="_blank"
-                class="babelio-link"
-              >
-                Voir sur Babelio ↗
-              </a>
-            </div>
-            <div class="group-actions">
-              <label class="skip-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="skipList.includes(group.url_babelio)"
-                  @change="toggleSkip(group.url_babelio)"
-                >
-                Ignorer
-              </label>
-              <button
-                class="btn btn-merge"
-                :disabled="processingGroup === group.url_babelio"
-                @click="mergeGroup(group)"
-              >
-                {{ processingGroup === group.url_babelio ? 'Fusion...' : 'Fusionner' }}
-              </button>
-            </div>
-          </div>
-
-          <div class="group-details">
-            <div class="titles-list">
-              <strong>Titres variantes:</strong>
-              <ul>
-                <li v-for="(titre, index) in group.titres" :key="index">
-                  {{ titre }}
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Merge Result -->
-          <div v-if="mergeResults[group.url_babelio]" class="merge-result">
+        <!-- Global Batch Progress -->
+        <div v-if="isGlobalBatchRunning" class="batch-progress">
+          <div class="progress-bar">
             <div
-              v-if="mergeResults[group.url_babelio].success"
-              class="result-success"
-            >
-              ✓ Fusion réussie:
-              {{ mergeResults[group.url_babelio].result.episodes_merged }} épisodes,
-              {{ mergeResults[group.url_babelio].result.avis_critiques_merged }} avis fusionnés
+              class="progress-fill"
+              :style="{ width: globalBatchProgressPercent + '%' }"
+            ></div>
+          </div>
+          <p>{{ globalBatchProgress.current }} / {{ globalBatchProgress.total }} groupes traités</p>
+        </div>
+      </div>
+
+      <!-- ========== DUPLICATE AUTHORS SECTION (DISPLAYED FIRST) ========== -->
+
+      <!-- Duplicate Authors List -->
+      <div v-if="!loading && !error && duplicateAuthors.length > 0" class="groups-container">
+        <div class="groups-header">
+          <h2>👤 Groupes d'auteurs en doublon ({{ duplicateAuthors.length }})</h2>
+        </div>
+
+        <!-- Authors List -->
+        <div class="groups-list">
+          <div
+            v-for="group in duplicateAuthors"
+            :key="group.url_babelio"
+            class="group-card"
+            :class="{ 'group-processing': processingAuthorGroup === group.url_babelio }"
+          >
+            <div class="group-header">
+              <div class="group-info">
+                <h3>{{ group.noms[0] }}</h3>
+                <p class="group-count">{{ group.count }} auteurs en doublon</p>
+                <a
+                  :href="group.url_babelio"
+                  target="_blank"
+                  class="babelio-link"
+                >
+                  Voir sur Babelio ↗
+                </a>
+              </div>
+              <div class="group-actions">
+                <button
+                  class="btn btn-merge"
+                  :disabled="processingAuthorGroup === group.url_babelio"
+                  @click="mergeAuthorGroup(group)"
+                >
+                  {{ processingAuthorGroup === group.url_babelio ? 'Fusion...' : 'Fusionner' }}
+                </button>
+              </div>
             </div>
-            <div v-else class="result-error">
-              ✗ Erreur: {{ mergeResults[group.url_babelio].error }}
+
+            <div class="group-details">
+              <div class="titles-list">
+                <strong>Noms variantes:</strong>
+                <ul>
+                  <li v-for="(nom, index) in group.noms" :key="index">
+                    {{ nom }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Merge Result -->
+            <div v-if="authorMergeResults[group.url_babelio]" class="merge-result">
+              <div
+                v-if="authorMergeResults[group.url_babelio].success"
+                class="result-success"
+              >
+                ✓ Fusion réussie:
+                {{ authorMergeResults[group.url_babelio].result.livres_merged }} livres fusionnés
+              </div>
+              <div v-else class="result-error">
+                ✗ Erreur: {{ authorMergeResults[group.url_babelio].error }}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Empty State -->
-    <div v-if="!loading && !error && duplicateGroups.length === 0" class="empty-state">
-      <p>Aucun doublon détecté ! 🎉</p>
-    </div>
+      <!-- ========== DUPLICATE BOOKS SECTION (DISPLAYED SECOND) ========== -->
+
+      <!-- Duplicate Books List -->
+      <div v-if="!loading && !error && duplicateGroups.length > 0" class="groups-container">
+        <div class="groups-header">
+          <h2>📚 Groupes de livres en doublon ({{ duplicateGroups.length }})</h2>
+        </div>
+
+        <!-- Books List -->
+        <div class="groups-list">
+          <div
+            v-for="group in duplicateGroups"
+            :key="group.url_babelio"
+            class="group-card"
+            :class="{ 'group-processing': processingGroup === group.url_babelio }"
+          >
+            <div class="group-header">
+              <div class="group-info">
+                <h3>{{ group.titres[0] }}</h3>
+                <p class="group-count">{{ group.count }} livres en doublon</p>
+                <a
+                  :href="group.url_babelio"
+                  target="_blank"
+                  class="babelio-link"
+                >
+                  Voir sur Babelio ↗
+                </a>
+              </div>
+              <div class="group-actions">
+                <label class="skip-checkbox">
+                  <input
+                    type="checkbox"
+                    :checked="skipList.includes(group.url_babelio)"
+                    @change="toggleSkip(group.url_babelio)"
+                  >
+                  Ignorer
+                </label>
+                <button
+                  class="btn btn-merge"
+                  :disabled="processingGroup === group.url_babelio"
+                  @click="mergeGroup(group)"
+                >
+                  {{ processingGroup === group.url_babelio ? 'Fusion...' : 'Fusionner' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="group-details">
+              <div class="titles-list">
+                <strong>Titres variantes:</strong>
+                <ul>
+                  <li v-for="(titre, index) in group.titres" :key="index">
+                    {{ titre }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Merge Result -->
+            <div v-if="mergeResults[group.url_babelio]" class="merge-result">
+              <div
+                v-if="mergeResults[group.url_babelio].success"
+                class="result-success"
+              >
+                ✓ Fusion réussie:
+                {{ mergeResults[group.url_babelio].result.episodes_merged }} épisodes,
+                {{ mergeResults[group.url_babelio].result.avis_critiques_merged }} avis fusionnés
+              </div>
+              <div v-else class="result-error">
+                ✗ Erreur: {{ mergeResults[group.url_babelio].error }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-if="!loading && !error && duplicateAuthors.length === 0 && duplicateGroups.length === 0" class="empty-state">
+        <p>Aucun doublon détecté (ni auteurs ni livres) ! 🎉</p>
+      </div>
+    </main>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import Navigation from '../components/Navigation.vue';
 
 export default {
   name: 'DuplicateBooks',
+
+  components: {
+    Navigation
+  },
 
   data() {
     return {
@@ -153,7 +242,19 @@ export default {
         current: 0,
         total: 0
       },
-      mergeResults: {}
+      mergeResults: {},
+      // Authors-specific data
+      authorsStatistics: null,
+      duplicateAuthors: [],
+      processingAuthorGroup: null,
+      authorMergeResults: {},
+      // Global batch merge data
+      isGlobalBatchRunning: false,
+      globalBatchStatus: '',
+      globalBatchProgress: {
+        current: 0,
+        total: 0
+      }
     };
   },
 
@@ -161,6 +262,10 @@ export default {
     batchProgressPercent() {
       if (this.batchProgress.total === 0) return 0;
       return Math.round((this.batchProgress.current / this.batchProgress.total) * 100);
+    },
+    globalBatchProgressPercent() {
+      if (this.globalBatchProgress.total === 0) return 0;
+      return Math.round((this.globalBatchProgress.current / this.globalBatchProgress.total) * 100);
     }
   },
 
@@ -174,14 +279,23 @@ export default {
       this.error = null;
 
       try {
-        // Load statistics and groups in parallel
-        const [statsResponse, groupsResponse] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/books/duplicates/statistics`),
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/books/duplicates/groups`)
+        // Load statistics and groups for both books and authors in parallel
+        const [
+          statsResponse,
+          groupsResponse,
+          authorsStatsResponse,
+          authorsGroupsResponse
+        ] = await Promise.all([
+          axios.get('/api/books/duplicates/statistics'),
+          axios.get('/api/books/duplicates/groups'),
+          axios.get('/api/authors/duplicates/statistics'),
+          axios.get('/api/authors/duplicates/groups')
         ]);
 
         this.statistics = statsResponse.data;
         this.duplicateGroups = groupsResponse.data;
+        this.authorsStatistics = authorsStatsResponse.data;
+        this.duplicateAuthors = authorsGroupsResponse.data;
       } catch (err) {
         this.error = `Erreur lors du chargement: ${err.message}`;
         console.error('Load data error:', err);
@@ -205,7 +319,7 @@ export default {
 
       try {
         const response = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/api/books/duplicates/merge`,
+          '/api/books/duplicates/merge',
           {
             url_babelio: group.url_babelio,
             book_ids: group.book_ids
@@ -266,13 +380,108 @@ export default {
 
     async loadStatistics() {
       try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/api/books/duplicates/statistics`
-        );
+        const response = await axios.get('/api/books/duplicates/statistics');
         this.statistics = response.data;
       } catch (err) {
         console.error('Load statistics error:', err);
       }
+    },
+
+    async mergeAuthorGroup(group) {
+      this.processingAuthorGroup = group.url_babelio;
+      this.error = null;
+
+      try {
+        const response = await axios.post(
+          '/api/authors/duplicates/merge',
+          {
+            url_babelio: group.url_babelio,
+            auteur_ids: group.auteur_ids
+          }
+        );
+
+        // Store result
+        this.authorMergeResults[group.url_babelio] = {
+          success: true,
+          result: response.data.result
+        };
+
+        // Remove from list after successful merge
+        setTimeout(() => {
+          this.duplicateAuthors = this.duplicateAuthors.filter(
+            g => g.url_babelio !== group.url_babelio
+          );
+          // Reload statistics
+          this.loadData();
+        }, 2000);
+
+      } catch (err) {
+        this.authorMergeResults[group.url_babelio] = {
+          success: false,
+          error: err.response?.data?.detail || err.message
+        };
+        console.error('Merge author error:', err);
+      } finally {
+        this.processingAuthorGroup = null;
+      }
+    },
+
+    async startGlobalBatchMerge() {
+      if (this.isGlobalBatchRunning) return;
+
+      this.isGlobalBatchRunning = true;
+      this.globalBatchProgress.current = 0;
+      this.globalBatchProgress.total = this.duplicateAuthors.length + this.duplicateGroups.length;
+
+      // Phase 1: Merge all authors first
+      if (this.duplicateAuthors.length > 0) {
+        this.globalBatchStatus = `Fusion des auteurs (0/${this.duplicateAuthors.length})...`;
+
+        for (let i = 0; i < this.duplicateAuthors.length; i++) {
+          const group = this.duplicateAuthors[i];
+          this.globalBatchStatus = `Fusion des auteurs (${i + 1}/${this.duplicateAuthors.length})...`;
+
+          await this.mergeAuthorGroup(group);
+          this.globalBatchProgress.current++;
+
+          // Small delay between merges
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Reload data after all authors are merged to get updated book groups
+        await this.loadData();
+      }
+
+      // Phase 2: Merge all books
+      if (this.duplicateGroups.length > 0) {
+        this.globalBatchStatus = `Fusion des livres (0/${this.duplicateGroups.length})...`;
+
+        // Get current snapshot of book groups (after author merges)
+        const bookGroups = [...this.duplicateGroups];
+
+        for (let i = 0; i < bookGroups.length; i++) {
+          const group = bookGroups[i];
+
+          // Skip if in skip list
+          if (this.skipList.includes(group.url_babelio)) {
+            this.globalBatchProgress.current++;
+            continue;
+          }
+
+          this.globalBatchStatus = `Fusion des livres (${i + 1}/${bookGroups.length})...`;
+
+          await this.mergeGroup(group);
+          this.globalBatchProgress.current++;
+
+          // Small delay between merges
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Reset state
+      this.isGlobalBatchRunning = false;
+      this.globalBatchStatus = '';
+      this.globalBatchProgress = { current: 0, total: 0 };
     }
   }
 };
@@ -280,27 +489,46 @@ export default {
 
 <style scoped>
 .duplicate-books-container {
-  padding: 20px;
-  max-width: 1200px;
+  padding: 0 2rem 2rem;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-h1 {
-  font-size: 2rem;
-  margin-bottom: 20px;
+main {
+  margin-top: 2rem;
+}
+
+/* Common card styles */
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
 }
 
 /* Statistics Card */
 .statistics-card {
   background: #f8f9fa;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
+  border: 1px solid #e0e0e0;
 }
 
 .statistics-card h2 {
   font-size: 1.5rem;
   margin-bottom: 15px;
+}
+
+.stats-section-title {
+  margin: 20px 0 10px 0;
+  color: #495057;
+  font-size: 1.1em;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 8px;
+}
+
+.stats-section-title:first-of-type {
+  margin-top: 10px;
 }
 
 .stats-grid {
@@ -331,19 +559,44 @@ h1 {
 }
 
 /* Loading & Error States */
-.loading, .empty-state {
+.loading {
   text-align: center;
-  padding: 40px;
+  padding: 3rem;
   color: #666;
   font-size: 1.1rem;
 }
 
-.error-message {
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+  font-size: 1.1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.alert-error {
   background: #f8d7da;
   color: #721c24;
-  padding: 15px;
-  border-radius: 6px;
-  margin-bottom: 20px;
+  border: 1px solid #f5c6cb;
+}
+
+/* Global Batch Container */
+.global-batch-container {
+  margin: 30px 0;
+  text-align: center;
+}
+
+.btn-large {
+  padding: 15px 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 /* Groups Container */

@@ -12,10 +12,26 @@ describe('DuplicateBooks.vue', () => {
 
   const mockStatistics = {
     total_groups: 10,
-    total_duplicates: 15,
-    merged_count: 2,
-    pending_count: 8,
-    skipped_count: 0
+    total_duplicates: 15
+  };
+
+  // Helper function to mock all 4 API endpoints
+  const mockAllEndpoints = (statsData = mockStatistics, groupsData = mockDuplicateGroups, authorsStatsData = mockStatistics, authorsGroupsData = []) => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/books/duplicates/statistics')) {
+        return Promise.resolve({ data: statsData });
+      }
+      if (url.includes('/books/duplicates/groups')) {
+        return Promise.resolve({ data: groupsData });
+      }
+      if (url.includes('/authors/duplicates/statistics')) {
+        return Promise.resolve({ data: authorsStatsData });
+      }
+      if (url.includes('/authors/duplicates/groups')) {
+        return Promise.resolve({ data: authorsGroupsData });
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
   };
 
   const mockDuplicateGroups = [
@@ -54,15 +70,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('loads statistics and groups on mount', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -71,7 +79,7 @@ describe('DuplicateBooks.vue', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
     await wrapper.vm.$nextTick();
 
-    expect(axios.get).toHaveBeenCalledTimes(2);
+    expect(axios.get).toHaveBeenCalledTimes(4);
     expect(wrapper.vm.statistics).toEqual(mockStatistics);
     expect(wrapper.vm.duplicateGroups).toEqual(mockDuplicateGroups);
   });
@@ -106,15 +114,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('displays statistics card with correct values', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -130,15 +130,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('displays duplicate groups list', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -154,15 +146,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('toggles skip checkbox correctly', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -186,15 +170,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('merges a group successfully', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     const mockMergeResponse = {
       status: 'success',
@@ -232,15 +208,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('handles merge error correctly', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     axios.post.mockRejectedValue({
       response: {
@@ -266,15 +234,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('calculates batch progress percentage correctly', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: [] });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints(mockStatistics, [], mockStatistics, []);
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -291,15 +251,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('displays empty state when no duplicates', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: { ...mockStatistics, total_groups: 0 } });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: [] });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints({ ...mockStatistics, total_groups: 0 }, [], { ...mockStatistics, total_groups: 0 }, []);
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
@@ -313,15 +265,7 @@ describe('DuplicateBooks.vue', () => {
   });
 
   it('disables merge button during processing', async () => {
-    axios.get.mockImplementation((url) => {
-      if (url.includes('/statistics')) {
-        return Promise.resolve({ data: mockStatistics });
-      }
-      if (url.includes('/groups')) {
-        return Promise.resolve({ data: mockDuplicateGroups });
-      }
-      return Promise.reject(new Error('Unknown URL'));
-    });
+    mockAllEndpoints();
 
     wrapper = mount(DuplicateBooks, {
       global: { plugins: [router] }
