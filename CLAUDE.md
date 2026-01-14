@@ -265,6 +265,46 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
    expect(wrapper.vm.error).toBeTruthy();  // Reliable
    ```
 
+### Vue.js UI Patterns et Charte Graphique
+
+**Pour les patterns UI détaillés et les conventions visuelles**, voir [Charte graphique et patterns UI Vue.js](docs/dev/vue-ui-patterns.md).
+
+**Règles critiques :**
+- **Chargement parallèle** : Utiliser `Promise.all()` dans `mounted()` pour afficher toutes les stats simultanément
+- **Propriétés calculées** : Retourner `null` si des composants sont encore en chargement
+- **Pattern à 3 états** : loading → error → data → empty
+
+### Axios - Pattern URLs Relatives
+
+**TOUJOURS utiliser des URLs relatives** pour les appels API axios :
+
+```javascript
+// ✅ CORRECT - URL relative (fonctionne en dev et prod)
+const response = await axios.get('/api/books/duplicates/statistics');
+const result = await axios.post('/api/books/duplicates/merge', {
+  url_babelio: url,
+  book_ids: ids
+});
+
+// ❌ MAUVAIS - URL absolue (ne fonctionne qu'avec un serveur spécifique)
+const response = await axios.get('http://localhost:8000/api/books/duplicates/statistics');
+```
+
+**Pourquoi :**
+- Les URLs relatives fonctionnent automatiquement en dev (proxy Vite) et en prod
+- Évite le hardcoding de l'URL du backend
+- Compatible avec les déploiements multi-environnements
+- Le proxy Vite (configuré dans `vite.config.js`) redirige automatiquement `/api/*` vers le backend
+
+**Configuration du proxy** (déjà en place dans `frontend/vite.config.js`) :
+```javascript
+server: {
+  proxy: {
+    '/api': 'http://localhost:8000'
+  }
+}
+```
+
 ### FastAPI Best Practices
 
 **CRITICAL**: Two common patterns that cause production bugs:
@@ -284,6 +324,37 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
    ```
 
 **Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns) in developer guide.
+
+### Livres avec Co-Auteurs - Limitation Modèle Actuel
+
+**IMPORTANT** : Le modèle de données actuel ne supporte **qu'un seul auteur par livre** via le champ `auteur_id`.
+
+**Modèle actuel** (collection `livres`) :
+```python
+{
+  "_id": ObjectId(...),
+  "titre": str,
+  "auteur_id": ObjectId(...),  # ⚠️ UN SEUL auteur
+  "url_babelio": str,
+  "editeur": str,
+  "episodes": list[str],
+  ...
+}
+```
+
+**Conséquences pour les livres avec co-auteurs** :
+- ❌ Les livres avec plusieurs auteurs ne peuvent être correctement représentés
+- ⚠️ Lors de la détection de doublons : un livre avec co-auteurs pourrait avoir plusieurs entrées (une par auteur)
+- ⚠️ La fusion de doublons vérifie que `auteur_id` est identique → rejette les fusions si auteurs différents
+
+**Stratégie actuelle** :
+- **Solution de contournement** : Choisir un auteur principal par livre
+- **Données Babelio** : Le scraping récupère le nom complet depuis Babelio qui peut inclure plusieurs auteurs dans le champ `nom` de la collection `auteurs`
+
+**Évolutions futures possibles** :
+- Modèle avec `auteur_ids: list[ObjectId]` pour supporter plusieurs auteurs
+- Nécessiterait la migration de toutes les données existantes
+- Impact sur la validation bibliographique et la détection de doublons
 
 ## Auto-Discovery System
 
