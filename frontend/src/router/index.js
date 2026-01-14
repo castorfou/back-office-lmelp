@@ -15,6 +15,7 @@ import MasquerEpisodes from '../views/MasquerEpisodes.vue';
 import CalibreLibrary from '../views/CalibreLibrary.vue';
 import IdentificationCritiques from '../views/IdentificationCritiques.vue';
 import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
+import DuplicateBooks from '../views/DuplicateBooks.vue';
 
 const routes = [
   {
@@ -111,6 +112,14 @@ const routes = [
     component: GenerationAvisCritiques,
     meta: {
       title: 'Génération Avis Critiques - Back-office LMELP'
+    }
+  },
+  {
+    path: '/duplicates',
+    name: 'DuplicateBooks',
+    component: DuplicateBooks,
+    meta: {
+      title: 'Gestion des Doublons - Back-office LMELP'
     }
   },
   {

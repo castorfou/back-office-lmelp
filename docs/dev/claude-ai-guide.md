@@ -64,6 +64,7 @@ This project uses a two-tier documentation approach for Claude Code:
 - [Development Workflow Best Practices](#development-workflow-best-practices)
 - [Testing Patterns and Pitfalls](#testing-patterns-and-pitfalls)
 - [Backend Testing Advanced Topics](#backend-testing-advanced-topics)
+- [Frontend UI/UX Patterns](#frontend-uiux-patterns)
 - [Documentation Guidelines](#documentation-guidelines)
 - [Project Maintenance](#project-maintenance)
 
@@ -933,6 +934,69 @@ This returns `True` as long as the document exists, regardless of whether it was
 REST APIs should be idempotent: calling the same operation multiple times should have the same effect as calling it once, without errors.
 
 **Example**: Calling `PATCH /episodes/{id}/masked` with `{"masked": false}` twice should succeed both times, not fail on the second call.
+
+## Frontend UI/UX Patterns
+
+### Vue.js Component Design
+
+Pour les patterns UI détaillés, la charte graphique et les conventions visuelles, voir le document dédié :
+
+**[Charte graphique et patterns UI Vue.js](vue-ui-patterns.md)**
+
+Ce document couvre :
+- Structure des composants Vue
+- Cartes de statistiques (Dashboard et pages de détail)
+- États de chargement, erreur et vide
+- Boutons d'action et hiérarchie visuelle
+- Indicateurs de progression
+- Opérations par lot
+- Palette de couleurs et accessibilité
+- Chargement parallèle des données
+- Design responsive
+
+### Règles critiques Frontend
+
+**Chargement parallèle des données (CRITICAL)** :
+```javascript
+// ❌ MAUVAIS - Chargement séquentiel (apparition échelonnée)
+async mounted() {
+  await this.loadStatistics();
+  await this.loadCollectionsStatistics();
+  await this.loadDuplicateStatistics();
+}
+
+// ✅ CORRECT - Chargement parallèle (affichage simultané)
+async mounted() {
+  await Promise.all([
+    this.loadStatistics(),
+    this.loadCollectionsStatistics(),
+    this.loadDuplicateStatistics()
+  ]);
+}
+```
+
+**Propriétés calculées pour statistiques combinées** :
+```javascript
+computed: {
+  totalCount() {
+    // Retourner null si un composant est encore en chargement
+    if (this.booksCount === null || this.authorsCount === null) {
+      return null;
+    }
+    return this.booksCount + this.authorsCount;
+  }
+}
+```
+
+**Pattern à trois états pour le chargement** :
+```vue
+<div v-if="loading" class="loading">Chargement...</div>
+<div v-if="error" class="alert alert-error">{{ error }}</div>
+<div v-if="!loading && !error && data.length > 0"><!-- Données --></div>
+<div v-if="!loading && !error && data.length === 0" class="empty-state">
+  Aucune donnée 🎉
+</div>
+```
 
 ## Documentation Guidelines
 

@@ -49,6 +49,7 @@ from .services.books_extraction_service import books_extraction_service
 from .services.calibre_service import calibre_service
 from .services.collections_management_service import collections_management_service
 from .services.critiques_extraction_service import critiques_extraction_service
+from .services.duplicate_books_service import DuplicateBooksService
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
@@ -217,6 +218,26 @@ class ExtractFromBabelioUrlRequest(BaseModel):
     babelio_url: str
 
 
+class MergeDuplicateGroupRequest(BaseModel):
+    """Modèle pour fusionner un groupe de doublons (Issue #178)."""
+
+    url_babelio: str
+    book_ids: list[str]
+
+
+class MergeBatchRequest(BaseModel):
+    """Modèle pour fusionner en batch avec skip list (Issue #178)."""
+
+    skip_list: list[str] = []
+
+
+class MergeDuplicateAuthorsRequest(BaseModel):
+    """Modèle pour fusionner un groupe d'auteurs en doublon (Issue #178)."""
+
+    url_babelio: str
+    auteur_ids: list[str]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Gestion du cycle de vie de l'application."""
@@ -276,6 +297,12 @@ app = FastAPI(
 
 # Initialize migration service (Issue #124)
 babelio_migration_service = BabelioMigrationService(
+    mongodb_service=mongodb_service,
+    babelio_service=babelio_service,
+)
+
+# Initialize duplicate books service (Issue #178)
+duplicate_books_service = DuplicateBooksService(
     mongodb_service=mongodb_service,
     babelio_service=babelio_service,
 )
@@ -2135,6 +2162,132 @@ async def get_all_books() -> list[dict[str, Any]]:
         books = collections_management_service.get_all_books()
         return books
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/books/duplicates/statistics", response_model=dict[str, Any])
+async def get_duplicate_books_statistics() -> dict[str, Any]:
+    """Récupère les statistiques des doublons de livres (Issue #178)."""
+    try:
+        stats = await duplicate_books_service.get_duplicate_statistics()
+        return stats
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des stats doublons: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/books/duplicates/groups", response_model=list[dict[str, Any]])
+async def get_duplicate_books_groups() -> list[dict[str, Any]]:
+    """Récupère tous les groupes de doublons de livres (Issue #178)."""
+    try:
+        groups = await duplicate_books_service.find_duplicate_groups_by_url()
+        return groups
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des groupes doublons: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/books/duplicates/merge", response_model=dict[str, Any])
+async def merge_duplicate_books_group(
+    request: MergeDuplicateGroupRequest,
+) -> dict[str, Any]:
+    """Fusionne un groupe de doublons (Issue #178)."""
+    try:
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio=request.url_babelio,
+            book_ids=request.book_ids,
+        )
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "success",
+            "message": "Groupe fusionné avec succès",
+            "result": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la fusion du groupe: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/books/duplicates/merge/batch")
+async def merge_duplicate_books_batch(request: MergeBatchRequest) -> Response:
+    """Fusionne en batch tous les groupes de doublons (Issue #178)."""
+    try:
+
+        async def event_generator() -> AsyncGenerator[str, None]:
+            """Générateur d'événements Server-Sent Events."""
+            async for event in duplicate_books_service.merge_batch(
+                skip_list=request.skip_list
+            ):
+                yield f"data: {event}\n\n"
+
+        return Response(
+            content=event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Erreur lors du batch merge: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+# ========== DUPLICATE AUTHORS ENDPOINTS (Issue #178) ==========
+
+
+@app.get("/api/authors/duplicates/statistics", response_model=dict[str, Any])
+async def get_duplicate_authors_statistics() -> dict[str, Any]:
+    """Récupère les statistiques des doublons d'auteurs (Issue #178)."""
+    try:
+        stats = await duplicate_books_service.get_duplicate_authors_statistics()
+        return stats
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des stats doublons auteurs: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/authors/duplicates/groups", response_model=list[dict[str, Any]])
+async def get_duplicate_authors_groups() -> list[dict[str, Any]]:
+    """Récupère tous les groupes d'auteurs en doublon (Issue #178)."""
+    try:
+        groups = await duplicate_books_service.find_duplicate_authors_by_url()
+        return groups
+    except Exception as e:
+        logger.error(
+            f"Erreur lors de la récupération des groupes doublons auteurs: {e}"
+        )
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.post("/api/authors/duplicates/merge", response_model=dict[str, Any])
+async def merge_duplicate_authors_group(
+    request: MergeDuplicateAuthorsRequest,
+) -> dict[str, Any]:
+    """Fusionne un groupe d'auteurs en doublon (Issue #178)."""
+    try:
+        result = await duplicate_books_service.merge_duplicate_authors(
+            url_babelio=request.url_babelio,
+            auteur_ids=request.auteur_ids,
+        )
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        return {
+            "status": "success",
+            "message": "Groupe d'auteurs fusionné avec succès",
+            "result": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la fusion du groupe d'auteurs: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
