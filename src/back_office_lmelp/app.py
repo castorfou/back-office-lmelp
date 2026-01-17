@@ -3617,6 +3617,386 @@ async def create_emission(request: Request) -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+# =============================================================================
+# Endpoints AVIS (collection structurée extraite des summaries)
+# =============================================================================
+
+
+@app.get("/api/avis/by-emission/{emission_id}")
+async def get_avis_by_emission(emission_id: str) -> JSONResponse:
+    """
+    Récupère tous les avis structurés d'une émission.
+
+    Args:
+        emission_id: L'ID de l'émission
+
+    Returns:
+        Liste des avis avec données enrichies (livre, critique, auteur)
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        avis_list = mongodb_service.get_avis_by_emission(emission_id)
+
+        # Enrichir avec les noms des entités liées
+        enriched_avis = []
+        for avis in avis_list:
+            # Convertir les dates en ISO format pour JSON
+            created_at = avis.get("created_at")
+            updated_at = avis.get("updated_at")
+            if created_at is not None and hasattr(created_at, "isoformat"):
+                created_at = created_at.isoformat()
+            if updated_at is not None and hasattr(updated_at, "isoformat"):
+                updated_at = updated_at.isoformat()
+
+            enriched: dict[str, str | int | None] = {
+                "id": str(avis["_id"]),
+                "emission_oid": avis.get("emission_oid"),
+                "livre_oid": avis.get("livre_oid"),
+                "critique_oid": avis.get("critique_oid"),
+                "commentaire": avis.get("commentaire", ""),
+                "note": avis.get("note"),
+                "section": avis.get("section", "programme"),
+                "livre_titre_extrait": avis.get("livre_titre_extrait", ""),
+                "auteur_nom_extrait": avis.get("auteur_nom_extrait", ""),
+                "editeur_extrait": avis.get("editeur_extrait", ""),
+                "critique_nom_extrait": avis.get("critique_nom_extrait", ""),
+                "created_at": created_at,
+                "updated_at": updated_at,
+            }
+
+            # Enrichir avec le nom du livre si résolu
+            livre_oid = avis.get("livre_oid")
+            if livre_oid and mongodb_service.livres_collection is not None:
+                livre = mongodb_service.livres_collection.find_one(
+                    {"_id": ObjectId(livre_oid)}
+                )
+                if livre:
+                    enriched["livre_titre"] = livre.get("titre", "")
+
+            # Enrichir avec le nom du critique si résolu
+            critique_oid = avis.get("critique_oid")
+            if critique_oid and mongodb_service.critiques_collection is not None:
+                critique = mongodb_service.critiques_collection.find_one(
+                    {"_id": ObjectId(critique_oid)}
+                )
+                if critique:
+                    enriched["critique_nom"] = critique.get("nom", "")
+
+            enriched_avis.append(enriched)
+
+        return JSONResponse(content={"avis": enriched_avis})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/avis/extract/{emission_id}")
+async def extract_avis_from_emission(emission_id: str) -> JSONResponse:
+    """
+    Extrait les avis structurés depuis le summary d'une émission.
+
+    Cette opération est idempotente : les anciens avis sont supprimés
+    avant la ré-extraction.
+
+    Args:
+        emission_id: L'ID de l'émission
+
+    Returns:
+        Résultat de l'extraction avec nombre d'avis créés
+    """
+    from back_office_lmelp.models.avis import Avis
+    from back_office_lmelp.services.avis_extraction_service import AvisExtractionService
+
+    try:
+        if (
+            mongodb_service.avis_collection is None
+            or mongodb_service.emissions_collection is None
+            or mongodb_service.avis_critiques_collection is None
+        ):
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        # 1. Récupérer l'émission
+        emission = mongodb_service.emissions_collection.find_one(
+            {"_id": ObjectId(emission_id)}
+        )
+        if not emission:
+            raise HTTPException(status_code=404, detail="Émission non trouvée")
+
+        # 2. Récupérer l'avis_critique associé pour le summary
+        avis_critique_id = emission.get("avis_critique_id")
+        if not avis_critique_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Émission sans avis_critique associé",
+            )
+
+        avis_critique = mongodb_service.avis_critiques_collection.find_one(
+            {"_id": ObjectId(avis_critique_id)}
+        )
+        if not avis_critique:
+            raise HTTPException(status_code=404, detail="Avis critique non trouvé")
+
+        summary = avis_critique.get("summary", "")
+        if not summary:
+            raise HTTPException(
+                status_code=400,
+                detail="Pas de summary disponible pour extraction",
+            )
+
+        # 3. Extraire les avis du summary
+        extraction_service = AvisExtractionService()
+        extracted_avis = extraction_service.extract_avis_from_summary(
+            summary, emission_id
+        )
+
+        if not extracted_avis:
+            return JSONResponse(
+                content={
+                    "message": "Aucun avis extrait du summary",
+                    "extracted_count": 0,
+                    "deleted_count": 0,
+                }
+            )
+
+        # 4. Récupérer les livres de l'épisode pour le matching
+        episode_id = emission.get("episode_id")
+        livres: list[dict[str, Any]] = []
+        if episode_id and mongodb_service.livres_collection is not None:
+            livres = list(
+                mongodb_service.livres_collection.find({"episodes": str(episode_id)})
+            )
+
+        # 5. Récupérer tous les critiques pour le matching
+        critiques: list[dict[str, Any]] = []
+        if mongodb_service.critiques_collection is not None:
+            critiques = list(mongodb_service.critiques_collection.find())
+
+        # 6. Résoudre les entités (livre_oid, critique_oid)
+        resolved_avis = extraction_service.resolve_entities(
+            extracted_avis, livres, critiques
+        )
+
+        # 7. Supprimer les anciens avis de cette émission
+        deleted_count = mongodb_service.delete_avis_by_emission(emission_id)
+
+        # 8. Préparer et sauvegarder les nouveaux avis
+        avis_to_save = [Avis.for_mongodb_insert(avis) for avis in resolved_avis]
+        saved_ids = mongodb_service.save_avis_batch(avis_to_save)
+
+        return JSONResponse(
+            content={
+                "message": f"{len(saved_ids)} avis extraits et sauvegardés",
+                "extracted_count": len(saved_ids),
+                "deleted_count": deleted_count,
+                "unresolved_livres": sum(
+                    1 for a in resolved_avis if a.get("livre_oid") is None
+                ),
+                "unresolved_critiques": sum(
+                    1 for a in resolved_avis if a.get("critique_oid") is None
+                ),
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/avis/by-critique/{critique_id}")
+async def get_avis_by_critique(critique_id: str) -> JSONResponse:
+    """
+    Récupère tous les avis d'un critique.
+
+    Args:
+        critique_id: L'ID du critique
+
+    Returns:
+        Liste des avis du critique
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        avis_list = mongodb_service.get_avis_by_critique(critique_id)
+
+        result = []
+        for avis in avis_list:
+            result.append(
+                {
+                    "id": str(avis["_id"]),
+                    "emission_oid": avis.get("emission_oid"),
+                    "livre_oid": avis.get("livre_oid"),
+                    "livre_titre_extrait": avis.get("livre_titre_extrait", ""),
+                    "commentaire": avis.get("commentaire", ""),
+                    "note": avis.get("note"),
+                    "section": avis.get("section"),
+                }
+            )
+
+        return JSONResponse(content={"avis": result})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/avis/by-livre/{livre_id}")
+async def get_avis_by_livre(livre_id: str) -> JSONResponse:
+    """
+    Récupère tous les avis d'un livre.
+
+    Args:
+        livre_id: L'ID du livre
+
+    Returns:
+        Liste des avis du livre
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        avis_list = mongodb_service.get_avis_by_livre(livre_id)
+
+        result = []
+        for avis in avis_list:
+            result.append(
+                {
+                    "id": str(avis["_id"]),
+                    "emission_oid": avis.get("emission_oid"),
+                    "critique_oid": avis.get("critique_oid"),
+                    "critique_nom_extrait": avis.get("critique_nom_extrait", ""),
+                    "commentaire": avis.get("commentaire", ""),
+                    "note": avis.get("note"),
+                    "section": avis.get("section"),
+                }
+            )
+
+        return JSONResponse(content={"avis": result})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.put("/api/avis/{avis_id}")
+async def update_avis(avis_id: str, request: Request) -> JSONResponse:
+    """
+    Met à jour un avis (résolution manuelle d'entité).
+
+    Body: {
+        "livre_oid": "string" (optionnel),
+        "critique_oid": "string" (optionnel),
+        "note": int (optionnel),
+        "commentaire": "string" (optionnel)
+    }
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        data = await request.json()
+
+        # Filtrer les champs autorisés à modifier
+        allowed_fields = ["livre_oid", "critique_oid", "note", "commentaire"]
+        update_data = {k: v for k, v in data.items() if k in allowed_fields}
+
+        if not update_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Aucun champ valide à mettre à jour",
+            )
+
+        success = mongodb_service.update_avis(avis_id, update_data)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Avis non trouvé")
+
+        return JSONResponse(content={"message": "Avis mis à jour avec succès"})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/avis/{avis_id}")
+async def delete_avis(avis_id: str) -> JSONResponse:
+    """
+    Supprime un avis.
+
+    Args:
+        avis_id: L'ID de l'avis à supprimer
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        success = mongodb_service.delete_avis(avis_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Avis non trouvé")
+
+        return JSONResponse(content={"message": "Avis supprimé avec succès"})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/stats/avis")
+async def get_avis_stats() -> JSONResponse:
+    """
+    Récupère les statistiques sur les avis structurés.
+
+    Returns:
+        {
+            "total": int,
+            "unresolved_livre": int,
+            "unresolved_critique": int,
+            "missing_note": int,
+            "emissions_with_avis": int,
+            "emissions_total": int,
+            "emissions_without_avis": int
+        }
+    """
+    try:
+        if mongodb_service.avis_collection is None:
+            raise HTTPException(
+                status_code=500, detail="Service MongoDB non disponible"
+            )
+
+        stats = mongodb_service.get_avis_stats()
+
+        # Compter le nombre total d'émissions
+        emissions_total = 0
+        if mongodb_service.emissions_collection is not None:
+            emissions_total = mongodb_service.emissions_collection.count_documents({})
+
+        stats["emissions_total"] = emissions_total
+        stats["emissions_without_avis"] = emissions_total - stats["emissions_with_avis"]
+
+        return JSONResponse(content=stats)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 # Variables globales pour la gestion propre du serveur
 _server_instance = None
 

@@ -52,6 +52,27 @@
             </div>
           </div>
 
+          <!-- Bouton Extraire/Ré-extraire les avis (style GenerationAvisCritiques) -->
+          <div v-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading" class="action-buttons-top">
+            <button
+              v-if="avis.length === 0"
+              @click="reextractAvis"
+              :disabled="avisExtracting"
+              class="btn-extract"
+            >
+              {{ avisExtracting ? 'Extraction...' : '🚀 Extraire les avis' }}
+            </button>
+
+            <button
+              v-else
+              @click="reextractAvis"
+              :disabled="avisExtracting"
+              class="btn-reextract"
+            >
+              {{ avisExtracting ? 'Ré-extraction...' : '🔄 Ré-extraire' }}
+            </button>
+          </div>
+
           <!-- Message si aucune émission -->
           <div v-if="!emissionsLoading && !emissionsError && emissions.length === 0" class="alert alert-info">
             Aucune émission disponible.
@@ -174,10 +195,38 @@
             </ul>
           </div>
 
-          <!-- Summary markdown -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="summary-section">
-            <h3>Résumé de l'émission</h3>
-            <div class="markdown-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
+          <!-- Avis structurés -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="avis-section-container">
+            <!-- État de chargement des avis -->
+            <div v-if="avisLoading" class="loading-small">
+              {{ avisExtracting ? 'Extraction des avis en cours...' : 'Chargement des avis...' }}
+            </div>
+
+            <!-- Erreur avis -->
+            <div v-if="avisError" class="alert alert-warning">
+              {{ avisError }}
+            </div>
+
+            <!-- Tableau des avis structurés -->
+            <AvisTable
+              v-if="!avisLoading && !avisError && avis.length > 0"
+              :avis="avis"
+              :emission-date="selectedEmissionDetails.episode?.date"
+            />
+
+            <!-- Fallback: Summary markdown si pas d'avis structurés -->
+            <div v-if="!avisLoading && !avisError && avis.length === 0" class="summary-fallback">
+              <p class="fallback-notice">
+                Aucun avis structuré disponible. Affichage du résumé brut :
+              </p>
+              <div class="markdown-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
+            </div>
+
+            <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->
+            <details v-if="!avisLoading && avis.length > 0" class="summary-debug">
+              <summary class="summary-debug-toggle">Afficher le summary markdown brut (comparaison)</summary>
+              <div class="markdown-content summary-debug-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
+            </details>
           </div>
         </div>
       </section>
@@ -190,7 +239,8 @@ import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Navigation from '../components/Navigation.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
-import { emissionsService, episodeService } from '../services/api';
+import AvisTable from '../components/AvisTable.vue';
+import { emissionsService, episodeService, avisService } from '../services/api';
 import { marked } from 'marked';
 
 export default {
@@ -199,6 +249,7 @@ export default {
   components: {
     Navigation,
     EpisodeDropdown,
+    AvisTable,
   },
 
   setup() {
@@ -221,6 +272,80 @@ export default {
 
     // Affichage détails épisode (accordéon)
     const showEpisodeDetails = ref(false);
+
+    // État des avis structurés
+    const avis = ref([]);
+    const avisLoading = ref(false);
+    const avisError = ref(null);
+    const avisExtracting = ref(false);
+
+    /**
+     * Charge les avis pour une émission (extraction auto si nécessaire)
+     */
+    const loadAvisForEmission = async (emissionId) => {
+      if (!emissionId) return;
+
+      avisLoading.value = true;
+      avisError.value = null;
+      avisExtracting.value = false;
+
+      try {
+        // 1. Essayer de charger les avis existants
+        const result = await avisService.getAvisByEmission(emissionId);
+        avis.value = result.avis || [];
+
+        // 2. Si pas d'avis, lancer l'extraction automatique
+        if (avis.value.length === 0) {
+          avisExtracting.value = true;
+          try {
+            const extractResult = await avisService.extractAvis(emissionId);
+
+            // Si extraction réussie, recharger les avis
+            if (extractResult.extracted_count > 0) {
+              const reloadResult = await avisService.getAvisByEmission(emissionId);
+              avis.value = reloadResult.avis || [];
+            }
+          } catch (extractError) {
+            // L'extraction peut échouer si pas de summary, ce n'est pas grave
+            console.warn('Extraction avis échouée:', extractError.message);
+          }
+        }
+      } catch (error) {
+        console.error('Erreur chargement avis:', error);
+        avisError.value = error.message || 'Erreur lors du chargement des avis';
+      } finally {
+        avisLoading.value = false;
+        avisExtracting.value = false;
+      }
+    };
+
+    /**
+     * Force la ré-extraction des avis (supprime les anciens et ré-extrait)
+     */
+    const reextractAvis = async () => {
+      if (!selectedEmissionId.value) return;
+
+      avisLoading.value = true;
+      avisExtracting.value = true;
+      avisError.value = null;
+
+      try {
+        // L'endpoint POST /api/avis/extract supprime les anciens avis avant d'extraire
+        const extractResult = await avisService.extractAvis(selectedEmissionId.value);
+
+        // Recharger les avis
+        const reloadResult = await avisService.getAvisByEmission(selectedEmissionId.value);
+        avis.value = reloadResult.avis || [];
+
+        console.log(`Ré-extraction terminée: ${extractResult.extracted_count} avis`);
+      } catch (error) {
+        console.error('Erreur ré-extraction avis:', error);
+        avisError.value = error.message || 'Erreur lors de la ré-extraction des avis';
+      } finally {
+        avisLoading.value = false;
+        avisExtracting.value = false;
+      }
+    };
 
     /**
      * Charge toutes les émissions
@@ -274,6 +399,10 @@ export default {
       detailsLoading.value = true;
       detailsError.value = null;
 
+      // Reset des avis avant de charger une nouvelle émission
+      avis.value = [];
+      avisError.value = null;
+
       try {
         const data = await emissionsService.getEmissionByDate(dateStr);
         selectedEmissionDetails.value = data;
@@ -296,6 +425,9 @@ export default {
               });
           }
         }
+
+        // Charger les avis structurés en arrière-plan (extraction auto si nécessaire)
+        loadAvisForEmission(data.emission.id);
       } catch (error) {
         console.error('Erreur chargement émission par date:', error);
         detailsError.value = error.message || 'Erreur lors du chargement de l\'émission';
@@ -500,6 +632,12 @@ export default {
       formatDate,
       formatDuration,
       renderMarkdown,
+      // Avis structurés
+      avis,
+      avisLoading,
+      avisError,
+      avisExtracting,
+      reextractAvis,
     };
   }
 };
@@ -857,5 +995,127 @@ main {
 .markdown-content :deep(strong) {
   font-weight: 600;
   color: #000;
+}
+
+/* Section avis structurés */
+.avis-section-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.avis-section-container h3 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+/* Boutons d'action avis (style GenerationAvisCritiques) */
+.action-buttons-top {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-extract {
+  background: #4caf50;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: #43a047;
+}
+
+.btn-extract:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-reextract {
+  background: #ff9800;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-reextract:hover:not(:disabled) {
+  background: #f57c00;
+}
+
+.btn-reextract:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.loading-small {
+  padding: 1rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.summary-fallback {
+  margin-top: 1rem;
+}
+
+.fallback-notice {
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  border-left: 3px solid #6c757d;
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+/* Section debug summary markdown (phase de test) */
+.summary-debug {
+  margin-top: 2rem;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.summary-debug-toggle {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.summary-debug-toggle:hover {
+  background: #f0f0f0;
+}
+
+.summary-debug-content {
+  padding: 1rem;
+  border-top: 1px dashed #ccc;
+  background: white;
+  max-height: 600px;
+  overflow-y: auto;
 }
 </style>
