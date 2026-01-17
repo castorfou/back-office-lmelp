@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from difflib import SequenceMatcher
 from typing import Any
 
 
@@ -283,9 +284,10 @@ class AvisExtractionService:
         """
         Résout les entités extraites vers leurs IDs MongoDB.
 
-        Stratégie de matching exclusive en deux passes:
+        Stratégie de matching en trois passes:
         1. Matches exacts (titre extrait == titre base)
-        2. Matches partiels (titre extrait contenu dans titre base) sur livres restants
+        2. Matches partiels (titre extrait contenu dans titre base)
+        3. Matches par similarité (auteur, titre, ou couple auteur-titre)
 
         Args:
             extracted_avis: Liste des avis avec données brutes
@@ -325,6 +327,34 @@ class AvisExtractionService:
             livre_oid = self._find_matching_livre_partial(titre_extrait, livres)
             if livre_oid:
                 resolved["livre_oid"] = livre_oid
+                matched_livre_ids.add(livre_oid)
+
+        # === Passe 3: Matches par similarité pour les avis non résolus ===
+        # Utiliser uniquement les livres non encore matchés
+        unmatched_livres = [
+            livre
+            for livre in livres
+            if str(livre.get("_id", "")) not in matched_livre_ids
+        ]
+
+        for resolved in resolved_avis:
+            if resolved["livre_oid"] is not None:
+                continue  # Déjà résolu en passe 1 ou 2
+
+            titre_extrait = resolved.get("livre_titre_extrait", "")
+            auteur_extrait = resolved.get("auteur_nom_extrait", "")
+            livre_oid = self._find_matching_livre_by_similarity(
+                titre_extrait, auteur_extrait, unmatched_livres
+            )
+            if livre_oid:
+                resolved["livre_oid"] = livre_oid
+                matched_livre_ids.add(livre_oid)
+                # Retirer le livre matché pour ne pas le réutiliser
+                unmatched_livres = [
+                    livre
+                    for livre in unmatched_livres
+                    if str(livre.get("_id", "")) != livre_oid
+                ]
 
         # === Résolution des critiques (inchangée) ===
         for resolved in resolved_avis:
@@ -417,6 +447,104 @@ class AvisExtractionService:
             # Match partiel : le titre extrait est contenu dans le titre du livre
             if normalized_titre in normalized_livre_titre:
                 return str(livre.get("_id", ""))
+
+        return None
+
+    def _find_matching_livre_by_similarity(
+        self,
+        titre_extrait: str,
+        auteur_extrait: str,
+        livres: list[dict[str, Any]],
+        min_threshold: float = 0.3,
+    ) -> str | None:
+        """
+        Trouve le livre correspondant par similarité (pour les typos).
+
+        Stratégie: Pour chaque livre restant, calculer un score de similarité
+        basé sur le titre ET l'auteur, puis prendre le meilleur match.
+
+        Le score est le maximum de:
+        - Similarité sur le titre (avec titre court si sous-titre présent)
+        - Similarité sur l'auteur
+        - Similarité sur le couple auteur-titre
+
+        On prend le meilleur match parmi tous les livres restants, tant que
+        le score dépasse un seuil minimum pour éviter les faux positifs évidents.
+
+        Args:
+            titre_extrait: Le titre extrait du markdown
+            auteur_extrait: Le nom de l'auteur extrait du markdown
+            livres: Liste des livres disponibles (non encore matchés)
+            min_threshold: Seuil minimum pour éviter les faux positifs évidents
+
+        Returns:
+            L'ID du livre avec le meilleur score (ou None si score < min_threshold)
+        """
+        if not titre_extrait and not auteur_extrait:
+            return None
+
+        if not livres:
+            return None
+
+        normalized_titre = self._normalize_for_matching(titre_extrait)
+        normalized_auteur = self._normalize_for_matching(auteur_extrait)
+
+        best_match: tuple[str | None, float] = (None, 0.0)
+
+        for livre in livres:
+            livre_id = str(livre.get("_id", ""))
+            livre_titre_complet = self._normalize_for_matching(livre.get("titre", ""))
+
+            # Extraire le titre court (avant ":" si sous-titre présent)
+            if ":" in livre_titre_complet:
+                livre_titre_court = livre_titre_complet.split(":")[0].strip()
+            else:
+                livre_titre_court = livre_titre_complet
+
+            max_score_for_livre = 0.0
+
+            # Stratégie 1: Similarité sur le titre complet
+            if normalized_titre and livre_titre_complet:
+                score = SequenceMatcher(
+                    None, normalized_titre, livre_titre_complet
+                ).ratio()
+                max_score_for_livre = max(max_score_for_livre, score)
+
+            # Stratégie 2: Similarité sur le titre court (sans sous-titre)
+            if normalized_titre and livre_titre_court:
+                score = SequenceMatcher(
+                    None, normalized_titre, livre_titre_court
+                ).ratio()
+                max_score_for_livre = max(max_score_for_livre, score)
+
+            # Stratégie 3: Similarité sur l'auteur vs titre complet
+            # (utile quand l'auteur est dans le titre: "Auteur, titre...")
+            if normalized_auteur and livre_titre_complet:
+                score = SequenceMatcher(
+                    None, normalized_auteur, livre_titre_complet
+                ).ratio()
+                max_score_for_livre = max(max_score_for_livre, score)
+
+            # Stratégie 4: Similarité sur le couple auteur-titre
+            if normalized_titre and normalized_auteur and livre_titre_complet:
+                combined_extrait = f"{normalized_auteur} {normalized_titre}"
+                score = SequenceMatcher(
+                    None, combined_extrait, livre_titre_complet
+                ).ratio()
+                max_score_for_livre = max(max_score_for_livre, score)
+
+            # Garder le meilleur match global
+            if max_score_for_livre > best_match[1]:
+                best_match = (livre_id, max_score_for_livre)
+
+        # Retourner le meilleur match s'il dépasse le seuil minimum
+        if best_match[0] and best_match[1] >= min_threshold:
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [SIMILARITY] Match trouvé avec score {best_match[1]:.2f}: "
+                    f"'{auteur_extrait}' - '{titre_extrait}' -> livre_id={best_match[0]}"
+                )
+            return best_match[0]
 
         return None
 

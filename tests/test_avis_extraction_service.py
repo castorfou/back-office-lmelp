@@ -596,3 +596,57 @@ class TestResolveEntities:
             resolved[0]["livre_titre_extrait"]
             == "Esther Williams, la sirène d'Hollywood. Mémoires"
         )
+
+    def test_resolve_matches_last_unresolved_livre_by_similarity(self):
+        """Test matching par similarité pour le dernier livre non résolu.
+
+        Cas réel: "22 Masbury Road" (typo) doit matcher
+        "22 Mapesbury Road: Famille, mémoire et quête d'une terre promise"
+        quand c'est le seul livre restant non matché.
+        """
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Combats de filles",  # Match exact
+                "auteur_nom_extrait": "Rita Bullwinkel",
+                "editeur_extrait": "La Croisée",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Bon livre",
+                "note": 8,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "22 Masbury Road",  # Typo: Masbury vs Mapesbury
+                "auteur_nom_extrait": "Rachel Coquerel",
+                "editeur_extrait": "Quai Voltaire",
+                "critique_nom_extrait": "Jean-Marc Proust",
+                "commentaire": "Très bien",
+                "note": 9,
+                "section": "programme",
+            },
+        ]
+
+        livres = [
+            {"_id": "livre_combats", "titre": "Combats de filles"},
+            {
+                "_id": "livre_masbury",
+                "titre": "22 Mapesbury Road: Famille, mémoire et quête d'une terre promise",
+            },
+        ]
+        critiques = [
+            {"_id": "critique_ep", "nom": "Elisabeth Philippe", "variantes": []},
+            {"_id": "critique_jmp", "nom": "Jean-Marc Proust", "variantes": []},
+        ]
+
+        resolved = self.service.resolve_entities(extracted_avis, livres, critiques)
+
+        # Premier avis: match exact
+        assert resolved[0]["livre_oid"] == "livre_combats"
+        # Second avis: match par similarité car c'est le dernier livre non résolu
+        assert resolved[1]["livre_oid"] == "livre_masbury"
+        # Le titre doit être remplacé par le titre officiel
+        assert (
+            resolved[1]["livre_titre_extrait"]
+            == "22 Mapesbury Road: Famille, mémoire et quête d'une terre promise"
+        )
