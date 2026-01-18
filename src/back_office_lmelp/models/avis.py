@@ -21,6 +21,8 @@ class Avis:
         self.auteur_nom_extrait: str = data.get("auteur_nom_extrait", "")
         self.editeur_extrait: str = data.get("editeur_extrait", "")
         self.critique_nom_extrait: str = data.get("critique_nom_extrait", "")
+        # Phase de matching (1=exact, 2=partiel, 3=similarité, None=non matché)
+        self.match_phase: int | None = data.get("match_phase")
         self.created_at: datetime = data.get("created_at", datetime.now())
         self.updated_at: datetime = data.get("updated_at", datetime.now())
 
@@ -38,6 +40,7 @@ class Avis:
             "auteur_nom_extrait": self.auteur_nom_extrait,
             "editeur_extrait": self.editeur_extrait,
             "critique_nom_extrait": self.critique_nom_extrait,
+            "match_phase": self.match_phase,
             "created_at": self.created_at.isoformat()
             if isinstance(self.created_at, datetime)
             else self.created_at,
@@ -70,6 +73,7 @@ class Avis:
             "auteur_nom_extrait": data.get("auteur_nom_extrait", ""),
             "editeur_extrait": data.get("editeur_extrait", ""),
             "critique_nom_extrait": data.get("critique_nom_extrait", ""),
+            "match_phase": data.get("match_phase"),
             "created_at": now,
             "updated_at": now,
         }
