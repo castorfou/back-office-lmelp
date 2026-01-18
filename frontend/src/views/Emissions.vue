@@ -212,6 +212,7 @@
               v-if="!avisLoading && !avisError && avis.length > 0"
               :avis="avis"
               :emission-date="selectedEmissionDetails.episode?.date"
+              :matching-stats="avisMatchingStats"
             />
 
             <!-- Fallback: Summary markdown si pas d'avis structurés -->
@@ -278,6 +279,7 @@ export default {
     const avisLoading = ref(false);
     const avisError = ref(null);
     const avisExtracting = ref(false);
+    const avisMatchingStats = ref(null);
 
     /**
      * Charge les avis pour une émission (extraction auto si nécessaire)
@@ -288,11 +290,13 @@ export default {
       avisLoading.value = true;
       avisError.value = null;
       avisExtracting.value = false;
+      avisMatchingStats.value = null;
 
       try {
         // 1. Essayer de charger les avis existants
         const result = await avisService.getAvisByEmission(emissionId);
         avis.value = result.avis || [];
+        avisMatchingStats.value = result.matching_stats || null;
 
         // 2. Si pas d'avis, lancer l'extraction automatique
         if (avis.value.length === 0) {
@@ -304,6 +308,7 @@ export default {
             if (extractResult.extracted_count > 0) {
               const reloadResult = await avisService.getAvisByEmission(emissionId);
               avis.value = reloadResult.avis || [];
+              avisMatchingStats.value = reloadResult.matching_stats || null;
             }
           } catch (extractError) {
             // L'extraction peut échouer si pas de summary, ce n'est pas grave
@@ -637,6 +642,7 @@ export default {
       avisLoading,
       avisError,
       avisExtracting,
+      avisMatchingStats,
       reextractAvis,
     };
   }

@@ -297,14 +297,56 @@ class AvisExtractionService:
         Returns:
             Liste des avis avec livre_oid et critique_oid résolus (ou None)
         """
+        resolved, _ = self.resolve_entities_with_stats(
+            extracted_avis, livres, critiques
+        )
+        return resolved
+
+    def resolve_entities_with_stats(
+        self,
+        extracted_avis: list[dict[str, Any]],
+        livres: list[dict[str, Any]],
+        critiques: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """
+        Résout les entités extraites vers leurs IDs MongoDB avec statistiques.
+
+        Stratégie de matching en trois passes:
+        1. Matches exacts (titre extrait == titre base)
+        2. Matches partiels (titre extrait contenu dans titre base)
+        3. Matches par similarité (auteur, titre, ou couple auteur-titre)
+
+        Args:
+            extracted_avis: Liste des avis avec données brutes
+            livres: Liste des livres de l'épisode (depuis MongoDB)
+            critiques: Liste des critiques connus (depuis MongoDB)
+
+        Returns:
+            Tuple (avis résolus, statistiques de matching)
+        """
         resolved_avis: list[dict[str, Any]] = []
 
-        # Initialiser tous les avis avec livre_oid = None
+        # Statistiques de matching
+        stats = {
+            "livres_summary": 0,  # Nombre de livres uniques dans le summary
+            "livres_mongo": len(livres),
+            "match_phase1": 0,  # Matches exacts
+            "match_phase2": 0,  # Matches partiels
+            "match_phase3": 0,  # Matches par similarité
+            "unmatched": 0,  # Sans match
+        }
+
+        # Initialiser tous les avis avec livre_oid = None et match_phase = None
         for avis in extracted_avis:
             resolved = avis.copy()
             resolved["livre_oid"] = None
             resolved["critique_oid"] = None
+            resolved["match_phase"] = None
             resolved_avis.append(resolved)
+
+        # Compter les livres uniques dans le summary (par titre extrait)
+        unique_titles = {a.get("livre_titre_extrait", "") for a in extracted_avis}
+        stats["livres_summary"] = len(unique_titles)
 
         # === Passe 1: Matches exacts pour les livres ===
         matched_livre_ids: set[str] = set()
@@ -314,11 +356,10 @@ class AvisExtractionService:
             livre_oid = self._find_matching_livre_exact(titre_extrait, livres)
             if livre_oid:
                 resolved["livre_oid"] = livre_oid
+                resolved["match_phase"] = 1
                 matched_livre_ids.add(livre_oid)
 
         # === Passe 2: Matches partiels sur les livres non encore matchés ===
-        # Note: On ne retire PAS les livres déjà matchés car plusieurs avis
-        # peuvent référencer le même livre (même titre extrait)
         for resolved in resolved_avis:
             if resolved["livre_oid"] is not None:
                 continue  # Déjà résolu en passe 1
@@ -327,10 +368,10 @@ class AvisExtractionService:
             livre_oid = self._find_matching_livre_partial(titre_extrait, livres)
             if livre_oid:
                 resolved["livre_oid"] = livre_oid
+                resolved["match_phase"] = 2
                 matched_livre_ids.add(livre_oid)
 
         # === Passe 3: Matches par similarité pour les avis non résolus ===
-        # Utiliser uniquement les livres non encore matchés
         unmatched_livres = [
             livre
             for livre in livres
@@ -348,13 +389,36 @@ class AvisExtractionService:
             )
             if livre_oid:
                 resolved["livre_oid"] = livre_oid
+                resolved["match_phase"] = 3
                 matched_livre_ids.add(livre_oid)
-                # Retirer le livre matché pour ne pas le réutiliser
                 unmatched_livres = [
                     livre
                     for livre in unmatched_livres
                     if str(livre.get("_id", "")) != livre_oid
                 ]
+
+        # Compter les matches par phase (par livre unique, pas par avis)
+        matched_titles_phase1: set[str] = set()
+        matched_titles_phase2: set[str] = set()
+        matched_titles_phase3: set[str] = set()
+        unmatched_titles: set[str] = set()
+
+        for resolved in resolved_avis:
+            titre = resolved.get("livre_titre_extrait", "")
+            phase = resolved.get("match_phase")
+            if phase == 1:
+                matched_titles_phase1.add(titre)
+            elif phase == 2:
+                matched_titles_phase2.add(titre)
+            elif phase == 3:
+                matched_titles_phase3.add(titre)
+            else:
+                unmatched_titles.add(titre)
+
+        stats["match_phase1"] = len(matched_titles_phase1)
+        stats["match_phase2"] = len(matched_titles_phase2)
+        stats["match_phase3"] = len(matched_titles_phase3)
+        stats["unmatched"] = len(unmatched_titles)
 
         # === Résolution des critiques (inchangée) ===
         for resolved in resolved_avis:
@@ -364,18 +428,20 @@ class AvisExtractionService:
             resolved["critique_oid"] = critique_oid
 
         # === Enrichissement: remplacer livre_titre_extrait par le titre officiel ===
-        # Créer un index des livres par ID pour lookup rapide
         livres_by_id = {str(livre.get("_id", "")): livre for livre in livres}
 
         for resolved in resolved_avis:
             livre_oid = resolved.get("livre_oid")
             if livre_oid and livre_oid in livres_by_id:
-                # Remplacer le titre extrait par le titre officiel du livre
                 resolved["livre_titre_extrait"] = livres_by_id[livre_oid].get(
                     "titre", resolved.get("livre_titre_extrait", "")
                 )
+                # Ajouter l'auteur_id pour le lien cliquable
+                resolved["auteur_oid"] = str(
+                    livres_by_id[livre_oid].get("auteur_id", "")
+                )
 
-        return resolved_avis
+        return resolved_avis, stats
 
     def _normalize_for_matching(self, text: str) -> str:
         """

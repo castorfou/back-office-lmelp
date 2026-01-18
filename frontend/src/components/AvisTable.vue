@@ -1,5 +1,22 @@
 <template>
   <div class="avis-table-container">
+    <!-- Stats de matching (affiché si n != m ou debug) -->
+    <div v-if="matchingStats && showMatchingStats" class="matching-stats">
+      <div class="stats-header">
+        <span class="stats-warning" v-if="matchingStats.livres_summary !== matchingStats.livres_mongo">
+          ⚠️ Livres summary ({{ matchingStats.livres_summary }}) ≠ Livres Mongo ({{ matchingStats.livres_mongo }})
+        </span>
+      </div>
+      <div class="stats-details">
+        <span class="stat-item stat-phase1">Phase 1 (exact): {{ matchingStats.match_phase1 }}</span>
+        <span class="stat-item stat-phase2">Phase 2 (partiel): {{ matchingStats.match_phase2 }}</span>
+        <span class="stat-item stat-phase3">Phase 3 (similarité): {{ matchingStats.match_phase3 }}</span>
+        <span class="stat-item stat-unmatched" v-if="matchingStats.unmatched > 0">
+          ⚠ Sans match: {{ matchingStats.unmatched }}
+        </span>
+      </div>
+    </div>
+
     <!-- Section 1: Livres au programme -->
     <div v-if="sortedLivresAuProgramme.length > 0" class="avis-section">
       <h4>1. LIVRES DISCUTÉS AU PROGRAMME{{ formattedDate ? ` du ${formattedDate}` : '' }}</h4>
@@ -20,11 +37,22 @@
               Note moy.
               <span class="sort-indicator" :class="getSortClass('noteMoyenne')">↕</span>
             </th>
+            <th>Coup de cœur</th>
+            <th class="chef-oeuvre-header">Chef d'œuvre</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="livre in sortedLivresAuProgramme" :key="livre.titre">
-            <td class="auteur-cell">{{ livre.auteur }}</td>
+            <td class="auteur-cell">
+              <router-link
+                v-if="livre.auteur_oid"
+                :to="`/auteur/${livre.auteur_oid}`"
+                class="auteur-link"
+              >
+                {{ livre.auteur }}
+              </router-link>
+              <span v-else>{{ livre.auteur }}</span>
+            </td>
             <td class="titre-cell">
               <router-link
                 v-if="livre.livre_oid"
@@ -64,6 +92,16 @@
               <span class="note-moyenne" :class="noteClass(livre.noteMoyenne)">
                 {{ livre.noteMoyenne ? livre.noteMoyenne.toFixed(1) : '-' }}
               </span>
+            </td>
+            <td class="coup-de-coeur-cell">
+              <span v-if="livre.coupDeCoeur.length > 0" class="coup-de-coeur-list">
+                {{ livre.coupDeCoeur.join(', ') }}
+              </span>
+              <span v-else class="empty-cell">-</span>
+            </td>
+            <td class="chef-oeuvre-cell">
+              <span v-if="livre.isChefOeuvre" class="chef-oeuvre-badge">✓</span>
+              <span v-else class="empty-cell">-</span>
             </td>
           </tr>
         </tbody>
@@ -161,6 +199,10 @@ export default {
       type: String,
       default: null,
     },
+    matchingStats: {
+      type: Object,
+      default: null,
+    },
   },
 
   setup(props) {
@@ -175,6 +217,15 @@ export default {
         month: 'long',
         year: 'numeric',
       });
+    });
+
+    /**
+     * Affiche les stats si n != m ou s'il y a des non matchés
+     */
+    const showMatchingStats = computed(() => {
+      if (!props.matchingStats) return false;
+      const stats = props.matchingStats;
+      return stats.livres_summary !== stats.livres_mongo || stats.unmatched > 0;
     });
 
     // État du tri Section 1 (livres au programme)
@@ -203,6 +254,7 @@ export default {
             auteur: avis.auteur_nom_extrait,
             editeur: avis.editeur_extrait,
             livre_oid: avis.livre_oid,
+            auteur_oid: avis.auteur_oid,
             avis: [],
           });
         }
@@ -210,14 +262,22 @@ export default {
         livresMap.get(key).avis.push(avis);
       }
 
-      // Calculer la note moyenne pour chaque livre
+      // Calculer la note moyenne, coups de coeur et chef d'oeuvre pour chaque livre
       return Array.from(livresMap.values()).map(livre => {
         const notesValides = livre.avis.filter(a => a.note != null).map(a => a.note);
         const noteMoyenne = notesValides.length > 0
           ? notesValides.reduce((sum, n) => sum + n, 0) / notesValides.length
           : null;
 
-        return { ...livre, noteMoyenne };
+        // Coups de coeur : critiques ayant mis une note >= 9
+        const coupDeCoeur = livre.avis
+          .filter(a => a.note != null && a.note >= 9)
+          .map(a => a.critique_nom_extrait);
+
+        // Chef d'oeuvre : au moins un critique a mis 10
+        const isChefOeuvre = livre.avis.some(a => a.note === 10);
+
+        return { ...livre, noteMoyenne, coupDeCoeur, isChefOeuvre };
       });
     });
 
@@ -354,6 +414,7 @@ export default {
 
     return {
       formattedDate,
+      showMatchingStats,
       sortedLivresAuProgramme,
       sortedCoupsDeCoeursAvis,
       noteClass,
@@ -572,6 +633,98 @@ export default {
 .commentaire-cell {
   font-style: italic;
   color: #555;
+}
+
+/* Matching stats */
+.matching-stats {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.stats-header {
+  margin-bottom: 0.5rem;
+}
+
+.stats-warning {
+  font-weight: 600;
+  color: #856404;
+}
+
+.stats-details {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.stat-item {
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+}
+
+.stat-phase1 {
+  background: #d4edda;
+  color: #155724;
+}
+
+.stat-phase2 {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.stat-phase3 {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.stat-unmatched {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Colonnes Coup de coeur et Chef d'oeuvre */
+.coup-de-coeur-cell {
+  font-size: 0.85rem;
+  color: #666;
+  max-width: 150px;
+}
+
+.coup-de-coeur-list {
+  color: #e91e63;
+}
+
+.chef-oeuvre-header {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.chef-oeuvre-cell {
+  text-align: center;
+}
+
+.chef-oeuvre-badge {
+  display: inline-block;
+  background: #ffd700;
+  color: #333;
+  font-weight: bold;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+}
+
+.empty-cell {
+  color: #ccc;
+}
+
+/* Lien auteur */
+.auteur-link {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.auteur-link:hover {
+  text-decoration: underline;
 }
 
 /* Message vide */

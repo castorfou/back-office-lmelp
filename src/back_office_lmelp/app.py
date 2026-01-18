@@ -3668,7 +3668,7 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 "updated_at": updated_at,
             }
 
-            # Enrichir avec le nom du livre si résolu
+            # Enrichir avec le nom du livre et l'auteur_oid si résolu
             livre_oid = avis.get("livre_oid")
             if livre_oid and mongodb_service.livres_collection is not None:
                 livre = mongodb_service.livres_collection.find_one(
@@ -3676,6 +3676,9 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 )
                 if livre:
                     enriched["livre_titre"] = livre.get("titre", "")
+                    auteur_id = livre.get("auteur_id")
+                    if auteur_id:
+                        enriched["auteur_oid"] = str(auteur_id)
 
             # Enrichir avec le nom du critique si résolu
             critique_oid = avis.get("critique_oid")
@@ -3688,7 +3691,44 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
 
             enriched_avis.append(enriched)
 
-        return JSONResponse(content={"avis": enriched_avis})
+        # Calculer les statistiques de matching à partir des avis
+        # Compter les livres uniques par phase de match
+        unique_titles: dict[str, int | None] = {}  # titre -> match_phase
+        for avis in avis_list:
+            titre = avis.get("livre_titre_extrait", "")
+            if titre and titre not in unique_titles:
+                # Déterminer la phase de match basée sur livre_oid
+                if avis.get("livre_oid"):
+                    # On ne peut pas distinguer les phases depuis les avis sauvegardés
+                    # On compte juste matched vs unmatched
+                    unique_titles[titre] = 1
+                else:
+                    unique_titles[titre] = None
+
+        # Compter les livres Mongo liés à l'émission
+        livres_mongo_count = 0
+        emission = None
+        if mongodb_service.emissions_collection is not None:
+            emission = mongodb_service.emissions_collection.find_one(
+                {"_id": ObjectId(emission_id)}
+            )
+        if emission:
+            episode_id = emission.get("episode_id")
+            if episode_id and mongodb_service.livres_collection is not None:
+                livres_mongo_count = mongodb_service.livres_collection.count_documents(
+                    {"episodes": str(episode_id)}
+                )
+
+        matching_stats = {
+            "livres_summary": len(unique_titles),
+            "livres_mongo": livres_mongo_count,
+            "matched": sum(1 for p in unique_titles.values() if p is not None),
+            "unmatched": sum(1 for p in unique_titles.values() if p is None),
+        }
+
+        return JSONResponse(
+            content={"avis": enriched_avis, "matching_stats": matching_stats}
+        )
 
     except HTTPException:
         raise
@@ -3779,8 +3819,8 @@ async def extract_avis_from_emission(emission_id: str) -> JSONResponse:
         if mongodb_service.critiques_collection is not None:
             critiques = list(mongodb_service.critiques_collection.find())
 
-        # 6. Résoudre les entités (livre_oid, critique_oid)
-        resolved_avis = extraction_service.resolve_entities(
+        # 6. Résoudre les entités (livre_oid, critique_oid) avec statistiques
+        resolved_avis, matching_stats = extraction_service.resolve_entities_with_stats(
             extracted_avis, livres, critiques
         )
 
@@ -3802,6 +3842,7 @@ async def extract_avis_from_emission(emission_id: str) -> JSONResponse:
                 "unresolved_critiques": sum(
                     1 for a in resolved_avis if a.get("critique_oid") is None
                 ),
+                "matching_stats": matching_stats,
             }
         )
 

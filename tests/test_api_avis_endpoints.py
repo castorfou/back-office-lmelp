@@ -65,6 +65,10 @@ class TestGetAvisByEmission:
         """Test que GET retourne liste vide si pas d'avis."""
         self.mock_mongodb.avis_collection = MagicMock()
         self.mock_mongodb.get_avis_by_emission.return_value = []
+        # Mock nécessaire pour les stats de matching
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.emissions_collection.find_one.return_value = None
+        self.mock_mongodb.livres_collection = None
 
         response = self.client.get(f"/api/avis/by-emission/{str(ObjectId())}")
 
@@ -96,8 +100,16 @@ class TestGetAvisByEmission:
         self.mock_mongodb.livres_collection.find_one.return_value = {
             "_id": livre_id,
             "titre": "Titre Enrichi depuis MongoDB",
+            "auteur_id": ObjectId(),
         }
+        self.mock_mongodb.livres_collection.count_documents.return_value = 1
         self.mock_mongodb.critiques_collection = None
+        # Mock nécessaire pour les stats de matching
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": "episode-123",
+        }
 
         response = self.client.get(f"/api/avis/by-emission/{emission_id}")
 
