@@ -158,10 +158,34 @@
             </p>
           </div>
 
-          <!-- Liste des livres -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0" class="books-list">
-            <h3>Livres discutés ({{ selectedEmissionDetails.books.length }})</h3>
-            <ul>
+          <!-- Stats de matching des avis (affiché au-dessus de la liste des livres) -->
+          <div v-if="!avisLoading && avisMatchingStats" class="matching-stats">
+            <div class="stats-header">
+              <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== (selectedEmissionDetails.books?.length || 0)">
+                ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ selectedEmissionDetails.books?.length || 0 }})
+              </span>
+            </div>
+            <div class="stats-details">
+              <span class="stat-item stat-phase1">Phase 1 (exact): {{ avisMatchingStats.match_phase1 }}</span>
+              <span class="stat-item stat-phase2">Phase 2 (partiel): {{ avisMatchingStats.match_phase2 }}</span>
+              <span class="stat-item stat-phase3">Phase 3 (similarité): {{ avisMatchingStats.match_phase3 }}</span>
+              <span class="stat-item stat-unmatched" v-if="avisMatchingStats.unmatched > 0">
+                ⚠ Sans match: {{ avisMatchingStats.unmatched }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Liste des livres (repliable avec mémoire) -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0" class="collapsible-section">
+            <button
+              @click="showBooksDetails = !showBooksDetails"
+              class="collapsible-toggle"
+              :aria-expanded="showBooksDetails"
+            >
+              <span class="toggle-icon">{{ showBooksDetails ? '▼' : '▶' }}</span>
+              Livres discutés ({{ selectedEmissionDetails.books.length }})
+            </button>
+            <ul v-if="showBooksDetails" class="collapsible-content">
               <li v-for="book in selectedEmissionDetails.books" :key="book._id || book.titre">
                 <router-link
                   v-if="book.auteur_id"
@@ -184,10 +208,17 @@
             </ul>
           </div>
 
-          <!-- Liste des critiques -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0" class="critiques-list">
-            <h3>Critiques présents ({{ selectedEmissionDetails.critiques.length }})</h3>
-            <ul>
+          <!-- Liste des critiques (repliable avec mémoire) -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0" class="collapsible-section">
+            <button
+              @click="showCritiquesDetails = !showCritiquesDetails"
+              class="collapsible-toggle"
+              :aria-expanded="showCritiquesDetails"
+            >
+              <span class="toggle-icon">{{ showCritiquesDetails ? '▼' : '▶' }}</span>
+              Critiques présents ({{ selectedEmissionDetails.critiques.length }})
+            </button>
+            <ul v-if="showCritiquesDetails" class="collapsible-content">
               <li v-for="critique in selectedEmissionDetails.critiques" :key="critique.id">
                 {{ critique.nom }}
                 <span v-if="critique.animateur" class="animateur-badge">Animateur</span>
@@ -209,19 +240,12 @@
 
             <!-- Tableau des avis structurés -->
             <AvisTable
-              v-if="!avisLoading && !avisError && avis.length > 0"
+              v-if="!avisLoading && !avisError"
               :avis="avis"
               :emission-date="selectedEmissionDetails.episode?.date"
               :matching-stats="avisMatchingStats"
+              :livres-mongo-count="selectedEmissionDetails.books?.length || 0"
             />
-
-            <!-- Fallback: Summary markdown si pas d'avis structurés -->
-            <div v-if="!avisLoading && !avisError && avis.length === 0" class="summary-fallback">
-              <p class="fallback-notice">
-                Aucun avis structuré disponible. Affichage du résumé brut :
-              </p>
-              <div class="markdown-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
-            </div>
 
             <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->
             <details v-if="!avisLoading && avis.length > 0" class="summary-debug">
@@ -271,8 +295,27 @@ export default {
     // Navigation locks
     const isChangingEpisode = ref(false);
 
-    // Affichage détails épisode (accordéon)
-    const showEpisodeDetails = ref(false);
+    // Affichage détails épisode (accordéon) - avec persistance localStorage
+    const showEpisodeDetails = ref(
+      localStorage.getItem('emissions.showEpisodeDetails') === 'true'
+    );
+    const showBooksDetails = ref(
+      localStorage.getItem('emissions.showBooksDetails') === 'true'
+    );
+    const showCritiquesDetails = ref(
+      localStorage.getItem('emissions.showCritiquesDetails') === 'true'
+    );
+
+    // Watchers pour persister l'état dans localStorage
+    watch(showEpisodeDetails, (val) => {
+      localStorage.setItem('emissions.showEpisodeDetails', val ? 'true' : 'false');
+    });
+    watch(showBooksDetails, (val) => {
+      localStorage.setItem('emissions.showBooksDetails', val ? 'true' : 'false');
+    });
+    watch(showCritiquesDetails, (val) => {
+      localStorage.setItem('emissions.showCritiquesDetails', val ? 'true' : 'false');
+    });
 
     // État des avis structurés
     const avis = ref([]);
@@ -627,6 +670,8 @@ export default {
       detailsLoading,
       detailsError,
       showEpisodeDetails,
+      showBooksDetails,
+      showCritiquesDetails,
       emissionsAsEpisodes,
       hasPreviousEpisode,
       hasNextEpisode,
@@ -1123,5 +1168,100 @@ main {
   background: white;
   max-height: 600px;
   overflow-y: auto;
+}
+
+/* Stats de matching */
+.matching-stats {
+  background: #fff8e6;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.stats-header {
+  margin-bottom: 0.5rem;
+}
+
+.stats-warning {
+  color: #856404;
+  font-weight: 600;
+}
+
+.stats-details {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.stat-item {
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+}
+
+.stat-phase1 {
+  background: #d4edda;
+  color: #155724;
+}
+
+.stat-phase2 {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.stat-phase3 {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.stat-unmatched {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Sections repliables (livres, critiques) */
+.collapsible-section {
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+.collapsible-toggle {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.collapsible-toggle:hover {
+  background: #e5e7eb;
+}
+
+.collapsible-toggle .toggle-icon {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.collapsible-content {
+  padding: 0.5rem 1rem 1rem;
+  margin: 0;
+  border-top: 1px solid #e5e7eb;
+  background: white;
+  list-style: none;
+}
+
+.collapsible-content li {
+  padding: 0.25rem 0;
 }
 </style>

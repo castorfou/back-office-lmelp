@@ -1,22 +1,5 @@
 <template>
   <div class="avis-table-container">
-    <!-- Stats de matching (affiché si n != m ou debug) -->
-    <div v-if="matchingStats && showMatchingStats" class="matching-stats">
-      <div class="stats-header">
-        <span class="stats-warning" v-if="matchingStats.livres_summary !== matchingStats.livres_mongo">
-          ⚠️ Livres summary ({{ matchingStats.livres_summary }}) ≠ Livres Mongo ({{ matchingStats.livres_mongo }})
-        </span>
-      </div>
-      <div class="stats-details">
-        <span class="stat-item stat-phase1">Phase 1 (exact): {{ matchingStats.match_phase1 }}</span>
-        <span class="stat-item stat-phase2">Phase 2 (partiel): {{ matchingStats.match_phase2 }}</span>
-        <span class="stat-item stat-phase3">Phase 3 (similarité): {{ matchingStats.match_phase3 }}</span>
-        <span class="stat-item stat-unmatched" v-if="matchingStats.unmatched > 0">
-          ⚠ Sans match: {{ matchingStats.unmatched }}
-        </span>
-      </div>
-    </div>
-
     <!-- Section 1: Livres au programme -->
     <div v-if="sortedLivresAuProgramme.length > 0" class="avis-section">
       <h4>1. LIVRES DISCUTÉS AU PROGRAMME{{ formattedDate ? ` du ${formattedDate}` : '' }}</h4>
@@ -156,7 +139,7 @@
                 :to="`/livre/${avis.livre_oid}`"
                 class="livre-link"
               >
-                {{ avis.livre_titre_officiel || avis.livre_titre_extrait }}
+                {{ avis.livre_titre || avis.livre_titre_extrait }}
               </router-link>
               <span v-else class="unresolved">
                 {{ avis.livre_titre_extrait }}
@@ -203,6 +186,10 @@ export default {
       type: Object,
       default: null,
     },
+    livresMongoCount: {
+      type: Number,
+      default: 0,
+    },
   },
 
   setup(props) {
@@ -238,19 +225,25 @@ export default {
 
     /**
      * Groupe les avis de la Section 1 (programme) par livre
+     * Utilise livre_oid comme clé quand disponible (livres matchés),
+     * sinon fallback sur titre|auteur (livres non résolus)
      */
     const livresAuProgramme = computed(() => {
       const programmeAvis = props.avis.filter(a => a.section === 'programme');
 
-      // Grouper par livre (titre + auteur)
+      // Grouper par livre_oid si disponible, sinon par titre + auteur
       const livresMap = new Map();
 
       for (const avis of programmeAvis) {
-        const key = `${avis.livre_titre_extrait}|${avis.auteur_nom_extrait}`;
+        // Clé de groupement : livre_oid si matché, sinon titre|auteur
+        const key = avis.livre_oid
+          ? `oid:${avis.livre_oid}`
+          : `titre:${avis.livre_titre_extrait}|${avis.auteur_nom_extrait}`;
 
         if (!livresMap.has(key)) {
           livresMap.set(key, {
-            titre: avis.livre_titre_extrait,
+            // livre_titre = titre officiel MongoDB (enrichi par l'API), sinon fallback sur titre extrait
+            titre: avis.livre_titre || avis.livre_titre_extrait,
             auteur: avis.auteur_nom_extrait,
             editeur: avis.editeur_extrait,
             livre_oid: avis.livre_oid,

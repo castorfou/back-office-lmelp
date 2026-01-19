@@ -32,6 +32,18 @@ class TestParseNoteFromText:
         result = self.service._parse_note_from_text(text)
         assert result == 9
 
+    def test_parse_note_format_note_space_x(self):
+        """Test parsing note au format 'note 9' (sans deux-points, minuscule)."""
+        text = "Enthousiasmé, bonheur indicible, drôle, note 9"
+        result = self.service._parse_note_from_text(text)
+        assert result == 9
+
+    def test_parse_note_format_note_space_x_decimal(self):
+        """Test parsing note au format 'note 8.5' (décimale sans deux-points)."""
+        text = "Très bon livre, original, note 8.5"
+        result = self.service._parse_note_from_text(text)
+        assert result == 8  # Arrondi
+
     def test_parse_note_html_span(self):
         """Test parsing note depuis un span HTML."""
         text = '<span style="background-color: #00C851; color: white;">10</span>'
@@ -102,6 +114,18 @@ class TestParseSection1CriticEntry:
         assert result["note"] == 9
         # Les guillemets doivent être enlevés
         assert not result["commentaire"].startswith('"')
+
+    def test_parse_entry_format_note_space_x(self):
+        """Test parsing d'une entrée au format 'note 9' (sans deux-points)."""
+        entry = "**Bernard Poirette**: Enthousiasmé, bonheur indicible, drôle, note 9"
+        result = self.service._parse_section1_critic_entry(entry)
+
+        assert result is not None
+        assert result["critique_nom_extrait"] == "Bernard Poirette"
+        assert result["note"] == 9
+        # La note doit être retirée du commentaire
+        assert "note 9" not in result["commentaire"]
+        assert "drôle" in result["commentaire"]
 
     def test_parse_entry_no_bold(self):
         """Test parsing quand le nom n'est pas en gras."""
@@ -591,11 +615,8 @@ class TestResolveEntities:
 
         # Le livre doit être résolu
         assert resolved[0]["livre_oid"] == "livre_esther"
-        # Le titre extrait doit être remplacé par le titre officiel du livre
-        assert (
-            resolved[0]["livre_titre_extrait"]
-            == "Esther Williams, la sirène d'Hollywood. Mémoires"
-        )
+        # Le titre extrait doit rester intact (pas remplacé par le titre officiel)
+        assert resolved[0]["livre_titre_extrait"] == "La sirène d'Hollywood"
 
     def test_resolve_matches_last_unresolved_livre_by_similarity(self):
         """Test matching par similarité pour le dernier livre non résolu.
@@ -645,8 +666,119 @@ class TestResolveEntities:
         assert resolved[0]["livre_oid"] == "livre_combats"
         # Second avis: match par similarité car c'est le dernier livre non résolu
         assert resolved[1]["livre_oid"] == "livre_masbury"
-        # Le titre doit être remplacé par le titre officiel
-        assert (
-            resolved[1]["livre_titre_extrait"]
-            == "22 Mapesbury Road: Famille, mémoire et quête d'une terre promise"
-        )
+        # Le titre extrait doit rester intact (pas écrasé par le titre officiel)
+        assert resolved[1]["livre_titre_extrait"] == "22 Masbury Road"
+
+    def test_resolve_preserves_original_titre_extrait(self):
+        """Test que livre_titre_extrait n'est pas écrasé par le titre officiel.
+
+        Cas réel: Le summary contient "4 jours sans ma mère" mais le livre MongoDB
+        s'appelle "Quatre jours sans ma mère". On doit garder le titre extrait original
+        pour permettre au frontend de grouper correctement par livre_oid.
+        """
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "4 jours sans ma mère",  # Titre du summary
+                "auteur_nom_extrait": "Ramsès Kefi",
+                "editeur_extrait": "Philippe Rey",
+                "critique_nom_extrait": "Bernard Poirette",
+                "commentaire": "Enthousiasmé",
+                "note": 9,
+                "section": "programme",
+            },
+        ]
+
+        livres = [
+            {
+                "_id": "livre_4jours",
+                "titre": "Quatre jours sans ma mère",  # Titre officiel différent
+                "auteur_id": "auteur_kefi",
+            }
+        ]
+        critiques = [{"_id": "critique_bp", "nom": "Bernard Poirette", "variantes": []}]
+
+        resolved = self.service.resolve_entities(extracted_avis, livres, critiques)
+
+        # Le livre doit être résolu (match par similarité)
+        assert resolved[0]["livre_oid"] == "livre_4jours"
+        # IMPORTANT: Le titre extrait doit rester "4 jours" (pas remplacé par "Quatre jours")
+        assert resolved[0]["livre_titre_extrait"] == "4 jours sans ma mère"
+
+    def test_resolve_propagates_livre_oid_to_all_avis_with_same_title(self):
+        """Test que tous les avis avec le même titre reçoivent le même livre_oid.
+
+        Cas réel: Le summary contient 4 avis pour "4 jours sans ma mère" (un par critique).
+        Le matching Phase 3 trouve le livre "Quatre jours sans ma mère" pour le 1er avis.
+        Les 3 autres avis avec le même titre doivent aussi recevoir ce livre_oid.
+        """
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "4 jours sans ma mère",
+                "auteur_nom_extrait": "Ramsès Kefi",
+                "editeur_extrait": "Philippe Rey",
+                "critique_nom_extrait": "Bernard Poirette",
+                "commentaire": "Enthousiasmé",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "4 jours sans ma mère",  # Même titre!
+                "auteur_nom_extrait": "Ramsès Kefi",
+                "editeur_extrait": "Philippe Rey",
+                "critique_nom_extrait": "Laurent Chalumeau",
+                "commentaire": "Enchantement",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "4 jours sans ma mère",  # Même titre!
+                "auteur_nom_extrait": "Ramsès Kefi",
+                "editeur_extrait": "Philippe Rey",
+                "critique_nom_extrait": "Anna Sigalevitch",
+                "commentaire": "Très humain",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "4 jours sans ma mère",  # Même titre!
+                "auteur_nom_extrait": "Ramsès Kefi",
+                "editeur_extrait": "Philippe Rey",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Débordant de tendresse",
+                "note": 9,
+                "section": "programme",
+            },
+        ]
+
+        livres = [
+            {
+                "_id": "livre_4jours",
+                "titre": "Quatre jours sans ma mère",  # Titre officiel différent
+                "auteur_id": "auteur_kefi",
+            }
+        ]
+        critiques = [
+            {"_id": "critique_bp", "nom": "Bernard Poirette", "variantes": []},
+            {"_id": "critique_lc", "nom": "Laurent Chalumeau", "variantes": []},
+            {"_id": "critique_as", "nom": "Anna Sigalevitch", "variantes": []},
+            {"_id": "critique_ep", "nom": "Elisabeth Philippe", "variantes": []},
+        ]
+
+        resolved = self.service.resolve_entities(extracted_avis, livres, critiques)
+
+        # TOUS les avis avec le même titre doivent avoir le même livre_oid
+        assert resolved[0]["livre_oid"] == "livre_4jours"
+        assert resolved[1]["livre_oid"] == "livre_4jours"
+        assert resolved[2]["livre_oid"] == "livre_4jours"
+        assert resolved[3]["livre_oid"] == "livre_4jours"
+
+        # Et tous doivent avoir match_phase = 3
+        assert resolved[0]["match_phase"] == 3
+        assert resolved[1]["match_phase"] == 3
+        assert resolved[2]["match_phase"] == 3
+        assert resolved[3]["match_phase"] == 3

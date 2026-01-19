@@ -203,8 +203,13 @@ class AvisExtractionService:
         if not text:
             return None
 
-        # Format 1: "Note: X" ou "Note: X.Y"
+        # Format 1: "Note: X" ou "Note: X.Y" (avec deux-points)
         match = re.search(r"Note:\s*(\d+(?:\.\d+)?)", text, re.IGNORECASE)
+        if match:
+            return round(float(match.group(1)))
+
+        # Format 1b: "note 9" ou "note 8.5" (sans deux-points, en fin de texte)
+        match = re.search(r"\bnote\s+(\d+(?:\.\d+)?)\s*$", text, re.IGNORECASE)
         if match:
             return round(float(match.group(1)))
 
@@ -252,7 +257,7 @@ class AvisExtractionService:
         # Extraire le commentaire selon le format
         commentaire = rest
 
-        # Format 1: "Note: X" en fin
+        # Format 1: "Note: X" en fin (avec deux-points)
         note_match = re.search(r"\s*Note:\s*\d+", rest, re.IGNORECASE)
         if note_match:
             commentaire = rest[: note_match.start()].strip()
@@ -260,10 +265,17 @@ class AvisExtractionService:
             if commentaire.endswith("."):
                 commentaire = commentaire[:-1].strip()
         else:
-            # Format 2: (X) en fin - enlever la note entre parenthèses
-            paren_match = re.search(r"\s*\(\d+(?:\.\d+)?\)\s*$", rest)
-            if paren_match:
-                commentaire = rest[: paren_match.start()].strip()
+            # Format 1b: "note 9" en fin (sans deux-points)
+            note_space_match = re.search(
+                r",?\s*note\s+\d+(?:\.\d+)?\s*$", rest, re.IGNORECASE
+            )
+            if note_space_match:
+                commentaire = rest[: note_space_match.start()].strip()
+            else:
+                # Format 2: (X) en fin - enlever la note entre parenthèses
+                paren_match = re.search(r"\s*\(\d+(?:\.\d+)?\)\s*$", rest)
+                if paren_match:
+                    commentaire = rest[: paren_match.start()].strip()
 
         # Nettoyer les guillemets autour du commentaire
         if commentaire.startswith('"') and commentaire.endswith('"'):
@@ -397,6 +409,28 @@ class AvisExtractionService:
                     if str(livre.get("_id", "")) != livre_oid
                 ]
 
+        # === Passe finale: Propager livre_oid aux avis avec le même titre ===
+        # Construire un mapping titre -> livre_oid pour les avis déjà résolus
+        title_to_livre_oid: dict[str, tuple[str, int]] = {}
+        for resolved in resolved_avis:
+            livre_oid = resolved.get("livre_oid")
+            if livre_oid:
+                titre = resolved.get("livre_titre_extrait", "")
+                if titre and titre not in title_to_livre_oid:
+                    title_to_livre_oid[titre] = (
+                        livre_oid,
+                        resolved.get("match_phase", 3),
+                    )
+
+        # Propager aux avis non encore résolus ayant le même titre
+        for resolved in resolved_avis:
+            if resolved.get("livre_oid") is None:
+                titre = resolved.get("livre_titre_extrait", "")
+                if titre in title_to_livre_oid:
+                    livre_oid, match_phase = title_to_livre_oid[titre]
+                    resolved["livre_oid"] = livre_oid
+                    resolved["match_phase"] = match_phase
+
         # Compter les matches par phase (par livre unique, pas par avis)
         matched_titles_phase1: set[str] = set()
         matched_titles_phase2: set[str] = set()
@@ -427,15 +461,15 @@ class AvisExtractionService:
             )
             resolved["critique_oid"] = critique_oid
 
-        # === Enrichissement: remplacer livre_titre_extrait par le titre officiel ===
+        # === Enrichissement: ajouter auteur_oid pour le lien cliquable ===
+        # Note: On ne remplace PAS livre_titre_extrait par le titre officiel.
+        # L'API enrichit avec livre_titre (titre officiel) séparément.
+        # Garder livre_titre_extrait intact permet au frontend de grouper par livre_oid.
         livres_by_id = {str(livre.get("_id", "")): livre for livre in livres}
 
         for resolved in resolved_avis:
             livre_oid = resolved.get("livre_oid")
             if livre_oid and livre_oid in livres_by_id:
-                resolved["livre_titre_extrait"] = livres_by_id[livre_oid].get(
-                    "titre", resolved.get("livre_titre_extrait", "")
-                )
                 # Ajouter l'auteur_id pour le lien cliquable
                 resolved["auteur_oid"] = str(
                     livres_by_id[livre_oid].get("auteur_id", "")
