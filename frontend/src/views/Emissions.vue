@@ -169,6 +169,7 @@
               <span class="stat-item stat-phase1">Phase 1 (exact): {{ avisMatchingStats.match_phase1 }}</span>
               <span class="stat-item stat-phase2">Phase 2 (partiel): {{ avisMatchingStats.match_phase2 }}</span>
               <span class="stat-item stat-phase3">Phase 3 (similarité): {{ avisMatchingStats.match_phase3 }}</span>
+              <span class="stat-item stat-phase4" v-if="avisMatchingStats.match_phase4 > 0">Phase 4 (fuzzy): {{ avisMatchingStats.match_phase4 }}</span>
               <span class="stat-item stat-unmatched" v-if="avisMatchingStats.unmatched > 0">
                 ⚠ Sans match: {{ avisMatchingStats.unmatched }}
               </span>

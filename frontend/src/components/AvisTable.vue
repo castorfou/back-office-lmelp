@@ -132,7 +132,7 @@
                 <span class="warning-icon" title="Critique non résolu">⚠️</span>
               </span>
             </td>
-            <td class="auteur-cell">{{ avis.auteur_nom_extrait }}</td>
+            <td class="auteur-cell">{{ avis.auteur_nom || avis.auteur_nom_extrait }}</td>
             <td class="titre-cell">
               <router-link
                 v-if="avis.livre_oid"
@@ -244,7 +244,8 @@ export default {
           livresMap.set(key, {
             // livre_titre = titre officiel MongoDB (enrichi par l'API), sinon fallback sur titre extrait
             titre: avis.livre_titre || avis.livre_titre_extrait,
-            auteur: avis.auteur_nom_extrait,
+            // auteur_nom = nom officiel MongoDB (enrichi par l'API), sinon fallback sur nom extrait
+            auteur: avis.auteur_nom || avis.auteur_nom_extrait,
             editeur: avis.editeur_extrait,
             livre_oid: avis.livre_oid,
             auteur_oid: avis.auteur_oid,
@@ -330,12 +331,12 @@ export default {
             valB = (b.critique_nom_extrait || '').toLowerCase();
             break;
           case 'auteur':
-            valA = (a.auteur_nom_extrait || '').toLowerCase();
-            valB = (b.auteur_nom_extrait || '').toLowerCase();
+            valA = (a.auteur_nom || a.auteur_nom_extrait || '').toLowerCase();
+            valB = (b.auteur_nom || b.auteur_nom_extrait || '').toLowerCase();
             break;
           case 'titre':
-            valA = (a.livre_titre_extrait || '').toLowerCase();
-            valB = (b.livre_titre_extrait || '').toLowerCase();
+            valA = (a.livre_titre || a.livre_titre_extrait || '').toLowerCase();
+            valB = (b.livre_titre || b.livre_titre_extrait || '').toLowerCase();
             break;
           case 'note':
           default:

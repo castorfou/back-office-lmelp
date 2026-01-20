@@ -3668,7 +3668,7 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 "updated_at": updated_at,
             }
 
-            # Enrichir avec le nom du livre et l'auteur_oid si résolu
+            # Enrichir avec le nom du livre et l'auteur si résolu
             livre_oid = avis.get("livre_oid")
             if livre_oid and mongodb_service.livres_collection is not None:
                 livre = mongodb_service.livres_collection.find_one(
@@ -3679,6 +3679,13 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                     auteur_id = livre.get("auteur_id")
                     if auteur_id:
                         enriched["auteur_oid"] = str(auteur_id)
+                        # Enrichir avec le nom de l'auteur officiel
+                        if mongodb_service.auteurs_collection is not None:
+                            auteur = mongodb_service.auteurs_collection.find_one(
+                                {"_id": auteur_id}
+                            )
+                            if auteur:
+                                enriched["auteur_nom"] = auteur.get("nom", "")
 
             # Enrichir avec le nom du critique si résolu
             critique_oid = avis.get("critique_oid")
@@ -3720,6 +3727,7 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
             "match_phase1": sum(1 for p in unique_titles.values() if p == 1),
             "match_phase2": sum(1 for p in unique_titles.values() if p == 2),
             "match_phase3": sum(1 for p in unique_titles.values() if p == 3),
+            "match_phase4": sum(1 for p in unique_titles.values() if p == 4),
             "unmatched": sum(1 for p in unique_titles.values() if p is None),
         }
 

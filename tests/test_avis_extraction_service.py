@@ -782,3 +782,104 @@ class TestResolveEntities:
         assert resolved[1]["match_phase"] == 3
         assert resolved[2]["match_phase"] == 3
         assert resolved[3]["match_phase"] == 3
+
+    def test_resolve_fuzzy_matches_last_unmatched_when_counts_equal(self):
+        """Test Phase 4: fuzzy matching quand # livres MongoDB == # livres summary.
+
+        Cas réel du 18 janvier 2026:
+        - Summary: "Anne-Marie Schwarzenbach, l'ange dévastée" par "Mamo Stedin"
+        - MongoDB: "Paris" par "Annemarie Schwarzenbach"
+
+        Quand il ne reste qu'un livre non matché de chaque côté,
+        l'association doit être automatique.
+        """
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Protocoles",  # Match exact
+                "auteur_nom_extrait": "Constance Debré",
+                "editeur_extrait": "Flammarion",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Densité remarquable",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Anne-Marie Schwarzenbach, l'ange dévastée",
+                "auteur_nom_extrait": "Mamo Stedin, Léa Gauthier",
+                "editeur_extrait": "Payot",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "BD fascinante",
+                "note": 8,
+                "section": "coup_de_coeur",
+            },
+        ]
+
+        livres = [
+            {
+                "_id": "livre_protocoles",
+                "titre": "Protocoles",
+                "auteur_id": "auteur_debre",
+            },
+            {
+                "_id": "livre_paris",
+                "titre": "Paris",
+                "auteur_id": "auteur_schwarzenbach",
+            },
+        ]
+        critiques = [
+            {"_id": "critique_ep", "nom": "Elisabeth Philippe", "variantes": []}
+        ]
+
+        resolved = self.service.resolve_entities(extracted_avis, livres, critiques)
+
+        # Premier avis: match exact Phase 1
+        assert resolved[0]["livre_oid"] == "livre_protocoles"
+        assert resolved[0]["match_phase"] == 1
+
+        # Deuxième avis: fuzzy match Phase 4 (dernier livre restant)
+        assert resolved[1]["livre_oid"] == "livre_paris"
+        assert resolved[1]["match_phase"] == 4  # Phase 4 = fuzzy sur livres restants
+        # L'auteur_oid doit être enrichi après le match
+        assert resolved[1]["auteur_oid"] == "auteur_schwarzenbach"
+
+    def test_resolve_stats_include_phase4(self):
+        """Test que les stats incluent la Phase 4."""
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Protocoles",
+                "auteur_nom_extrait": "Constance Debré",
+                "editeur_extrait": "Flammarion",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Densité remarquable",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Anne-Marie Schwarzenbach, l'ange dévastée",
+                "auteur_nom_extrait": "Mamo Stedin",
+                "editeur_extrait": "Payot",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "BD fascinante",
+                "note": 8,
+                "section": "coup_de_coeur",
+            },
+        ]
+
+        livres = [
+            {"_id": "livre_protocoles", "titre": "Protocoles", "auteur_id": "a1"},
+            {"_id": "livre_paris", "titre": "Paris", "auteur_id": "a2"},
+        ]
+        critiques = [{"_id": "c1", "nom": "Elisabeth Philippe", "variantes": []}]
+
+        _, stats = self.service.resolve_entities_with_stats(
+            extracted_avis, livres, critiques
+        )
+
+        # Stats doivent inclure Phase 4
+        assert stats["match_phase1"] == 1  # Protocoles
+        assert stats["match_phase4"] == 1  # Paris (fuzzy)
+        assert stats["unmatched"] == 0

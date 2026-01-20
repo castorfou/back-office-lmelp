@@ -345,6 +345,7 @@ class AvisExtractionService:
             "match_phase1": 0,  # Matches exacts
             "match_phase2": 0,  # Matches partiels
             "match_phase3": 0,  # Matches par similarité
+            "match_phase4": 0,  # Matches fuzzy (quand counts égaux)
             "unmatched": 0,  # Sans match
         }
 
@@ -431,10 +432,33 @@ class AvisExtractionService:
                     resolved["livre_oid"] = livre_oid
                     resolved["match_phase"] = match_phase
 
+        # === Phase 4: Fuzzy matching quand # livres MongoDB == # livres summary ===
+        # Si les comptages sont égaux, on peut associer les livres restants
+        unmatched_avis_titles = {
+            a.get("livre_titre_extrait", "")
+            for a in resolved_avis
+            if a.get("livre_oid") is None
+        }
+        remaining_livres = [
+            livre
+            for livre in livres
+            if str(livre.get("_id", "")) not in matched_livre_ids
+        ]
+
+        # Si même nombre de livres non matchés des deux côtés
+        if len(unmatched_avis_titles) > 0 and len(remaining_livres) == len(
+            unmatched_avis_titles
+        ):
+            # Associer les livres restants par fuzzy matching
+            self._fuzzy_match_remaining_books(
+                resolved_avis, remaining_livres, matched_livre_ids
+            )
+
         # Compter les matches par phase (par livre unique, pas par avis)
         matched_titles_phase1: set[str] = set()
         matched_titles_phase2: set[str] = set()
         matched_titles_phase3: set[str] = set()
+        matched_titles_phase4: set[str] = set()
         unmatched_titles: set[str] = set()
 
         for resolved in resolved_avis:
@@ -446,12 +470,15 @@ class AvisExtractionService:
                 matched_titles_phase2.add(titre)
             elif phase == 3:
                 matched_titles_phase3.add(titre)
+            elif phase == 4:
+                matched_titles_phase4.add(titre)
             else:
                 unmatched_titles.add(titre)
 
         stats["match_phase1"] = len(matched_titles_phase1)
         stats["match_phase2"] = len(matched_titles_phase2)
         stats["match_phase3"] = len(matched_titles_phase3)
+        stats["match_phase4"] = len(matched_titles_phase4)
         stats["unmatched"] = len(unmatched_titles)
 
         # === Résolution des critiques (inchangée) ===
@@ -647,6 +674,107 @@ class AvisExtractionService:
             return best_match[0]
 
         return None
+
+    def _fuzzy_match_remaining_books(
+        self,
+        resolved_avis: list[dict[str, Any]],
+        remaining_livres: list[dict[str, Any]],
+        matched_livre_ids: set[str],
+    ) -> None:
+        """
+        Phase 4: Associe les livres restants quand # MongoDB == # summary.
+
+        Algorithme:
+        1. Si 1 livre restant de chaque côté → association automatique
+        2. Sinon, pour chaque livre MongoDB, calculer la similarité avec
+           chaque titre summary non matché, puis associer par meilleur score
+
+        Args:
+            resolved_avis: Liste des avis (modifiée in-place)
+            remaining_livres: Livres MongoDB non encore matchés
+            matched_livre_ids: Set des IDs déjà matchés (modifié in-place)
+        """
+        if not remaining_livres:
+            return
+
+        # Collecter les titres summary non matchés (uniques)
+        unmatched_titles = list(
+            {
+                a.get("livre_titre_extrait", "")
+                for a in resolved_avis
+                if a.get("livre_oid") is None and a.get("livre_titre_extrait")
+            }
+        )
+
+        if not unmatched_titles:
+            return
+
+        # Cas simple: 1 livre restant de chaque côté → association automatique
+        if len(remaining_livres) == 1 and len(unmatched_titles) == 1:
+            livre = remaining_livres[0]
+            livre_id = str(livre.get("_id", ""))
+            titre_summary = unmatched_titles[0]
+
+            for resolved in resolved_avis:
+                if (
+                    resolved.get("livre_oid") is None
+                    and resolved.get("livre_titre_extrait") == titre_summary
+                ):
+                    resolved["livre_oid"] = livre_id
+                    resolved["match_phase"] = 4
+                    matched_livre_ids.add(livre_id)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔗 [PHASE4] Association automatique (1 restant): "
+                    f"'{titre_summary}' -> '{livre.get('titre')}'"
+                )
+            return
+
+        # Cas général: calculer les distances et associer par meilleur score
+        # Construire matrice de similarité
+        similarity_matrix: list[tuple[str, str, float]] = []
+
+        for livre in remaining_livres:
+            livre_id = str(livre.get("_id", ""))
+            livre_titre = self._normalize_for_matching(livre.get("titre", ""))
+
+            for titre_summary in unmatched_titles:
+                normalized_summary = self._normalize_for_matching(titre_summary)
+                score = SequenceMatcher(None, normalized_summary, livre_titre).ratio()
+                similarity_matrix.append((titre_summary, livre_id, score))
+
+        # Trier par score décroissant et associer (greedy)
+        similarity_matrix.sort(key=lambda x: x[2], reverse=True)
+        assigned_titles: set[str] = set()
+        assigned_livre_ids: set[str] = set()
+
+        for titre_summary, livre_id, score in similarity_matrix:
+            if titre_summary in assigned_titles or livre_id in assigned_livre_ids:
+                continue
+
+            # Associer ce titre à ce livre
+            for resolved in resolved_avis:
+                if (
+                    resolved.get("livre_oid") is None
+                    and resolved.get("livre_titre_extrait") == titre_summary
+                ):
+                    resolved["livre_oid"] = livre_id
+                    resolved["match_phase"] = 4
+                    matched_livre_ids.add(livre_id)
+
+            assigned_titles.add(titre_summary)
+            assigned_livre_ids.add(livre_id)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔗 [PHASE4] Fuzzy match (score={score:.2f}): "
+                    f"'{titre_summary}' -> livre_id={livre_id}"
+                )
+
+            # Arrêter si tous les livres sont assignés
+            if len(assigned_livre_ids) == len(remaining_livres):
+                break
 
     def _find_matching_critique(
         self, nom_extrait: str, critiques: list[dict[str, Any]]
