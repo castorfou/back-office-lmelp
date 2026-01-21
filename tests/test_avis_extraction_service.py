@@ -85,6 +85,46 @@ class TestParseNoteFromText:
         result = self.service._parse_note_from_text(None)
         assert result is None
 
+    def test_parse_note_trailing_number_after_comma(self):
+        """
+        TDD RED: Test parsing note au format ', X' en fin de texte.
+
+        Format du summary du 14 septembre 2025:
+        "Sublime, magistral, fresque familiale d'une ampleur hallucinante, 10"
+
+        La note est un nombre seul après la dernière virgule.
+        """
+        text = "Sublime, magistral, fresque familiale d'une ampleur hallucinante, 10"
+        result = self.service._parse_note_from_text(text)
+        assert result == 10
+
+    def test_parse_note_trailing_number_single_digit(self):
+        """Test parsing note trailing format avec nombre simple (7)."""
+        text = "Long mais stylistiquement impressionnant, 7"
+        result = self.service._parse_note_from_text(text)
+        assert result == 7
+
+    def test_parse_note_trailing_number_should_not_match_middle_number(self):
+        """
+        Test que le format trailing ne matche pas un nombre au milieu du texte.
+
+        "Ce livre de 200 pages est excellent" ne doit pas retourner 200.
+        """
+        text = "Ce livre de 200 pages est excellent"
+        result = self.service._parse_note_from_text(text)
+        assert result is None
+
+    def test_parse_note_trailing_number_should_be_valid_note(self):
+        """
+        Test que le format trailing ne matche que des notes valides (1-10).
+
+        ", 15" ne doit pas être considéré comme une note.
+        """
+        text = "Ce livre contient 15 chapitres, 15"
+        result = self.service._parse_note_from_text(text)
+        # 15 n'est pas une note valide (1-10), doit retourner None
+        assert result is None
+
 
 class TestParseSection1CriticEntry:
     """Tests pour _parse_section1_critic_entry."""
@@ -126,6 +166,34 @@ class TestParseSection1CriticEntry:
         # La note doit être retirée du commentaire
         assert "note 9" not in result["commentaire"]
         assert "drôle" in result["commentaire"]
+
+    def test_parse_entry_format_trailing_number(self):
+        """
+        TDD RED: Test parsing d'une entrée au format ', X' en fin.
+
+        Format du summary du 14 septembre 2025:
+        "**Elisabeth Philippe**: Sublime, magistral, fresque familiale d'une ampleur hallucinante, 10"
+        """
+        entry = "**Elisabeth Philippe**: Sublime, magistral, fresque familiale d'une ampleur hallucinante, 10"
+        result = self.service._parse_section1_critic_entry(entry)
+
+        assert result is not None
+        assert result["critique_nom_extrait"] == "Elisabeth Philippe"
+        assert result["note"] == 10
+        # La note doit être retirée du commentaire
+        assert ", 10" not in result["commentaire"]
+        assert "hallucinante" in result["commentaire"]
+
+    def test_parse_entry_format_trailing_number_7(self):
+        """Test parsing avec note 7 en trailing."""
+        entry = "**Jean-Marc Proust**: Long mais stylistiquement impressionnant, 7"
+        result = self.service._parse_section1_critic_entry(entry)
+
+        assert result is not None
+        assert result["critique_nom_extrait"] == "Jean-Marc Proust"
+        assert result["note"] == 7
+        assert ", 7" not in result["commentaire"]
+        assert "impressionnant" in result["commentaire"]
 
     def test_parse_entry_no_bold(self):
         """Test parsing quand le nom n'est pas en gras."""

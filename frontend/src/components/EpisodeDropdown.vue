@@ -82,6 +82,28 @@ export default {
       const date = new Date(episode.date).toLocaleDateString('fr-FR');
       const title = episode.titre_corrige || episode.titre;
 
+      // Logique pour les émissions avec badge_status (page Emissions)
+      if (episode.badge_status !== undefined && episode.badge_status !== null) {
+        let prefix = '';
+        switch (episode.badge_status) {
+          case 'perfect':
+            prefix = '🟢 ';  // Tous matchés, comptes égaux
+            break;
+          case 'count_mismatch':
+            prefix = '🔴 ';  // Écart de comptage
+            break;
+          case 'unmatched':
+            prefix = '🟡 ';  // Livres non matchés
+            break;
+          case 'no_avis':
+            prefix = '⚪ ';  // Pas d'avis extraits
+            break;
+          default:
+            prefix = '';
+        }
+        return `${prefix}${date} - ${title}`;
+      }
+
       // Logique pour les épisodes avec has_summary (page GenerationAvisCritiques)
       if (episode.has_summary !== undefined && episode.has_summary !== null) {
         // 🟢 Pastille verte pour les épisodes avec summary

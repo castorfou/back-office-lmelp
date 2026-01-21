@@ -23,7 +23,7 @@
           <!-- Sélecteur d'épisode -->
           <div v-if="!emissionsLoading && !emissionsError && emissions.length > 0" class="form-group">
             <label for="episode-select" class="form-label">
-              Choisir une émission ({{ emissions.length }} disponibles)
+              Choisir une émission ({{ emissions.length }} disponibles: 🟢 {{ emissionsPerfectCount }} / 🔴 {{ emissionsCountMismatchCount }} / 🟡 {{ emissionsUnmatchedCount }} / ⚪ {{ emissionsNoAvisCount }})
             </label>
             <div class="episode-select-wrapper">
               <button
@@ -49,6 +49,32 @@
               >
                 Suivant ▶️
               </button>
+            </div>
+
+            <!-- Légende des pastilles -->
+            <div class="legend-box">
+              <h6>Légende des pastilles :</h6>
+              <ul class="legend-list">
+                <li>
+                  🟢 {{ emissionsPerfectCount }} :
+                  Avis extraits, tous matchés, comptes égaux, toutes notes présentes
+                </li>
+                <li>
+                  🔴 {{ emissionsCountMismatchCount }} :
+                  Avis extraits mais # livres summary ≠ # livres mongo OU au moins une note manquante
+                </li>
+                <li>
+                  🟡 {{ emissionsUnmatchedCount }} :
+                  Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché
+                </li>
+                <li>
+                  ⚪ {{ emissionsNoAvisCount }} :
+                  Avis pas encore extraits
+                </li>
+              </ul>
+              <p class="legend-formula">
+                <em>Total: {{ emissions.length }} émissions</em>
+              </p>
             </div>
           </div>
 
@@ -348,11 +374,19 @@ export default {
           try {
             const extractResult = await avisService.extractAvis(emissionId);
 
-            // Si extraction réussie, recharger les avis
+            // Si extraction réussie, recharger les avis ET les émissions pour MAJ badge
             if (extractResult.extracted_count > 0) {
               const reloadResult = await avisService.getAvisByEmission(emissionId);
               avis.value = reloadResult.avis || [];
               avisMatchingStats.value = reloadResult.matching_stats || null;
+
+              // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
+              try {
+                const updatedEmissions = await emissionsService.getAllEmissions();
+                emissions.value = updatedEmissions;
+              } catch (emissionsError) {
+                console.warn('Impossible de recharger les émissions:', emissionsError.message);
+              }
             }
           } catch (extractError) {
             // L'extraction peut échouer si pas de summary, ce n'est pas grave
@@ -382,9 +416,18 @@ export default {
         // L'endpoint POST /api/avis/extract supprime les anciens avis avant d'extraire
         const extractResult = await avisService.extractAvis(selectedEmissionId.value);
 
-        // Recharger les avis
+        // Recharger les avis ET les stats de matching (Issue #185)
         const reloadResult = await avisService.getAvisByEmission(selectedEmissionId.value);
         avis.value = reloadResult.avis || [];
+        avisMatchingStats.value = reloadResult.matching_stats || null;
+
+        // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
+        try {
+          const updatedEmissions = await emissionsService.getAllEmissions();
+          emissions.value = updatedEmissions;
+        } catch (emissionsError) {
+          console.warn('Impossible de recharger les émissions:', emissionsError.message);
+        }
 
         console.log(`Ré-extraction terminée: ${extractResult.extracted_count} avis`);
       } catch (error) {
@@ -394,6 +437,31 @@ export default {
         avisLoading.value = false;
         avisExtracting.value = false;
       }
+    };
+
+    /**
+     * Sélectionne l'émission par priorité de badge.
+     *
+     * Priorité : 🔴 count_mismatch > 🟡 unmatched > ⚪ no_avis > 🟢 perfect
+     *
+     * Dans chaque catégorie, sélectionne la plus récente (déjà triée par date DESC).
+     */
+    const selectEmissionByBadgePriority = (emissionsList) => {
+      if (!emissionsList || emissionsList.length === 0) return null;
+
+      // Ordre de priorité des badges
+      const priorityOrder = ['count_mismatch', 'unmatched', 'no_avis', 'perfect'];
+
+      // Pour chaque priorité, chercher la première émission avec ce badge
+      for (const badgeStatus of priorityOrder) {
+        const found = emissionsList.find(e => e.badge_status === badgeStatus);
+        if (found) {
+          return found;
+        }
+      }
+
+      // Fallback : retourner la plus récente (premier élément)
+      return emissionsList[0];
     };
 
     /**
@@ -407,11 +475,13 @@ export default {
         const data = await emissionsService.getAllEmissions();
         emissions.value = data;
 
-        // Auto-sélectionner la plus récente (déjà triée par date desc)
+        // Auto-sélectionner selon priorité de badge (🔴 > 🟡 > ⚪ > 🟢)
         if (data.length > 0 && !route.params.date) {
-          const mostRecent = data[0];
-          const dateStr = formatDateForUrl(mostRecent.date);
-          router.replace(`/emissions/${dateStr}`);
+          const selectedEmission = selectEmissionByBadgePriority(data);
+          if (selectedEmission) {
+            const dateStr = formatDateForUrl(selectedEmission.date);
+            router.replace(`/emissions/${dateStr}`);
+          }
         }
       } catch (error) {
         console.error('Erreur chargement émissions:', error);
@@ -495,10 +565,31 @@ export default {
         titre: emission.episode?.titre || 'Sans titre',
         date: emission.date,
         numero_emission: emission.episode?.numero_emission || null,
-        // Désactiver les pastilles pour les émissions (en attendant définition de leur signification)
+        // Badge status pour pastilles (4 états)
+        badge_status: emission.badge_status || null,
+        // Désactiver les autres pastilles (LivresAuteurs)
         has_cached_books: null,
         has_incomplete_books: null,
       }));
+    });
+
+    /**
+     * Compteurs par badge status
+     */
+    const emissionsPerfectCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'perfect').length;
+    });
+
+    const emissionsCountMismatchCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'count_mismatch').length;
+    });
+
+    const emissionsUnmatchedCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'unmatched').length;
+    });
+
+    const emissionsNoAvisCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'no_avis').length;
     });
 
     /**
@@ -674,6 +765,11 @@ export default {
       showBooksDetails,
       showCritiquesDetails,
       emissionsAsEpisodes,
+      // Compteurs de badges
+      emissionsPerfectCount,
+      emissionsCountMismatchCount,
+      emissionsUnmatchedCount,
+      emissionsNoAvisCount,
       hasPreviousEpisode,
       hasNextEpisode,
       loadAllEmissions,
@@ -1264,5 +1360,39 @@ main {
 
 .collapsible-content li {
   padding: 0.25rem 0;
+}
+
+/* Légende des pastilles */
+.legend-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.legend-box h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+.legend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.legend-list li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.legend-formula {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
 }
 </style>

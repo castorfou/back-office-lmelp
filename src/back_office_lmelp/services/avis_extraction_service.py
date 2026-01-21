@@ -193,6 +193,7 @@ class AvisExtractionService:
         - "Note: 7" ou "Note: 9"
         - "<span style='...'>8.0</span>"
         - "(9)" ou "(10)" en fin de texte
+        - ", 10" ou ", 7" en fin de texte (format 14 sept. 2025)
 
         Args:
             text: Le texte contenant potentiellement une note
@@ -222,6 +223,15 @@ class AvisExtractionService:
         match = re.search(r"\((\d+(?:\.\d+)?)\)\s*$", text)
         if match:
             return round(float(match.group(1)))
+
+        # Format 4: ", X" en fin de texte (format 14 sept. 2025)
+        # Note: ne matche que les notes valides (1-10)
+        match = re.search(r",\s*(\d+(?:\.\d+)?)\s*$", text)
+        if match:
+            note_value = round(float(match.group(1)))
+            # Vérifier que c'est une note valide (1-10)
+            if 1 <= note_value <= 10:
+                return note_value
 
         return None
 
@@ -276,6 +286,13 @@ class AvisExtractionService:
                 paren_match = re.search(r"\s*\(\d+(?:\.\d+)?\)\s*$", rest)
                 if paren_match:
                     commentaire = rest[: paren_match.start()].strip()
+                else:
+                    # Format 3: ", X" en fin (format 14 sept. 2025)
+                    # Seulement si note valide (1-10) a été extraite
+                    if note is not None:
+                        trailing_match = re.search(r",\s*\d+(?:\.\d+)?\s*$", rest)
+                        if trailing_match:
+                            commentaire = rest[: trailing_match.start()].strip()
 
         # Nettoyer les guillemets autour du commentaire
         if commentaire.startswith('"') and commentaire.endswith('"'):

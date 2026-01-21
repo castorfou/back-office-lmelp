@@ -97,10 +97,6 @@
       <table class="avis-table coups-de-coeur">
         <thead>
           <tr>
-            <th class="sortable-header" @click="setSortOrderSection2('critique')">
-              Critique
-              <span class="sort-indicator" :class="getSortClassSection2('critique')">↕</span>
-            </th>
             <th class="sortable-header" @click="setSortOrderSection2('auteur')">
               Auteur
               <span class="sort-indicator" :class="getSortClassSection2('auteur')">↕</span>
@@ -110,29 +106,29 @@
               <span class="sort-indicator" :class="getSortClassSection2('titre')">↕</span>
             </th>
             <th>Éditeur</th>
+            <th class="sortable-header" @click="setSortOrderSection2('critique')">
+              Critique
+              <span class="sort-indicator" :class="getSortClassSection2('critique')">↕</span>
+            </th>
+            <th>Commentaire</th>
             <th class="sortable-header" @click="setSortOrderSection2('note')">
               Note
               <span class="sort-indicator" :class="getSortClassSection2('note')">↕</span>
             </th>
-            <th>Commentaire</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="avis in sortedCoupsDeCoeursAvis" :key="avis.id">
-            <td class="critique-cell">
+            <td class="auteur-cell">
               <router-link
-                v-if="avis.critique_oid"
-                :to="`/critique/${avis.critique_oid}`"
-                class="critique-link"
+                v-if="avis.auteur_oid"
+                :to="`/auteur/${avis.auteur_oid}`"
+                class="auteur-link"
               >
-                {{ avis.critique_nom_extrait }}
+                {{ avis.auteur_nom || avis.auteur_nom_extrait }}
               </router-link>
-              <span v-else class="unresolved">
-                {{ avis.critique_nom_extrait }}
-                <span class="warning-icon" title="Critique non résolu">⚠️</span>
-              </span>
+              <span v-else>{{ avis.auteur_nom || avis.auteur_nom_extrait }}</span>
             </td>
-            <td class="auteur-cell">{{ avis.auteur_nom || avis.auteur_nom_extrait }}</td>
             <td class="titre-cell">
               <router-link
                 v-if="avis.livre_oid"
@@ -147,13 +143,26 @@
               </span>
             </td>
             <td class="editeur-cell">{{ avis.editeur_extrait }}</td>
+            <td class="critique-cell">
+              <router-link
+                v-if="avis.critique_oid"
+                :to="`/critique/${avis.critique_oid}`"
+                class="critique-link"
+              >
+                {{ avis.critique_nom_extrait }}
+              </router-link>
+              <span v-else class="unresolved">
+                {{ avis.critique_nom_extrait }}
+                <span class="warning-icon" title="Critique non résolu">⚠️</span>
+              </span>
+            </td>
+            <td class="commentaire-cell">{{ avis.commentaire }}</td>
             <td class="note-cell">
               <span v-if="avis.note" class="note" :class="noteClass(avis.note)">
                 {{ avis.note }}
               </span>
               <span v-else class="note-missing">-</span>
             </td>
-            <td class="commentaire-cell">{{ avis.commentaire }}</td>
           </tr>
         </tbody>
       </table>
@@ -501,12 +510,12 @@ export default {
 
 /* Cellules spécifiques */
 .auteur-cell {
-  font-weight: 500;
+  font-weight: normal;
   white-space: nowrap;
 }
 
 .titre-cell {
-  font-weight: 500;
+  font-weight: normal;
 }
 
 .editeur-cell {
@@ -531,7 +540,7 @@ export default {
 }
 
 .critique-nom {
-  font-weight: 600;
+  font-weight: normal;
   color: #333;
 }
 
@@ -582,10 +591,16 @@ export default {
 }
 
 /* Liens */
-.livre-link,
+.livre-link {
+  color: #0066cc;
+  text-decoration: none;
+  font-weight: bold;
+}
+
 .critique-link {
   color: #0066cc;
   text-decoration: none;
+  font-weight: normal;
 }
 
 .livre-link:hover,
@@ -606,7 +621,7 @@ export default {
 
 /* Coups de coeur */
 .coups-de-coeur .critique-cell {
-  font-weight: 600;
+  font-weight: normal;
 }
 
 .coups-de-coeur .note-cell {
@@ -715,6 +730,7 @@ export default {
 .auteur-link {
   color: #0066cc;
   text-decoration: none;
+  font-weight: normal;
 }
 
 .auteur-link:hover {

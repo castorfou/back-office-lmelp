@@ -238,7 +238,7 @@ Format de tableau markdown OBLIGATOIRE avec HTML pour les couleurs:
 
 | Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne | Nb critiques | Coup de cœur | Chef d'œuvre |
 |--------|-------|---------|------------------------------|--------------|-------------|-------------|-------------|
-| [Nom auteur] | [Titre livre] | [Éditeur] | **[Nom COMPLET critique 1]**: [avis détaillé et note] <br>**[Nom COMPLET critique 2]**: [avis détaillé et note] <br>**[Nom COMPLET critique 3]**: [avis détaillé et note] | [Note colorée] | [Nombre] | [Noms si note ≥9] | [Noms si note=10] |
+| [Nom auteur] | [Titre livre] | [Éditeur] | **[Nom COMPLET critique 1]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 2]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 3]**: [avis détaillé]. Note: X | [Note colorée] | [Nombre] | [Noms si note ≥9] | [Noms si note=10] |
 
 ⚠️ IMPORTANT: CLASSE LES LIVRES PAR NOTE DÉCROISSANTE (meilleure note d'abord, pire note en dernier).
 
@@ -249,6 +249,15 @@ RÈGLES DE NOTATION STRICTES:
 - Note 7-8: Bons livres, "plaisant", "réussi", "bien écrit"
 - Note 9: Excellents livres, "formidable", "remarquable", "coup de cœur"
 - Note 10: Chefs-d'œuvre, "génial", "exceptionnel", "chef-d'œuvre"
+
+⚠️ FORMAT OBLIGATOIRE POUR LES NOTES INDIVIDUELLES:
+Chaque avis de critique DOIT se terminer par "Note: X" (avec deux-points).
+Exemples corrects:
+- **Elisabeth Philippe**: Très belle découverte, original et poétique. Note: 9
+- **Arnaud Viviant**: Impressionnant, trouvailles stylistiques. Note: 8
+Exemples INCORRECTS (à éviter):
+- **Patricia Martin**: Bien fichu, 7  ← MAUVAIS (pas de "Note:")
+- **Michel Crépu**: Remarquable, note 8  ← MAUVAIS (minuscule, pas de deux-points)
 
 COULEURS HTML OBLIGATOIRES pour la Note moyenne:
 - 9.0-10.0: <span style="background-color: #00C851; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;">X.X</span>
@@ -264,7 +273,7 @@ INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
 1. Identifie TOUS les critiques qui parlent de chaque livre: Jérôme Garcin, Elisabeth Philippe, Frédéric Beigbeder, Michel Crépu, Arnaud Viviant, Judith Perrignon, Xavier Leherpeur, Patricia Martin, etc.
 2. Pour chaque critique, capture son NOM COMPLET (Prénom + Nom)
 3. Cite leurs avis EXACTS avec leurs mots-clés d'appréciation
-4. Attribue une note individuelle basée sur leur vocabulaire (entre 1 et 10)
+4. Attribue une note individuelle basée sur leur vocabulaire (entre 1 et 10) AU FORMAT EXACT: "Note: X" (avec deux-points, ex: "Note: 8")
 5. Calcule la moyenne arithmétique précise (ex: 7.3, 8.7)
 6. Identifie les "coups de cœur" (critiques très enthousiastes, note ≥9)
 7. **CLASSE OBLIGATOIREMENT PAR NOTE DÉCROISSANTE** (meilleure note d'abord)
