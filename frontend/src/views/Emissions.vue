@@ -23,7 +23,13 @@
           <!-- Sélecteur d'épisode -->
           <div v-if="!emissionsLoading && !emissionsError && emissions.length > 0" class="form-group">
             <label for="episode-select" class="form-label">
-              Choisir une émission ({{ emissions.length }} disponibles: 🟢 {{ emissionsPerfectCount }} / 🔴 {{ emissionsCountMismatchCount }} / 🟡 {{ emissionsUnmatchedCount }} / ⚪ {{ emissionsNoAvisCount }})
+              Choisir une émission ({{ emissions.length }} disponibles:
+              <span
+                class="badge-counters-tooltip"
+                :title="`🟢 ${emissionsPerfectCount}: Avis extraits, tous matchés, comptes égaux, toutes notes présentes\n🔴 ${emissionsCountMismatchCount}: Avis extraits mais # livres summary ≠ # livres mongo OU au moins une note manquante\n🟡 ${emissionsUnmatchedCount}: Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché\n⚪ ${emissionsNoAvisCount}: Avis pas encore extraits`"
+              >
+                🟢 {{ emissionsPerfectCount }} / 🔴 {{ emissionsCountMismatchCount }} / 🟡 {{ emissionsUnmatchedCount }} / ⚪ {{ emissionsNoAvisCount }}
+              </span>)
             </label>
             <div class="episode-select-wrapper">
               <button
@@ -49,54 +55,26 @@
               >
                 Suivant ▶️
               </button>
+
+              <!-- Bouton Extraire/Ré-extraire les avis -->
+              <button
+                v-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading && avis.length === 0"
+                @click="reextractAvis"
+                :disabled="avisExtracting"
+                class="btn-extract"
+              >
+                {{ avisExtracting ? 'Extraction...' : '🚀 Extraire les avis' }}
+              </button>
+
+              <button
+                v-else-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading"
+                @click="reextractAvis"
+                :disabled="avisExtracting"
+                class="btn-reextract"
+              >
+                {{ avisExtracting ? 'Ré-extraction...' : '🔄 Ré-extraire' }}
+              </button>
             </div>
-
-            <!-- Légende des pastilles -->
-            <div class="legend-box">
-              <h6>Légende des pastilles :</h6>
-              <ul class="legend-list">
-                <li>
-                  🟢 {{ emissionsPerfectCount }} :
-                  Avis extraits, tous matchés, comptes égaux, toutes notes présentes
-                </li>
-                <li>
-                  🔴 {{ emissionsCountMismatchCount }} :
-                  Avis extraits mais # livres summary ≠ # livres mongo OU au moins une note manquante
-                </li>
-                <li>
-                  🟡 {{ emissionsUnmatchedCount }} :
-                  Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché
-                </li>
-                <li>
-                  ⚪ {{ emissionsNoAvisCount }} :
-                  Avis pas encore extraits
-                </li>
-              </ul>
-              <p class="legend-formula">
-                <em>Total: {{ emissions.length }} émissions</em>
-              </p>
-            </div>
-          </div>
-
-          <!-- Bouton Extraire/Ré-extraire les avis (style GenerationAvisCritiques) -->
-          <div v-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading" class="action-buttons-top">
-            <button
-              v-if="avis.length === 0"
-              @click="reextractAvis"
-              :disabled="avisExtracting"
-              class="btn-extract"
-            >
-              {{ avisExtracting ? 'Extraction...' : '🚀 Extraire les avis' }}
-            </button>
-
-            <button
-              v-else
-              @click="reextractAvis"
-              :disabled="avisExtracting"
-              class="btn-reextract"
-            >
-              {{ avisExtracting ? 'Ré-extraction...' : '🔄 Ré-extraire' }}
-            </button>
           </div>
 
           <!-- Message si aucune émission -->
@@ -113,7 +91,7 @@
             :aria-expanded="showEpisodeDetails"
           >
             <span class="toggle-icon">{{ showEpisodeDetails ? '▼' : '▶' }}</span>
-            <span class="toggle-label">Détails de l'épisode (titre et description)</span>
+            <span class="toggle-label">Détails de l'emission (titre et description)</span>
           </button>
           <div v-if="showEpisodeDetails" class="accordion-content">
             <div class="episode-info-container">
@@ -163,29 +141,20 @@
           </div>
 
           <!-- Bloc info émission -->
-          <div v-if="!detailsLoading && !detailsError" class="emission-info">
-            <h2>{{ selectedEmissionDetails.episode?.titre || 'Sans titre' }}</h2>
-            <p class="emission-date">
-              <strong>Date :</strong>
-              {{ formatDate(selectedEmissionDetails.episode?.date) }}
-            </p>
-            <p class="emission-duree">
-              <strong>Durée :</strong>
-              {{ formatDuration(selectedEmissionDetails.episode?.duree) }}
-            </p>
-            <p v-if="selectedEmissionDetails.episode?.episode_page_url" class="emission-link">
-              <a
-                :href="selectedEmissionDetails.episode.episode_page_url"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                🔗 Voir sur RadioFrance
-              </a>
-            </p>
+          <div v-if="!detailsLoading && !detailsError" class="emission-info" :class="{ 'no-border': isSelectedEmissionPerfect }">
+            <h2>
+              <span v-if="selectedEmissionDetails.episode?.date" class="episode-date-prefix">
+                {{ formatDateCompact(selectedEmissionDetails.episode.date) }} -
+              </span>
+              {{ selectedEmissionDetails.episode?.titre || 'Sans titre' }}
+              <span v-if="selectedEmissionDetails.episode?.duree" class="episode-duration-suffix">
+                ({{ formatDurationCompact(selectedEmissionDetails.episode.duree) }})
+              </span>
+            </h2>
           </div>
 
           <!-- Stats de matching des avis (affiché au-dessus de la liste des livres) -->
-          <div v-if="!avisLoading && avisMatchingStats" class="matching-stats">
+          <div v-if="!avisLoading && avisMatchingStats && !isSelectedEmissionPerfect" class="matching-stats">
             <div class="stats-header">
               <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== (selectedEmissionDetails.books?.length || 0)">
                 ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ selectedEmissionDetails.books?.length || 0 }})
@@ -203,7 +172,7 @@
           </div>
 
           <!-- Liste des livres (repliable avec mémoire) -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0" class="collapsible-section">
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0 && !isSelectedEmissionPerfect" class="collapsible-section">
             <button
               @click="showBooksDetails = !showBooksDetails"
               class="collapsible-toggle"
@@ -236,7 +205,7 @@
           </div>
 
           <!-- Liste des critiques (repliable avec mémoire) -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0" class="collapsible-section">
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0 && !isSelectedEmissionPerfect" class="collapsible-section">
             <button
               @click="showCritiquesDetails = !showCritiquesDetails"
               class="collapsible-toggle"
@@ -254,7 +223,7 @@
           </div>
 
           <!-- Avis structurés -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="avis-section-container">
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="avis-section-container" :class="{ 'no-top-border': isSelectedEmissionPerfect }">
             <!-- État de chargement des avis -->
             <div v-if="avisLoading" class="loading-small">
               {{ avisExtracting ? 'Extraction des avis en cours...' : 'Chargement des avis...' }}
@@ -275,7 +244,7 @@
             />
 
             <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->
-            <details v-if="!avisLoading && avis.length > 0" class="summary-debug">
+            <details v-if="!avisLoading && avis.length > 0 && !isSelectedEmissionPerfect" class="summary-debug">
               <summary class="summary-debug-toggle">Afficher le summary markdown brut (comparaison)</summary>
               <div class="markdown-content summary-debug-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
             </details>
@@ -593,6 +562,16 @@ export default {
     });
 
     /**
+     * Vérifie si l'émission sélectionnée a un badge "perfect" (🟢)
+     * Pour masquer les sections quand tout est parfait
+     */
+    const isSelectedEmissionPerfect = computed(() => {
+      if (!selectedEmissionId.value) return false;
+      const selectedEmission = emissions.value.find(e => e.id === selectedEmissionId.value);
+      return selectedEmission?.badge_status === 'perfect';
+    });
+
+    /**
      * Navigation : émission précédente
      */
     const hasPreviousEpisode = computed(() => {
@@ -677,12 +656,33 @@ export default {
     };
 
     /**
+     * Formate une date ISO en format compact (ex: "24/08/25")
+     */
+    const formatDateCompact = (dateStr) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = String(date.getFullYear()).slice(-2);
+      return `${day}/${month}/${year}`;
+    };
+
+    /**
      * Formate une durée en secondes en format lisible
      */
     const formatDuration = (seconds) => {
       if (!seconds) return 'Durée inconnue';
       const minutes = Math.floor(seconds / 60);
       return `${minutes} minutes`;
+    };
+
+    /**
+     * Formate une durée en secondes en format compact (ex: "50'")
+     */
+    const formatDurationCompact = (seconds) => {
+      if (!seconds) return '';
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes}'`;
     };
 
     /**
@@ -770,6 +770,7 @@ export default {
       emissionsCountMismatchCount,
       emissionsUnmatchedCount,
       emissionsNoAvisCount,
+      isSelectedEmissionPerfect,
       hasPreviousEpisode,
       hasNextEpisode,
       loadAllEmissions,
@@ -777,7 +778,9 @@ export default {
       selectNextEpisode,
       onEmissionChange,
       formatDate,
+      formatDateCompact,
       formatDuration,
+      formatDurationCompact,
       renderMarkdown,
       // Avis structurés
       avis,
@@ -977,6 +980,17 @@ main {
   color: #333;
 }
 
+/* Tooltip pour les compteurs de badges */
+.badge-counters-tooltip {
+  cursor: help;
+  border-bottom: 1px dotted #666;
+  white-space: pre-line;
+}
+
+.badge-counters-tooltip:hover {
+  border-bottom-color: #0066cc;
+}
+
 .episode-select-wrapper {
   display: flex;
   gap: 0.5rem;
@@ -1034,18 +1048,32 @@ main {
   margin-bottom: 1.5rem;
 }
 
-.emission-info h2 {
-  margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 1.5rem;
+.emission-info.no-border {
+  border-bottom: none;
+  margin-bottom: 0.5rem;
 }
 
-.emission-date,
-.emission-duree,
-.emission-link {
-  margin: 0.5rem 0;
-  color: #666;
+.emission-info h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+  line-height: 1.4;
 }
+
+.episode-date-prefix {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.episode-duration-suffix {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: normal;
+  margin-left: 0.3rem;
+}
+
+/* Old emission-date, emission-duree, emission-link styles removed (no longer used) */
 
 .emission-link a {
   color: #0066cc;
@@ -1152,6 +1180,12 @@ main {
   border-top: 1px solid #e0e0e0;
 }
 
+.avis-section-container.no-top-border {
+  border-top: none;
+  margin-top: 0.5rem;
+  padding-top: 0;
+}
+
 .avis-section-container h3 {
   margin: 0 0 1rem 0;
   color: #333;
@@ -1159,22 +1193,17 @@ main {
 }
 
 /* Boutons d'action avis (style GenerationAvisCritiques) */
-.action-buttons-top {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
 .btn-extract {
   background: #4caf50;
   color: white;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .btn-extract:hover:not(:disabled) {
@@ -1189,13 +1218,14 @@ main {
 .btn-reextract {
   background: #ff9800;
   color: white;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .btn-reextract:hover:not(:disabled) {
@@ -1360,39 +1390,5 @@ main {
 
 .collapsible-content li {
   padding: 0.25rem 0;
-}
-
-/* Légende des pastilles */
-.legend-box {
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  padding: 1rem;
-  margin: 1rem 0;
-}
-
-.legend-box h6 {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #495057;
-}
-
-.legend-list {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0;
-}
-
-.legend-list li {
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-}
-
-.legend-formula {
-  font-size: 0.875rem;
-  color: #6c757d;
-  margin-top: 0.5rem;
-  margin-bottom: 0;
 }
 </style>

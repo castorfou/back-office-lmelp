@@ -37,6 +37,10 @@ class StatsService:
             self._count_avis_critiques_without_analysis()
         )
 
+        # Issue #185: Ajouter métriques des badges d'émissions
+        stats["emissions_sans_avis"] = self._count_emissions_sans_avis()
+        stats["emissions_with_problems"] = self._count_emissions_with_problems()
+
         return stats
 
     def _count_books_without_url_babelio(self) -> int:
@@ -366,6 +370,71 @@ Total livres traités : {total_traites}"""
                 print(f"  📚 {book['auteur']} - {book['titre']} ({processed_date})")
         else:
             print("  Aucun livre récemment traité")
+
+    def _count_emissions_sans_avis(self) -> int:
+        """
+        Compte les émissions avec badge_status = "no_avis" (⚪).
+
+        Ces émissions n'ont pas encore d'avis extraits.
+
+        IMPORTANT: badge_status n'est pas persisté en MongoDB, il est calculé
+        dynamiquement. Cette méthode itère sur toutes les émissions et calcule
+        le badge pour chacune.
+
+        Returns:
+            Nombre d'émissions sans avis extraits
+        """
+        from back_office_lmelp.app import _calculate_emission_badge_status
+
+        emissions_collection = self.mongodb_service.get_collection("emissions")
+        emissions = list(
+            emissions_collection.find(
+                {}, {"_id": 1, "episode_id": 1, "avis_critique_id": 1}
+            )
+        )
+
+        count = 0
+        for emission in emissions:
+            badge = _calculate_emission_badge_status(
+                str(emission["_id"]), str(emission["episode_id"]), self.mongodb_service
+            )
+            if badge == "no_avis":
+                count += 1
+
+        return count
+
+    def _count_emissions_with_problems(self) -> int:
+        """
+        Compte les émissions avec problèmes = badge rouge (🔴) + badge jaune (🟡).
+
+        Rouge (count_mismatch): Écart de comptage OU note manquante
+        Jaune (unmatched): Livres non matchés
+
+        IMPORTANT: badge_status n'est pas persisté en MongoDB, il est calculé
+        dynamiquement. Cette méthode itère sur toutes les émissions et calcule
+        le badge pour chacune.
+
+        Returns:
+            Nombre total d'émissions avec problèmes (rouge + jaune)
+        """
+        from back_office_lmelp.app import _calculate_emission_badge_status
+
+        emissions_collection = self.mongodb_service.get_collection("emissions")
+        emissions = list(
+            emissions_collection.find(
+                {}, {"_id": 1, "episode_id": 1, "avis_critique_id": 1}
+            )
+        )
+
+        count = 0
+        for emission in emissions:
+            badge = _calculate_emission_badge_status(
+                str(emission["_id"]), str(emission["episode_id"]), self.mongodb_service
+            )
+            if badge in ("count_mismatch", "unmatched"):
+                count += 1
+
+        return count
 
 
 # Instance globale pour utilisation directe

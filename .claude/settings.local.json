@@ -45,7 +45,8 @@
       "Bash(pre-commit run:*)",
       "Bash(mkdocs build:*)",
       "Bash(gh run watch:*)",
-      "mcp__MongoDB__aggregate"
+      "mcp__MongoDB__aggregate",
+      "Bash(mcp__MongoDB__find --database \"masque_et_la_plume\" --collection \"emissions\" --limit 5)"
     ]
   },
   "enableAllProjectMcpServers": true,
