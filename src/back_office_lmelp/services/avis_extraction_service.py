@@ -662,15 +662,15 @@ class AvisExtractionService:
         stats["match_phase4"] = len(matched_titles_phase4)
         stats["unmatched"] = len(unmatched_titles)
 
-        # === Enrichissement: ajouter auteur_oid pour le lien cliquable ===
+        # === Enrichissement: ajouter auteur_oid et editeur depuis MongoDB ===
         livres_by_id = {str(livre.get("_id", "")): livre for livre in livres}
 
         for resolved in resolved_avis:
             livre_oid = resolved.get("livre_oid")
             if livre_oid and livre_oid in livres_by_id:
-                resolved["auteur_oid"] = str(
-                    livres_by_id[livre_oid].get("auteur_id", "")
-                )
+                livre = livres_by_id[livre_oid]
+                resolved["auteur_oid"] = str(livre.get("auteur_id", ""))
+                resolved["editeur"] = livre.get("editeur", "")
 
         return resolved_avis, stats
 
