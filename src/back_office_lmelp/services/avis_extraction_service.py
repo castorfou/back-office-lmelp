@@ -149,7 +149,10 @@ class AvisExtractionService:
         lines = section2_content.strip().split("\n")
         for line in lines:
             # Ignorer les lignes vides, headers et séparateurs
-            if not line.strip() or line.strip().startswith("|--") or "Auteur" in line:
+            # CRITIQUE: Vérifier que c'est le header (contient "Auteur" ET "Titre" ET "Éditeur")
+            # pour éviter de skip les lignes dont le commentaire contient "Auteur" (Issue #185)
+            is_header = "Auteur" in line and "Titre" in line and "Éditeur" in line
+            if not line.strip() or line.strip().startswith("|--") or is_header:
                 continue
 
             # Parser la ligne du tableau
@@ -166,6 +169,9 @@ class AvisExtractionService:
                     critique = columns[3]
                     note_cell = columns[4]
                     commentaire = columns[5]
+
+                    # Nettoyer les guillemets du commentaire (Issue #185)
+                    commentaire = commentaire.strip('"')
 
                     # Parser la note depuis la cellule (peut contenir du HTML)
                     note = self._parse_note_from_text(note_cell)
@@ -304,6 +310,257 @@ class AvisExtractionService:
             "note": note,
         }
 
+    def _extract_unique_books_from_avis(
+        self, avis_list: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Extrait les livres uniques depuis une liste d'avis.
+
+        Utilise (titre, auteur) comme clé pour identifier les livres uniques.
+
+        Args:
+            avis_list: Liste des avis extraits
+
+        Returns:
+            Liste de livres summary: [{"titre": str, "auteur": str}, ...]
+        """
+        seen_books: dict[tuple[str, str], dict[str, str]] = {}
+
+        for avis in avis_list:
+            titre = avis.get("livre_titre_extrait", "")
+            auteur = avis.get("auteur_nom_extrait", "")
+            key = (titre, auteur)
+
+            if key not in seen_books:
+                seen_books[key] = {
+                    "titre": titre,
+                    "auteur": auteur,
+                }
+
+        return list(seen_books.values())
+
+    def match_livres(
+        self,
+        livres_summary: list[dict[str, str]],
+        livres_mongo: list[dict[str, Any]],
+    ) -> dict[tuple[str, str], tuple[str, int]]:
+        """
+        Matche les livres summary avec les livres MongoDB.
+
+        Fonction PUBLIQUE principale pour le matching livre par livre.
+        CRITIQUE pour Issue #185 : Cette fonction garantit qu'un livre MongoDB
+        ne peut être matché qu'une seule fois.
+
+        Args:
+            livres_summary: Liste [{"titre": str, "auteur": str}, ...]
+            livres_mongo: Liste [{"_id": ObjectId, "titre": str, ...}, ...]
+
+        Returns:
+            Dict {(titre, auteur): (livre_oid, match_phase)}
+        """
+        livre_matches: dict[tuple[str, str], tuple[str, int]] = {}
+        matched_livre_mongo_ids: set[str] = set()  # Livres MongoDB déjà matchés
+        remaining_livres_summary = livres_summary.copy()  # Livres summary restants
+
+        # Phase 1: Matching exact (titre normalisé)
+        for livre_summary in remaining_livres_summary[:]:  # Copie pour itération
+            titre = livre_summary["titre"]
+            auteur = livre_summary["auteur"]
+            key = (titre, auteur)
+
+            livre_oid = self._find_matching_livre_exact(titre, livres_mongo)
+            if livre_oid and livre_oid not in matched_livre_mongo_ids:
+                livre_matches[key] = (livre_oid, 1)
+                matched_livre_mongo_ids.add(livre_oid)
+                remaining_livres_summary.remove(livre_summary)  # Retirer du summary
+
+        # Phase 2: Matching partiel sur livres summary RESTANTS
+        livres_mongo_restants = [
+            livre
+            for livre in livres_mongo
+            if str(livre["_id"]) not in matched_livre_mongo_ids
+        ]
+
+        for livre_summary in remaining_livres_summary[:]:
+            titre = livre_summary["titre"]
+            auteur = livre_summary["auteur"]
+            key = (titre, auteur)
+
+            livre_oid = self._find_matching_livre_partial(titre, livres_mongo_restants)
+            if livre_oid:
+                livre_matches[key] = (livre_oid, 2)
+                matched_livre_mongo_ids.add(livre_oid)
+                remaining_livres_summary.remove(livre_summary)
+                # Mettre à jour la liste des livres MongoDB restants
+                livres_mongo_restants = [
+                    livre
+                    for livre in livres_mongo_restants
+                    if str(livre["_id"]) != livre_oid
+                ]
+
+        # Phase 3: Matching par similarité sur livres summary RESTANTS
+        for livre_summary in remaining_livres_summary[:]:
+            titre = livre_summary["titre"]
+            auteur = livre_summary["auteur"]
+            key = (titre, auteur)
+
+            livre_oid = self._find_matching_livre_by_similarity(
+                titre, auteur, livres_mongo_restants
+            )
+            if livre_oid:
+                livre_matches[key] = (livre_oid, 3)
+                matched_livre_mongo_ids.add(livre_oid)
+                remaining_livres_summary.remove(livre_summary)
+                # Mettre à jour la liste des livres MongoDB restants
+                livres_mongo_restants = [
+                    livre
+                    for livre in livres_mongo_restants
+                    if str(livre["_id"]) != livre_oid
+                ]
+
+        # Phase 4: Fuzzy matching (si même nombre de livres restants)
+        if len(remaining_livres_summary) > 0 and len(remaining_livres_summary) == len(
+            livres_mongo_restants
+        ):
+            fuzzy_matches = self._fuzzy_match_remaining_books_v2(
+                remaining_livres_summary, livres_mongo_restants
+            )
+            livre_matches.update(fuzzy_matches)
+
+        return livre_matches
+
+    def _fuzzy_match_remaining_books_v2(
+        self,
+        livres_summary: list[dict[str, str]],
+        livres_mongo: list[dict[str, Any]],
+    ) -> dict[tuple[str, str], tuple[str, int]]:
+        """
+        Phase 4: Associe les livres restants par fuzzy matching.
+
+        Algorithme:
+        1. Si 1 livre restant de chaque côté → association automatique
+        2. Sinon, calculer matrice de similarité titre summary/titre MongoDB
+           et associer par meilleur score (greedy)
+
+        Args:
+            livres_summary: Livres summary non encore matchés
+            livres_mongo: Livres MongoDB non encore matchés
+
+        Returns:
+            Dict {(titre, auteur): (livre_oid, match_phase=4)}
+        """
+        fuzzy_matches: dict[tuple[str, str], tuple[str, int]] = {}
+
+        if not livres_mongo or not livres_summary:
+            return fuzzy_matches
+
+        # Cas simple: 1 livre restant de chaque côté → association automatique
+        if len(livres_mongo) == 1 and len(livres_summary) == 1:
+            livre = livres_mongo[0]
+            livre_id = str(livre.get("_id", ""))
+            livre_summary = livres_summary[0]
+            key = (livre_summary["titre"], livre_summary["auteur"])
+
+            fuzzy_matches[key] = (livre_id, 4)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔗 [PHASE4] Association automatique (1 restant): "
+                    f"'{livre_summary['titre']}' -> '{livre.get('titre')}'"
+                )
+            return fuzzy_matches
+
+        # Cas général: calculer les distances et associer par meilleur score
+        # Construire matrice de similarité
+        similarity_matrix: list[tuple[dict[str, str], str, float]] = []
+
+        for livre in livres_mongo:
+            livre_id = str(livre.get("_id", ""))
+            livre_titre = self._normalize_for_matching(livre.get("titre", ""))
+
+            for livre_summary in livres_summary:
+                titre_summary = livre_summary["titre"]
+                normalized_summary = self._normalize_for_matching(titre_summary)
+                score = SequenceMatcher(None, normalized_summary, livre_titre).ratio()
+                similarity_matrix.append((livre_summary, livre_id, score))
+
+        # Trier par score décroissant et associer (greedy)
+        similarity_matrix.sort(key=lambda x: x[2], reverse=True)
+        assigned_summary_keys: set[tuple[str, str]] = set()
+        assigned_livre_ids: set[str] = set()
+
+        for livre_summary, livre_id, score in similarity_matrix:
+            key = (livre_summary["titre"], livre_summary["auteur"])
+
+            if key in assigned_summary_keys or livre_id in assigned_livre_ids:
+                continue
+
+            # Associer ce livre summary à ce livre MongoDB
+            fuzzy_matches[key] = (livre_id, 4)
+            assigned_summary_keys.add(key)
+            assigned_livre_ids.add(livre_id)
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔗 [PHASE4] Fuzzy match (score={score:.2f}): "
+                    f"'{livre_summary['titre']}' -> livre_id={livre_id}"
+                )
+
+            # Arrêter si tous les livres sont assignés
+            if len(assigned_livre_ids) == len(livres_mongo):
+                break
+
+        return fuzzy_matches
+
+    def resolve_avis(
+        self,
+        avis_list: list[dict[str, Any]],
+        livre_matches: dict[tuple[str, str], tuple[str, int]],
+        critiques: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Applique les matches de livres aux avis individuels.
+
+        Fonction PUBLIQUE pour appliquer les résultats du matching livre par livre
+        à chaque avis individuel.
+
+        Args:
+            avis_list: Liste des avis à résoudre
+            livre_matches: Dict {(titre, auteur): (livre_oid, match_phase)}
+            critiques: Liste des critiques
+
+        Returns:
+            Liste des avis résolus avec livre_oid, match_phase et critique_oid
+        """
+        resolved_avis = []
+
+        for avis in avis_list:
+            resolved = avis.copy()
+
+            # Clé du livre
+            titre = avis.get("livre_titre_extrait", "")
+            auteur = avis.get("auteur_nom_extrait", "")
+            key = (titre, auteur)
+
+            # Appliquer le match du livre (lookup simple)
+            if key in livre_matches:
+                livre_oid, match_phase = livre_matches[key]
+                resolved["livre_oid"] = livre_oid
+                resolved["match_phase"] = match_phase
+            else:
+                resolved["livre_oid"] = None
+                resolved["match_phase"] = None
+
+            # Matcher la critique (indépendant du livre)
+            critique_oid = self._find_matching_critique(
+                avis.get("critique_nom_extrait", ""), critiques
+            )
+            resolved["critique_oid"] = critique_oid
+
+            resolved_avis.append(resolved)
+
+        return resolved_avis
+
     def resolve_entities(
         self,
         extracted_avis: list[dict[str, Any]],
@@ -340,10 +597,15 @@ class AvisExtractionService:
         """
         Résout les entités extraites vers leurs IDs MongoDB avec statistiques.
 
-        Stratégie de matching en trois passes:
-        1. Matches exacts (titre extrait == titre base)
-        2. Matches partiels (titre extrait contenu dans titre base)
-        3. Matches par similarité (auteur, titre, ou couple auteur-titre)
+        REFACTORED pour Issue #185: Utilise maintenant un matching livre par livre
+        au lieu de avis par avis, garantissant qu'un livre MongoDB ne peut être
+        matché qu'une seule fois.
+
+        Stratégie:
+        1. Extraire les livres uniques depuis les avis
+        2. Matcher les livres (phases 1-4)
+        3. Appliquer les matches aux avis individuels
+        4. Calculer les statistiques
 
         Args:
             extracted_avis: Liste des avis avec données brutes
@@ -353,125 +615,27 @@ class AvisExtractionService:
         Returns:
             Tuple (avis résolus, statistiques de matching)
         """
-        resolved_avis: list[dict[str, Any]] = []
+        # 1. Extraire les livres uniques depuis les avis
+        livres_summary = self._extract_unique_books_from_avis(extracted_avis)
 
-        # Statistiques de matching
+        # 2. Matcher les livres (livre par livre, pas avis par avis)
+        livre_matches = self.match_livres(livres_summary, livres)
+
+        # 3. Appliquer les matches aux avis individuels
+        resolved_avis = self.resolve_avis(extracted_avis, livre_matches, critiques)
+
+        # 4. Calculer les statistiques (par livre unique, pas par avis)
         stats = {
-            "livres_summary": 0,  # Nombre de livres uniques dans le summary
+            "livres_summary": len(livres_summary),
             "livres_mongo": len(livres),
-            "match_phase1": 0,  # Matches exacts
-            "match_phase2": 0,  # Matches partiels
-            "match_phase3": 0,  # Matches par similarité
-            "match_phase4": 0,  # Matches fuzzy (quand counts égaux)
-            "unmatched": 0,  # Sans match
+            "match_phase1": 0,
+            "match_phase2": 0,
+            "match_phase3": 0,
+            "match_phase4": 0,
+            "unmatched": 0,
         }
 
-        # Initialiser tous les avis avec livre_oid = None et match_phase = None
-        for avis in extracted_avis:
-            resolved = avis.copy()
-            resolved["livre_oid"] = None
-            resolved["critique_oid"] = None
-            resolved["match_phase"] = None
-            resolved_avis.append(resolved)
-
-        # Compter les livres uniques dans le summary (par titre extrait)
-        unique_titles = {a.get("livre_titre_extrait", "") for a in extracted_avis}
-        stats["livres_summary"] = len(unique_titles)
-
-        # === Passe 1: Matches exacts pour les livres ===
-        matched_livre_ids: set[str] = set()
-
-        for resolved in resolved_avis:
-            titre_extrait = resolved.get("livre_titre_extrait", "")
-            livre_oid = self._find_matching_livre_exact(titre_extrait, livres)
-            if livre_oid:
-                resolved["livre_oid"] = livre_oid
-                resolved["match_phase"] = 1
-                matched_livre_ids.add(livre_oid)
-
-        # === Passe 2: Matches partiels sur les livres non encore matchés ===
-        for resolved in resolved_avis:
-            if resolved["livre_oid"] is not None:
-                continue  # Déjà résolu en passe 1
-
-            titre_extrait = resolved.get("livre_titre_extrait", "")
-            livre_oid = self._find_matching_livre_partial(titre_extrait, livres)
-            if livre_oid:
-                resolved["livre_oid"] = livre_oid
-                resolved["match_phase"] = 2
-                matched_livre_ids.add(livre_oid)
-
-        # === Passe 3: Matches par similarité pour les avis non résolus ===
-        unmatched_livres = [
-            livre
-            for livre in livres
-            if str(livre.get("_id", "")) not in matched_livre_ids
-        ]
-
-        for resolved in resolved_avis:
-            if resolved["livre_oid"] is not None:
-                continue  # Déjà résolu en passe 1 ou 2
-
-            titre_extrait = resolved.get("livre_titre_extrait", "")
-            auteur_extrait = resolved.get("auteur_nom_extrait", "")
-            livre_oid = self._find_matching_livre_by_similarity(
-                titre_extrait, auteur_extrait, unmatched_livres
-            )
-            if livre_oid:
-                resolved["livre_oid"] = livre_oid
-                resolved["match_phase"] = 3
-                matched_livre_ids.add(livre_oid)
-                unmatched_livres = [
-                    livre
-                    for livre in unmatched_livres
-                    if str(livre.get("_id", "")) != livre_oid
-                ]
-
-        # === Passe finale: Propager livre_oid aux avis avec le même titre ===
-        # Construire un mapping titre -> livre_oid pour les avis déjà résolus
-        title_to_livre_oid: dict[str, tuple[str, int]] = {}
-        for resolved in resolved_avis:
-            livre_oid = resolved.get("livre_oid")
-            if livre_oid:
-                titre = resolved.get("livre_titre_extrait", "")
-                if titre and titre not in title_to_livre_oid:
-                    title_to_livre_oid[titre] = (
-                        livre_oid,
-                        resolved.get("match_phase", 3),
-                    )
-
-        # Propager aux avis non encore résolus ayant le même titre
-        for resolved in resolved_avis:
-            if resolved.get("livre_oid") is None:
-                titre = resolved.get("livre_titre_extrait", "")
-                if titre in title_to_livre_oid:
-                    livre_oid, match_phase = title_to_livre_oid[titre]
-                    resolved["livre_oid"] = livre_oid
-                    resolved["match_phase"] = match_phase
-
-        # === Phase 4: Fuzzy matching quand # livres MongoDB == # livres summary ===
-        # Si les comptages sont égaux, on peut associer les livres restants
-        unmatched_avis_titles = {
-            a.get("livre_titre_extrait", "")
-            for a in resolved_avis
-            if a.get("livre_oid") is None
-        }
-        remaining_livres = [
-            livre
-            for livre in livres
-            if str(livre.get("_id", "")) not in matched_livre_ids
-        ]
-
-        # Si même nombre de livres non matchés des deux côtés
-        if len(unmatched_avis_titles) > 0 and len(remaining_livres) == len(
-            unmatched_avis_titles
-        ):
-            # Associer les livres restants par fuzzy matching
-            self._fuzzy_match_remaining_books(
-                resolved_avis, remaining_livres, matched_livre_ids
-            )
-
-        # Compter les matches par phase (par livre unique, pas par avis)
+        # Compter les matches par phase (par livre unique)
         matched_titles_phase1: set[str] = set()
         matched_titles_phase2: set[str] = set()
         matched_titles_phase3: set[str] = set()
@@ -498,23 +662,12 @@ class AvisExtractionService:
         stats["match_phase4"] = len(matched_titles_phase4)
         stats["unmatched"] = len(unmatched_titles)
 
-        # === Résolution des critiques (inchangée) ===
-        for resolved in resolved_avis:
-            critique_oid = self._find_matching_critique(
-                resolved.get("critique_nom_extrait", ""), critiques
-            )
-            resolved["critique_oid"] = critique_oid
-
         # === Enrichissement: ajouter auteur_oid pour le lien cliquable ===
-        # Note: On ne remplace PAS livre_titre_extrait par le titre officiel.
-        # L'API enrichit avec livre_titre (titre officiel) séparément.
-        # Garder livre_titre_extrait intact permet au frontend de grouper par livre_oid.
         livres_by_id = {str(livre.get("_id", "")): livre for livre in livres}
 
         for resolved in resolved_avis:
             livre_oid = resolved.get("livre_oid")
             if livre_oid and livre_oid in livres_by_id:
-                # Ajouter l'auteur_id pour le lien cliquable
                 resolved["auteur_oid"] = str(
                     livres_by_id[livre_oid].get("auteur_id", "")
                 )

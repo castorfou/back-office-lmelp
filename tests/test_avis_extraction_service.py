@@ -951,3 +951,582 @@ class TestResolveEntities:
         assert stats["match_phase1"] == 1  # Protocoles
         assert stats["match_phase4"] == 1  # Paris (fuzzy)
         assert stats["unmatched"] == 0
+
+
+class TestMatchingLivreParLivre:
+    """Tests TDD pour le refactoring du matching livre par livre (Issue #185)."""
+
+    def setup_method(self):
+        """Setup pour chaque test."""
+        self.service = AvisExtractionService()
+
+    def test_should_extract_unique_books_from_avis(self):
+        """
+        Test RED: 24 avis doivent donner 9 livres uniques.
+
+        TEST CRITIQUE pour Issue #185 :
+        Vérifie que l'extraction des livres uniques fonctionne correctement.
+        """
+        # Utiliser les 24 avis réels de l'émission 09/03/2025
+        # (Section 1: 5 livres × 4 critiques = 20 avis)
+        # (Section 2: 4 coups de cœur = 4 avis)
+        avis_list = [
+            # Livre 1: La Realidad (4 avis)
+            {"livre_titre_extrait": "La Realidad", "auteur_nom_extrait": "Neige Sinno"},
+            {"livre_titre_extrait": "La Realidad", "auteur_nom_extrait": "Neige Sinno"},
+            {"livre_titre_extrait": "La Realidad", "auteur_nom_extrait": "Neige Sinno"},
+            {"livre_titre_extrait": "La Realidad", "auteur_nom_extrait": "Neige Sinno"},
+            # Livre 2: Mon vrai nom est Elisabeth (4 avis)
+            {
+                "livre_titre_extrait": "Mon vrai nom est Elisabeth",
+                "auteur_nom_extrait": "Adèle Yon",
+            },
+            {
+                "livre_titre_extrait": "Mon vrai nom est Elisabeth",
+                "auteur_nom_extrait": "Adèle Yon",
+            },
+            {
+                "livre_titre_extrait": "Mon vrai nom est Elisabeth",
+                "auteur_nom_extrait": "Adèle Yon",
+            },
+            {
+                "livre_titre_extrait": "Mon vrai nom est Elisabeth",
+                "auteur_nom_extrait": "Adèle Yon",
+            },
+            # Livre 3: Trésors Cachés (4 avis) ⚠️ PROBLÉMATIQUE
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+            },
+            # Livre 4: Mauvais élève (4 avis)
+            {
+                "livre_titre_extrait": "Mauvais élève",
+                "auteur_nom_extrait": "Philippe Vilain",
+            },
+            {
+                "livre_titre_extrait": "Mauvais élève",
+                "auteur_nom_extrait": "Philippe Vilain",
+            },
+            {
+                "livre_titre_extrait": "Mauvais élève",
+                "auteur_nom_extrait": "Philippe Vilain",
+            },
+            {
+                "livre_titre_extrait": "Mauvais élève",
+                "auteur_nom_extrait": "Philippe Vilain",
+            },
+            # Livre 5: L'ombre portée (4 avis)
+            {
+                "livre_titre_extrait": "L'ombre portée",
+                "auteur_nom_extrait": "Hugues Pagan",
+            },
+            {
+                "livre_titre_extrait": "L'ombre portée",
+                "auteur_nom_extrait": "Hugues Pagan",
+            },
+            {
+                "livre_titre_extrait": "L'ombre portée",
+                "auteur_nom_extrait": "Hugues Pagan",
+            },
+            {
+                "livre_titre_extrait": "L'ombre portée",
+                "auteur_nom_extrait": "Hugues Pagan",
+            },
+            # Section 2: Coups de cœur (4 avis - 4 livres différents)
+            {"livre_titre_extrait": "Permission", "auteur_nom_extrait": "Saskia Vogel"},
+            {
+                "livre_titre_extrait": "La Loi des collines",
+                "auteur_nom_extrait": "Chris Hoffut",
+            },
+            {
+                "livre_titre_extrait": "La Chaises",
+                "auteur_nom_extrait": "Jean-Louis Aislin",
+            },  # ⚠️ CRITIQUE
+            {
+                "livre_titre_extrait": "Le Livre rouge des ruptures",
+                "auteur_nom_extrait": "Pirko Sessio",
+            },
+        ]
+
+        # EXECUTE: Extraire les livres uniques
+        livres_summary = self.service._extract_unique_books_from_avis(avis_list)
+
+        # ASSERT: Doit retourner 9 livres uniques
+        assert len(livres_summary) == 9, (
+            f"Attendu 9 livres uniques, obtenu {len(livres_summary)}"
+        )
+
+        # Vérifier qu'on a bien les livres attendus
+        titres = {livre["titre"] for livre in livres_summary}
+        assert "La Realidad" in titres
+        assert "Trésors Cachés" in titres
+        assert "La Chaises" in titres  # ⚠️ Celui qui ne se matchait pas avant
+        assert "Mon vrai nom est Elisabeth" in titres
+        assert "Mauvais élève" in titres
+        assert "L'ombre portée" in titres
+        assert "Permission" in titres
+        assert "La Loi des collines" in titres
+        assert "Le Livre rouge des ruptures" in titres
+
+    def test_should_match_livres_summary_to_mongo(self):
+        """
+        Test RED CRITIQUE: Doit matcher les 9 livres summary avec les 9 livres MongoDB.
+
+        TEST CRITIQUE pour Issue #185 :
+        Ce test démontre la résolution du problème.
+        "Trésors Cachés" et "La Chaises" doivent TOUS DEUX être matchés correctement.
+
+        AVANT le refactoring :
+        - "Trésors Cachés" (avis #12) matchait "La chaise" par erreur
+        - "La Chaises" (avis #23) ne pouvait plus matcher car "La chaise" déjà claimed
+
+        APRÈS le refactoring :
+        - "Trésors Cachés" matche correctement "Trésor caché"
+        - "La Chaises" peut alors matcher "La chaise" (reste disponible)
+        """
+        from bson import ObjectId
+
+        # Livres summary (9 livres uniques extraits du summary)
+        livres_summary = [
+            {"titre": "La Realidad", "auteur": "Neige Sinno"},
+            {"titre": "Mon vrai nom est Elisabeth", "auteur": "Adèle Yon"},
+            {
+                "titre": "Trésors Cachés",
+                "auteur": "Pascal Quignard",
+            },  # ⚠️ CRITIQUE (pluriel)
+            {"titre": "Mauvais élève", "auteur": "Philippe Vilain"},
+            {"titre": "L'ombre portée", "auteur": "Hugues Pagan"},
+            {"titre": "Permission", "auteur": "Saskia Vogel"},
+            {
+                "titre": "La Loi des collines",
+                "auteur": "Chris Hoffut",
+            },  # Faute dans auteur
+            {
+                "titre": "La Chaises",
+                "auteur": "Jean-Louis Aislin",
+            },  # ⚠️ CRITIQUE (S en trop)
+            {
+                "titre": "Le Livre rouge des ruptures",
+                "auteur": "Pirko Sessio",
+            },  # Titre tronqué
+        ]
+
+        # Livres MongoDB (9 livres réels de l'émission 09/03/2025)
+        livres_mongo = [
+            {
+                "_id": ObjectId("68e919fc066cb40c25d5d2e4"),
+                "titre": "La Realidad",
+                "auteur_nom": "Neige Sinno",
+                "editeur": "POL",
+            },
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2d7"),
+                "titre": "Mon vrai nom est Elisabeth",
+                "auteur_nom": "Adèle Yon",
+                "editeur": "Éditions du Sous-Sol",
+            },
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2d9"),
+                "titre": "Trésor caché",  # ✅ Singulier (différent de "Trésors Cachés")
+                "auteur_nom": "Pascal Quignard",
+                "editeur": "Albin Michel",
+            },
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2db"),
+                "titre": "Mauvais élève",
+                "auteur_nom": "Philippe Vilain",
+                "editeur": "Robert Laffont",
+            },
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2dd"),
+                "titre": "L'ombre portée",
+                "auteur_nom": "Hugues Pagan",
+                "editeur": "Rivage Noir",
+            },
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2df"),
+                "titre": "Permission",
+                "auteur_nom": "Saskia Vogel",
+                "editeur": "Éditions de La Croisée",
+            },
+            {
+                "_id": ObjectId("68e919a2066cb40c25d5d2e1"),
+                "titre": "La Loi des collines",
+                "auteur_nom": "Chris Offutt",  # ✅ Nom correct (différent de "Hoffut")
+                "editeur": "Galmeister",
+            },
+            {
+                "_id": ObjectId("68e919cd066cb40c25d5d2e3"),
+                "titre": "La chaise",  # ✅ Sans S (différent de "La Chaises")
+                "auteur_nom": "Jean-Louis Ezine",
+                "editeur": "Gallimard",
+            },
+            {
+                "_id": ObjectId("68e91a2d066cb40c25d5d2e6"),
+                "titre": "Trilogie de Helsinki : Le livre rouge des ruptures",  # Titre complet
+                "auteur_nom": "Pirkko Saisio",
+                "editeur": "Robert Laffont",
+            },
+        ]
+
+        # EXECUTE: Matcher les livres summary avec MongoDB
+        livre_matches = self.service.match_livres(livres_summary, livres_mongo)
+
+        # ASSERT CRITIQUE #1: "Trésors Cachés" doit matcher "Trésor caché"
+        assert ("Trésors Cachés", "Pascal Quignard") in livre_matches, (
+            "Le livre 'Trésors Cachés' doit être matché"
+        )
+        livre_oid_tresors, phase_tresors = livre_matches[
+            ("Trésors Cachés", "Pascal Quignard")
+        ]
+        assert (
+            livre_oid_tresors == "68e9192d066cb40c25d5d2d9"  # pragma: allowlist secret
+        ), (
+            f"'Trésors Cachés' doit matcher 'Trésor caché' (68e9192d066cb40c25d5d2d9), "
+            f"obtenu {livre_oid_tresors}"
+        )
+
+        # ASSERT CRITIQUE #2: "La Chaises" doit matcher "La chaise"
+        # (PAS déjà claimed par "Trésors Cachés")
+        assert ("La Chaises", "Jean-Louis Aislin") in livre_matches, (
+            "Le livre 'La Chaises' doit être matché"
+        )
+        livre_oid_chaises, phase_chaises = livre_matches[
+            ("La Chaises", "Jean-Louis Aislin")
+        ]
+        assert (
+            livre_oid_chaises == "68e919cd066cb40c25d5d2e3"  # pragma: allowlist secret
+        ), (
+            f"'La Chaises' doit matcher 'La chaise' (68e919cd066cb40c25d5d2e3), "
+            f"obtenu {livre_oid_chaises}"
+        )
+
+        # ASSERT: Tous les livres doivent être matchés
+        assert len(livre_matches) == 9, (
+            f"Tous les 9 livres doivent être matchés, obtenu {len(livre_matches)}"
+        )
+
+        # Vérifier que les autres livres sont aussi matchés
+        assert ("La Realidad", "Neige Sinno") in livre_matches
+        assert ("Mon vrai nom est Elisabeth", "Adèle Yon") in livre_matches
+        assert ("Mauvais élève", "Philippe Vilain") in livre_matches
+        assert ("L'ombre portée", "Hugues Pagan") in livre_matches
+        assert ("Permission", "Saskia Vogel") in livre_matches
+        assert ("La Loi des collines", "Chris Hoffut") in livre_matches
+        assert ("Le Livre rouge des ruptures", "Pirko Sessio") in livre_matches
+
+    def test_should_apply_matches_to_all_avis(self):
+        """
+        Test RED: Le match d'un livre doit être appliqué à tous ses avis.
+
+        Vérifie que resolve_avis() fait correctement le lookup du livre_oid
+        pour chaque avis, en utilisant la clé (titre, auteur).
+        """
+        from bson import ObjectId
+
+        # 8 avis (2 livres avec plusieurs avis chacun)
+        avis_list = [
+            # Livre "Trésors Cachés" : 4 avis
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "commentaire": "Absolument magnifique",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Bernard Poirette",
+                "commentaire": "Sinistre mais raconté avec bonheur",
+                "note": 8,
+                "section": "programme",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Patricia Martin",
+                "commentaire": "Sensuel, édoniste",
+                "note": 8,
+                "section": "programme",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Magnifique, mais une scène gênante",
+                "note": 7,
+                "section": "programme",
+            },
+            # Livre "La Chaises" : 1 avis
+            {
+                "livre_titre_extrait": "La Chaises",
+                "auteur_nom_extrait": "Jean-Louis Aislin",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "commentaire": "Splendeur, sur le violoncelle",
+                "note": 9,
+                "section": "coup_de_coeur",
+            },
+            # Livre "La Realidad" : 2 avis
+            {
+                "livre_titre_extrait": "La Realidad",
+                "auteur_nom_extrait": "Neige Sinno",
+                "critique_nom_extrait": "Elisabeth Philippe",
+                "commentaire": "Exceptionnel",
+                "note": 10,
+                "section": "programme",
+            },
+            {
+                "livre_titre_extrait": "La Realidad",
+                "auteur_nom_extrait": "Neige Sinno",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "commentaire": "Magnifique",
+                "note": 9,
+                "section": "programme",
+            },
+            # Livre non matché
+            {
+                "livre_titre_extrait": "Livre inconnu",
+                "auteur_nom_extrait": "Auteur inconnu",
+                "critique_nom_extrait": "Critique X",
+                "commentaire": "Avis sans match",
+                "note": 8,
+                "section": "programme",
+            },
+        ]
+
+        # Matches déjà calculés par match_livres()
+        livre_matches = {
+            ("Trésors Cachés", "Pascal Quignard"): (
+                "68e9192d066cb40c25d5d2d9",  # pragma: allowlist secret
+                3,
+            ),
+            ("La Chaises", "Jean-Louis Aislin"): (
+                "68e919cd066cb40c25d5d2e3",  # pragma: allowlist secret
+                3,
+            ),
+            ("La Realidad", "Neige Sinno"): (
+                "68e919fc066cb40c25d5d2e4",  # pragma: allowlist secret
+                1,
+            ),
+            # "Livre inconnu" n'est pas dans livre_matches (pas de match)
+        }
+
+        # Critiques
+        critiques = [
+            {
+                "_id": ObjectId("694eb58bffd25d11ce052759"),
+                "nom": "Arnaud Viviant",
+                "variantes": [],
+            },
+            {
+                "_id": ObjectId("694f17665eac26c9eb2852ff"),
+                "nom": "Bernard Poirette",
+                "variantes": ["Bernard Poiret"],
+            },
+            {
+                "_id": ObjectId("694eb7423696842476c793cf"),
+                "nom": "Patricia Martin",
+                "variantes": [],
+            },
+            {
+                "_id": ObjectId("694eb72b3696842476c793cd"),
+                "nom": "Elisabeth Philippe",
+                "variantes": [],
+            },
+        ]
+
+        # EXECUTE: Appliquer les matches aux avis
+        resolved = self.service.resolve_avis(avis_list, livre_matches, critiques)
+
+        # ASSERT: 8 avis résolus
+        assert len(resolved) == 8
+
+        # ASSERT: Les 4 avis "Trésors Cachés" doivent avoir le même livre_oid
+        tresors_avis = [
+            a for a in resolved if a["livre_titre_extrait"] == "Trésors Cachés"
+        ]
+        assert len(tresors_avis) == 4
+        assert all(
+            a["livre_oid"] == "68e9192d066cb40c25d5d2d9"  # pragma: allowlist secret
+            for a in tresors_avis
+        ), "Tous les avis 'Trésors Cachés' doivent avoir le même livre_oid"
+        assert all(a["match_phase"] == 3 for a in tresors_avis)
+
+        # ASSERT: L'avis "La Chaises" doit être matché
+        chaises_avis = [a for a in resolved if a["livre_titre_extrait"] == "La Chaises"]
+        assert len(chaises_avis) == 1
+        assert (
+            chaises_avis[0]["livre_oid"]
+            == "68e919cd066cb40c25d5d2e3"  # pragma: allowlist secret
+        )
+        assert chaises_avis[0]["match_phase"] == 3
+
+        # ASSERT: Les 2 avis "La Realidad" doivent avoir le même livre_oid
+        realidad_avis = [
+            a for a in resolved if a["livre_titre_extrait"] == "La Realidad"
+        ]
+        assert len(realidad_avis) == 2
+        assert all(
+            a["livre_oid"] == "68e919fc066cb40c25d5d2e4"  # pragma: allowlist secret
+            for a in realidad_avis
+        )
+        assert all(a["match_phase"] == 1 for a in realidad_avis)
+
+        # ASSERT: L'avis non matché doit avoir livre_oid=None
+        inconnu_avis = [
+            a for a in resolved if a["livre_titre_extrait"] == "Livre inconnu"
+        ]
+        assert len(inconnu_avis) == 1
+        assert inconnu_avis[0]["livre_oid"] is None
+        assert inconnu_avis[0]["match_phase"] is None
+
+        # ASSERT: Les critiques doivent être matchées
+        assert (
+            tresors_avis[0]["critique_oid"]
+            == "694eb58bffd25d11ce052759"  # pragma: allowlist secret
+        )  # Arnaud Viviant
+        assert (
+            chaises_avis[0]["critique_oid"]
+            == "694eb58bffd25d11ce052759"  # pragma: allowlist secret
+        )  # Arnaud Viviant
+        assert (
+            realidad_avis[0]["critique_oid"]
+            == "694eb72b3696842476c793cd"  # pragma: allowlist secret
+        )  # Elisabeth Philippe
+
+    def test_should_fix_emission_20250309_matching(self):
+        """
+        Test RED INTÉGRATION: L'émission 09/03/2025 doit être 100% matchée (badge 🟢).
+
+        TEST CRITIQUE D'INTÉGRATION pour Issue #185 :
+        Ce test vérifie que TOUS les avis de l'émission 09/03/2025 sont correctement matchés
+        après le refactoring.
+
+        AVANT le refactoring :
+        - 23/24 avis matchés
+        - "La Chaises" non matché (livre_oid=None)
+        - Badge 🟡 (unmatched)
+
+        APRÈS le refactoring :
+        - 24/24 avis matchés
+        - "La Chaises" correctement matché à "La chaise"
+        - Badge 🟢 (perfect)
+        """
+        from bson import ObjectId
+
+        # Utiliser les données réelles de test_avis_extraction_emission_20250309.py
+        # 24 avis (5 livres × 4 critiques + 4 coups de cœur)
+        # 9 livres MongoDB
+        # 4 critiques
+
+        # Simplification : utiliser un sous-ensemble représentatif des avis
+        # (Focus sur les 2 livres problématiques)
+        avis_list = [
+            # "Trésors Cachés" : 2 avis (plutôt que 4 pour simplifier)
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "commentaire": "Absolument magnifique",
+                "note": 9,
+                "section": "programme",
+            },
+            {
+                "livre_titre_extrait": "Trésors Cachés",
+                "auteur_nom_extrait": "Pascal Quignard",
+                "critique_nom_extrait": "Bernard Poirette",
+                "commentaire": "Sinistre mais raconté avec bonheur",
+                "note": 8,
+                "section": "programme",
+            },
+            # "La Chaises" : 1 avis (le problématique)
+            {
+                "livre_titre_extrait": "La Chaises",
+                "auteur_nom_extrait": "Jean-Louis Aislin",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "commentaire": "Splendeur, sur le violoncelle",
+                "note": 9,
+                "section": "coup_de_coeur",
+            },
+        ]
+
+        # Livres MongoDB (seulement les 2 livres concernés)
+        livres_mongo = [
+            {
+                "_id": ObjectId("68e9192d066cb40c25d5d2d9"),
+                "titre": "Trésor caché",  # ✅ Singulier
+                "auteur_nom": "Pascal Quignard",
+                "auteur_id": ObjectId("68e9192d066cb40c25d5d2d8"),
+                "editeur": "Albin Michel",
+            },
+            {
+                "_id": ObjectId("68e919cd066cb40c25d5d2e3"),
+                "titre": "La chaise",  # ✅ Sans S
+                "auteur_nom": "Jean-Louis Ezine",
+                "auteur_id": ObjectId("68e919cd066cb40c25d5d2e2"),
+                "editeur": "Gallimard",
+            },
+        ]
+
+        # Critiques
+        critiques = [
+            {
+                "_id": ObjectId("694eb58bffd25d11ce052759"),
+                "nom": "Arnaud Viviant",
+                "variantes": [],
+            },
+            {
+                "_id": ObjectId("694f17665eac26c9eb2852ff"),
+                "nom": "Bernard Poirette",
+                "variantes": ["Bernard Poiret"],
+            },
+        ]
+
+        # EXECUTE: Résoudre les entités (appel à resolve_entities wrapper)
+        resolved = self.service.resolve_entities(avis_list, livres_mongo, critiques)
+
+        # ASSERT: Tous les avis doivent être matchés
+        unmatched = [a for a in resolved if a["livre_oid"] is None]
+        assert len(unmatched) == 0, (
+            f"Tous les avis doivent être matchés. Avis non matchés : {unmatched}"
+        )
+
+        # ASSERT CRITIQUE: "La Chaises" doit matcher "La chaise"
+        chaises_avis = [a for a in resolved if a["livre_titre_extrait"] == "La Chaises"]
+        assert len(chaises_avis) == 1
+        assert (
+            chaises_avis[0]["livre_oid"]
+            == "68e919cd066cb40c25d5d2e3"  # pragma: allowlist secret
+        ), (
+            f"'La Chaises' doit matcher 'La chaise' (68e919cd066cb40c25d5d2e3), "
+            f"obtenu {chaises_avis[0].get('livre_oid')}"
+        )
+
+        # ASSERT: "Trésors Cachés" doit matcher "Trésor caché"
+        tresors_avis = [
+            a for a in resolved if a["livre_titre_extrait"] == "Trésors Cachés"
+        ]
+        assert len(tresors_avis) == 2
+        assert all(
+            a["livre_oid"] == "68e9192d066cb40c25d5d2d9"  # pragma: allowlist secret
+            for a in tresors_avis
+        ), "Tous les avis 'Trésors Cachés' doivent matcher 'Trésor caché'"
+
+        # ASSERT: Badge devrait être 🟢 (tous les livres matchés)
+        # Le calcul du badge se fait au niveau de l'API, mais ici on vérifie
+        # que la condition est remplie : aucun avis non matché
+        assert len(unmatched) == 0  # → Badge 🟢
