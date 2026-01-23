@@ -2,7 +2,13 @@
   <div class="avis-table-container">
     <!-- Section 1: Livres au programme -->
     <div v-if="sortedLivresAuProgramme.length > 0" class="avis-section">
-      <h4>1. LIVRES DISCUTÉS AU PROGRAMME{{ formattedDate ? ` du ${formattedDate}` : '' }}</h4>
+      <h4>
+        <svg class="section-icon" width="27" height="27" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+          <circle cx="12" cy="12" r="8" fill="#0B5FFF"></circle>
+          <circle cx="12" cy="12" r="4" fill="#FFFFFF"></circle>
+        </svg>
+        LIVRES DISCUTÉS AU PROGRAMME{{ formattedDate ? ` du ${formattedDate}` : '' }}
+      </h4>
       <table class="avis-table">
         <thead>
           <tr>
@@ -93,7 +99,12 @@
 
     <!-- Section 2: Coups de coeur -->
     <div v-if="sortedCoupsDeCoeursAvis.length > 0" class="avis-section">
-      <h4>2. COUPS DE CŒUR DES CRITIQUES{{ formattedDate ? ` du ${formattedDate}` : '' }}</h4>
+      <h4>
+        <svg class="section-icon" width="27" height="27" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+          <path d="M12 21s-7.5-4.5-9.3-7.1C-0.4 9.8 3 5 7.4 7.1 9.1 8 10 9.6 12 11.3c2-1.7 2.9-3.3 4.6-4.2C21 5 24.4 9.8 21.3 13.9 19.5 16.5 12 21 12 21z" fill="#D93025"></path>
+        </svg>
+        COUPS DE CŒUR DES CRITIQUES{{ formattedDate ? ` du ${formattedDate}` : '' }}
+      </h4>
       <table class="avis-table coups-de-coeur">
         <thead>
           <tr>
@@ -445,6 +456,14 @@ export default {
   font-size: 1.1rem;
   border-bottom: 2px solid #e0e0e0;
   padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-icon {
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .avis-table {
