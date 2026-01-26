@@ -203,16 +203,20 @@ class AvisCritiquesGenerationService:
         """Retourne le prompt Phase 1 exact du lmelp frontend."""
         return f"""Tu es un expert en critique littéraire qui analyse la transcription de l'émission "Le Masque et la Plume" sur France Inter.
 
-⚠️ ATTENTION IMPORTANTE:
-L'émission commence souvent par une section "courrier de la semaine" où l'animateur lit des réactions d'auditeurs sur des livres d'émissions PRÉCÉDENTES.
-CES LIVRES DU COURRIER NE FONT PAS PARTIE DU PROGRAMME DE CETTE ÉMISSION.
-Tu dois IGNORER complètement cette section du courrier.
+⚠️ STRUCTURE DE L'ÉMISSION (3 temps séquentiels, JAMAIS mélangés):
 
-Les livres du programme principal sont introduits APRÈS le courrier, généralement après des phrases comme:
-- "Et on commence avec..."
-- "Pour commencer ce soir..."
-- "Parlons maintenant de..."
-- "Le premier livre de ce soir..."
+1. **COURRIER DES LECTEURS** (~5 min) - À IGNORER COMPLÈTEMENT
+   L'animateur lit des réactions d'auditeurs sur des livres d'émissions PRÉCÉDENTES.
+   CES LIVRES NE FONT PAS PARTIE DU PROGRAMME DE CETTE ÉMISSION.
+
+2. **LIVRES AU PROGRAMME** (~30-40 min) - TABLEAU 1
+   Introduits après le courrier avec des phrases comme "Et on commence avec...", "Pour commencer ce soir..."
+   TOUS les livres de cette section sont discutés par PLUSIEURS critiques (3-5 critiques donnent leur avis).
+
+3. **COUPS DE CŒUR** (~10 min, en fin d'émission) - TABLEAU 2
+   Chaque critique recommande UN livre personnel. UN SEUL critique s'exprime par livre.
+
+⚠️ IMPORTANT: Ces 3 sections se suivent TOUJOURS dans cet ordre. Il n'y a JAMAIS de mélange (pas de coup de cœur au milieu des livres au programme).
 
 IMPORTANT: Cette émission porte TOUJOURS sur des livres (type "livres").
 Il y a TOUJOURS au moins un livre discuté au programme principal.
@@ -225,8 +229,39 @@ Voici la transcription:
 CONSIGNE PRINCIPALE:
 Identifie TOUS les livres discutés AU PROGRAMME DE CETTE ÉMISSION (pas ceux du courrier) et crée 2 tableaux détaillés et complets:
 
-1. **LIVRES DU PROGRAMME PRINCIPAL**: Tous les livres qui font l'objet d'une discussion approfondie entre plusieurs critiques
-2. **COUPS DE CŒUR PERSONNELS**: UNIQUEMENT les livres mentionnés rapidement par un critique comme recommandation personnelle (différents du programme principal)
+1. **LIVRES DU PROGRAMME PRINCIPAL**: Tous les livres où **PLUSIEURS critiques donnent leur avis** (généralement 3-5 critiques). Le critère est le NOMBRE DE CRITIQUES qui s'expriment, PAS la position dans l'émission.
+2. **COUPS DE CŒUR PERSONNELS**: UNIQUEMENT les livres recommandés par **UN SEUL critique** comme son choix personnel.
+
+⚠️ CRITÈRE DISCRIMINANT ESSENTIEL - LE TIMING:
+Le critère n'est PAS le nombre de critiques, mais le MOMENT dans l'émission.
+
+- **LIVRES AU PROGRAMME (tableau 1)** : Tous les livres discutés AVANT que l'animateur annonce les coups de cœur
+- **COUPS DE CŒUR (tableau 2)** : Livres recommandés APRÈS que l'animateur dit explicitement des phrases comme :
+  - "nos conseils de lecture"
+  - "vos coups de cœur"
+  - "Et on va commencer avec [Prénom critique]" (quand chaque critique donne sa recommandation à tour de rôle)
+  - "premiers conseils de lecture"
+
+⚠️ ATTENTION: Même si plusieurs critiques commentent un coup de cœur (ils peuvent dire "moi aussi j'ai aimé"), ça reste un coup de cœur car c'est APRÈS l'annonce.
+
+⚠️ ATTENTION PARTICULIÈRE - NE PAS OUBLIER DE LIVRES AU PROGRAMME:
+- Certains livres au programme sont introduits JUSTE AVANT les coups de cœur avec des phrases comme :
+  - "un livre que tu avais conseillé"
+  - "Et on n'a pas beaucoup de temps, dommage, pour évoquer..."
+  - "pour évoquer un livre"
+- Ces livres font PARTIE DU PROGRAMME car ils sont discutés AVANT l'annonce des coups de cœur
+- **EXEMPLE CONCRET**: "Et on n'a pas beaucoup de temps, dommage, pour évoquer un livre que tu avais conseillé, Jean-Claude... Jean-Noël Rieffel... Éloge des oiseaux de passage" → Ce livre est au PROGRAMME (tableau 1) car c'est AVANT "nos premiers conseils de lecture"
+- PARCOURS TOUTE LA TRANSCRIPTION jusqu'à la fin pour ne pas manquer de livres
+
+⚠️ ERREUR FRÉQUENTE À ÉVITER:
+- NE PAS confondre "rappel d'un ancien conseil" avec "exclusion du programme actuel"
+- Si l'animateur dit "un livre que tu avais conseillé" AVANT l'annonce des coups de cœur → C'EST UN LIVRE AU PROGRAMME (tableau 1)
+- Même si le livre est présenté vers la FIN de l'émission, s'il est AVANT "conseils de lecture" / "coups de cœur", c'est un LIVRE AU PROGRAMME
+
+⚠️ RAPPEL CRITIQUE - LE TIMING EST LE SEUL CRITÈRE:
+- Tableau 1 (programme) : livres discutés AVANT l'annonce "conseils de lecture" / "coups de cœur"
+- Tableau 2 (coup de cœur) : livres recommandés APRÈS cette annonce
+- Le nombre de critiques qui s'expriment n'est PAS le critère. C'est le TIMING qui compte.
 
 ⚠️ CONSIGNE CRUCIALE: NE RETOURNE QUE LES DEUX TABLEAUX, SANS AUCUNE PHRASE D'EXPLICATION, SANS COMMENTAIRE, SANS PHRASE INTRODUCTIVE. COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le dernier tableau.
 
@@ -270,7 +305,7 @@ COULEURS HTML OBLIGATOIRES pour la Note moyenne:
 - 1.0-2.9: <span style="background-color: #F44336; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;">X.X</span>
 
 INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
-1. Identifie TOUS les critiques qui parlent de chaque livre: Jérôme Garcin, Elisabeth Philippe, Frédéric Beigbeder, Michel Crépu, Arnaud Viviant, Judith Perrignon, Xavier Leherpeur, Patricia Martin, etc.
+1. Identifie TOUS les critiques qui parlent de chaque livre: Jérôme Garcin, Elisabeth Philippe, Frédéric Beigbeder, Michel Crépu, Arnaud Viviant, Judith Perrignon, Xavier Leherpeur, Patricia Martin, Olivia de Lamberterie, Jean-Claude Raspiengeas, etc.
 2. Pour chaque critique, capture son NOM COMPLET (Prénom + Nom)
 3. Cite leurs avis EXACTS avec leurs mots-clés d'appréciation
 4. Attribue une note individuelle basée sur leur vocabulaire (entre 1 et 10) AU FORMAT EXACT: "Note: X" (avec deux-points, ex: "Note: 8")
@@ -278,13 +313,18 @@ INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
 6. Identifie les "coups de cœur" (critiques très enthousiastes, note ≥9)
 7. **CLASSE OBLIGATOIREMENT PAR NOTE DÉCROISSANTE** (meilleure note d'abord)
 
+⚠️ VÉRIFICATION FINALE OBLIGATOIRE:
+Avant de terminer, RELIS la transcription et COMPTE tous les livres mentionnés en dehors du courrier.
+Si tu trouves N livres dans la transcription, tu DOIS avoir N livres dans tes tableaux.
+
 ⚠️ RAPPEL: Ignore complètement les livres mentionnés dans le "courrier de la semaine" au début de l'émission.
 
 ---
 
 ## 2. COUPS DE CŒUR DES CRITIQUES{date_str}
 
-⚠️ ATTENTION: Ce tableau contient UNIQUEMENT les livres/ouvrages mentionnés rapidement par les critiques comme recommandations personnelles supplémentaires (souvent en fin d'émission avec "mon coup de cœur", "je recommande", etc.).
+⚠️ ATTENTION: Ce tableau contient UNIQUEMENT les livres recommandés par **UN SEUL critique** comme son choix personnel.
+CRITÈRE ABSOLU: Si plusieurs critiques donnent leur avis sur un livre, il va dans le tableau 1 (programme), PAS ici.
 Ce sont des ouvrages DIFFÉRENTS de ceux discutés au programme principal ci-dessus.
 INCLUT TOUS TYPES D'OUVRAGES : romans, essais, BD, guides, biographies, etc.
 
