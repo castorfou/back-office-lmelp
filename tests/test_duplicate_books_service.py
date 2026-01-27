@@ -125,6 +125,11 @@ class TestMergeDuplicateGroup:
             matched_count=1
         )
 
+        # Mock livresauteurs_cache collection (Issue #187)
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
         # Mock history collection
         mock_history_collection = Mock()
         mock_history_collection.insert_one.return_value = Mock()
@@ -303,6 +308,11 @@ class TestBabelioIntegration:
             matched_count=1
         )
 
+        # Mock livresauteurs_cache collection (Issue #187)
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
         mock_history_collection = Mock()
         mock_history_collection.insert_one.return_value = Mock()
         mock_mongodb_service.get_collection.return_value = mock_history_collection
@@ -447,4 +457,206 @@ class TestGetDuplicateStatistics:
         assert result["total_duplicates"] == 3, (
             "Should have 3 duplicate books "
             "(2-1=1 from first group + 3-1=2 from second group)"
+        )
+
+
+class TestMergeShouldUpdateCache:
+    """
+    Tests pour la mise à jour du cache livresauteurs_cache lors de fusion.
+
+    Issue #187: Après fusion de doublons, le cache contient des book_id orphelins
+    qui pointent vers des livres supprimés.
+
+    Business Problem:
+        Lors de la fusion de doublons:
+        1. Le livre dupliqué est supprimé
+        2. MAIS le cache livresauteurs_cache n'est pas mis à jour
+        3. Résultat: book_id orphelin → livre n'apparaît pas dans l'émission
+
+    Solution:
+        Mettre à jour le cache pour pointer vers le livre primaire (conservé)
+        au lieu du livre supprimé.
+    """
+
+    @pytest.mark.asyncio
+    async def test_merge_should_update_cache_book_ids(
+        self, duplicate_books_service, mock_mongodb_service, mock_babelio_service
+    ):
+        """
+        Test TDD RED: La fusion doit mettre à jour le cache livresauteurs_cache.
+
+        Scénario réel (Issue #187):  # pragma: allowlist secret
+            - Cache pointe vers book_id (MongoDB ObjectId)
+            - Ce book_id est supprimé lors de la fusion
+            - Le livre primaire conservé a un autre book_id
+            - Après fusion: cache DOIT pointer vers le book_id primaire
+
+        Expected Behavior:
+            merge_duplicate_group() doit appeler update_many sur
+            livresauteurs_cache pour remplacer les book_id supprimés
+            par le book_id du livre primaire.
+        """
+        # Setup: 2 livres doublons (MongoDB ObjectIds)
+        primary_book_id = ObjectId(
+            "68e84308066cb40c25d5d2a7"  # pragma: allowlist secret
+        )
+        duplicate_book_id = ObjectId(
+            "691bb21428beec9e2b115429"  # pragma: allowlist secret
+        )
+        auteur_id = ObjectId(
+            "68e84308066cb40c25d5d2a6"  # pragma: allowlist secret
+        )
+
+        mock_primary_book = {
+            "_id": primary_book_id,
+            "titre": "À pied d'oeuvre",
+            "auteur_id": auteur_id,
+            "editeur": "Gallimard",
+            "url_babelio": "https://www.babelio.com/livres/Courtes--pied-doeuvre/1517905",
+            "episodes": ["678cce9ba414f22988778103"],  # pragma: allowlist secret
+            "avis_critiques": ["691a4dbd4e56697aba5c42ab"],  # pragma: allowlist secret
+            "created_at": datetime(2025, 10, 10, 1, 19, 36, tzinfo=UTC),  # Plus ancien
+            "updated_at": datetime(2025, 10, 10, 1, 19, 36, tzinfo=UTC),
+        }
+
+        mock_duplicate_book = {
+            "_id": duplicate_book_id,
+            "titre": "À pied d'œuvre",  # Variation avec œ
+            "auteur_id": auteur_id,
+            "editeur": "Gallimard",
+            "url_babelio": "https://www.babelio.com/livres/Courtes--pied-doeuvre/1517905",
+            "episodes": ["6865f9a8a1418e3d7c63d081"],  # pragma: allowlist secret
+            "avis_critiques": ["686c494628b9e451c1cee330"],  # pragma: allowlist secret
+            "created_at": datetime(2025, 11, 17, 23, 39, 0, tzinfo=UTC),  # Plus récent
+            "updated_at": datetime(2025, 11, 17, 23, 39, 0, tzinfo=UTC),
+        }
+
+        # Mock MongoDB find: retourne les 2 livres
+        mock_mongodb_service.livres_collection.find.return_value = [
+            mock_primary_book,
+            mock_duplicate_book,
+        ]
+
+        # Mock Babelio scraping
+        mock_babelio_service.fetch_full_title_from_url.return_value = "À pied d'œuvre"
+        mock_babelio_service.fetch_publisher_from_url.return_value = "Gallimard"
+
+        # Mock MongoDB updates et deletes
+        mock_mongodb_service.livres_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+        mock_mongodb_service.livres_collection.delete_many.return_value = Mock(
+            deleted_count=1
+        )
+        mock_mongodb_service.auteurs_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+
+        # Mock livresauteurs_cache collection
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=1)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
+        # Execute: Fusionner les 2 livres
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio="https://www.babelio.com/livres/Courtes--pied-doeuvre/1517905",
+            book_ids=[str(primary_book_id), str(duplicate_book_id)],
+        )
+
+        # Assert: Fusion réussie
+        assert result["success"] is True, (
+            f"Merge should succeed. Error: {result.get('error')}"
+        )
+        assert result["primary_book_id"] == str(primary_book_id)
+        assert result["deleted_book_ids"] == [str(duplicate_book_id)]
+
+        # CRITICAL: Vérifier que le cache a été mis à jour
+        # Le cache doit remplacer duplicate_book_id par primary_book_id
+        mock_cache_collection.update_many.assert_called_once()
+
+        update_call_args = mock_cache_collection.update_many.call_args
+        filter_arg = update_call_args[0][0]  # Premier argument: filtre
+        update_arg = update_call_args[0][1]  # Deuxième argument: update
+
+        # Vérifier le filtre: book_id dans les IDs supprimés
+        assert "book_id" in filter_arg, "Filter should target book_id field"
+        assert "$in" in filter_arg["book_id"], "Filter should use $in operator"
+        assert duplicate_book_id in filter_arg["book_id"]["$in"], (
+            "Filter should include deleted book_id"
+        )
+
+        # Vérifier l'update: remplacer par primary_book_id
+        assert "$set" in update_arg, "Update should use $set operator"
+        assert "book_id" in update_arg["$set"], "Update should set book_id"
+        assert update_arg["$set"]["book_id"] == primary_book_id, (
+            "Update should set book_id to primary book ID"
+        )
+
+    @pytest.mark.asyncio
+    async def test_merge_should_report_cache_updates_in_result(
+        self, duplicate_books_service, mock_mongodb_service, mock_babelio_service
+    ):
+        """
+        Test TDD RED: Le résultat de fusion doit indiquer le nombre de cache entries mises à jour.
+
+        Business Value:
+            Pour le suivi et le debugging, il est important de savoir
+            combien d'entrées du cache ont été mises à jour lors de la fusion.
+        """
+        # Setup minimal: 2 livres doublons
+        primary_book_id = ObjectId("68e84308066cb40c25d5d2a7")
+        duplicate_book_id = ObjectId("691bb21428beec9e2b115429")
+        auteur_id = ObjectId("68e84308066cb40c25d5d2a6")
+
+        mock_mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": primary_book_id,
+                "titre": "Livre 1",
+                "auteur_id": auteur_id,
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 1, 1, tzinfo=UTC),
+                "updated_at": datetime(2025, 1, 1, tzinfo=UTC),
+            },
+            {
+                "_id": duplicate_book_id,
+                "titre": "Livre 2",
+                "auteur_id": auteur_id,
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 1, 2, tzinfo=UTC),
+                "updated_at": datetime(2025, 1, 2, tzinfo=UTC),
+            },
+        ]
+
+        mock_babelio_service.fetch_full_title_from_url.return_value = "Livre"
+        mock_babelio_service.fetch_publisher_from_url.return_value = "Editeur"
+
+        mock_mongodb_service.livres_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+        mock_mongodb_service.livres_collection.delete_many.return_value = Mock(
+            deleted_count=1
+        )
+        mock_mongodb_service.auteurs_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+
+        # Mock cache: 3 entrées mises à jour
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=3)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
+        # Execute
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio="https://example.com/book",
+            book_ids=[str(primary_book_id), str(duplicate_book_id)],
+        )
+
+        # Assert: Le résultat contient le nombre de cache entries mises à jour
+        assert "cache_entries_updated" in result, (
+            "Result should include cache_entries_updated count"
+        )
+        assert result["cache_entries_updated"] == 3, (
+            "Should report 3 cache entries updated"
         )
