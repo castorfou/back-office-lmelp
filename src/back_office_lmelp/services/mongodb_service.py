@@ -32,6 +32,7 @@ class MongoDBService:
         self.critiques_collection: Collection | None = None
         self.emissions_collection: Collection | None = None
         self.avis_collection: Collection | None = None
+        self.livresauteurs_cache_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -48,6 +49,7 @@ class MongoDBService:
             self.critiques_collection = self.db.critiques
             self.emissions_collection = self.db.emissions
             self.avis_collection = self.db.avis
+            self.livresauteurs_cache_collection = self.db.livresauteurs_cache
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -62,6 +64,7 @@ class MongoDBService:
             self.critiques_collection = None
             self.emissions_collection = None
             self.avis_collection = None
+            self.livresauteurs_cache_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -371,6 +374,34 @@ class MongoDBService:
         except Exception as e:
             print(
                 f"Erreur lors de la récupération de l'avis critique {avis_critique_id}: {e}"
+            )
+            return None
+
+    def get_avis_critique_by_episode_oid(
+        self, episode_oid: str
+    ) -> dict[str, Any] | None:
+        """
+        Récupère un avis critique par son episode_oid (fallback si avis_critique_id orphelin).
+
+        Args:
+            episode_oid: ID de l'épisode associé (string)
+
+        Returns:
+            Dictionnaire de l'avis critique ou None si non trouvé
+        """
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            avis = self.avis_critiques_collection.find_one({"episode_oid": episode_oid})
+
+            if avis:
+                avis["_id"] = str(avis["_id"])
+                return dict(avis)
+            return None
+        except Exception as e:
+            print(
+                f"Erreur lors de la récupération de l'avis critique par episode_oid {episode_oid}: {e}"
             )
             return None
 

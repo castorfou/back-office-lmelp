@@ -1377,12 +1377,32 @@ async def get_emission_details(emission_id: str) -> dict[str, Any]:
 
         episode = Episode(episode_data)
 
-        # 3. Récupérer avis_critique
+        # 3. Récupérer avis_critique (avec fallback si orphelin - Issue #188)
         avis_data = mongodb_service.get_avis_critique_by_id(emission.avis_critique_id)
         if not avis_data:
-            raise HTTPException(
-                status_code=404, detail="Avis critique associé non trouvé"
+            # Fallback: chercher par episode_oid si avis_critique_id est orphelin
+            logger.warning(
+                f"avis_critique_id orphelin {emission.avis_critique_id}, "
+                f"tentative fallback par episode_oid {emission.episode_id}"
             )
+            avis_data = mongodb_service.get_avis_critique_by_episode_oid(
+                str(emission.episode_id)
+            )
+            if avis_data:
+                # Mettre à jour l'émission avec le bon avis_critique_id
+                new_avis_id = str(avis_data["_id"])
+                logger.info(
+                    f"Fallback réussi: mise à jour emission.avis_critique_id "
+                    f"de {emission.avis_critique_id} vers {new_avis_id}"
+                )
+                mongodb_service.emissions_collection.update_one(
+                    {"_id": ObjectId(emission_id)},
+                    {"$set": {"avis_critique_id": new_avis_id}},
+                )
+            else:
+                raise HTTPException(
+                    status_code=404, detail="Avis critique associé non trouvé"
+                )
 
         # 4. Récupérer livres depuis collections livres/auteurs (Issue #177)
         books = await get_livres_from_collections(episode_oid=str(emission.episode_id))
