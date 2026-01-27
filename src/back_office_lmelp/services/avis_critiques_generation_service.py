@@ -229,39 +229,19 @@ Voici la transcription:
 CONSIGNE PRINCIPALE:
 Identifie TOUS les livres discutés AU PROGRAMME DE CETTE ÉMISSION (pas ceux du courrier) et crée 2 tableaux détaillés et complets:
 
-1. **LIVRES DU PROGRAMME PRINCIPAL**: Tous les livres où **PLUSIEURS critiques donnent leur avis** (généralement 3-5 critiques). Le critère est le NOMBRE DE CRITIQUES qui s'expriment, PAS la position dans l'émission.
-2. **COUPS DE CŒUR PERSONNELS**: UNIQUEMENT les livres recommandés par **UN SEUL critique** comme son choix personnel.
+1. **LIVRES DU PROGRAMME PRINCIPAL**: Tous les livres qui font l'objet d'une discussion approfondie entre plusieurs critiques
+2. **COUPS DE CŒUR PERSONNELS**: UNIQUEMENT les livres mentionnés rapidement par un critique comme recommandation personnelle (différents du programme principal)
 
-⚠️ CRITÈRE DISCRIMINANT ESSENTIEL - LE TIMING:
-Le critère n'est PAS le nombre de critiques, mais le MOMENT dans l'émission.
+⚠️ RÈGLE SIMPLE ET CLAIRE:
+- Si un livre est discuté par PLUSIEURS critiques (discussion approfondie) → Tableau 1 (programme)
+- Si un livre est recommandé rapidement par UN SEUL critique en fin d'émission → Tableau 2 (coup de cœur)
 
-- **LIVRES AU PROGRAMME (tableau 1)** : Tous les livres discutés AVANT que l'animateur annonce les coups de cœur
-- **COUPS DE CŒUR (tableau 2)** : Livres recommandés APRÈS que l'animateur dit explicitement des phrases comme :
-  - "nos conseils de lecture"
-  - "vos coups de cœur"
-  - "Et on va commencer avec [Prénom critique]" (quand chaque critique donne sa recommandation à tour de rôle)
-  - "premiers conseils de lecture"
+⚠️ ATTENTION - LIVRES TRAITÉS RAPIDEMENT:
+Même si l'animateur dit "on va aller très vite" ou "en quelques minutes", si PLUSIEURS critiques donnent leur avis sur le livre, c'est un livre AU PROGRAMME (tableau 1).
+Le manque de temps ne change PAS la nature du livre.
 
-⚠️ ATTENTION: Même si plusieurs critiques commentent un coup de cœur (ils peuvent dire "moi aussi j'ai aimé"), ça reste un coup de cœur car c'est APRÈS l'annonce.
-
-⚠️ ATTENTION PARTICULIÈRE - NE PAS OUBLIER DE LIVRES AU PROGRAMME:
-- Certains livres au programme sont introduits JUSTE AVANT les coups de cœur avec des phrases comme :
-  - "un livre que tu avais conseillé"
-  - "Et on n'a pas beaucoup de temps, dommage, pour évoquer..."
-  - "pour évoquer un livre"
-- Ces livres font PARTIE DU PROGRAMME car ils sont discutés AVANT l'annonce des coups de cœur
-- **EXEMPLE CONCRET**: "Et on n'a pas beaucoup de temps, dommage, pour évoquer un livre que tu avais conseillé, Jean-Claude... Jean-Noël Rieffel... Éloge des oiseaux de passage" → Ce livre est au PROGRAMME (tableau 1) car c'est AVANT "nos premiers conseils de lecture"
-- PARCOURS TOUTE LA TRANSCRIPTION jusqu'à la fin pour ne pas manquer de livres
-
-⚠️ ERREUR FRÉQUENTE À ÉVITER:
-- NE PAS confondre "rappel d'un ancien conseil" avec "exclusion du programme actuel"
-- Si l'animateur dit "un livre que tu avais conseillé" AVANT l'annonce des coups de cœur → C'EST UN LIVRE AU PROGRAMME (tableau 1)
-- Même si le livre est présenté vers la FIN de l'émission, s'il est AVANT "conseils de lecture" / "coups de cœur", c'est un LIVRE AU PROGRAMME
-
-⚠️ RAPPEL CRITIQUE - LE TIMING EST LE SEUL CRITÈRE:
-- Tableau 1 (programme) : livres discutés AVANT l'annonce "conseils de lecture" / "coups de cœur"
-- Tableau 2 (coup de cœur) : livres recommandés APRÈS cette annonce
-- Le nombre de critiques qui s'expriment n'est PAS le critère. C'est le TIMING qui compte.
+⚠️ PARCOURIR TOUTE LA TRANSCRIPTION:
+Tu DOIS lire la transcription JUSQU'À LA FIN pour capturer tous les livres, y compris ceux traités en fin d'émission par manque de temps.
 
 ⚠️ CONSIGNE CRUCIALE: NE RETOURNE QUE LES DEUX TABLEAUX, SANS AUCUNE PHRASE D'EXPLICATION, SANS COMMENTAIRE, SANS PHRASE INTRODUCTIVE. COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le dernier tableau.
 
