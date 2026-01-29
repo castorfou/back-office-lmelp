@@ -192,6 +192,16 @@ class AvisCritiquesGenerationService:
                 logger.error("Timeout Phase 1 après retries")
                 raise TimeoutError(f"Timeout génération Phase 1: {e}") from e
 
+            except ValueError as e:
+                if attempt < max_retries:
+                    logger.warning(
+                        f"Validation Phase 1 échouée, retry {attempt + 1}/{max_retries}: {e}"
+                    )
+                    await asyncio.sleep(2)
+                    continue
+                logger.error(f"Validation Phase 1 échouée après retries: {e}")
+                raise
+
             except Exception as e:
                 logger.error(f"Erreur Phase 1: {e}")
                 raise
@@ -375,6 +385,19 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
             errors.append(
                 "ERREUR: Message 'Aucun livre discuté' détecté - "
                 "prompt incorrect (tous les épisodes ont des livres)"
+            )
+
+        # Check 5: Espaces consécutifs anormaux (bug LLM fréquent)
+        if re.search(r" {10000,}", summary):
+            errors.append(
+                f"Espaces consécutifs anormaux détectés (bug LLM) - "
+                f"taille totale: {len(summary)} caractères"
+            )
+
+        # Check 6: Contenu trop long (hallucination LLM)
+        if len(summary) > 50000:
+            errors.append(
+                f"Contenu anormalement long: {len(summary)} caractères (maximum: 50000)"
             )
 
         return {
