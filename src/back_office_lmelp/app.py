@@ -3468,6 +3468,20 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
             avis_id = str(insert_result.inserted_id)
             logger.info(f"Avis critique créé: {avis_id}")
 
+        # Issue #185: Vider le cache livresauteurs_cache car le summary a changé
+        try:
+            deleted = livres_auteurs_cache_service.delete_cache_by_episode(
+                request.episode_id
+            )
+            if deleted > 0:
+                logger.info(
+                    f"Cache livresauteurs vidé pour épisode {request.episode_id}: {deleted} entrée(s) supprimée(s)"
+                )
+        except Exception as cache_err:
+            logger.warning(
+                f"Impossible de vider le cache livresauteurs pour {request.episode_id}: {cache_err}"
+            )
+
         return JSONResponse(content={"success": True, "avis_critique_id": avis_id})
 
     except HTTPException:
