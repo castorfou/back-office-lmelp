@@ -33,7 +33,7 @@ class CritiquesExtractionService:
 
         for match in matches_bold:
             nom = match.strip()
-            if " " in nom and nom not in seen:
+            if (" " in nom or "-" in nom) and nom not in seen:
                 critiques.append(nom)
                 seen.add(nom)
 

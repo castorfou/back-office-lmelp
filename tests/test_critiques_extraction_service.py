@@ -200,3 +200,35 @@ def test_find_matching_critique_no_match(service):
     result = service.find_matching_critique("Patricia Martin", existing_critiques)
 
     assert result is None
+
+
+def test_extract_critiques_hyphenated_name_without_space(service):
+    """Test que les noms composés avec tiret mais sans espace sont extraits.
+
+    Bug réel: épisode 13/08/2017 - Jean-Louis Ezine.
+    Le LLM a transcrit "Jean-Louis Ezine" comme "Jean-Louisine" (collé en un mot)
+    et "Jean-Louis" (prénom seul). Ces noms contiennent un tiret mais pas d'espace,
+    et étaient filtrés par la condition `" " in nom`.
+    Résultat: l'utilisateur ne voyait pas ces noms dans la page Identification des
+    Critiques et ne pouvait pas faire le mapping manuel.
+    """
+    summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Richard Ford | Entre eux | Editions de l'Olivier | **Jean-Louisine**: Beau livre. Note: 9 <br> **Olivia de Lamberterie**: Éblouissant. Note: 9 |
+| Agnès Martin-Lugand | J'ai toujours cette musique | Michel Lafon | **Jean-Louis**: Décevant. Note: 4 <br> **Olivia de Lamberterie**: Rassurant. Note: 7 |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+"""
+    critiques = service.extract_critiques_from_summary(summary)
+
+    # "Jean-Louisine" et "Jean-Louis" doivent être extraits
+    # même s'ils n'ont pas d'espace (seulement un tiret)
+    assert "Jean-Louisine" in critiques, (
+        f"'Jean-Louisine' devrait être extrait, got: {critiques}"
+    )
+    assert "Jean-Louis" in critiques, (
+        f"'Jean-Louis' devrait être extrait, got: {critiques}"
+    )
+    assert "Olivia de Lamberterie" in critiques
