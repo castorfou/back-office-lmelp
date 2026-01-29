@@ -303,6 +303,11 @@ INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
 6. Identifie les "coups de cœur" (critiques très enthousiastes, note ≥9)
 7. **CLASSE OBLIGATOIREMENT PAR NOTE DÉCROISSANTE** (meilleure note d'abord)
 
+⚠️ RÈGLE UN LIVRE = UNE LIGNE:
+Chaque livre DOIT avoir sa propre ligne dans le tableau, même si un même auteur a plusieurs livres.
+JAMAIS de regroupement de plusieurs livres sur une même ligne (ex: "Titre 1 & Titre 2" est INTERDIT).
+Si un auteur a 2 livres discutés, crée 2 lignes séparées avec le même nom d'auteur.
+
 ⚠️ VÉRIFICATION FINALE OBLIGATOIRE:
 Avant de terminer, RELIS la transcription et COMPTE tous les livres mentionnés en dehors du courrier.
 Si tu trouves N livres dans la transcription, tu DOIS avoir N livres dans tes tableaux.
