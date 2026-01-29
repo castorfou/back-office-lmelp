@@ -321,6 +321,12 @@ Si tu trouves N livres dans la transcription, tu DOIS avoir N livres dans tes ta
 ⚠️ ATTENTION: Ce tableau contient UNIQUEMENT les livres recommandés par **UN SEUL critique** comme son choix personnel.
 CRITÈRE ABSOLU: Si plusieurs critiques donnent leur avis sur un livre, il va dans le tableau 1 (programme), PAS ici.
 Ce sont des ouvrages DIFFÉRENTS de ceux discutés au programme principal ci-dessus.
+
+⚠️ RÈGLE DE NON-DUPLICATION ENTRE TABLEAUX:
+Un livre qui apparaît déjà dans le Tableau 1 (programme) ne doit JAMAIS apparaître dans le Tableau 2 (coups de cœur).
+Si un critique donne un livre du programme comme coup de cœur, son avis est DÉJÀ capturé dans le Tableau 1 — NE PAS le dupliquer ici.
+Exemple: Si "Lettres à Véra" est discuté au programme (Tableau 1) → NE PAS le remettre en coup de cœur (Tableau 2), même si un critique le recommande.
+
 INCLUT TOUS TYPES D'OUVRAGES : romans, essais, BD, guides, biographies, etc.
 
 Format de tableau pour ces recommandations personnelles:
@@ -331,7 +337,7 @@ Format de tableau pour ces recommandations personnelles:
 
 ⚠️ IMPORTANT:
 - CLASSE LES COUPS DE CŒUR PAR NOTE DÉCROISSANTE AUSSI
-- N'INCLUS QUE les livres mentionnés comme recommandations PERSONNELLES, PAS ceux du programme principal
+- N'INCLUS QUE les livres mentionnés comme recommandations PERSONNELLES, PAS ceux du programme principal (AUCUN doublon avec le Tableau 1)
 - CHERCHE SPÉCIALEMENT en fin de transcription les sections "coups de cœur", "conseils de lecture", "recommandations"
 
 EXIGENCES QUALITÉ:
