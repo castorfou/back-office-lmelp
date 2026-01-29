@@ -75,7 +75,11 @@ class AvisExtractionService:
         lines = section1_content.strip().split("\n")
         for line in lines:
             # Ignorer les lignes vides, headers et séparateurs
-            if not line.strip() or line.strip().startswith("|--") or "Auteur" in line:
+            if (
+                not line.strip()
+                or line.strip().startswith("|--")
+                or re.match(r"^\s*\|\s*Auteur\s*\|", line)
+            ):
                 continue
 
             # Parser la ligne du tableau

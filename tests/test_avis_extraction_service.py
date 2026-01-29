@@ -273,6 +273,36 @@ class TestExtractSection1Avis:
         avis_list = self.service._extract_section1_avis(summary, "test_oid")
         assert avis_list == []
 
+    def test_extract_row_with_auteur_in_critique_text(self):
+        """Test que le mot 'Auteur' dans le texte critique ne cause pas le skip.
+
+        Bug réel: épisode 26/08/2018 - "À son image" de Jérôme Ferrari.
+        La critique contenait "Auteur concerné par le grave..." et la ligne
+        était ignorée par le filtre `"Auteur" in line`.
+        """
+        summary = """## 1. LIVRES DISCUTÉS DANS L'ÉMISSION
+
+| Auteur | Titre | Éditeur | Avis des critiques |
+|--------|-------|---------|-------------------|
+| Maylis de Kerangal | Un monde à portée de main | Verticales | **Frédéric Beigbeder**: Fascinant. Note: 8 |
+| Jérôme Ferrari | À son image | Actes Sud | **Michel Crépu**: Auteur concerné par le grave, blague de Coluche, prix Goncourt sermon. Note: 6 |
+| Samuel Benchetrit | Encore un jour banane pour le poisson-rêve | Grasset | **Olivia de Lamberterie**: Délicieux. Note: 7 |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+"""
+        avis_list = self.service._extract_section1_avis(summary, "test_oid")
+
+        # Les 3 livres doivent être extraits (pas 2)
+        assert len(avis_list) == 3
+
+        # Vérifier que "À son image" de Ferrari est bien extrait
+        ferrari_avis = [
+            a for a in avis_list if a["livre_titre_extrait"] == "À son image"
+        ]
+        assert len(ferrari_avis) == 1
+        assert ferrari_avis[0]["auteur_nom_extrait"] == "Jérôme Ferrari"
+        assert ferrari_avis[0]["critique_nom_extrait"] == "Michel Crépu"
+
 
 class TestExtractSection2Avis:
     """Tests pour _extract_section2_avis."""
