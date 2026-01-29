@@ -594,6 +594,7 @@ import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
+import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
 
@@ -811,6 +812,15 @@ export default {
       const episodeExists = this.episodesWithReviews.find(ep => ep.id === episodeIdFromUrl);
       if (episodeExists) {
         this.selectedEpisodeId = episodeIdFromUrl;
+        await this.onEpisodeChange();
+      }
+    }
+
+    // Issue #185: Auto-sélection par priorité de pastille (🔴 > ⚪ > 🟢)
+    if (!this.selectedEpisodeId && this.episodesWithReviews?.length > 0) {
+      const selected = selectEpisodeByBadgePriority(this.episodesWithReviews);
+      if (selected) {
+        this.selectedEpisodeId = selected.id;
         await this.onEpisodeChange();
       }
     }
