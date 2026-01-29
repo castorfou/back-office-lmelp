@@ -165,5 +165,70 @@ describe('AvisTable.vue', () => {
       expect(titreCell.text()).toContain('4 jours sans ma mère');
       expect(titreCell.text()).not.toContain('Quatre jours');
     });
+
+    it('should display official critique name when available instead of extracted name', async () => {
+      /**
+       * Bug réel: épisode 13/08/2017 - Jean-Louis Ezine.
+       * Le LLM transcrit "Jean-Louis Ezine" comme "Jean-Louis" (prénom seul).
+       * Le backend enrichit avec critique_nom = "Jean-Louis Ezine" (nom officiel),
+       * mais le frontend affiche toujours critique_nom_extrait = "Jean-Louis".
+       */
+      const mockAvis = [
+        {
+          id: '1',
+          section: 'programme',
+          livre_oid: 'livre123',
+          livre_titre_extrait: 'Entre eux',
+          livre_titre: 'Entre eux',
+          auteur_nom_extrait: 'Richard Ford',
+          auteur_oid: 'auteur123',
+          editeur_extrait: 'Editions de l\'Olivier',
+          critique_nom_extrait: 'Jean-Louis', // Variante LLM (incomplète)
+          critique_nom: 'Jean-Louis Ezine', // Nom officiel enrichi par le backend
+          critique_oid: 'critique789',
+          commentaire: 'Beau livre',
+          note: 9,
+        },
+      ];
+
+      const wrapper = createWrapper({ avis: mockAvis });
+      await wrapper.vm.$nextTick();
+
+      // Vérifier que le nom officiel est affiché (pas la variante)
+      const critiqueLink = wrapper.find('.critique-link');
+      expect(critiqueLink.text()).toBe('Jean-Louis Ezine');
+      expect(critiqueLink.text()).not.toBe('Jean-Louis');
+    });
+
+    it('should display extracted critique name when no official name available', async () => {
+      /**
+       * Quand critique_nom n'est pas fourni (critique non résolu ou pas enrichi),
+       * on doit afficher critique_nom_extrait comme fallback.
+       */
+      const mockAvis = [
+        {
+          id: '1',
+          section: 'programme',
+          livre_oid: 'livre123',
+          livre_titre_extrait: 'Entre eux',
+          livre_titre: 'Entre eux',
+          auteur_nom_extrait: 'Richard Ford',
+          auteur_oid: 'auteur123',
+          editeur_extrait: 'Editions de l\'Olivier',
+          critique_nom_extrait: 'Jean-Louisine', // Variante LLM
+          // Pas de critique_nom (non résolu)
+          critique_oid: null,
+          commentaire: 'Beau livre',
+          note: 9,
+        },
+      ];
+
+      const wrapper = createWrapper({ avis: mockAvis });
+      await wrapper.vm.$nextTick();
+
+      // Vérifier que le nom extrait est affiché avec le warning
+      const unresolvedSpan = wrapper.find('.unresolved');
+      expect(unresolvedSpan.text()).toContain('Jean-Louisine');
+    });
   });
 });

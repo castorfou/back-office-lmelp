@@ -64,10 +64,10 @@
                     :to="`/critique/${avis.critique_oid}`"
                     class="critique-link"
                   >
-                    {{ avis.critique_nom_extrait }}
+                    {{ avis.critique_nom || avis.critique_nom_extrait }}
                   </router-link>
                   <span v-else class="unresolved">
-                    {{ avis.critique_nom_extrait }}
+                    {{ avis.critique_nom || avis.critique_nom_extrait }}
                     <span class="warning-icon" title="Critique non résolu">⚠️</span>
                   </span>
                 </span>
@@ -160,10 +160,10 @@
                 :to="`/critique/${avis.critique_oid}`"
                 class="critique-link"
               >
-                {{ avis.critique_nom_extrait }}
+                {{ avis.critique_nom || avis.critique_nom_extrait }}
               </router-link>
               <span v-else class="unresolved">
-                {{ avis.critique_nom_extrait }}
+                {{ avis.critique_nom || avis.critique_nom_extrait }}
                 <span class="warning-icon" title="Critique non résolu">⚠️</span>
               </span>
             </td>
