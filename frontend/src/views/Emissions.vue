@@ -156,8 +156,8 @@
           <!-- Stats de matching des avis (affiché au-dessus de la liste des livres) -->
           <div v-if="!avisLoading && avisMatchingStats && !isSelectedEmissionPerfect" class="matching-stats">
             <div class="stats-header">
-              <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== (selectedEmissionDetails.books?.length || 0)">
-                ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ selectedEmissionDetails.books?.length || 0 }})
+              <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== avisMatchingStats.livres_mongo">
+                ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ avisMatchingStats.livres_mongo }})
               </span>
             </div>
             <div class="stats-details">
@@ -240,7 +240,7 @@
               :avis="avis"
               :emission-date="selectedEmissionDetails.episode?.date"
               :matching-stats="avisMatchingStats"
-              :livres-mongo-count="selectedEmissionDetails.books?.length || 0"
+              :livres-mongo-count="avisMatchingStats?.livres_mongo || 0"
             />
 
             <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->

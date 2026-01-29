@@ -804,3 +804,111 @@ class TestExtractAvisUsesCache:
         assert gruda_avis["auteur_nom_extrait"] == "Agnès Gruda"
         assert gruda_avis["editeur_extrait"] == "Les Équateurs"
         assert gruda_avis["livre_oid"] is None, "livre_oid devrait être None"
+
+
+class TestMatchingStatsLivresMongo:
+    """Tests pour vérifier que matching_stats.livres_mongo compte depuis collection livres.
+
+    Issue #185: Le frontend affichait books.length (depuis le cache) au lieu de
+    livres_mongo (depuis la collection livres), causant un affichage incohérent
+    quand un livre est dans `livres` mais pas dans le cache.
+    """
+
+    def setup_method(self):
+        """Setup pour chaque test."""
+        self.mock_mongodb = MagicMock()
+        self.patcher = patch("back_office_lmelp.app.mongodb_service", self.mock_mongodb)
+        self.patcher.start()
+
+        from back_office_lmelp.app import app
+
+        self.client = TestClient(app)
+
+    def teardown_method(self):
+        """Teardown après chaque test."""
+        self.patcher.stop()
+
+    def test_matching_stats_livres_mongo_counts_from_livres_collection(self):
+        """
+        TDD: Vérifie que matching_stats.livres_mongo compte les livres
+        depuis la collection livres (pas le cache).
+
+        Scénario réel (11 déc 2022):
+        - 11 livres dans collection `livres` avec cet episode
+        - 2 livres dans le summary (avis extraits)
+        - Écart détecté : badge doit être rouge
+
+        matching_stats.livres_mongo doit retourner 11 (pas le nombre du cache).
+        """
+        emission_id = str(ObjectId())
+        episode_id = "678cceb8a414f2298877812f"
+
+        # Setup minimal comme test_get_avis_returns_list
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.livres_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+
+        # Mock de l'émission (requis pour calculer livres_mongo)
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": episode_id,
+        }
+
+        # 2 avis extraits pour 2 livres summary
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": None,
+                "critique_oid": None,
+                "commentaire": "Excellent",
+                "note": 9,
+                "section": "programme",
+                "livre_titre_extrait": "Langages de vérité",
+                "auteur_nom_extrait": "Salman Rushdie",
+                "editeur_extrait": "Actes Sud",
+                "critique_nom_extrait": "Patricia Martin",
+                "match_phase": 1,
+            },
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": None,
+                "critique_oid": None,
+                "commentaire": "Très bien",
+                "note": 8,
+                "section": "programme",
+                "livre_titre_extrait": "La petite menteuse",
+                "auteur_nom_extrait": "Pascale Robert-Diard",
+                "editeur_extrait": "L'Iconoclaste",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "match_phase": 1,
+            },
+        ]
+
+        # IMPORTANT: 11 livres dans la collection livres (inclut "En salle")
+        self.mock_mongodb.livres_collection.count_documents.return_value = 11
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Vérifier que matching_stats existe
+        assert "matching_stats" in data
+
+        # ASSERTION CRITIQUE: livres_mongo doit être 11 (depuis collection livres)
+        assert data["matching_stats"]["livres_mongo"] == 11, (
+            f"livres_mongo devrait être 11 (depuis collection livres), "
+            f"obtenu {data['matching_stats']['livres_mongo']}"
+        )
+
+        # livres_summary doit être 2 (titres uniques des avis)
+        assert data["matching_stats"]["livres_summary"] == 2
+
+        # Vérifier que count_documents a été appelé avec le bon episode_id
+        self.mock_mongodb.livres_collection.count_documents.assert_called_once()
+        call_args = self.mock_mongodb.livres_collection.count_documents.call_args[0][0]
+        assert "episodes" in call_args
+        assert call_args["episodes"] == episode_id
