@@ -192,6 +192,16 @@ class AvisCritiquesGenerationService:
                 logger.error("Timeout Phase 1 après retries")
                 raise TimeoutError(f"Timeout génération Phase 1: {e}") from e
 
+            except ValueError as e:
+                if attempt < max_retries:
+                    logger.warning(
+                        f"Validation Phase 1 échouée, retry {attempt + 1}/{max_retries}: {e}"
+                    )
+                    await asyncio.sleep(2)
+                    continue
+                logger.error(f"Validation Phase 1 échouée après retries: {e}")
+                raise
+
             except Exception as e:
                 logger.error(f"Erreur Phase 1: {e}")
                 raise
@@ -203,16 +213,20 @@ class AvisCritiquesGenerationService:
         """Retourne le prompt Phase 1 exact du lmelp frontend."""
         return f"""Tu es un expert en critique littéraire qui analyse la transcription de l'émission "Le Masque et la Plume" sur France Inter.
 
-⚠️ ATTENTION IMPORTANTE:
-L'émission commence souvent par une section "courrier de la semaine" où l'animateur lit des réactions d'auditeurs sur des livres d'émissions PRÉCÉDENTES.
-CES LIVRES DU COURRIER NE FONT PAS PARTIE DU PROGRAMME DE CETTE ÉMISSION.
-Tu dois IGNORER complètement cette section du courrier.
+⚠️ STRUCTURE DE L'ÉMISSION (3 temps séquentiels, JAMAIS mélangés):
 
-Les livres du programme principal sont introduits APRÈS le courrier, généralement après des phrases comme:
-- "Et on commence avec..."
-- "Pour commencer ce soir..."
-- "Parlons maintenant de..."
-- "Le premier livre de ce soir..."
+1. **COURRIER DES LECTEURS** (~5 min) - À IGNORER COMPLÈTEMENT
+   L'animateur lit des réactions d'auditeurs sur des livres d'émissions PRÉCÉDENTES.
+   CES LIVRES NE FONT PAS PARTIE DU PROGRAMME DE CETTE ÉMISSION.
+
+2. **LIVRES AU PROGRAMME** (~30-40 min) - TABLEAU 1
+   Introduits après le courrier avec des phrases comme "Et on commence avec...", "Pour commencer ce soir..."
+   TOUS les livres de cette section sont discutés par PLUSIEURS critiques (3-5 critiques donnent leur avis).
+
+3. **COUPS DE CŒUR** (~10 min, en fin d'émission) - TABLEAU 2
+   Chaque critique recommande UN livre personnel. UN SEUL critique s'exprime par livre.
+
+⚠️ IMPORTANT: Ces 3 sections se suivent TOUJOURS dans cet ordre. Il n'y a JAMAIS de mélange (pas de coup de cœur au milieu des livres au programme).
 
 IMPORTANT: Cette émission porte TOUJOURS sur des livres (type "livres").
 Il y a TOUJOURS au moins un livre discuté au programme principal.
@@ -228,6 +242,17 @@ Identifie TOUS les livres discutés AU PROGRAMME DE CETTE ÉMISSION (pas ceux du
 1. **LIVRES DU PROGRAMME PRINCIPAL**: Tous les livres qui font l'objet d'une discussion approfondie entre plusieurs critiques
 2. **COUPS DE CŒUR PERSONNELS**: UNIQUEMENT les livres mentionnés rapidement par un critique comme recommandation personnelle (différents du programme principal)
 
+⚠️ RÈGLE SIMPLE ET CLAIRE:
+- Si un livre est discuté par PLUSIEURS critiques (discussion approfondie) → Tableau 1 (programme)
+- Si un livre est recommandé rapidement par UN SEUL critique en fin d'émission → Tableau 2 (coup de cœur)
+
+⚠️ ATTENTION - LIVRES TRAITÉS RAPIDEMENT:
+Même si l'animateur dit "on va aller très vite" ou "en quelques minutes", si PLUSIEURS critiques donnent leur avis sur le livre, c'est un livre AU PROGRAMME (tableau 1).
+Le manque de temps ne change PAS la nature du livre.
+
+⚠️ PARCOURIR TOUTE LA TRANSCRIPTION:
+Tu DOIS lire la transcription JUSQU'À LA FIN pour capturer tous les livres, y compris ceux traités en fin d'émission par manque de temps.
+
 ⚠️ CONSIGNE CRUCIALE: NE RETOURNE QUE LES DEUX TABLEAUX, SANS AUCUNE PHRASE D'EXPLICATION, SANS COMMENTAIRE, SANS PHRASE INTRODUCTIVE. COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le dernier tableau.
 
 ---
@@ -238,7 +263,7 @@ Format de tableau markdown OBLIGATOIRE avec HTML pour les couleurs:
 
 | Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne | Nb critiques | Coup de cœur | Chef d'œuvre |
 |--------|-------|---------|------------------------------|--------------|-------------|-------------|-------------|
-| [Nom auteur] | [Titre livre] | [Éditeur] | **[Nom COMPLET critique 1]**: [avis détaillé et note] <br>**[Nom COMPLET critique 2]**: [avis détaillé et note] <br>**[Nom COMPLET critique 3]**: [avis détaillé et note] | [Note colorée] | [Nombre] | [Noms si note ≥9] | [Noms si note=10] |
+| [Nom auteur] | [Titre livre] | [Éditeur] | **[Nom COMPLET critique 1]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 2]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 3]**: [avis détaillé]. Note: X | [Note colorée] | [Nombre] | [Noms si note ≥9] | [Noms si note=10] |
 
 ⚠️ IMPORTANT: CLASSE LES LIVRES PAR NOTE DÉCROISSANTE (meilleure note d'abord, pire note en dernier).
 
@@ -249,6 +274,15 @@ RÈGLES DE NOTATION STRICTES:
 - Note 7-8: Bons livres, "plaisant", "réussi", "bien écrit"
 - Note 9: Excellents livres, "formidable", "remarquable", "coup de cœur"
 - Note 10: Chefs-d'œuvre, "génial", "exceptionnel", "chef-d'œuvre"
+
+⚠️ FORMAT OBLIGATOIRE POUR LES NOTES INDIVIDUELLES:
+Chaque avis de critique DOIT se terminer par "Note: X" (avec deux-points).
+Exemples corrects:
+- **Elisabeth Philippe**: Très belle découverte, original et poétique. Note: 9
+- **Arnaud Viviant**: Impressionnant, trouvailles stylistiques. Note: 8
+Exemples INCORRECTS (à éviter):
+- **Patricia Martin**: Bien fichu, 7  ← MAUVAIS (pas de "Note:")
+- **Michel Crépu**: Remarquable, note 8  ← MAUVAIS (minuscule, pas de deux-points)
 
 COULEURS HTML OBLIGATOIRES pour la Note moyenne:
 - 9.0-10.0: <span style="background-color: #00C851; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;">X.X</span>
@@ -261,13 +295,22 @@ COULEURS HTML OBLIGATOIRES pour la Note moyenne:
 - 1.0-2.9: <span style="background-color: #F44336; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;">X.X</span>
 
 INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
-1. Identifie TOUS les critiques qui parlent de chaque livre: Jérôme Garcin, Elisabeth Philippe, Frédéric Beigbeder, Michel Crépu, Arnaud Viviant, Judith Perrignon, Xavier Leherpeur, Patricia Martin, etc.
+1. Identifie TOUS les critiques qui parlent de chaque livre: Jérôme Garcin, Elisabeth Philippe, Frédéric Beigbeder, Michel Crépu, Arnaud Viviant, Judith Perrignon, Xavier Leherpeur, Patricia Martin, Olivia de Lamberterie, Jean-Claude Raspiengeas, etc.
 2. Pour chaque critique, capture son NOM COMPLET (Prénom + Nom)
 3. Cite leurs avis EXACTS avec leurs mots-clés d'appréciation
-4. Attribue une note individuelle basée sur leur vocabulaire (entre 1 et 10)
+4. Attribue une note individuelle basée sur leur vocabulaire (entre 1 et 10) AU FORMAT EXACT: "Note: X" (avec deux-points, ex: "Note: 8")
 5. Calcule la moyenne arithmétique précise (ex: 7.3, 8.7)
 6. Identifie les "coups de cœur" (critiques très enthousiastes, note ≥9)
 7. **CLASSE OBLIGATOIREMENT PAR NOTE DÉCROISSANTE** (meilleure note d'abord)
+
+⚠️ RÈGLE UN LIVRE = UNE LIGNE:
+Chaque livre DOIT avoir sa propre ligne dans le tableau, même si un même auteur a plusieurs livres.
+JAMAIS de regroupement de plusieurs livres sur une même ligne (ex: "Titre 1 & Titre 2" est INTERDIT).
+Si un auteur a 2 livres discutés, crée 2 lignes séparées avec le même nom d'auteur.
+
+⚠️ VÉRIFICATION FINALE OBLIGATOIRE:
+Avant de terminer, RELIS la transcription et COMPTE tous les livres mentionnés en dehors du courrier.
+Si tu trouves N livres dans la transcription, tu DOIS avoir N livres dans tes tableaux.
 
 ⚠️ RAPPEL: Ignore complètement les livres mentionnés dans le "courrier de la semaine" au début de l'émission.
 
@@ -275,8 +318,15 @@ INSTRUCTIONS DÉTAILLÉES POUR EXTRAIRE TOUS LES AVIS:
 
 ## 2. COUPS DE CŒUR DES CRITIQUES{date_str}
 
-⚠️ ATTENTION: Ce tableau contient UNIQUEMENT les livres/ouvrages mentionnés rapidement par les critiques comme recommandations personnelles supplémentaires (souvent en fin d'émission avec "mon coup de cœur", "je recommande", etc.).
+⚠️ ATTENTION: Ce tableau contient UNIQUEMENT les livres recommandés par **UN SEUL critique** comme son choix personnel.
+CRITÈRE ABSOLU: Si plusieurs critiques donnent leur avis sur un livre, il va dans le tableau 1 (programme), PAS ici.
 Ce sont des ouvrages DIFFÉRENTS de ceux discutés au programme principal ci-dessus.
+
+⚠️ RÈGLE DE NON-DUPLICATION ENTRE TABLEAUX:
+Un livre qui apparaît déjà dans le Tableau 1 (programme) ne doit JAMAIS apparaître dans le Tableau 2 (coups de cœur).
+Si un critique donne un livre du programme comme coup de cœur, son avis est DÉJÀ capturé dans le Tableau 1 — NE PAS le dupliquer ici.
+Exemple: Si "Lettres à Véra" est discuté au programme (Tableau 1) → NE PAS le remettre en coup de cœur (Tableau 2), même si un critique le recommande.
+
 INCLUT TOUS TYPES D'OUVRAGES : romans, essais, BD, guides, biographies, etc.
 
 Format de tableau pour ces recommandations personnelles:
@@ -287,7 +337,7 @@ Format de tableau pour ces recommandations personnelles:
 
 ⚠️ IMPORTANT:
 - CLASSE LES COUPS DE CŒUR PAR NOTE DÉCROISSANTE AUSSI
-- N'INCLUS QUE les livres mentionnés comme recommandations PERSONNELLES, PAS ceux du programme principal
+- N'INCLUS QUE les livres mentionnés comme recommandations PERSONNELLES, PAS ceux du programme principal (AUCUN doublon avec le Tableau 1)
 - CHERCHE SPÉCIALEMENT en fin de transcription les sections "coups de cœur", "conseils de lecture", "recommandations"
 
 EXIGENCES QUALITÉ:
@@ -346,6 +396,19 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
             errors.append(
                 "ERREUR: Message 'Aucun livre discuté' détecté - "
                 "prompt incorrect (tous les épisodes ont des livres)"
+            )
+
+        # Check 5: Espaces consécutifs anormaux (bug LLM fréquent)
+        if re.search(r" {10000,}", summary):
+            errors.append(
+                f"Espaces consécutifs anormaux détectés (bug LLM) - "
+                f"taille totale: {len(summary)} caractères"
+            )
+
+        # Check 6: Contenu trop long (hallucination LLM)
+        if len(summary) > 50000:
+            errors.append(
+                f"Contenu anormalement long: {len(summary)} caractères (maximum: 50000)"
             )
 
         return {

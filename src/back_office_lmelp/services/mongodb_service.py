@@ -31,6 +31,8 @@ class MongoDBService:
         self.editeurs_collection: Collection | None = None
         self.critiques_collection: Collection | None = None
         self.emissions_collection: Collection | None = None
+        self.avis_collection: Collection | None = None
+        self.livresauteurs_cache_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -46,6 +48,8 @@ class MongoDBService:
             self.editeurs_collection = self.db.editeurs
             self.critiques_collection = self.db.critiques
             self.emissions_collection = self.db.emissions
+            self.avis_collection = self.db.avis
+            self.livresauteurs_cache_collection = self.db.livresauteurs_cache
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -59,6 +63,8 @@ class MongoDBService:
             self.editeurs_collection = None
             self.critiques_collection = None
             self.emissions_collection = None
+            self.avis_collection = None
+            self.livresauteurs_cache_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -368,6 +374,34 @@ class MongoDBService:
         except Exception as e:
             print(
                 f"Erreur lors de la récupération de l'avis critique {avis_critique_id}: {e}"
+            )
+            return None
+
+    def get_avis_critique_by_episode_oid(
+        self, episode_oid: str
+    ) -> dict[str, Any] | None:
+        """
+        Récupère un avis critique par son episode_oid (fallback si avis_critique_id orphelin).
+
+        Args:
+            episode_oid: ID de l'épisode associé (string)
+
+        Returns:
+            Dictionnaire de l'avis critique ou None si non trouvé
+        """
+        if self.avis_critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            avis = self.avis_critiques_collection.find_one({"episode_oid": episode_oid})
+
+            if avis:
+                avis["_id"] = str(avis["_id"])
+                return dict(avis)
+            return None
+        except Exception as e:
+            print(
+                f"Erreur lors de la récupération de l'avis critique par episode_oid {episode_oid}: {e}"
             )
             return None
 
@@ -1645,6 +1679,205 @@ class MongoDBService:
                 )
 
         return matched_critiques
+
+    # ==========================================================================
+    # Méthodes CRUD pour la collection 'avis'
+    # ==========================================================================
+
+    def get_avis_by_emission(self, emission_oid: str) -> list[dict[str, Any]]:
+        """
+        Récupère tous les avis d'une émission.
+
+        Args:
+            emission_oid: L'ID de l'émission (string)
+
+        Returns:
+            Liste des avis de l'émission
+        """
+        if self.avis_collection is None:
+            return []
+        return list(self.avis_collection.find({"emission_oid": emission_oid}))
+
+    def get_avis_by_critique(self, critique_oid: str) -> list[dict[str, Any]]:
+        """
+        Récupère tous les avis d'un critique.
+
+        Args:
+            critique_oid: L'ID du critique (string)
+
+        Returns:
+            Liste des avis du critique
+        """
+        if self.avis_collection is None:
+            return []
+        return list(self.avis_collection.find({"critique_oid": critique_oid}))
+
+    def get_avis_by_livre(self, livre_oid: str) -> list[dict[str, Any]]:
+        """
+        Récupère tous les avis d'un livre.
+
+        Args:
+            livre_oid: L'ID du livre (string)
+
+        Returns:
+            Liste des avis du livre
+        """
+        if self.avis_collection is None:
+            return []
+        return list(self.avis_collection.find({"livre_oid": livre_oid}))
+
+    def get_avis_by_id(self, avis_id: str) -> dict[str, Any] | None:
+        """
+        Récupère un avis par son ID.
+
+        Args:
+            avis_id: L'ID de l'avis
+
+        Returns:
+            L'avis ou None si non trouvé
+        """
+        if self.avis_collection is None:
+            return None
+        try:
+            result = self.avis_collection.find_one({"_id": ObjectId(avis_id)})
+            return dict(result) if result else None
+        except Exception:
+            return None
+
+    def save_avis_batch(self, avis_list: list[dict[str, Any]]) -> list[str]:
+        """
+        Sauvegarde un batch d'avis en base.
+
+        Args:
+            avis_list: Liste des avis à sauvegarder
+
+        Returns:
+            Liste des IDs des avis créés
+        """
+        if self.avis_collection is None or not avis_list:
+            return []
+
+        # Ajouter timestamps
+        now = datetime.now()
+        for avis in avis_list:
+            avis["created_at"] = now
+            avis["updated_at"] = now
+
+        result = self.avis_collection.insert_many(avis_list)
+        return [str(oid) for oid in result.inserted_ids]
+
+    def delete_avis_by_emission(self, emission_oid: str) -> int:
+        """
+        Supprime tous les avis d'une émission.
+
+        Utilisé pour ré-extraction : on supprime les anciens avant de recréer.
+
+        Args:
+            emission_oid: L'ID de l'émission
+
+        Returns:
+            Nombre d'avis supprimés
+        """
+        if self.avis_collection is None:
+            return 0
+        result = self.avis_collection.delete_many({"emission_oid": emission_oid})
+        return int(result.deleted_count)
+
+    def update_avis(self, avis_id: str, data: dict[str, Any]) -> bool:
+        """
+        Met à jour un avis (résolution manuelle d'entité).
+
+        Args:
+            avis_id: L'ID de l'avis
+            data: Les champs à mettre à jour (livre_oid, critique_oid, note, etc.)
+
+        Returns:
+            True si la mise à jour a réussi
+        """
+        if self.avis_collection is None:
+            return False
+
+        # Ajouter timestamp de mise à jour
+        data["updated_at"] = datetime.now()
+
+        try:
+            result = self.avis_collection.update_one(
+                {"_id": ObjectId(avis_id)}, {"$set": data}
+            )
+            return bool(result.matched_count > 0)
+        except Exception:
+            return False
+
+    def delete_avis(self, avis_id: str) -> bool:
+        """
+        Supprime un avis par son ID.
+
+        Args:
+            avis_id: L'ID de l'avis
+
+        Returns:
+            True si la suppression a réussi
+        """
+        if self.avis_collection is None:
+            return False
+        try:
+            result = self.avis_collection.delete_one({"_id": ObjectId(avis_id)})
+            return bool(result.deleted_count > 0)
+        except Exception:
+            return False
+
+    def get_avis_stats(self) -> dict[str, Any]:
+        """
+        Récupère les statistiques sur les avis.
+
+        Returns:
+            Dictionnaire avec:
+            - total: nombre total d'avis
+            - unresolved_livre: avis sans livre_oid
+            - unresolved_critique: avis sans critique_oid
+            - missing_note: avis sans note
+            - emissions_with_avis: nombre d'émissions ayant des avis extraits
+        """
+        if self.avis_collection is None:
+            return {
+                "total": 0,
+                "unresolved_livre": 0,
+                "unresolved_critique": 0,
+                "missing_note": 0,
+                "emissions_with_avis": 0,
+            }
+
+        total = self.avis_collection.count_documents({})
+        unresolved_livre = self.avis_collection.count_documents({"livre_oid": None})
+        unresolved_critique = self.avis_collection.count_documents(
+            {"critique_oid": None}
+        )
+        missing_note = self.avis_collection.count_documents({"note": None})
+
+        # Compter les émissions distinctes ayant des avis
+        emissions_with_avis = len(self.avis_collection.distinct("emission_oid"))
+
+        return {
+            "total": total,
+            "unresolved_livre": unresolved_livre,
+            "unresolved_critique": unresolved_critique,
+            "missing_note": missing_note,
+            "emissions_with_avis": emissions_with_avis,
+        }
+
+    def count_avis_by_emission(self, emission_oid: str) -> int:
+        """
+        Compte le nombre d'avis pour une émission.
+
+        Args:
+            emission_oid: L'ID de l'émission
+
+        Returns:
+            Nombre d'avis
+        """
+        if self.avis_collection is None:
+            return 0
+        return int(self.avis_collection.count_documents({"emission_oid": emission_oid}))
 
 
 # Instance globale du service

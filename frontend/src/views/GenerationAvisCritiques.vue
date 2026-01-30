@@ -126,6 +126,7 @@ import { marked } from 'marked';
 import Navigation from '@/components/Navigation.vue';
 import DiffViewer from '@/components/DiffViewer.vue';
 import EpisodeDropdown from '@/components/EpisodeDropdown.vue';
+import { selectEpisodeBySummaryPriority } from '@/utils/episodeSelection';
 
 export default {
   name: 'GenerationAvisCritiques',
@@ -246,10 +247,10 @@ export default {
         allEpisodes.value = [...episodesWithFlag, ...episodesWithoutFlag]
           .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        // Présélection: épisode le plus récent SANS summary
-        const firstWithoutSummary = allEpisodes.value.find(ep => !ep.has_summary);
-        if (firstWithoutSummary) {
-          selectedEpisodeId.value = firstWithoutSummary.id;
+        // Présélection par priorité de pastille (⚪ sans summary > 🟢 avec summary)
+        const selected = selectEpisodeBySummaryPriority(allEpisodes.value);
+        if (selected) {
+          selectedEpisodeId.value = selected.id;
           await onEpisodeChange();
         }
 

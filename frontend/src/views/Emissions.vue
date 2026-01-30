@@ -23,7 +23,13 @@
           <!-- Sélecteur d'épisode -->
           <div v-if="!emissionsLoading && !emissionsError && emissions.length > 0" class="form-group">
             <label for="episode-select" class="form-label">
-              Choisir une émission ({{ emissions.length }} disponibles)
+              Choisir une émission ({{ emissions.length }} disponibles:
+              <span
+                class="badge-counters-tooltip"
+                :title="`🟢 ${emissionsPerfectCount}: Avis extraits, tous matchés, comptes égaux, toutes notes présentes\n🔴 ${emissionsCountMismatchCount}: Avis extraits mais # livres summary ≠ # livres mongo OU au moins une note manquante\n🟡 ${emissionsUnmatchedCount}: Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché\n⚪ ${emissionsNoAvisCount}: Avis pas encore extraits`"
+              >
+                🟢 {{ emissionsPerfectCount }} / 🔴 {{ emissionsCountMismatchCount }} / 🟡 {{ emissionsUnmatchedCount }} / ⚪ {{ emissionsNoAvisCount }}
+              </span>)
             </label>
             <div class="episode-select-wrapper">
               <button
@@ -49,6 +55,25 @@
               >
                 Suivant ▶️
               </button>
+
+              <!-- Bouton Extraire/Ré-extraire les avis -->
+              <button
+                v-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading && avis.length === 0"
+                @click="reextractAvis"
+                :disabled="avisExtracting"
+                class="btn-extract"
+              >
+                {{ avisExtracting ? 'Extraction...' : '🚀 Extraire les avis' }}
+              </button>
+
+              <button
+                v-else-if="selectedEmissionId && selectedEmissionDetails?.summary && !avisLoading"
+                @click="reextractAvis"
+                :disabled="avisExtracting"
+                class="btn-reextract"
+              >
+                {{ avisExtracting ? 'Ré-extraction...' : '🔄 Ré-extraire' }}
+              </button>
             </div>
           </div>
 
@@ -66,7 +91,7 @@
             :aria-expanded="showEpisodeDetails"
           >
             <span class="toggle-icon">{{ showEpisodeDetails ? '▼' : '▶' }}</span>
-            <span class="toggle-label">Détails de l'épisode (titre et description)</span>
+            <span class="toggle-label">Détails de l'emission (titre et description)</span>
           </button>
           <div v-if="showEpisodeDetails" class="accordion-content">
             <div class="episode-info-container">
@@ -116,31 +141,47 @@
           </div>
 
           <!-- Bloc info émission -->
-          <div v-if="!detailsLoading && !detailsError" class="emission-info">
-            <h2>{{ selectedEmissionDetails.episode?.titre || 'Sans titre' }}</h2>
-            <p class="emission-date">
-              <strong>Date :</strong>
-              {{ formatDate(selectedEmissionDetails.episode?.date) }}
-            </p>
-            <p class="emission-duree">
-              <strong>Durée :</strong>
-              {{ formatDuration(selectedEmissionDetails.episode?.duree) }}
-            </p>
-            <p v-if="selectedEmissionDetails.episode?.episode_page_url" class="emission-link">
-              <a
-                :href="selectedEmissionDetails.episode.episode_page_url"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                🔗 Voir sur RadioFrance
-              </a>
-            </p>
+          <div v-if="!detailsLoading && !detailsError" class="emission-info" :class="{ 'no-border': isSelectedEmissionPerfect }">
+            <h2>
+              <span v-if="selectedEmissionDetails.episode?.date" class="episode-date-prefix">
+                {{ formatDateCompact(selectedEmissionDetails.episode.date) }} -
+              </span>
+              {{ selectedEmissionDetails.episode?.titre || 'Sans titre' }}
+              <span v-if="selectedEmissionDetails.episode?.duree" class="episode-duration-suffix">
+                ({{ formatDurationCompact(selectedEmissionDetails.episode.duree) }})
+              </span>
+            </h2>
           </div>
 
-          <!-- Liste des livres -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0" class="books-list">
-            <h3>Livres discutés ({{ selectedEmissionDetails.books.length }})</h3>
-            <ul>
+          <!-- Stats de matching des avis (affiché au-dessus de la liste des livres) -->
+          <div v-if="!avisLoading && avisMatchingStats && !isSelectedEmissionPerfect" class="matching-stats">
+            <div class="stats-header">
+              <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== avisMatchingStats.livres_mongo">
+                ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ avisMatchingStats.livres_mongo }})
+              </span>
+            </div>
+            <div class="stats-details">
+              <span class="stat-item stat-phase1">Phase 1 (exact): {{ avisMatchingStats.match_phase1 }}</span>
+              <span class="stat-item stat-phase2">Phase 2 (partiel): {{ avisMatchingStats.match_phase2 }}</span>
+              <span class="stat-item stat-phase3">Phase 3 (similarité): {{ avisMatchingStats.match_phase3 }}</span>
+              <span class="stat-item stat-phase4" v-if="avisMatchingStats.match_phase4 > 0">Phase 4 (fuzzy): {{ avisMatchingStats.match_phase4 }}</span>
+              <span class="stat-item stat-unmatched" v-if="avisMatchingStats.unmatched > 0">
+                ⚠ Sans match: {{ avisMatchingStats.unmatched }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Liste des livres (repliable avec mémoire) -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0 && !isSelectedEmissionPerfect" class="collapsible-section">
+            <button
+              @click="showBooksDetails = !showBooksDetails"
+              class="collapsible-toggle"
+              :aria-expanded="showBooksDetails"
+            >
+              <span class="toggle-icon">{{ showBooksDetails ? '▼' : '▶' }}</span>
+              Livres discutés ({{ selectedEmissionDetails.books.length }})
+            </button>
+            <ul v-if="showBooksDetails" class="collapsible-content">
               <li v-for="book in selectedEmissionDetails.books" :key="book._id || book.titre">
                 <router-link
                   v-if="book.auteur_id"
@@ -163,10 +204,17 @@
             </ul>
           </div>
 
-          <!-- Liste des critiques -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0" class="critiques-list">
-            <h3>Critiques présents ({{ selectedEmissionDetails.critiques.length }})</h3>
-            <ul>
+          <!-- Liste des critiques (repliable avec mémoire) -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.critiques?.length > 0 && !isSelectedEmissionPerfect" class="collapsible-section">
+            <button
+              @click="showCritiquesDetails = !showCritiquesDetails"
+              class="collapsible-toggle"
+              :aria-expanded="showCritiquesDetails"
+            >
+              <span class="toggle-icon">{{ showCritiquesDetails ? '▼' : '▶' }}</span>
+              Critiques présents ({{ selectedEmissionDetails.critiques.length }})
+            </button>
+            <ul v-if="showCritiquesDetails" class="collapsible-content">
               <li v-for="critique in selectedEmissionDetails.critiques" :key="critique.id">
                 {{ critique.nom }}
                 <span v-if="critique.animateur" class="animateur-badge">Animateur</span>
@@ -174,10 +222,32 @@
             </ul>
           </div>
 
-          <!-- Summary markdown -->
-          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="summary-section">
-            <h3>Résumé de l'émission</h3>
-            <div class="markdown-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
+          <!-- Avis structurés -->
+          <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="avis-section-container" :class="{ 'no-top-border': isSelectedEmissionPerfect }">
+            <!-- État de chargement des avis -->
+            <div v-if="avisLoading" class="loading-small">
+              {{ avisExtracting ? 'Extraction des avis en cours...' : 'Chargement des avis...' }}
+            </div>
+
+            <!-- Erreur avis -->
+            <div v-if="avisError" class="alert alert-warning">
+              {{ avisError }}
+            </div>
+
+            <!-- Tableau des avis structurés -->
+            <AvisTable
+              v-if="!avisLoading && !avisError"
+              :avis="avis"
+              :emission-date="selectedEmissionDetails.episode?.date"
+              :matching-stats="avisMatchingStats"
+              :livres-mongo-count="avisMatchingStats?.livres_mongo || 0"
+            />
+
+            <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->
+            <details v-if="!avisLoading && avis.length > 0 && !isSelectedEmissionPerfect" class="summary-debug">
+              <summary class="summary-debug-toggle">Afficher le summary markdown brut (comparaison)</summary>
+              <div class="markdown-content summary-debug-content" v-html="renderMarkdown(selectedEmissionDetails.summary)"></div>
+            </details>
           </div>
         </div>
       </section>
@@ -190,7 +260,8 @@ import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Navigation from '../components/Navigation.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
-import { emissionsService, episodeService } from '../services/api';
+import AvisTable from '../components/AvisTable.vue';
+import { emissionsService, episodeService, avisService } from '../services/api';
 import { marked } from 'marked';
 
 export default {
@@ -199,6 +270,7 @@ export default {
   components: {
     Navigation,
     EpisodeDropdown,
+    AvisTable,
   },
 
   setup() {
@@ -219,8 +291,147 @@ export default {
     // Navigation locks
     const isChangingEpisode = ref(false);
 
-    // Affichage détails épisode (accordéon)
-    const showEpisodeDetails = ref(false);
+    // Affichage détails épisode (accordéon) - avec persistance localStorage
+    const showEpisodeDetails = ref(
+      localStorage.getItem('emissions.showEpisodeDetails') === 'true'
+    );
+    const showBooksDetails = ref(
+      localStorage.getItem('emissions.showBooksDetails') === 'true'
+    );
+    const showCritiquesDetails = ref(
+      localStorage.getItem('emissions.showCritiquesDetails') === 'true'
+    );
+
+    // Watchers pour persister l'état dans localStorage
+    watch(showEpisodeDetails, (val) => {
+      localStorage.setItem('emissions.showEpisodeDetails', val ? 'true' : 'false');
+    });
+    watch(showBooksDetails, (val) => {
+      localStorage.setItem('emissions.showBooksDetails', val ? 'true' : 'false');
+    });
+    watch(showCritiquesDetails, (val) => {
+      localStorage.setItem('emissions.showCritiquesDetails', val ? 'true' : 'false');
+    });
+
+    // État des avis structurés
+    const avis = ref([]);
+    const avisLoading = ref(false);
+    const avisError = ref(null);
+    const avisExtracting = ref(false);
+    const avisMatchingStats = ref(null);
+
+    /**
+     * Charge les avis pour une émission (extraction auto si nécessaire)
+     */
+    const loadAvisForEmission = async (emissionId) => {
+      if (!emissionId) return;
+
+      avisLoading.value = true;
+      avisError.value = null;
+      avisExtracting.value = false;
+      avisMatchingStats.value = null;
+
+      try {
+        // 1. Essayer de charger les avis existants
+        const result = await avisService.getAvisByEmission(emissionId);
+        avis.value = result.avis || [];
+        avisMatchingStats.value = result.matching_stats || null;
+
+        // 2. Si pas d'avis, lancer l'extraction automatique
+        if (avis.value.length === 0) {
+          avisExtracting.value = true;
+          try {
+            const extractResult = await avisService.extractAvis(emissionId);
+
+            // Si extraction réussie, recharger les avis ET les émissions pour MAJ badge
+            if (extractResult.extracted_count > 0) {
+              const reloadResult = await avisService.getAvisByEmission(emissionId);
+              avis.value = reloadResult.avis || [];
+              avisMatchingStats.value = reloadResult.matching_stats || null;
+
+              // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
+              try {
+                const updatedEmissions = await emissionsService.getAllEmissions();
+                emissions.value = updatedEmissions;
+              } catch (emissionsError) {
+                console.warn('Impossible de recharger les émissions:', emissionsError.message);
+              }
+            }
+          } catch (extractError) {
+            // L'extraction peut échouer si pas de summary, ce n'est pas grave
+            console.warn('Extraction avis échouée:', extractError.message);
+          }
+        }
+      } catch (error) {
+        console.error('Erreur chargement avis:', error);
+        avisError.value = error.message || 'Erreur lors du chargement des avis';
+      } finally {
+        avisLoading.value = false;
+        avisExtracting.value = false;
+      }
+    };
+
+    /**
+     * Force la ré-extraction des avis (supprime les anciens et ré-extrait)
+     */
+    const reextractAvis = async () => {
+      if (!selectedEmissionId.value) return;
+
+      avisLoading.value = true;
+      avisExtracting.value = true;
+      avisError.value = null;
+
+      try {
+        // L'endpoint POST /api/avis/extract supprime les anciens avis avant d'extraire
+        const extractResult = await avisService.extractAvis(selectedEmissionId.value);
+
+        // Recharger les avis ET les stats de matching (Issue #185)
+        const reloadResult = await avisService.getAvisByEmission(selectedEmissionId.value);
+        avis.value = reloadResult.avis || [];
+        avisMatchingStats.value = reloadResult.matching_stats || null;
+
+        // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
+        try {
+          const updatedEmissions = await emissionsService.getAllEmissions();
+          emissions.value = updatedEmissions;
+        } catch (emissionsError) {
+          console.warn('Impossible de recharger les émissions:', emissionsError.message);
+        }
+
+        console.log(`Ré-extraction terminée: ${extractResult.extracted_count} avis`);
+      } catch (error) {
+        console.error('Erreur ré-extraction avis:', error);
+        avisError.value = error.message || 'Erreur lors de la ré-extraction des avis';
+      } finally {
+        avisLoading.value = false;
+        avisExtracting.value = false;
+      }
+    };
+
+    /**
+     * Sélectionne l'émission par priorité de badge.
+     *
+     * Priorité : 🔴 count_mismatch > 🟡 unmatched > ⚪ no_avis > 🟢 perfect
+     *
+     * Dans chaque catégorie, sélectionne la plus récente (déjà triée par date DESC).
+     */
+    const selectEmissionByBadgePriority = (emissionsList) => {
+      if (!emissionsList || emissionsList.length === 0) return null;
+
+      // Ordre de priorité des badges
+      const priorityOrder = ['count_mismatch', 'unmatched', 'no_avis', 'perfect'];
+
+      // Pour chaque priorité, chercher la première émission avec ce badge
+      for (const badgeStatus of priorityOrder) {
+        const found = emissionsList.find(e => e.badge_status === badgeStatus);
+        if (found) {
+          return found;
+        }
+      }
+
+      // Fallback : retourner la plus récente (premier élément)
+      return emissionsList[0];
+    };
 
     /**
      * Charge toutes les émissions
@@ -233,11 +444,13 @@ export default {
         const data = await emissionsService.getAllEmissions();
         emissions.value = data;
 
-        // Auto-sélectionner la plus récente (déjà triée par date desc)
+        // Auto-sélectionner selon priorité de badge (🔴 > 🟡 > ⚪ > 🟢)
         if (data.length > 0 && !route.params.date) {
-          const mostRecent = data[0];
-          const dateStr = formatDateForUrl(mostRecent.date);
-          router.replace(`/emissions/${dateStr}`);
+          const selectedEmission = selectEmissionByBadgePriority(data);
+          if (selectedEmission) {
+            const dateStr = formatDateForUrl(selectedEmission.date);
+            router.replace(`/emissions/${dateStr}`);
+          }
         }
       } catch (error) {
         console.error('Erreur chargement émissions:', error);
@@ -274,6 +487,10 @@ export default {
       detailsLoading.value = true;
       detailsError.value = null;
 
+      // Reset des avis avant de charger une nouvelle émission
+      avis.value = [];
+      avisError.value = null;
+
       try {
         const data = await emissionsService.getEmissionByDate(dateStr);
         selectedEmissionDetails.value = data;
@@ -296,6 +513,9 @@ export default {
               });
           }
         }
+
+        // Charger les avis structurés en arrière-plan (extraction auto si nécessaire)
+        loadAvisForEmission(data.emission.id);
       } catch (error) {
         console.error('Erreur chargement émission par date:', error);
         detailsError.value = error.message || 'Erreur lors du chargement de l\'émission';
@@ -314,10 +534,41 @@ export default {
         titre: emission.episode?.titre || 'Sans titre',
         date: emission.date,
         numero_emission: emission.episode?.numero_emission || null,
-        // Désactiver les pastilles pour les émissions (en attendant définition de leur signification)
+        // Badge status pour pastilles (4 états)
+        badge_status: emission.badge_status || null,
+        // Désactiver les autres pastilles (LivresAuteurs)
         has_cached_books: null,
         has_incomplete_books: null,
       }));
+    });
+
+    /**
+     * Compteurs par badge status
+     */
+    const emissionsPerfectCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'perfect').length;
+    });
+
+    const emissionsCountMismatchCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'count_mismatch').length;
+    });
+
+    const emissionsUnmatchedCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'unmatched').length;
+    });
+
+    const emissionsNoAvisCount = computed(() => {
+      return emissions.value.filter(e => e.badge_status === 'no_avis').length;
+    });
+
+    /**
+     * Vérifie si l'émission sélectionnée a un badge "perfect" (🟢)
+     * Pour masquer les sections quand tout est parfait
+     */
+    const isSelectedEmissionPerfect = computed(() => {
+      if (!selectedEmissionId.value) return false;
+      const selectedEmission = emissions.value.find(e => e.id === selectedEmissionId.value);
+      return selectedEmission?.badge_status === 'perfect';
     });
 
     /**
@@ -405,12 +656,33 @@ export default {
     };
 
     /**
+     * Formate une date ISO en format compact (ex: "24/08/25")
+     */
+    const formatDateCompact = (dateStr) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = String(date.getFullYear()).slice(-2);
+      return `${day}/${month}/${year}`;
+    };
+
+    /**
      * Formate une durée en secondes en format lisible
      */
     const formatDuration = (seconds) => {
       if (!seconds) return 'Durée inconnue';
       const minutes = Math.floor(seconds / 60);
       return `${minutes} minutes`;
+    };
+
+    /**
+     * Formate une durée en secondes en format compact (ex: "50'")
+     */
+    const formatDurationCompact = (seconds) => {
+      if (!seconds) return '';
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes}'`;
     };
 
     /**
@@ -490,7 +762,15 @@ export default {
       detailsLoading,
       detailsError,
       showEpisodeDetails,
+      showBooksDetails,
+      showCritiquesDetails,
       emissionsAsEpisodes,
+      // Compteurs de badges
+      emissionsPerfectCount,
+      emissionsCountMismatchCount,
+      emissionsUnmatchedCount,
+      emissionsNoAvisCount,
+      isSelectedEmissionPerfect,
       hasPreviousEpisode,
       hasNextEpisode,
       loadAllEmissions,
@@ -498,8 +778,17 @@ export default {
       selectNextEpisode,
       onEmissionChange,
       formatDate,
+      formatDateCompact,
       formatDuration,
+      formatDurationCompact,
       renderMarkdown,
+      // Avis structurés
+      avis,
+      avisLoading,
+      avisError,
+      avisExtracting,
+      avisMatchingStats,
+      reextractAvis,
     };
   }
 };
@@ -691,6 +980,17 @@ main {
   color: #333;
 }
 
+/* Tooltip pour les compteurs de badges */
+.badge-counters-tooltip {
+  cursor: help;
+  border-bottom: 1px dotted #666;
+  white-space: pre-line;
+}
+
+.badge-counters-tooltip:hover {
+  border-bottom-color: #0066cc;
+}
+
 .episode-select-wrapper {
   display: flex;
   gap: 0.5rem;
@@ -748,18 +1048,32 @@ main {
   margin-bottom: 1.5rem;
 }
 
-.emission-info h2 {
-  margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 1.5rem;
+.emission-info.no-border {
+  border-bottom: none;
+  margin-bottom: 0.5rem;
 }
 
-.emission-date,
-.emission-duree,
-.emission-link {
-  margin: 0.5rem 0;
-  color: #666;
+.emission-info h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+  line-height: 1.4;
 }
+
+.episode-date-prefix {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.episode-duration-suffix {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: normal;
+  margin-left: 0.3rem;
+}
+
+/* Old emission-date, emission-duree, emission-link styles removed (no longer used) */
 
 .emission-link a {
   color: #0066cc;
@@ -857,5 +1171,224 @@ main {
 .markdown-content :deep(strong) {
   font-weight: 600;
   color: #000;
+}
+
+/* Section avis structurés */
+.avis-section-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.avis-section-container.no-top-border {
+  border-top: none;
+  margin-top: 0.5rem;
+  padding-top: 0;
+}
+
+.avis-section-container h3 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+/* Boutons d'action avis (style GenerationAvisCritiques) */
+.btn-extract {
+  background: #4caf50;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: #43a047;
+}
+
+.btn-extract:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-reextract {
+  background: #ff9800;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-reextract:hover:not(:disabled) {
+  background: #f57c00;
+}
+
+.btn-reextract:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.loading-small {
+  padding: 1rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.summary-fallback {
+  margin-top: 1rem;
+}
+
+.fallback-notice {
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  border-left: 3px solid #6c757d;
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+/* Section debug summary markdown (phase de test) */
+.summary-debug {
+  margin-top: 2rem;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.summary-debug-toggle {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.summary-debug-toggle:hover {
+  background: #f0f0f0;
+}
+
+.summary-debug-content {
+  padding: 1rem;
+  border-top: 1px dashed #ccc;
+  background: white;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* Stats de matching */
+.matching-stats {
+  background: #fff8e6;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.stats-header {
+  margin-bottom: 0.5rem;
+}
+
+.stats-warning {
+  color: #856404;
+  font-weight: 600;
+}
+
+.stats-details {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.stat-item {
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+}
+
+.stat-phase1 {
+  background: #d4edda;
+  color: #155724;
+}
+
+.stat-phase2 {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.stat-phase3 {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.stat-unmatched {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Sections repliables (livres, critiques) */
+.collapsible-section {
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+.collapsible-toggle {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.collapsible-toggle:hover {
+  background: #e5e7eb;
+}
+
+.collapsible-toggle .toggle-icon {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.collapsible-content {
+  padding: 0.5rem 1rem 1rem;
+  margin: 0;
+  border-top: 1px solid #e5e7eb;
+  background: white;
+  list-style: none;
+}
+
+.collapsible-content li {
+  padding: 0.25rem 0;
 }
 </style>

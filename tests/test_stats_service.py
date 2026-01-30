@@ -38,6 +38,8 @@ class TestStatsService:
             mock_mongodb.get_collection.return_value.find_one.return_value = None
             # Mock MongoDB distinct pour Issue #128 (episodes/avis_critiques)
             mock_mongodb.get_collection.return_value.distinct.return_value = []
+            # Mock MongoDB find pour Issue #185 (emissions badge stats)
+            mock_mongodb.get_collection.return_value.find.return_value = []
 
             # Act
             stats_service = StatsService()
@@ -51,6 +53,8 @@ class TestStatsService:
                 "last_episode_date": None,
                 "episodes_without_avis_critiques": 0,
                 "avis_critiques_without_analysis": 0,
+                "emissions_sans_avis": 0,
+                "emissions_with_problems": 0,
             }
             assert result == expected_result
             mock_cache.get_statistics_from_cache.assert_called_once()
@@ -238,6 +242,8 @@ Total livres traités : 14"""
             "last_episode_date": None,
             "episodes_without_avis_critiques": 0,
             "avis_critiques_without_analysis": 0,
+            "emissions_sans_avis": 0,
+            "emissions_with_problems": 0,
         }
 
         with patch.object(

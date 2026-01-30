@@ -65,14 +65,15 @@ describe('Episode direct link (Issue #96)', () => {
     expect(wrapper.vm.selectedEpisodeId).toBe('ep2')
   })
 
-  it('should not select episode when episode ID does not exist', async () => {
-    // GIVEN: Episodes disponibles
+  it('should auto-select by badge priority when episode ID does not exist', async () => {
+    // GIVEN: Episodes disponibles (ep2 est non traité → priorité ⚪)
     const mockEpisodes = [
-      { id: 'ep1', date: '2025-01-01', titre: 'Episode 1' },
-      { id: 'ep2', date: '2025-01-02', titre: 'Episode 2' }
+      { id: 'ep1', date: '2025-01-01', titre: 'Episode 1', has_cached_books: true, has_incomplete_books: false },
+      { id: 'ep2', date: '2025-01-02', titre: 'Episode 2', has_cached_books: false, has_incomplete_books: false }
     ]
 
     livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodes)
+    livresAuteursService.getLivresAuteurs.mockResolvedValue([])
 
     // GIVEN: URL avec un ID inexistant
     const wrapper = mount(LivresAuteurs, {
@@ -91,17 +92,18 @@ describe('Episode direct link (Issue #96)', () => {
     // WHEN: Le composant est monté
     await flushPromises()
 
-    // THEN: Aucun épisode ne doit être sélectionné
-    expect(wrapper.vm.selectedEpisodeId).toBe('')
+    // THEN: L'auto-sélection par pastille choisit ep2 (⚪ non traité)
+    expect(wrapper.vm.selectedEpisodeId).toBe('ep2')
   })
 
-  it('should work normally when no episode parameter in URL', async () => {
-    // GIVEN: Episodes disponibles
+  it('should auto-select by badge priority when no episode parameter in URL', async () => {
+    // GIVEN: Episodes disponibles (ep1 est le seul → sélectionné par défaut)
     const mockEpisodes = [
-      { id: 'ep1', date: '2025-01-01', titre: 'Episode 1' }
+      { id: 'ep1', date: '2025-01-01', titre: 'Episode 1', has_cached_books: true, has_incomplete_books: false }
     ]
 
     livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodes)
+    livresAuteursService.getLivresAuteurs.mockResolvedValue([])
 
     // GIVEN: URL sans paramètre episode
     const wrapper = mount(LivresAuteurs, {
@@ -120,7 +122,7 @@ describe('Episode direct link (Issue #96)', () => {
     // WHEN: Le composant est monté
     await flushPromises()
 
-    // THEN: Aucun épisode ne doit être auto-sélectionné
-    expect(wrapper.vm.selectedEpisodeId).toBe('')
+    // THEN: L'auto-sélection par pastille choisit ep1 (seul épisode disponible)
+    expect(wrapper.vm.selectedEpisodeId).toBe('ep1')
   })
 })

@@ -30,6 +30,22 @@
           </a>
           <div
             class="stat-card clickable-stat"
+            @click="navigateToEmissions"
+            :title="tooltips.emissionsSansAvis"
+          >
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.emissions_sans_avis != null) ? collectionsStatistics.emissions_sans_avis : '...' }}</div>
+            <div class="stat-label">Émissions sans avis</div>
+          </div>
+          <div
+            class="stat-card clickable-stat"
+            @click="navigateToEmissions"
+            :title="tooltips.emissionsWithProblems"
+          >
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.emissions_with_problems != null) ? collectionsStatistics.emissions_with_problems : '...' }}</div>
+            <div class="stat-label">Émissions avec problème</div>
+          </div>
+          <div
+            class="stat-card clickable-stat"
             @click="navigateToGenerationAvis"
             :title="tooltips.episodesSansAvis"
           >
@@ -292,6 +308,8 @@ export default {
       },
       tooltips: {
         lastUpdate: `Date du dernier épisode en base\nCollection: episodes\nRequête: episodes.find().sort({diffusion: -1}).limit(1)`,
+        emissionsSansAvis: `Émissions avec pastille grise (⚪)\nCollection: emissions\nRequête: emissions.find({badge_status: "no_avis"})`,
+        emissionsWithProblems: `Émissions avec pastille rouge (🔴) ou jaune (🟡)\nCollection: emissions\nRequête: emissions.find({badge_status: {$in: ["count_mismatch", "unmatched"]}})`,
         episodesSansAvis: `Formule: COUNT(episodes non masqués) - COUNT(avis_critiques non masqués)\nCollections: episodes, avis_critiques\nFiltres: masked ≠ true`,
         avisSansAnalyse: `Formule: COUNT(avis non masqués) - COUNT(livresauteurs_cache non masqués)\nCollections: avis_critiques, livresauteurs_cache, episodes\nFiltres: masked ≠ true`,
         livresSuggeres: `Livres avec statut "suggested" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "suggested"`,

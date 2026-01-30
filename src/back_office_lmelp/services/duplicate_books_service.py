@@ -271,6 +271,23 @@ class DuplicateBooksService:
                 {"$pull": {"livres": {"$in": duplicate_ids_str}}},
             )
 
+        # Étape 8: Mise à jour du cache livresauteurs_cache (Issue #187)
+        # Remplacer les book_id supprimés par le book_id du livre primaire
+        cache_entries_updated = 0
+        if duplicate_ids:
+            cache_collection = self.mongodb_service.livresauteurs_cache_collection
+            if cache_collection is not None:
+                cache_result = cache_collection.update_many(
+                    {"book_id": {"$in": duplicate_ids}},
+                    {"$set": {"book_id": primary_book["_id"]}},
+                )
+                cache_entries_updated = cache_result.modified_count
+                if cache_entries_updated > 0:
+                    logger.info(
+                        f"📦 Cache livresauteurs_cache: {cache_entries_updated} entrées "
+                        f"mises à jour (book_id → {primary_book['_id']})"
+                    )
+
         return {
             "success": True,
             "primary_book_id": str(primary_book["_id"]),
@@ -278,10 +295,12 @@ class DuplicateBooksService:
             "merged_data": {"titre": official_titre, "editeur": official_editeur},
             "episodes_merged": len(unique_episodes),
             "avis_critiques_merged": len(unique_avis),
+            "cache_entries_updated": cache_entries_updated,
             "logs": [
                 f"Primary book: {primary_book['_id']}",
                 f"Deleted: {len(duplicate_ids)} duplicates",
                 f"Merged: {len(unique_episodes)} episodes, {len(unique_avis)} avis",
+                f"Cache entries updated: {cache_entries_updated}",
             ],
             "error": None,
         }

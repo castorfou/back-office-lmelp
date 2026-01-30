@@ -530,3 +530,117 @@ Excellent épisode avec des critiques pertinentes."""
                 0
             ]
             assert saved_data["summary"] == valid_summary
+
+
+class TestSaveAvisCritiquesClearCache:
+    """Tests pour vérifier que la sauvegarde d'avis critiques vide le cache livres.
+
+    Issue #185: Quand on régénère un avis critique, le cache livresauteurs_cache
+    contient des données basées sur l'ancien summary. Il faut le vider pour
+    forcer la revalidation biblographique.
+    """
+
+    def test_should_clear_livresauteurs_cache_on_save(self, client):
+        """La sauvegarde d'un avis critique doit vider le cache livres de l'épisode."""
+        valid_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Test Author | Test Title | Test Editor | Excellent livre |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+- **Test Author** recommande vivement ce livre
+
+## 3. ANALYSE CRITIQUE
+
+Excellent épisode."""
+
+        episode_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        mock_episode = {
+            "_id": ObjectId(episode_id),
+            "titre": "Épisode Test",
+            "date": datetime(2025, 1, 15),
+        }
+
+        request_data = {
+            "episode_id": episode_id,
+            "summary": valid_summary,
+            "summary_phase1": "Phase 1 summary",
+            "metadata": {},
+        }
+
+        with (
+            patch("back_office_lmelp.app.mongodb_service") as mock_service,
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_service.get_episode_by_id.return_value = mock_episode
+            mock_service.avis_critiques_collection.find_one.return_value = None
+            mock_result = type("obj", (object,), {"inserted_id": ObjectId()})()
+            mock_service.avis_critiques_collection.insert_one.return_value = mock_result
+
+            response = client.post("/api/avis-critiques/save", json=request_data)
+
+            assert response.status_code == 200
+            assert response.json()["success"] is True
+
+            # Vérifier que le cache a été vidé pour cet épisode
+            mock_cache_service.delete_cache_by_episode.assert_called_once_with(
+                episode_id
+            )
+
+    def test_should_clear_cache_on_update_too(self, client):
+        """La mise à jour d'un avis critique existant doit aussi vider le cache."""
+        valid_summary = """## 1. LIVRES DISCUTÉS AU PROGRAMME du 11 août 2019
+
+| Auteur | Titre | Éditeur | Avis détaillés des critiques |
+|--------|-------|---------|------------------------------|
+| Test Author | Test Title | Test Editor | Excellent livre |
+
+## 2. COUPS DE CŒUR DES CRITIQUES
+
+- **Test Author** recommande vivement ce livre
+
+## 3. ANALYSE CRITIQUE
+
+Excellent épisode."""
+
+        episode_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        existing_avis_id = ObjectId()
+        mock_episode = {
+            "_id": ObjectId(episode_id),
+            "titre": "Épisode Test",
+            "date": datetime(2025, 1, 15),
+        }
+
+        request_data = {
+            "episode_id": episode_id,
+            "summary": valid_summary,
+            "summary_phase1": "Phase 1 summary",
+            "metadata": {},
+        }
+
+        with (
+            patch("back_office_lmelp.app.mongodb_service") as mock_service,
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_service.get_episode_by_id.return_value = mock_episode
+            # Avis existant → update
+            mock_service.avis_critiques_collection.find_one.return_value = {
+                "_id": existing_avis_id,
+                "episode_oid": episode_id,
+            }
+
+            response = client.post("/api/avis-critiques/save", json=request_data)
+
+            assert response.status_code == 200
+            assert response.json()["success"] is True
+
+            # Vérifier que le cache a été vidé même lors d'un update
+            mock_cache_service.delete_cache_by_episode.assert_called_once_with(
+                episode_id
+            )

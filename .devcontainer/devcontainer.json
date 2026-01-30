@@ -42,7 +42,8 @@
                 "dbaeumer.vscode-eslint",
                 "ms-python.autopep8",
                 "Vue.volar",
-                "anthropic.claude-code"
+                "anthropic.claude-code",
+                "Catppuccin.catppuccin-vsc"
             ],
             "settings": {
                 // Configuration Python

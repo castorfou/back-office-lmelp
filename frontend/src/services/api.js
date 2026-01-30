@@ -549,4 +549,59 @@ export const avisCritiquesService = {
   }
 };
 
+/**
+ * Service pour la gestion des avis structurés
+ */
+export const avisService = {
+  /**
+   * Récupère les avis d'une émission
+   * @param {string} emissionId - ID de l'émission
+   * @returns {Promise<Object>} Liste des avis {avis: [...]}
+   */
+  async getAvisByEmission(emissionId) {
+    const response = await api.get(`/avis/by-emission/${emissionId}`);
+    return response.data;
+  },
+
+  /**
+   * Extrait les avis depuis le summary d'une émission
+   * @param {string} emissionId - ID de l'émission
+   * @returns {Promise<Object>} Résultat de l'extraction
+   */
+  async extractAvis(emissionId) {
+    const response = await api.post(`/avis/extract/${emissionId}`);
+    return response.data;
+  },
+
+  /**
+   * Met à jour un avis (résolution manuelle d'entité)
+   * @param {string} avisId - ID de l'avis
+   * @param {Object} data - Données à mettre à jour
+   * @returns {Promise<Object>} Résultat de la mise à jour
+   */
+  async updateAvis(avisId, data) {
+    const response = await api.put(`/avis/${avisId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Supprime un avis
+   * @param {string} avisId - ID de l'avis
+   * @returns {Promise<Object>} Résultat de la suppression
+   */
+  async deleteAvis(avisId) {
+    const response = await api.delete(`/avis/${avisId}`);
+    return response.data;
+  },
+
+  /**
+   * Récupère les statistiques des avis
+   * @returns {Promise<Object>} Statistiques
+   */
+  async getStats() {
+    const response = await api.get('/stats/avis');
+    return response.data;
+  },
+};
+
 export default api;
