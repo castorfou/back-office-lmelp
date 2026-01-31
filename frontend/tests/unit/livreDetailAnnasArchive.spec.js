@@ -35,8 +35,8 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
       url_babelio: 'https://www.babelio.com/livres/test',
-      nombre_episodes: 1,
-      episodes: []
+      nombre_emissions: 1,
+      emissions: []
     }
 
     // Mock API responses (Issue #188: URL dynamique depuis backend)
@@ -75,8 +75,8 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
       auteur_nom: 'Christian Laval',
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
-      nombre_episodes: 1,
-      episodes: []
+      nombre_emissions: 1,
+      emissions: []
     }
 
     // Mock API responses - URL dynamique depuis backend (Issue #188)
@@ -112,8 +112,8 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
       auteur_nom: 'Test Auteur',
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
-      nombre_episodes: 1,
-      episodes: []
+      nombre_emissions: 1,
+      emissions: []
     }
 
     axios.get.mockImplementation((url) => {
@@ -148,8 +148,8 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
       auteur_nom: 'Jean-Paul Évrard',
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
-      nombre_episodes: 1,
-      episodes: []
+      nombre_emissions: 1,
+      emissions: []
     }
 
     axios.get.mockImplementation((url) => {
@@ -189,8 +189,8 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
       auteur_nom: 'Test Auteur',
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
-      nombre_episodes: 1,
-      episodes: []
+      nombre_emissions: 1,
+      emissions: []
     }
 
     axios.get.mockImplementation((url) => {

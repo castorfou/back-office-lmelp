@@ -1,5 +1,5 @@
 /**
- * Tests d'intégration pour la page de détail d'un livre (Issue #96 - Phase 2)
+ * Tests d'intégration pour la page de détail d'un livre (Issue #96 - Phase 2, updated Issue #190)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -21,19 +21,20 @@ describe('LivreDetail - Tests d\'intégration', () => {
     auteur_id: '68e841e6066cb40c25d5d282',
     auteur_nom: 'Adrien Bosc',
     editeur: 'Stock',
-    nombre_episodes: 2,
-    episodes: [
+    note_moyenne: 7.5,
+    nombre_emissions: 2,
+    emissions: [
       {
-        episode_id: '68e841e6066cb40c25d5d286',
-        titre: 'Émission du 15 septembre 2024',
+        emission_id: '68e841e6066cb40c25d5d290',
         date: '2024-09-15',
-        programme: true
+        note_moyenne: 8.0,
+        nombre_avis: 3
       },
       {
-        episode_id: '68e841e6066cb40c25d5d287',
-        titre: 'Émission du 12 mars 2024',
+        emission_id: '68e841e6066cb40c25d5d291',
         date: '2024-03-12',
-        programme: false
+        note_moyenne: 7.0,
+        nombre_avis: 2
       }
     ]
   };
@@ -56,9 +57,9 @@ describe('LivreDetail - Tests d\'intégration', () => {
           component: { template: '<div>Auteur Detail</div>' }
         },
         {
-          path: '/episode/:id',
-          name: 'EpisodeDetail',
-          component: { template: '<div>Episode Detail</div>' }
+          path: '/emissions/:date',
+          name: 'EmissionDetail',
+          component: { template: '<div>Emission Detail</div>' }
         }
       ]
     });
@@ -68,7 +69,7 @@ describe('LivreDetail - Tests d\'intégration', () => {
     await router.isReady();
   });
 
-  it('should display book title, author name and episode count', async () => {
+  it('should display book title, author name and emission count', async () => {
     // GIVEN: L'API retourne les données d'un livre
     axios.get.mockResolvedValueOnce({ data: mockLivreData });
 
@@ -81,16 +82,16 @@ describe('LivreDetail - Tests d\'intégration', () => {
 
     await flushPromises();
 
-    // THEN: Le titre du livre, l'auteur et le nombre d'épisodes sont affichés
+    // THEN: Le titre du livre, l'auteur et le nombre d'émissions sont affichés
     expect(wrapper.text()).toContain('Capitaine');
     expect(wrapper.text()).toContain('Adrien Bosc');
     expect(wrapper.text()).toContain('Stock');
     expect(wrapper.text()).toContain('2');
-    expect(wrapper.text()).toMatch(/2.*épisode/i);
+    expect(wrapper.text()).toMatch(/2.*émission/i);
   });
 
-  it('should display all episodes sorted by date (most recent first)', async () => {
-    // GIVEN: L'API retourne les données d'un livre avec plusieurs épisodes
+  it('should display overall note_moyenne with color badge', async () => {
+    // GIVEN: L'API retourne les données d'un livre avec note moyenne
     axios.get.mockResolvedValueOnce({ data: mockLivreData });
 
     // WHEN: Le composant est monté
@@ -102,18 +103,14 @@ describe('LivreDetail - Tests d\'intégration', () => {
 
     await flushPromises();
 
-    // THEN: Tous les épisodes sont affichés
-    expect(wrapper.text()).toContain('Émission du 15 septembre 2024');
-    expect(wrapper.text()).toContain('Émission du 12 mars 2024');
-
-    // THEN: Les épisodes sont triés par date (plus récent d'abord)
-    const episodeItems = wrapper.findAll('[data-test="episode-item"]').map(el => el.text());
-    expect(episodeItems[0]).toContain('15 septembre 2024');
-    expect(episodeItems[1]).toContain('12 mars 2024');
+    // THEN: La note moyenne globale est affichée
+    const noteBadge = wrapper.find('[data-test="note-moyenne-globale"]');
+    expect(noteBadge.exists()).toBe(true);
+    expect(noteBadge.text()).toContain('7.5');
   });
 
-  it('should display date for each episode', async () => {
-    // GIVEN: L'API retourne les données d'un livre
+  it('should display emissions sorted by date with per-emission note', async () => {
+    // GIVEN: L'API retourne les données d'un livre avec émissions
     axios.get.mockResolvedValueOnce({ data: mockLivreData });
 
     // WHEN: Le composant est monté
@@ -125,15 +122,17 @@ describe('LivreDetail - Tests d\'intégration', () => {
 
     await flushPromises();
 
-    // THEN: La date est affichée pour chaque épisode (en format français)
-    const episodeItems = wrapper.findAll('[data-test="episode-item"]');
-    expect(episodeItems).toHaveLength(2);
-    expect(episodeItems[0].text()).toContain('15 septembre 2024');
-    expect(episodeItems[1].text()).toContain('12 mars 2024');
+    // THEN: Les émissions sont affichées avec leurs notes
+    const emissionItems = wrapper.findAll('[data-test="emission-item"]');
+    expect(emissionItems).toHaveLength(2);
+
+    // Émissions triées par date (plus récent d'abord)
+    expect(emissionItems[0].text()).toContain('15 septembre 2024');
+    expect(emissionItems[1].text()).toContain('12 mars 2024');
   });
 
-  it('should make author name clickable with correct route', async () => {
-    // GIVEN: L'API retourne les données d'un livre
+  it('should link emissions to /emissions/:date route', async () => {
+    // GIVEN: L'API retourne les données d'un livre avec émissions
     axios.get.mockResolvedValueOnce({ data: mockLivreData });
 
     // WHEN: Le composant est monté
@@ -145,32 +144,11 @@ describe('LivreDetail - Tests d\'intégration', () => {
 
     await flushPromises();
 
-    // THEN: Le nom de l'auteur est un lien cliquable
-    const auteurLink = wrapper.find('[data-test="auteur-link"]');
-    expect(auteurLink.exists()).toBe(true);
-    expect(auteurLink.attributes('href')).toBe('/auteur/68e841e6066cb40c25d5d282');
-  });
-
-  it('should make episode titles clickable with correct route', async () => {
-    // GIVEN: L'API retourne les données d'un livre
-    axios.get.mockResolvedValueOnce({ data: mockLivreData });
-
-    // WHEN: Le composant est monté
-    wrapper = mount(LivreDetail, {
-      global: {
-        plugins: [router]
-      }
-    });
-
-    await flushPromises();
-
-    // THEN: Les titres d'épisodes sont des liens cliquables
-    const episodeLinks = wrapper.findAll('[data-test="episode-link"]');
-    expect(episodeLinks).toHaveLength(2);
-
-    // Issue #96: Vérifier que les liens pointent vers /livres-auteurs avec le bon episode_id
-    expect(episodeLinks[0].attributes('href')).toBe('/livres-auteurs?episode=68e841e6066cb40c25d5d286');
-    expect(episodeLinks[1].attributes('href')).toBe('/livres-auteurs?episode=68e841e6066cb40c25d5d287');
+    // THEN: Les liens pointent vers /emissions/YYYYMMDD
+    const emissionLinks = wrapper.findAll('[data-test="emission-link"]');
+    expect(emissionLinks).toHaveLength(2);
+    expect(emissionLinks[0].attributes('href')).toBe('/emissions/20240915');
+    expect(emissionLinks[1].attributes('href')).toBe('/emissions/20240312');
   });
 
   it('should display loading state while fetching data', async () => {
@@ -223,18 +201,19 @@ describe('LivreDetail - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('Livre non trouvé');
   });
 
-  it('should display empty state when book has no episodes', async () => {
-    // GIVEN: L'API retourne un livre sans épisodes
-    const livreSansEpisodes = {
+  it('should display empty state when book has no emissions', async () => {
+    // GIVEN: L'API retourne un livre sans émissions
+    const livreSansEmissions = {
       livre_id: '68e841e6066cb40c25d5d283',
       titre: 'Nouveau Livre',
       auteur_id: '68e841e6066cb40c25d5d282',
       auteur_nom: 'Nouvel Auteur',
       editeur: 'Nouvel Editeur',
-      nombre_episodes: 0,
-      episodes: []
+      note_moyenne: null,
+      nombre_emissions: 0,
+      emissions: []
     };
-    axios.get.mockResolvedValueOnce({ data: livreSansEpisodes });
+    axios.get.mockResolvedValueOnce({ data: livreSansEmissions });
 
     // WHEN: Le composant est monté
     wrapper = mount(LivreDetail, {
@@ -245,8 +224,8 @@ describe('LivreDetail - Tests d\'intégration', () => {
 
     await flushPromises();
 
-    // THEN: Un message indiquant l'absence d'épisodes est affiché
-    expect(wrapper.text()).toContain('Aucun épisode');
+    // THEN: Un message indiquant l'absence d'émissions est affiché
+    expect(wrapper.text()).toContain('Aucune émission');
     expect(wrapper.text()).toContain('0');
   });
 

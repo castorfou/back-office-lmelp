@@ -1,4 +1,4 @@
-"""Tests for GET /api/livre/{livre_id} endpoint (Issue #96 - Phase 2)."""
+"""Tests for GET /api/livre/{livre_id} endpoint (Issue #96 - Phase 2, updated Issue #190)."""
 
 from unittest.mock import patch
 
@@ -19,9 +19,9 @@ class TestGetLivreDetail:
     """Tests pour l'endpoint GET /api/livre/{livre_id}."""
 
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_get_livre_returns_book_with_episodes(self, mock_mongodb_service, client):
-        """Test que GET /api/livre/{id} retourne les détails d'un livre avec ses épisodes."""
-        # GIVEN: Un livre avec plusieurs épisodes en base
+    def test_get_livre_returns_book_with_emissions(self, mock_mongodb_service, client):
+        """Test que GET /api/livre/{id} retourne les détails d'un livre avec ses émissions."""
+        # GIVEN: Un livre avec plusieurs émissions en base
         livre_id = str(ObjectId())
         auteur_id = str(ObjectId())
         mock_mongodb_service.get_livre_with_episodes.return_value = {
@@ -30,19 +30,20 @@ class TestGetLivreDetail:
             "auteur_id": auteur_id,
             "auteur_nom": "Emmanuel Carrère",
             "editeur": "Gallimard",
-            "nombre_episodes": 2,
-            "episodes": [
+            "note_moyenne": 7.5,
+            "nombre_emissions": 2,
+            "emissions": [
                 {
-                    "episode_id": str(ObjectId()),
-                    "titre": "Émission du 12 mars 2000",
-                    "date": "2000-03-12",
-                    "programme": True,
+                    "emission_id": str(ObjectId()),
+                    "date": "2000-09-15",
+                    "note_moyenne": 8.0,
+                    "nombre_avis": 3,
                 },
                 {
-                    "episode_id": str(ObjectId()),
-                    "titre": "Émission du 15 septembre 2000",
-                    "date": "2000-09-15",
-                    "programme": False,
+                    "emission_id": str(ObjectId()),
+                    "date": "2000-03-12",
+                    "note_moyenne": 7.0,
+                    "nombre_avis": 2,
                 },
             ],
         }
@@ -57,10 +58,11 @@ class TestGetLivreDetail:
         assert data["titre"] == "L'Adversaire"
         assert data["auteur_nom"] == "Emmanuel Carrère"
         assert data["editeur"] == "Gallimard"
-        assert data["nombre_episodes"] == 2
-        assert len(data["episodes"]) == 2
-        assert data["episodes"][0]["titre"] == "Émission du 12 mars 2000"
-        assert data["episodes"][1]["titre"] == "Émission du 15 septembre 2000"
+        assert data["note_moyenne"] == 7.5
+        assert data["nombre_emissions"] == 2
+        assert len(data["emissions"]) == 2
+        assert data["emissions"][0]["date"] == "2000-09-15"
+        assert data["emissions"][1]["date"] == "2000-03-12"
 
         # Vérifier que le service a été appelé avec le bon ID
         mock_mongodb_service.get_livre_with_episodes.assert_called_once_with(livre_id)
@@ -80,11 +82,11 @@ class TestGetLivreDetail:
         assert "Livre non trouvé" in response.json()["detail"]
 
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_get_livre_returns_book_with_no_episodes(
+    def test_get_livre_returns_book_with_no_emissions(
         self, mock_mongodb_service, client
     ):
-        """Test qu'un livre sans épisodes retourne une liste vide."""
-        # GIVEN: Un livre sans épisodes
+        """Test qu'un livre sans émissions retourne une liste vide."""
+        # GIVEN: Un livre sans émissions
         livre_id = str(ObjectId())
         auteur_id = str(ObjectId())
         mock_mongodb_service.get_livre_with_episodes.return_value = {
@@ -93,18 +95,19 @@ class TestGetLivreDetail:
             "auteur_id": auteur_id,
             "auteur_nom": "Nouvel Auteur",
             "editeur": "Nouveau Editeur",
-            "nombre_episodes": 0,
-            "episodes": [],
+            "note_moyenne": None,
+            "nombre_emissions": 0,
+            "emissions": [],
         }
 
         # WHEN: On appelle GET /api/livre/{id}
         response = client.get(f"/api/livre/{livre_id}")
 
-        # THEN: On reçoit un 200 avec une liste d'épisodes vide
+        # THEN: On reçoit un 200 avec une liste d'émissions vide
         assert response.status_code == 200
         data = response.json()
-        assert data["nombre_episodes"] == 0
-        assert data["episodes"] == []
+        assert data["nombre_emissions"] == 0
+        assert data["emissions"] == []
 
     @patch("back_office_lmelp.app.mongodb_service")
     def test_get_livre_validates_objectid_format(self, mock_mongodb_service, client):
@@ -134,13 +137,14 @@ class TestGetLivreDetail:
             "auteur_nom": "Catherine Millet",
             "editeur": "Flammarion",
             "url_babelio": "https://www.babelio.com/livres/Millet-Simone-monet/1870367",
-            "nombre_episodes": 1,
-            "episodes": [
+            "note_moyenne": 6.5,
+            "nombre_emissions": 1,
+            "emissions": [
                 {
-                    "episode_id": str(ObjectId()),
-                    "titre": "Émission du 28 septembre 2025",
+                    "emission_id": str(ObjectId()),
                     "date": "2025-09-28",
-                    "programme": True,
+                    "note_moyenne": 6.5,
+                    "nombre_avis": 4,
                 }
             ],
         }
@@ -170,8 +174,9 @@ class TestGetLivreDetail:
             "auteur_id": auteur_id,
             "auteur_nom": "Auteur Test",
             "editeur": "Editeur Test",
-            "nombre_episodes": 0,
-            "episodes": [],
+            "note_moyenne": None,
+            "nombre_emissions": 0,
+            "emissions": [],
         }
 
         # WHEN: On appelle GET /api/livre/{id}

@@ -69,14 +69,36 @@
             data-test="book-item"
           >
             <div class="livre-info">
-              <router-link
-                :to="`/livre/${livre.livre_id}`"
-                class="livre-title-link"
-                data-test="book-link"
-              >
-                <h3 class="livre-title">{{ livre.titre }}</h3>
-              </router-link>
+              <div class="livre-title-row">
+                <router-link
+                  :to="`/livre/${livre.livre_id}`"
+                  class="livre-title-link"
+                  data-test="book-link"
+                >
+                  <h3 class="livre-title">{{ livre.titre }}</h3>
+                </router-link>
+                <span
+                  v-if="livre.note_moyenne != null"
+                  class="note-badge"
+                  :class="noteClass(livre.note_moyenne)"
+                  data-test="book-note"
+                >
+                  {{ livre.note_moyenne.toFixed(1) }}
+                </span>
+              </div>
               <p class="livre-editor">{{ livre.editeur }}</p>
+              <!-- Dates d'émissions (Issue #190) -->
+              <div v-if="livre.emissions && livre.emissions.length > 0" class="livre-emissions">
+                <router-link
+                  v-for="emission in livre.emissions"
+                  :key="emission.emission_id"
+                  :to="`/emissions/${formatDateForUrl(emission.date)}`"
+                  class="emission-date-chip"
+                  data-test="emission-date-link"
+                >
+                  {{ formatDate(emission.date) }}
+                </router-link>
+              </div>
             </div>
             <div class="livre-arrow">→</div>
           </div>
@@ -134,6 +156,22 @@ export default {
       } finally {
         this.loading = false;
       }
+    },
+    formatDate(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      return date.toLocaleDateString('fr-FR', options);
+    },
+    formatDateForUrl(dateString) {
+      if (!dateString) return '';
+      return dateString.replace(/-/g, '');
+    },
+    noteClass(note) {
+      if (note >= 9) return 'note-excellent';
+      if (note >= 7) return 'note-good';
+      if (note >= 5) return 'note-average';
+      return 'note-poor';
     }
   }
 };
@@ -296,6 +334,12 @@ export default {
   flex: 1;
 }
 
+.livre-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .livre-title-link {
   text-decoration: none;
   color: inherit;
@@ -312,10 +356,65 @@ export default {
   color: #1976d2;
 }
 
+/* Note badges (Issue #190) */
+.note-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 0.4rem;
+  border-radius: 14px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.note-excellent {
+  background: #00C851;
+}
+
+.note-good {
+  background: #8BC34A;
+}
+
+.note-average {
+  background: #CDDC39;
+  color: #333;
+}
+
+.note-poor {
+  background: #F44336;
+}
+
 .livre-editor {
   color: #757575;
   font-size: 0.9rem;
   margin: 0;
+}
+
+/* Emission date chips (Issue #190) */
+.livre-emissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.emission-date-chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.emission-date-chip:hover {
+  background: #bbdefb;
 }
 
 .livre-arrow {

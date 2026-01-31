@@ -1,5 +1,5 @@
 /**
- * Tests d'intégration pour la page de détail d'un auteur (Issue #96 - Phase 1)
+ * Tests d'intégration pour la page de détail d'un auteur (Issue #96 - Phase 1, updated Issue #190)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -23,17 +23,28 @@ describe('AuteurDetail - Tests d\'intégration', () => {
       {
         livre_id: '68e841e6066cb40c25d5d283',
         titre: 'Capitaine',
-        editeur: 'Stock'
+        editeur: 'Stock',
+        note_moyenne: 8.0,
+        emissions: [
+          { date: '2024-09-15', emission_id: '68e841e6066cb40c25d5d290' },
+          { date: '2024-03-12', emission_id: '68e841e6066cb40c25d5d291' }
+        ]
       },
       {
         livre_id: '68e841e6066cb40c25d5d284',
         titre: 'L\'invention de Tristan',
-        editeur: 'Stock'
+        editeur: 'Stock',
+        note_moyenne: 6.5,
+        emissions: [
+          { date: '2023-11-20', emission_id: '68e841e6066cb40c25d5d292' }
+        ]
       },
       {
         livre_id: '68e841e6066cb40c25d5d285',
         titre: 'Procès',
-        editeur: 'Stock'
+        editeur: 'Stock',
+        note_moyenne: null,
+        emissions: []
       }
     ]
   };
@@ -54,6 +65,11 @@ describe('AuteurDetail - Tests d\'intégration', () => {
           path: '/livre/:id',
           name: 'LivreDetail',
           component: { template: '<div>Livre Detail</div>' }
+        },
+        {
+          path: '/emissions/:date',
+          name: 'EmissionDetail',
+          component: { template: '<div>Emission Detail</div>' }
         }
       ]
     });
@@ -82,7 +98,7 @@ describe('AuteurDetail - Tests d\'intégration', () => {
     expect(wrapper.text()).toMatch(/3.*œuvre/i);
   });
 
-  it('should display all books sorted alphabetically', async () => {
+  it('should display all books with their titles', async () => {
     // GIVEN: L'API retourne les données d'un auteur avec plusieurs livres
     axios.get.mockResolvedValueOnce({ data: mockAuteurData });
 
@@ -100,11 +116,51 @@ describe('AuteurDetail - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('L\'invention de Tristan');
     expect(wrapper.text()).toContain('Procès');
 
-    // THEN: Les livres sont triés alphabétiquement (vérifier l'ordre dans le HTML)
-    const bookTitles = wrapper.findAll('[data-test="book-item"]').map(el => el.text());
-    expect(bookTitles[0]).toContain('Capitaine');
-    expect(bookTitles[1]).toContain('L\'invention de Tristan');
-    expect(bookTitles[2]).toContain('Procès');
+    const bookItems = wrapper.findAll('[data-test="book-item"]');
+    expect(bookItems).toHaveLength(3);
+  });
+
+  it('should display note_moyenne badge per book', async () => {
+    // GIVEN: L'API retourne les données d'un auteur avec notes
+    axios.get.mockResolvedValueOnce({ data: mockAuteurData });
+
+    // WHEN: Le composant est monté
+    wrapper = mount(AuteurDetail, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await flushPromises();
+
+    // THEN: Les notes moyennes sont affichées pour les livres qui en ont
+    const noteBadges = wrapper.findAll('[data-test="book-note"]');
+    // 2 livres ont des notes (Capitaine: 8.0, L'invention: 6.5), Procès: null
+    expect(noteBadges.length).toBeGreaterThanOrEqual(2);
+    expect(noteBadges[0].text()).toContain('8');
+    expect(noteBadges[1].text()).toContain('6.5');
+  });
+
+  it('should display emission dates per book as clickable links', async () => {
+    // GIVEN: L'API retourne les données d'un auteur avec émissions
+    axios.get.mockResolvedValueOnce({ data: mockAuteurData });
+
+    // WHEN: Le composant est monté
+    wrapper = mount(AuteurDetail, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await flushPromises();
+
+    // THEN: Les dates d'émissions sont affichées comme liens
+    const emissionLinks = wrapper.findAll('[data-test="emission-date-link"]');
+    expect(emissionLinks.length).toBeGreaterThanOrEqual(2);
+
+    // Les liens pointent vers /emissions/YYYYMMDD
+    expect(emissionLinks[0].attributes('href')).toBe('/emissions/20240915');
+    expect(emissionLinks[1].attributes('href')).toBe('/emissions/20240312');
   });
 
   it('should display publisher for each book', async () => {

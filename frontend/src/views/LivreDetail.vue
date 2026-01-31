@@ -61,7 +61,17 @@
 
           <!-- Informations du livre à droite -->
           <div class="livre-info">
-            <h1 class="livre-title">{{ livre.titre }}</h1>
+            <div class="livre-title-row">
+              <h1 class="livre-title">{{ livre.titre }}</h1>
+              <span
+                v-if="livre.note_moyenne != null"
+                class="note-badge"
+                :class="noteClass(livre.note_moyenne)"
+                data-test="note-moyenne-globale"
+              >
+                {{ livre.note_moyenne.toFixed(1) }}
+              </span>
+            </div>
             <div class="livre-meta">
               <div class="livre-author">
                 Auteur :
@@ -77,58 +87,49 @@
             </div>
             <div class="livre-stats">
               <span class="stat-badge">
-                {{ livre.nombre_episodes }} épisode{{ livre.nombre_episodes > 1 ? 's' : '' }}
+                {{ livre.nombre_emissions }} émission{{ livre.nombre_emissions > 1 ? 's' : '' }}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Liste des épisodes -->
-      <section class="episodes-section">
-        <h2>Épisodes présentant "{{ livre.titre }}"</h2>
+      <!-- Liste des émissions (Issue #190) -->
+      <section class="emissions-section">
+        <h2>Émissions présentant "{{ livre.titre }}"</h2>
 
-        <!-- Message si aucun épisode -->
-        <div v-if="livre.episodes.length === 0" class="empty-state">
-          <p>Aucun épisode trouvé pour ce livre</p>
+        <!-- Message si aucune émission -->
+        <div v-if="livre.emissions.length === 0" class="empty-state">
+          <p>Aucune émission trouvée pour ce livre</p>
         </div>
 
-        <!-- Liste des épisodes -->
-        <div v-else class="episodes-list">
+        <!-- Liste des émissions -->
+        <div v-else class="emissions-list">
           <div
-            v-for="episode in livre.episodes"
-            :key="episode.episode_id"
-            class="episode-card"
-            data-test="episode-item"
+            v-for="emission in livre.emissions"
+            :key="emission.emission_id"
+            class="emission-card"
+            data-test="emission-item"
           >
-            <!-- Icône programme/coup de coeur -->
-            <div class="episode-status" v-if="episode.programme !== null && episode.programme !== undefined">
-              <!-- Programme: blue target icon -->
-              <span v-if="episode.programme" class="status-icon programme" title="Au programme" role="img" aria-label="Programme">
-                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-                  <circle cx="12" cy="12" r="8" fill="#0B5FFF" />
-                  <circle cx="12" cy="12" r="4" fill="#FFFFFF" />
-                </svg>
-              </span>
-              <!-- Coup de coeur: red heart -->
-              <span v-else class="status-icon coeur" title="Coup de coeur" role="img" aria-label="Coup de coeur">
-                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-                  <path d="M12 21s-7.5-4.5-9.3-7.1C-0.4 9.8 3 5 7.4 7.1 9.1 8 10 9.6 12 11.3c2-1.7 2.9-3.3 4.6-4.2C21 5 24.4 9.8 21.3 13.9 19.5 16.5 12 21 12 21z" fill="#D93025" />
-                </svg>
-              </span>
-            </div>
-            <div class="episode-info">
-              <!-- Issue #96: Lien vers la validation biblio de cet épisode -->
+            <div class="emission-info">
               <router-link
-                :to="`/livres-auteurs?episode=${episode.episode_id}`"
-                class="episode-title-link"
-                data-test="episode-link"
+                :to="`/emissions/${formatDateForUrl(emission.date)}`"
+                class="emission-date-link"
+                data-test="emission-link"
               >
-                <h3 class="episode-title">{{ episode.titre }}</h3>
+                <h3 class="emission-date-title">{{ formatDate(emission.date) }}</h3>
               </router-link>
-              <p class="episode-date">{{ formatDate(episode.date) }}</p>
+              <p class="emission-avis-count">{{ emission.nombre_avis }} avis</p>
             </div>
-            <div class="episode-arrow">→</div>
+            <span
+              v-if="emission.note_moyenne != null"
+              class="note-badge"
+              :class="noteClass(emission.note_moyenne)"
+              data-test="emission-note"
+            >
+              {{ emission.note_moyenne.toFixed(1) }}
+            </span>
+            <div class="emission-arrow">→</div>
           </div>
         </div>
       </section>
@@ -207,6 +208,18 @@ export default {
       const date = new Date(dateString);
       const options = { year: 'numeric', month: 'long', day: 'numeric' };
       return date.toLocaleDateString('fr-FR', options);
+    },
+    formatDateForUrl(dateString) {
+      // Format date from YYYY-MM-DD to YYYYMMDD for /emissions/:date route
+      if (!dateString) return '';
+      return dateString.replace(/-/g, '');
+    },
+    noteClass(note) {
+      // Color scale matching AvisTable.vue
+      if (note >= 9) return 'note-excellent';
+      if (note >= 7) return 'note-good';
+      if (note >= 5) return 'note-average';
+      return 'note-poor';
     },
     getAnnasArchiveUrl() {
       // Issue #165 + #188: Générer l'URL de recherche Anna's Archive (URL dynamique)
@@ -373,8 +386,47 @@ export default {
   font-size: 0.9rem;
 }
 
-/* Section épisodes */
-.episodes-section {
+/* Title row with note badge */
+.livre-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Note badges (Issue #190) */
+.note-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 32px;
+  padding: 0 0.5rem;
+  border-radius: 16px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.note-excellent {
+  background: #00C851;
+}
+
+.note-good {
+  background: #8BC34A;
+}
+
+.note-average {
+  background: #CDDC39;
+  color: #333;
+}
+
+.note-poor {
+  background: #F44336;
+}
+
+/* Section émissions (Issue #190) */
+.emissions-section {
   background: white;
   border-radius: 8px;
   padding: 2rem;
@@ -382,7 +434,7 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.episodes-section h2 {
+.emissions-section h2 {
   font-size: 1.5rem;
   color: #2c3e50;
   margin: 0 0 1.5rem 0;
@@ -394,13 +446,13 @@ export default {
   color: #757575;
 }
 
-.episodes-list {
+.emissions-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.episode-card {
+.emission-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -412,59 +464,46 @@ export default {
   transition: all 0.2s ease;
 }
 
-.episode-card:hover {
+.emission-card:hover {
   background: #f5f5f5;
   border-color: #1976d2;
   transform: translateX(4px);
 }
 
-.episode-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-}
-
-.status-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.episode-info {
+.emission-info {
   flex: 1;
 }
 
-.episode-title-link {
+.emission-date-link {
   text-decoration: none;
   color: inherit;
 }
 
-.episode-title {
+.emission-date-title {
   font-size: 1.1rem;
   color: #2c3e50;
   margin: 0 0 0.5rem 0;
   transition: color 0.2s ease;
 }
 
-.episode-title-link:hover .episode-title {
+.emission-date-link:hover .emission-date-title {
   color: #1976d2;
 }
 
-.episode-date {
+.emission-avis-count {
   color: #757575;
   font-size: 0.9rem;
   margin: 0;
 }
 
-.episode-arrow {
+.emission-arrow {
   color: #1976d2;
   font-size: 1.5rem;
   opacity: 0.5;
   transition: opacity 0.2s ease;
 }
 
-.episode-card:hover .episode-arrow {
+.emission-card:hover .emission-arrow {
   opacity: 1;
 }
 
