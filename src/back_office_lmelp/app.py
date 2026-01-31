@@ -39,6 +39,7 @@ from .middleware import EnrichedLoggingMiddleware
 from .models.critique import Critique
 from .models.emission import Emission
 from .models.episode import Episode
+from .services.annas_archive_url_service import AnnasArchiveUrlService
 from .services.avis_critiques_generation_service import (
     avis_critiques_generation_service,
 )
@@ -55,6 +56,7 @@ from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
 from .services.radiofrance_service import RadioFranceService
 from .services.stats_service import stats_service
+from .settings import settings
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
@@ -306,6 +308,13 @@ duplicate_books_service = DuplicateBooksService(
     mongodb_service=mongodb_service,
     babelio_service=babelio_service,
 )
+
+# Initialize Anna's Archive URL service (Issue #188)
+annas_archive_url_service = AnnasArchiveUrlService(
+    settings=settings,
+    cache_service=BabelioCacheService(),  # Reuse existing cache pattern
+)
+logger.info("✅ Anna's Archive URL service initialized")
 
 # Configure logging for enriched access logs (Issue #115)
 access_logger = logging.getLogger("back_office_lmelp.access")
@@ -2444,6 +2453,28 @@ async def get_validation_status_breakdown() -> list[dict[str, Any]] | JSONRespon
         return list(result) if result else []
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# Endpoint pour la configuration Anna's Archive (Issue #188)
+@app.get("/api/config/annas-archive-url")
+async def get_annas_archive_url() -> dict[str, str]:
+    """Get the current Anna's Archive base URL.
+
+    Priority:
+    1. Environment variable (ANNAS_ARCHIVE_URL) + health check
+    2. Wikipedia scraping (cached 24h) + health check
+    3. Hardcoded default
+
+    Returns:
+        {"url": "https://fr.annas-archive.se"}
+    """
+    try:
+        url = await annas_archive_url_service.get_url()
+        return {"url": url}
+    except Exception as e:
+        logger.error(f"Error getting Anna's Archive URL: {e}")
+        # Fallback to hardcoded default
+        return {"url": "https://fr.annas-archive.org"}
 
 
 # Endpoints pour la migration Babelio (Issue #124)

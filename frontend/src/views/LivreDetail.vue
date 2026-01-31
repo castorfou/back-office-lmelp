@@ -156,11 +156,16 @@ export default {
     return {
       livre: null,
       loading: false,
-      error: null
+      error: null,
+      annasArchiveBaseUrl: 'https://fr.annas-archive.org' // Fallback default (Issue #188)
     };
   },
   async mounted() {
-    await this.loadLivre();
+    // Issue #188: Charger livre et URL Anna's Archive en parallèle
+    await Promise.all([
+      this.loadLivre(),
+      this.loadAnnasArchiveUrl()
+    ]);
   },
   methods: {
     async loadLivre() {
@@ -185,6 +190,16 @@ export default {
         this.loading = false;
       }
     },
+    async loadAnnasArchiveUrl() {
+      // Issue #188: Charger l'URL dynamique d'Anna's Archive depuis le backend
+      try {
+        const response = await axios.get('/api/config/annas-archive-url');
+        this.annasArchiveBaseUrl = response.data.url;
+      } catch (err) {
+        // Silently fallback to default (already set in data)
+        console.warn('Failed to load Anna\'s Archive URL, using default:', err);
+      }
+    },
     formatDate(dateString) {
       // Format date from YYYY-MM-DD to "DD MMMM YYYY"
       if (!dateString) return '';
@@ -194,7 +209,7 @@ export default {
       return date.toLocaleDateString('fr-FR', options);
     },
     getAnnasArchiveUrl() {
-      // Issue #165: Générer l'URL de recherche Anna's Archive
+      // Issue #165 + #188: Générer l'URL de recherche Anna's Archive (URL dynamique)
       if (!this.livre) return '';
 
       const titre = this.livre.titre || '';
@@ -209,7 +224,8 @@ export default {
         .replace(/'/g, '%27')       // Apostrophes → %27
         .replace(/!/g, '%21');      // Points d'exclamation → %21
 
-      return `https://fr.annas-archive.org/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
+      // Utiliser l'URL dynamique au lieu du hardcoded (Issue #188)
+      return `${this.annasArchiveBaseUrl}/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
     }
   }
 };

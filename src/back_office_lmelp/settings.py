@@ -48,6 +48,20 @@ class Settings:
         """
         return os.environ.get("CALIBRE_VIRTUAL_LIBRARY_TAG") or None
 
+    # Anna's Archive (Issue #188)
+    @property
+    def annas_archive_url(self) -> str | None:
+        """
+        URL de base pour Anna's Archive.
+
+        Si non définie, le service utilisera le fallback Wikipedia.
+        Exemple: "https://fr.annas-archive.se"
+
+        Returns:
+            URL de base ou None si non configurée
+        """
+        return os.environ.get("ANNAS_ARCHIVE_URL") or None
+
 
 @lru_cache
 def get_settings() -> Settings:
