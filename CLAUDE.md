@@ -685,6 +685,71 @@ if not result:
         result = scrape_from_author_page(result)
 ```
 
+### Dynamic URL Configuration with Health Checks
+
+**Pattern**: Multi-tier fallback for external service URLs that change frequently.
+
+**Use case**: External services (Anna's Archive, mirrors, CDNs) change domains often due to blocks/migrations.
+
+**Implementation** (3-tier strategy):
+
+```python
+class DynamicUrlService:
+    """Service for dynamic URL configuration with health checks."""
+
+    def __init__(self, settings, cache_service):
+        self.settings = settings
+        self.cache_service = cache_service
+        self.hardcoded_default = "https://default.example.com"
+        self._debug_log_enabled = os.getenv("SERVICE_DEBUG_LOG", "0") in ("1", "true")
+
+    async def get_url(self) -> str:
+        """Get current URL with 3-tier fallback."""
+        # Priority 1: Environment variable + health check
+        if self.settings.service_url:
+            if await self._health_check_url(self.settings.service_url):
+                return self.settings.service_url
+
+        # Priority 2: Cached Wikipedia URL + health check
+        cached = self.cache_service.get_cached("wikipedia_url", "service_name")
+        if cached and (cached_url := cached.get("data")):
+            if await self._health_check_url(cached_url):
+                return cached_url
+
+        # Re-scrape if cache expired or unhealthy
+        scraped_url = await self._scrape_wikipedia_url()
+        if scraped_url:
+            self.cache_service.set_cached("wikipedia_url", scraped_url, "service_name")
+            return scraped_url
+
+        # Priority 3: Hardcoded default
+        return self.hardcoded_default
+
+    async def _health_check_url(self, url: str, timeout: int = 2) -> bool:
+        """Health check with short timeout to detect dead URLs."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.head(url, timeout=timeout, allow_redirects=True):
+                    return True
+        except (TimeoutError, aiohttp.ClientError):
+            return False
+```
+
+**Key principles**:
+
+1. **Health checks**: Always verify URLs are accessible before using (2s timeout recommended)
+2. **Cache with TTL**: Use 24h cache for scraped URLs to reduce Wikipedia requests
+3. **Graceful degradation**: Multiple fallback levels ensure service continues even if primary sources fail
+4. **Debug logging**: Control via env var for troubleshooting health check failures
+
+**Benefits**:
+- ✅ Resilience: Service continues even if Wikipedia is down
+- ✅ Performance: 24h cache minimizes external requests
+- ✅ Flexibility: Override via env var for specific deployments
+- ✅ Automatic updates: URLs refresh from Wikipedia when cache expires
+
+**Example**: `src/back_office_lmelp/services/annas_archive_url_service.py` (Issue #188)
+
 ### Validation - Double Layer Pattern
 
 **For critical operations (LLM saves, payments, data modifications):**

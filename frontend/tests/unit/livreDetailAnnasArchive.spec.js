@@ -1,6 +1,6 @@
 /**
- * Tests unitaires pour le lien Anna's Archive depuis LivreDetail (Issue #165)
- * Vérifie l'affichage de l'icône et la génération de l'URL de recherche
+ * Tests unitaires pour le lien Anna's Archive depuis LivreDetail (Issue #165 + #188)
+ * Vérifie l'affichage de l'icône et la génération de l'URL de recherche dynamique
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -12,7 +12,7 @@ import axios from 'axios'
 // Mock axios
 vi.mock('axios')
 
-describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
+describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
   let router
 
   beforeEach(() => {
@@ -39,7 +39,14 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
       episodes: []
     }
 
-    axios.get.mockResolvedValue({ data: mockLivre })
+    // Mock API responses (Issue #188: URL dynamique depuis backend)
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/config/annas-archive-url') {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.se' } })
+      } else {
+        return Promise.resolve({ data: mockLivre })
+      }
+    })
 
     // WHEN: On monte le composant
     await router.push('/livre/livre1')
@@ -60,7 +67,7 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
     expect(annasIcon.exists()).toBe(true)
   })
 
-  it('should generate correct Anna\'s Archive search URL with encoded title and author', async () => {
+  it('should generate correct Anna\'s Archive search URL with dynamic base URL', async () => {
     // GIVEN: Un livre avec titre et auteur contenant des caractères spéciaux
     const mockLivre = {
       _id: 'livre1',
@@ -72,7 +79,14 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
       episodes: []
     }
 
-    axios.get.mockResolvedValue({ data: mockLivre })
+    // Mock API responses - URL dynamique depuis backend (Issue #188)
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/config/annas-archive-url') {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.se' } })
+      } else {
+        return Promise.resolve({ data: mockLivre })
+      }
+    })
 
     // WHEN: On monte le composant
     await router.push('/livre/livre1')
@@ -84,9 +98,9 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
 
     await flushPromises()
 
-    // THEN: Le lien doit pointer vers Anna's Archive avec titre et auteur encodés
+    // THEN: Le lien doit pointer vers Anna's Archive avec URL dynamique (Issue #188)
     const annasLink = wrapper.find('[data-test="annas-archive-link"]')
-    const expectedUrl = 'https://fr.annas-archive.org/search?index=&page=1&sort=&display=&q=Marx+en+Am%C3%A9rique+-+Christian+Laval'
+    const expectedUrl = 'https://fr.annas-archive.se/search?index=&page=1&sort=&display=&q=Marx+en+Am%C3%A9rique+-+Christian+Laval'
     expect(annasLink.attributes('href')).toBe(expectedUrl)
   })
 
@@ -102,7 +116,13 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
       episodes: []
     }
 
-    axios.get.mockResolvedValue({ data: mockLivre })
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/config/annas-archive-url') {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.se' } })
+      } else {
+        return Promise.resolve({ data: mockLivre })
+      }
+    })
 
     // WHEN: On monte le composant
     await router.push('/livre/livre1')
@@ -132,7 +152,13 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
       episodes: []
     }
 
-    axios.get.mockResolvedValue({ data: mockLivre })
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/config/annas-archive-url') {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.se' } })
+      } else {
+        return Promise.resolve({ data: mockLivre })
+      }
+    })
 
     // WHEN: On monte le composant
     await router.push('/livre/livre1')
@@ -153,5 +179,41 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165)', () => {
     expect(href).toContain('%26')        // & → %26
     expect(href).toContain('%C3%A9')     // é → %C3%A9
     expect(href).toContain('Jean-Paul')  // tiret préservé
+  })
+
+  it('should fallback to default URL if API call fails (Issue #188)', async () => {
+    // GIVEN: L'API config échoue
+    const mockLivre = {
+      _id: 'livre1',
+      titre: 'Test Livre',
+      auteur_nom: 'Test Auteur',
+      auteur_id: 'auteur1',
+      editeur: 'Test Editeur',
+      nombre_episodes: 1,
+      episodes: []
+    }
+
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/config/annas-archive-url') {
+        return Promise.reject(new Error('Network error'))
+      } else {
+        return Promise.resolve({ data: mockLivre })
+      }
+    })
+
+    // WHEN: On monte le composant
+    await router.push('/livre/livre1')
+    const wrapper = mount(LivreDetail, {
+      global: {
+        plugins: [router]
+      }
+    })
+
+    await flushPromises()
+
+    // THEN: Le lien doit utiliser l'URL par défaut
+    const annasLink = wrapper.find('[data-test="annas-archive-link"]')
+    const href = annasLink.attributes('href')
+    expect(href).toContain('https://fr.annas-archive.org/search')
   })
 })
