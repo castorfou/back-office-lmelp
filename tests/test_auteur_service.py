@@ -1,4 +1,4 @@
-"""Tests for auteur service in mongodb_service (Issue #96 - Phase 1)."""
+"""Tests for auteur service in mongodb_service (Issue #96 - Phase 1, updated Issue #190)."""
 
 from unittest.mock import MagicMock
 
@@ -14,16 +14,18 @@ def mongodb_service():
     service = MongoDBService()
     service.auteurs_collection = MagicMock()
     service.livres_collection = MagicMock()
+    service.emissions_collection = MagicMock()
+    service.avis_collection = MagicMock()
     return service
 
 
 class TestGetAuteurWithLivres:
     """Tests pour la méthode get_auteur_with_livres."""
 
-    def test_get_auteur_with_livres_returns_author_with_books_sorted_alphabetically(
+    def test_get_auteur_with_livres_returns_author_with_books_and_new_fields(
         self, mongodb_service
     ):
-        """Test que get_auteur_with_livres retourne un auteur avec ses livres triés alphabétiquement."""
+        """Test que get_auteur_with_livres retourne les livres avec note_moyenne et emissions (Issue #190)."""
         # GIVEN: Un auteur avec plusieurs livres dans MongoDB
         auteur_id = ObjectId()
         livre1_id = ObjectId()
@@ -55,26 +57,27 @@ class TestGetAuteurWithLivres:
             }
         ]
 
+        # Mock: no avis, no emissions for these books
+        mongodb_service.avis_collection.find.return_value = []
+        mongodb_service.emissions_collection.find.return_value = []
+
         # WHEN: On appelle get_auteur_with_livres
         result = mongodb_service.get_auteur_with_livres(str(auteur_id))
 
-        # THEN: On reçoit l'auteur avec ses livres triés alphabétiquement
+        # THEN: On reçoit l'auteur avec ses livres
         assert result is not None
         assert result["auteur_id"] == str(auteur_id)
         assert result["nom"] == "Emmanuel Carrère"
         assert result["nombre_oeuvres"] == 3
         assert len(result["livres"]) == 3
 
-        # Vérifier le tri alphabétique
-        assert result["livres"][0]["titre"] == "L'Adversaire"
-        assert result["livres"][1]["titre"] == "Limonov"
-        assert result["livres"][2]["titre"] == "Yoga"
-
-        # Vérifier que chaque livre a les bons champs
+        # Vérifier que chaque livre a les champs Issue #190
         for livre in result["livres"]:
             assert "livre_id" in livre
             assert "titre" in livre
             assert "editeur" in livre
+            assert "note_moyenne" in livre
+            assert "emissions" in livre
 
     def test_get_auteur_with_livres_returns_none_when_not_found(self, mongodb_service):
         """Test que get_auteur_with_livres retourne None si l'auteur n'existe pas."""

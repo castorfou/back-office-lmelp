@@ -764,14 +764,15 @@ class MongoDBService:
             return {"livres": [], "total_count": 0}
 
     def get_auteur_with_livres(self, auteur_id: str) -> dict[str, Any] | None:
-        """Récupère un auteur avec la liste de ses livres (Issue #96 - Phase 1).
+        """Récupère un auteur avec ses livres, notes et émissions (Issue #190).
 
         Args:
             auteur_id: ID de l'auteur (MongoDB ObjectId en string)
 
         Returns:
             Dict avec auteur_id, nom, url_babelio, nombre_oeuvres, et livres
-            (triés alphabétiquement). None si l'auteur n'existe pas
+            (triés par émission la plus récente, avec note_moyenne et
+            liste d'émissions par livre). None si l'auteur n'existe pas
         """
         if self.auteurs_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -795,11 +796,12 @@ class MongoDBService:
                     "$project": {
                         "_id": 1,
                         "nom": 1,
-                        "url_babelio": 1,  # Issue #124
+                        "url_babelio": 1,
                         "livres": {
                             "_id": 1,
                             "titre": 1,
                             "editeur": 1,
+                            "episodes": 1,  # Issue #190
                         },
                     }
                 },
@@ -811,24 +813,88 @@ class MongoDBService:
                 return None
 
             auteur_data = result[0]
+            livres = auteur_data.get("livres", [])
 
-            # Trier les livres par ordre alphabétique du titre
-            livres = sorted(auteur_data.get("livres", []), key=lambda x: x["titre"])
+            # Issue #190: Pour chaque livre, récupérer les avis et émissions
+            livres_formatted = []
+            for livre in livres:
+                livre_id_str = str(livre["_id"])
 
-            # Formater les livres pour le frontend
-            livres_formatted = [
-                {
-                    "livre_id": str(livre["_id"]),
-                    "titre": livre["titre"],
-                    "editeur": livre.get("editeur", ""),
-                }
-                for livre in livres
-            ]
+                # Récupérer les avis pour ce livre
+                livre_notes: list[float] = []
+                if self.avis_collection is not None:
+                    livre_avis = list(
+                        self.avis_collection.find({"livre_oid": livre_id_str})
+                    )
+                    livre_notes = [
+                        float(a["note"])
+                        for a in livre_avis
+                        if a.get("note") is not None
+                    ]
+
+                note_moyenne = (
+                    round(sum(livre_notes) / len(livre_notes), 1)
+                    if livre_notes
+                    else None
+                )
+
+                # Récupérer les émissions via les épisodes du livre
+                episode_strs = livre.get("episodes", [])
+                emissions_formatted: list[dict[str, Any]] = []
+                max_emission_date = ""
+
+                if episode_strs and self.emissions_collection is not None:
+                    episode_oids = [ObjectId(ep_id) for ep_id in episode_strs if ep_id]
+                    if episode_oids:
+                        emissions_docs = list(
+                            self.emissions_collection.find(
+                                {"episode_id": {"$in": episode_oids}}
+                            )
+                        )
+                        for em in emissions_docs:
+                            em_date = em.get("date")
+                            if isinstance(em_date, datetime):
+                                date_str = em_date.strftime("%Y-%m-%d")
+                            else:
+                                date_str = str(em_date or "")[:10]
+
+                            emissions_formatted.append(
+                                {
+                                    "emission_id": str(em["_id"]),
+                                    "date": date_str,
+                                }
+                            )
+
+                            if date_str > max_emission_date:
+                                max_emission_date = date_str
+
+                # Trier les émissions par date décroissante
+                emissions_formatted.sort(key=lambda x: x.get("date", ""), reverse=True)
+
+                livres_formatted.append(
+                    {
+                        "livre_id": livre_id_str,
+                        "titre": livre["titre"],
+                        "editeur": livre.get("editeur", ""),
+                        "note_moyenne": note_moyenne,
+                        "emissions": emissions_formatted,
+                        "_max_emission_date": max_emission_date,
+                    }
+                )
+
+            # Issue #190: Trier par émission la plus récente (desc)
+            livres_formatted.sort(
+                key=lambda x: x.get("_max_emission_date", ""), reverse=True
+            )
+
+            # Supprimer le champ interne _max_emission_date
+            for livre in livres_formatted:
+                livre.pop("_max_emission_date", None)
 
             return {
                 "auteur_id": str(auteur_data["_id"]),
                 "nom": auteur_data["nom"],
-                "url_babelio": auteur_data.get("url_babelio"),  # Issue #124
+                "url_babelio": auteur_data.get("url_babelio"),
                 "nombre_oeuvres": len(livres_formatted),
                 "livres": livres_formatted,
             }
@@ -838,15 +904,16 @@ class MongoDBService:
             return None
 
     def get_livre_with_episodes(self, livre_id: str) -> dict[str, Any] | None:
-        """Récupère un livre avec ses informations et la liste des épisodes (Issue #96 - Phase 2).
+        """Récupère un livre avec ses émissions et notes moyennes (Issue #190).
 
         Args:
             livre_id: ID du livre (MongoDB ObjectId en string)
 
         Returns:
             Dict avec livre_id, titre, auteur_id, auteur_nom, editeur, url_babelio,
-            nombre_episodes, et episodes (triés par date décroissante, avec champ
-            programme pour chaque épisode). None si le livre n'existe pas
+            note_moyenne (moyenne globale des avis), nombre_emissions, et emissions
+            (triées par date décroissante, avec note_moyenne et nombre_avis par émission).
+            None si le livre n'existe pas
         """
         if self.livres_collection is None:
             raise Exception("Connexion MongoDB non établie")
@@ -968,28 +1035,73 @@ class MongoDBService:
             if livre_data.get("auteur") and len(livre_data["auteur"]) > 0:
                 auteur_nom = livre_data["auteur"][0].get("nom", "")
 
-            # Trier les épisodes par date (plus récent d'abord)
+            # Issue #190: Récupérer les émissions pour chaque épisode
             episodes = livre_data.get("episodes_data", [])
-            episodes_sorted = sorted(
-                episodes,
-                key=lambda x: x.get("date", ""),
-                reverse=True,
+            episode_ids = [ep["_id"] for ep in episodes]
+
+            # Mapper épisode -> émission
+            emissions_by_episode: dict[str, dict[str, Any]] = {}
+            if episode_ids and self.emissions_collection is not None:
+                emissions_docs = list(
+                    self.emissions_collection.find({"episode_id": {"$in": episode_ids}})
+                )
+                for em in emissions_docs:
+                    ep_id_str = str(em["episode_id"])
+                    emissions_by_episode[ep_id_str] = em
+
+            # Issue #190: Récupérer les avis pour ce livre
+            all_avis: list[dict[str, Any]] = []
+            if self.avis_collection is not None:
+                all_avis = list(self.avis_collection.find({"livre_oid": livre_id}))
+
+            # Grouper les avis par emission_oid
+            avis_by_emission: dict[str, list[float]] = {}
+            all_notes: list[float] = []
+            for avis in all_avis:
+                note = avis.get("note")
+                if note is not None:
+                    all_notes.append(float(note))
+                    em_oid = avis.get("emission_oid", "")
+                    if em_oid not in avis_by_emission:
+                        avis_by_emission[em_oid] = []
+                    avis_by_emission[em_oid].append(float(note))
+
+            # Note moyenne globale
+            note_moyenne = (
+                round(sum(all_notes) / len(all_notes), 1) if all_notes else None
             )
 
-            # Formater les épisodes pour le frontend
-            episodes_formatted = [
-                {
-                    "episode_id": str(episode["_id"]),
-                    "titre": episode.get("titre", ""),
-                    "date": (
-                        episode["date"].strftime("%Y-%m-%d")
-                        if isinstance(episode.get("date"), datetime)
-                        else str(episode.get("date", ""))[:10]
-                    ),
-                    "programme": episode.get("programme"),
-                }
-                for episode in episodes_sorted
-            ]
+            # Construire la liste des émissions triées par date décroissante
+            emissions_list = []
+            for episode in episodes:
+                ep_id_str = str(episode["_id"])
+                emission = emissions_by_episode.get(ep_id_str)
+                if emission:
+                    em_id_str = str(emission["_id"])
+                    em_date = emission.get("date")
+                    # Formater la date
+                    if isinstance(em_date, datetime):
+                        date_str = em_date.strftime("%Y-%m-%d")
+                    else:
+                        date_str = str(em_date or "")[:10]
+
+                    # Notes pour cette émission
+                    em_notes = avis_by_emission.get(em_id_str, [])
+                    em_note_moyenne = (
+                        round(sum(em_notes) / len(em_notes), 1) if em_notes else None
+                    )
+
+                    emissions_list.append(
+                        {
+                            "emission_id": em_id_str,
+                            "date": date_str,
+                            "note_moyenne": em_note_moyenne,
+                            "nombre_avis": len(em_notes),
+                        }
+                    )
+
+            # Trier par date décroissante
+            emissions_list.sort(key=lambda x: str(x.get("date", "")), reverse=True)
 
             return {
                 "livre_id": str(livre_data["_id"]),
@@ -997,9 +1109,10 @@ class MongoDBService:
                 "auteur_id": str(livre_data["auteur_id"]),
                 "auteur_nom": auteur_nom,
                 "editeur": livre_data.get("editeur", ""),
-                "url_babelio": livre_data.get("url_babelio"),  # Issue #124
-                "nombre_episodes": len(episodes_formatted),
-                "episodes": episodes_formatted,
+                "url_babelio": livre_data.get("url_babelio"),
+                "note_moyenne": note_moyenne,
+                "nombre_emissions": len(emissions_list),
+                "emissions": emissions_list,
             }
 
         except Exception as e:

@@ -1,6 +1,6 @@
 /**
- * Tests unitaires pour le lien vers la page livres-auteurs depuis LivreDetail (Issue #96)
- * Vérifie que chaque épisode a un lien vers /livres-auteurs?episode=<id>
+ * Tests unitaires pour le lien vers la page émissions depuis LivreDetail (Issue #96, updated Issue #190)
+ * Vérifie que chaque émission a un lien vers /emissions/<YYYYMMDD>
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -12,7 +12,7 @@ import axios from 'axios'
 // Mock axios
 vi.mock('axios')
 
-describe('LivreDetail - Lien vers page livres-auteurs (Issue #96)', () => {
+describe('LivreDetail - Lien vers page émissions (Issue #190)', () => {
   let router
 
   beforeEach(() => {
@@ -23,32 +23,33 @@ describe('LivreDetail - Lien vers page livres-auteurs (Issue #96)', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/livre/:id', component: LivreDetail },
-        { path: '/livres-auteurs', component: { template: '<div>Livres Auteurs</div>' } }
+        { path: '/emissions/:date', component: { template: '<div>Emission Detail</div>' } }
       ]
     })
   })
 
-  it('should display a link to livres-auteurs page for each episode', async () => {
-    // GIVEN: Un livre avec 2 épisodes
+  it('should display a link to emissions page for each emission', async () => {
+    // GIVEN: Un livre avec 2 émissions
     const mockLivre = {
       _id: 'livre1',
       titre: 'Test Livre',
       auteur_nom: 'Test Auteur',
       auteur_id: 'auteur1',
       editeur: 'Test Editeur',
-      nombre_episodes: 2,
-      episodes: [
+      note_moyenne: 7.5,
+      nombre_emissions: 2,
+      emissions: [
         {
-          episode_id: 'ep1',
-          titre: 'Episode 1',
-          date: '2025-01-01',
-          programme: true
+          emission_id: 'em1',
+          date: '2025-01-15',
+          note_moyenne: 8.0,
+          nombre_avis: 3
         },
         {
-          episode_id: 'ep2',
-          titre: 'Episode 2',
+          emission_id: 'em2',
           date: '2025-01-02',
-          programme: false
+          note_moyenne: 7.0,
+          nombre_avis: 2
         }
       ]
     }
@@ -65,15 +66,12 @@ describe('LivreDetail - Lien vers page livres-auteurs (Issue #96)', () => {
 
     await flushPromises()
 
-    // THEN: Chaque épisode doit avoir un lien vers /livres-auteurs?episode=<episode_id>
-    const episodeLinks = wrapper.findAll('[data-test="episode-link"]')
-    expect(episodeLinks).toHaveLength(2)
+    // THEN: Chaque émission doit avoir un lien vers /emissions/YYYYMMDD
+    const emissionLinks = wrapper.findAll('[data-test="emission-link"]')
+    expect(emissionLinks).toHaveLength(2)
 
-    // Vérifier que les liens pointent vers /livres-auteurs avec le bon episode_id
-    expect(episodeLinks[0].attributes('href')).toBe('/livres-auteurs?episode=ep1')
-    expect(episodeLinks[0].text()).toContain('Episode 1')
-
-    expect(episodeLinks[1].attributes('href')).toBe('/livres-auteurs?episode=ep2')
-    expect(episodeLinks[1].text()).toContain('Episode 2')
+    // Vérifier que les liens pointent vers /emissions/ avec le bon format de date
+    expect(emissionLinks[0].attributes('href')).toBe('/emissions/20250115')
+    expect(emissionLinks[1].attributes('href')).toBe('/emissions/20250102')
   })
 })
