@@ -377,31 +377,43 @@ Total livres traités : {total_traites}"""
 
         Ces émissions n'ont pas encore d'avis extraits.
 
-        IMPORTANT: badge_status n'est pas persisté en MongoDB, il est calculé
-        dynamiquement. Cette méthode itère sur toutes les émissions et calcule
-        le badge pour chacune.
+        OPTIMIZED (Issue #194): Utilise pipeline d'aggregation MongoDB au lieu
+        d'itérer sur N émissions avec N requêtes.
+
+        Performance: 1 aggregation au lieu de ~1500 requêtes (pour 500 émissions).
+
+        IMPORTANT: emissions._id est ObjectId, mais avis.emission_oid est String.
+        Il faut convertir _id en String pour le $lookup (Issue #194 type mismatch).
 
         Returns:
             Nombre d'émissions sans avis extraits
         """
-        from back_office_lmelp.app import _calculate_emission_badge_status
-
         emissions_collection = self.mongodb_service.get_collection("emissions")
-        emissions = list(
-            emissions_collection.find(
-                {}, {"_id": 1, "episode_id": 1, "avis_critique_id": 1}
-            )
-        )
 
-        count = 0
-        for emission in emissions:
-            badge = _calculate_emission_badge_status(
-                str(emission["_id"]), str(emission["episode_id"]), self.mongodb_service
-            )
-            if badge == "no_avis":
-                count += 1
+        # Aggregation pipeline: compter les émissions avec 0 avis
+        pipeline = [
+            # Step 1: Convertir _id (ObjectId) en String pour le lookup
+            {"$addFields": {"emission_id_str": {"$toString": "$_id"}}},
+            # Step 2: Joindre les avis pour chaque émission
+            # Note: avis.emission_oid est String, emissions._id est ObjectId
+            {
+                "$lookup": {
+                    "from": "avis",
+                    "localField": "emission_id_str",
+                    "foreignField": "emission_oid",
+                    "as": "avis_list",
+                }
+            },
+            # Step 3: Ajouter un champ avis_count
+            {"$addFields": {"avis_count": {"$size": "$avis_list"}}},
+            # Step 4: Filtrer les émissions avec avis_count == 0 (condition no_avis)
+            {"$match": {"avis_count": 0}},
+            # Step 5: Compter
+            {"$count": "total"},
+        ]
 
-        return count
+        result = list(emissions_collection.aggregate(pipeline))
+        return result[0]["total"] if result else 0
 
     def _count_emissions_with_problems(self) -> int:
         """
@@ -410,28 +422,88 @@ Total livres traités : {total_traites}"""
         Rouge (count_mismatch): Écart de comptage OU note manquante
         Jaune (unmatched): Livres non matchés
 
-        IMPORTANT: badge_status n'est pas persisté en MongoDB, il est calculé
-        dynamiquement. Cette méthode itère sur toutes les émissions et calcule
-        le badge pour chacune.
+        OPTIMIZED (Issue #194): Utilise batch fetching (2 requêtes) au lieu
+        d'itérer sur N émissions avec N×3 requêtes.
+
+        Performance: ~N+2 requêtes au lieu de ~1500 requêtes (pour 500 émissions).
+
+        La logique de badge est préservée depuis _calculate_emission_badge_status
+        (app.py:1058-1133) pour garantir la cohérence.
 
         Returns:
             Nombre total d'émissions avec problèmes (rouge + jaune)
         """
-        from back_office_lmelp.app import _calculate_emission_badge_status
-
         emissions_collection = self.mongodb_service.get_collection("emissions")
-        emissions = list(
-            emissions_collection.find(
-                {}, {"_id": 1, "episode_id": 1, "avis_critique_id": 1}
+        avis_collection = self.mongodb_service.get_collection("avis")
+        livres_collection = self.mongodb_service.get_collection("livres")
+
+        # Step 1: Récupérer toutes les émissions (requête unique)
+        emissions = list(emissions_collection.find({}, {"_id": 1, "episode_id": 1}))
+
+        # Step 2: Récupérer tous les avis d'un coup (requête unique)
+        all_avis = list(
+            avis_collection.find(
+                {},
+                {
+                    "emission_oid": 1,
+                    "livre_titre_extrait": 1,
+                    "livre_oid": 1,
+                    "note": 1,
+                },
             )
         )
 
+        # Step 3: Grouper les avis par emission_id en mémoire (O(N))
+        avis_by_emission: dict[str, list[dict[str, Any]]] = {}
+        for avis in all_avis:
+            emission_id = avis.get("emission_oid")
+            if emission_id:
+                if emission_id not in avis_by_emission:
+                    avis_by_emission[emission_id] = []
+                avis_by_emission[emission_id].append(avis)
+
+        # Step 4: Pour chaque émission, calculer le badge status (en mémoire, rapide)
         count = 0
         for emission in emissions:
-            badge = _calculate_emission_badge_status(
-                str(emission["_id"]), str(emission["episode_id"]), self.mongodb_service
+            emission_id_str = str(emission["_id"])
+            episode_id_str = str(emission["episode_id"])
+
+            # Récupérer les avis pour cette émission
+            emission_avis = avis_by_emission.get(emission_id_str, [])
+
+            # Ignorer si pas d'avis (badge no_avis, pas un problème)
+            if not emission_avis:
+                continue
+
+            # Calculer le badge status (même logique que _calculate_emission_badge_status)
+            unique_titles: set[str] = set()
+            unmatched_count = 0
+            missing_notes_count = 0
+
+            for avis in emission_avis:
+                titre = avis.get("livre_titre_extrait", "")
+                if titre:
+                    unique_titles.add(titre)
+                    if avis.get("livre_oid") is None:
+                        unmatched_count += 1
+                    if avis.get("note") is None:
+                        missing_notes_count += 1
+
+            livres_summary = len(unique_titles)
+
+            # Compter les livres MongoDB pour cet épisode (requête indexée rapide)
+            livres_mongo_count = livres_collection.count_documents(
+                {"episodes": episode_id_str}
             )
-            if badge in ("count_mismatch", "unmatched"):
+
+            # Déterminer le badge status
+            # 🔴 count_mismatch: écart de comptage OU note manquante
+            # 🟡 unmatched: comptes égaux mais livre(s) non matché(s)
+            if (
+                livres_summary != livres_mongo_count
+                or missing_notes_count > 0
+                or unmatched_count > 0
+            ):
                 count += 1
 
         return count
