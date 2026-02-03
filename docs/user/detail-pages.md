@@ -1,6 +1,6 @@
-# Pages de Détail Auteur et Livre
+# Pages de Détail Auteur, Livre et Critique
 
-Les pages de détail permettent de consulter toutes les informations relatives à un auteur ou à un livre, avec navigation directe vers les contenus associés.
+Les pages de détail permettent de consulter toutes les informations relatives à un auteur, un livre ou un critique, avec navigation directe vers les contenus associés.
 
 ## Accès aux pages de détail
 
@@ -10,6 +10,12 @@ Les résultats de recherche (simple ou avancée) proposent des liens clickables 
 
 - **Auteur** : Cliquez sur le nom d'un auteur pour accéder à sa page détail
 - **Livre** : Cliquez sur le titre d'un livre pour accéder à sa page détail
+
+### Depuis les émissions
+
+Dans les tableaux d'avis des émissions, les noms de critiques sont clickables :
+
+- **Critique** : Cliquez sur le nom d'un critique pour accéder à sa page détail
 
 ### Depuis la validation bibliographique
 
@@ -22,6 +28,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 
 - **Page auteur** : `http://localhost:5173/auteur/{id}`
 - **Page livre** : `http://localhost:5173/livre/{id}`
+- **Page critique** : `http://localhost:5173/critique/{id}`
 
 ## Page Détail Auteur
 
@@ -116,6 +123,88 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 - **Cliquer sur un épisode** : Navigation vers la validation bibliographique avec l'épisode pré-sélectionné
 - **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
 
+## Page Détail Critique
+
+### Vue d'ensemble
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🏠 Accueil                                                   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  🎙️  Arnaud Viviant                                          │
+│      📊 838 avis    ⭐ 6.8                                    │
+│      Variantes : Arnaud Vivian                                │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Distribution des notes                                       │
+│  ▓  ▓▓ ▓▓ ▓  ▓  ▓▓ ████ ████████ ▓                          │
+│  2  3  4  5  6  7  8    9        10                          │
+│  Note moyenne : 6.8 · 838 avis au total                       │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Coups de cœur (223)                                          │
+│  📖 Combats de filles - Rita Bullwinkel  ⭐ 9                 │
+│      Très belle découverte, original                          │
+│      📅 18 janvier 2026                                       │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Œuvres critiquées (838/838)                                  │
+│  🔍 [Rechercher...] [Notes ▾] [Section ▾]                   │
+│                                                               │
+│  📖 Combats de filles - Rita Bullwinkel  ⭐ 9                │
+│      La Croisée · programme                                   │
+│      📅 18 janvier 2026                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Informations affichées
+
+- **Nom du critique** : Affiché en haut de page
+- **Badge animateur** : Si le critique est aussi animateur de l'émission
+- **Nombre d'avis** : Total des avis donnés par ce critique
+- **Note moyenne** : Moyenne de toutes les notes, avec code couleur
+- **Variantes** : Autres orthographes connues du nom
+
+### Distribution des notes
+
+Un graphique en barres CSS affiche la distribution des notes de 2 à 10 :
+
+- Chaque barre est proportionnelle au nombre d'avis avec cette note
+- Les couleurs suivent le code habituel (vert >= 9, jaune-vert >= 7, jaune >= 5, rouge < 5)
+- Le compteur exact est affiché au-dessus de chaque barre
+
+### Coups de cœur
+
+Liste des œuvres ayant reçu une note de 9 ou 10 :
+
+- Titre du livre (clickable vers la page livre)
+- Auteur (clickable vers la page auteur)
+- Note et commentaire
+- Date d'émission (clickable vers la page émission)
+
+### Œuvres critiquées avec filtres
+
+La liste complète des œuvres dispose de trois filtres combinables :
+
+- **Recherche textuelle** : Filtre par titre de livre ou nom d'auteur (insensible aux accents)
+- **Plage de notes** : Excellent (9-10), Bon (7-8), Moyen (5-6), Faible (< 5)
+- **Section** : Programme ou Coup de cœur
+
+Le compteur affiché (ex: "320/838") indique le nombre de résultats filtrés par rapport au total.
+
+### Actions disponibles
+
+- **Cliquer sur un titre** : Accès à la page détail du livre
+- **Cliquer sur un auteur** : Accès à la page détail de l'auteur
+- **Cliquer sur une date** : Accès à la page émission correspondante
+- **Filtrer les œuvres** : Recherche texte, notes, ou section
+- **Retour** : Bouton "← Retour" en bas de page
+
 ## Liens directs vers validation bibliographique
 
 ### Depuis la page livre
@@ -198,6 +287,10 @@ graph LR
     C -->|Clic épisode| D[Validation Biblio]
     D -->|Clic auteur| B
     D -->|Clic titre| C
+    E[Émission] -->|Clic critique| F[Page Critique]
+    F -->|Clic livre| C
+    F -->|Clic auteur| B
+    F -->|Clic émission| E
 ```
 
 ### Exemple de parcours utilisateur

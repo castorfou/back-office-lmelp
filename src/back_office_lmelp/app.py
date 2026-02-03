@@ -2153,6 +2153,52 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/critique/{critique_id}", response_model=dict[str, Any])
+async def get_critique_detail(critique_id: str) -> dict[str, Any]:
+    """Récupère les détails d'un critique avec stats et oeuvres enrichies (Issue #191).
+
+    Args:
+        critique_id: ID du critique (MongoDB ObjectId)
+
+    Returns:
+        Dict avec critique_id, nom, animateur, variantes, nombre_avis,
+        note_moyenne, note_distribution, coups_de_coeur, et oeuvres
+
+    Raises:
+        404: Si le critique n'existe pas
+        500: En cas d'erreur serveur
+    """
+    # Vérification mémoire
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    # Validation du format ObjectId
+    if len(critique_id) != 24:
+        raise HTTPException(status_code=404, detail="Critique non trouvé")
+
+    try:
+        from bson import ObjectId
+
+        # Vérifier que c'est un ObjectId valide
+        ObjectId(critique_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Critique non trouvé") from e
+
+    try:
+        critique_data = mongodb_service.get_critique_detail(critique_id)
+        if not critique_data:
+            raise HTTPException(status_code=404, detail="Critique non trouvé")
+
+        return critique_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 # Nouveaux endpoints pour l'Issue #66 - Gestion des collections auteurs/livres
 
 

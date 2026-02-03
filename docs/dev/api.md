@@ -977,6 +977,74 @@ Récupère les détails d'un livre avec tous les épisodes où il est mentionné
 }
 ```
 
+### GET /api/critique/{critique_id}
+
+Récupère les détails d'un critique avec statistiques, distribution des notes, coups de cœur et liste des œuvres critiquées.
+
+#### Paramètres
+
+- `critique_id` (path, required): ObjectId MongoDB du critique (24 caractères hexadécimaux)
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "critique_id": "694eb58bffd25d11ce052759",  // pragma: allowlist secret
+  "nom": "Arnaud Viviant",
+  "animateur": false,
+  "variantes": ["Arnaud Vivian"],
+  "nombre_avis": 838,
+  "note_moyenne": 6.8,
+  "note_distribution": {
+    "2": 31, "3": 72, "4": 72, "5": 66,
+    "6": 75, "7": 80, "8": 188, "9": 223, "10": 31
+  },
+  "coups_de_coeur": [
+    {
+      "livre_oid": "6948458b4c7793c317f9f795",  // pragma: allowlist secret
+      "livre_titre": "Combats de filles",
+      "auteur_nom": "Rita Bullwinkel",
+      "auteur_oid": "694845004c7793c317f9f700",  // pragma: allowlist secret
+      "editeur": "La Croisée",
+      "note": 9,
+      "commentaire": "Très belle découverte",
+      "section": "programme",
+      "emission_date": "2026-01-18",
+      "emission_oid": "694fea91e46eedc769bcd996"  // pragma: allowlist secret
+    }
+  ],
+  "oeuvres": [
+    {
+      "livre_oid": "6948458b4c7793c317f9f795",  // pragma: allowlist secret
+      "livre_titre": "Combats de filles",
+      "auteur_nom": "Rita Bullwinkel",
+      "auteur_oid": "694845004c7793c317f9f700",  // pragma: allowlist secret
+      "editeur": "La Croisée",
+      "note": 9,
+      "commentaire": "Très belle découverte",
+      "section": "programme",
+      "emission_date": "2026-01-18",
+      "emission_oid": "694fea91e46eedc769bcd996"  // pragma: allowlist secret
+    }
+  ]
+}
+```
+
+**Notes**:
+- Les coups de cœur sont les avis avec une note >= 9
+- La distribution des notes utilise des clés string de "2" à "10"
+- Les œuvres sont triées par date d'émission décroissante
+- Batch-lookup des livres, auteurs et émissions pour enrichir chaque avis
+- Types MongoDB : `critique_oid` dans `avis` est String, `critiques._id` est ObjectId
+
+**404 Not Found** - Critique non trouvé
+```json
+{
+  "detail": "Critique non trouvé"
+}
+```
+
 ---
 
 ## Search API
