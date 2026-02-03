@@ -83,6 +83,14 @@ const routes = [
     }
   },
   {
+    path: '/critique/:id',
+    name: 'CritiqueDetail',
+    component: () => import('../views/CritiqueDetail.vue'),
+    meta: {
+      title: 'Détail Critique - Back-office LMELP'
+    }
+  },
+  {
     path: '/masquer-episodes',
     name: 'MasquerEpisodes',
     component: MasquerEpisodes,

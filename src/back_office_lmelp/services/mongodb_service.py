@@ -1,5 +1,6 @@
 """Service MongoDB pour la gestion des épisodes."""
 
+import contextlib
 import os
 from datetime import datetime
 from typing import Any
@@ -1824,6 +1825,172 @@ class MongoDBService:
         if self.avis_collection is None:
             return []
         return list(self.avis_collection.find({"critique_oid": critique_oid}))
+
+    def get_critique_detail(self, critique_id: str) -> dict[str, Any] | None:
+        """Récupère un critique avec avis enrichis, stats et distribution (Issue #191).
+
+        Args:
+            critique_id: ID du critique (MongoDB ObjectId en string)
+
+        Returns:
+            Dict avec critique_id, nom, animateur, variantes, nombre_avis,
+            note_moyenne, note_distribution, coups_de_coeur, et oeuvres.
+            None si le critique n'existe pas.
+        """
+        if self.critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        try:
+            # 1. Trouver le critique
+            critique = self.critiques_collection.find_one(
+                {"_id": ObjectId(critique_id)}
+            )
+            if not critique:
+                return None
+
+            # 2. Trouver tous les avis (critique_oid est un String)
+            all_avis: list[dict[str, Any]] = []
+            if self.avis_collection is not None:
+                all_avis = list(
+                    self.avis_collection.find({"critique_oid": critique_id})
+                )
+
+            # 3. Batch-lookup livres (livre_oid=String, livres._id=ObjectId)
+            livre_oids = {a["livre_oid"] for a in all_avis if a.get("livre_oid")}
+            livres_map: dict[str, dict[str, Any]] = {}
+            if livre_oids and self.livres_collection is not None:
+                livre_object_ids = []
+                for oid in livre_oids:
+                    with contextlib.suppress(Exception):
+                        livre_object_ids.append(ObjectId(oid))
+                if livre_object_ids:
+                    livres_docs = list(
+                        self.livres_collection.find({"_id": {"$in": livre_object_ids}})
+                    )
+                    for doc in livres_docs:
+                        livres_map[str(doc["_id"])] = doc
+
+            # 4. Batch-lookup auteurs pour les livres trouvés
+            auteur_ids = {
+                doc["auteur_id"] for doc in livres_map.values() if doc.get("auteur_id")
+            }
+            auteurs_map: dict[str, str] = {}
+            if auteur_ids and self.auteurs_collection is not None:
+                auteurs_docs = list(
+                    self.auteurs_collection.find({"_id": {"$in": list(auteur_ids)}})
+                )
+                for doc in auteurs_docs:
+                    auteurs_map[str(doc["_id"])] = doc.get("nom", "")
+
+            # 5. Batch-lookup émissions (emission_oid=String, emissions._id=ObjectId)
+            emission_oids = {
+                a["emission_oid"] for a in all_avis if a.get("emission_oid")
+            }
+            emissions_map: dict[str, dict[str, Any]] = {}
+            if emission_oids and self.emissions_collection is not None:
+                emission_object_ids = []
+                for oid in emission_oids:
+                    with contextlib.suppress(Exception):
+                        emission_object_ids.append(ObjectId(oid))
+                if emission_object_ids:
+                    emissions_docs = list(
+                        self.emissions_collection.find(
+                            {"_id": {"$in": emission_object_ids}}
+                        )
+                    )
+                    for doc in emissions_docs:
+                        emissions_map[str(doc["_id"])] = doc
+
+            # 6. Distribution des notes et statistiques
+            note_distribution = {str(i): 0 for i in range(2, 11)}
+            all_notes: list[float] = []
+            for avis in all_avis:
+                note = avis.get("note")
+                if note is not None:
+                    all_notes.append(float(note))
+                    key = str(int(note))
+                    if key in note_distribution:
+                        note_distribution[key] += 1
+
+            note_moyenne = (
+                round(sum(all_notes) / len(all_notes), 1) if all_notes else None
+            )
+
+            # 7. Construire la liste enrichie des oeuvres
+            oeuvres = []
+            coups_de_coeur = []
+            for avis in all_avis:
+                livre_oid = avis.get("livre_oid", "")
+                livre_doc = livres_map.get(livre_oid)
+
+                # Titre officiel depuis livres, fallback vers extrait
+                livre_titre = (
+                    livre_doc.get("titre", avis.get("livre_titre_extrait", ""))
+                    if livre_doc
+                    else avis.get("livre_titre_extrait", "")
+                )
+
+                # Info auteur
+                auteur_oid_str = None
+                auteur_nom = avis.get("auteur_nom_extrait", "")
+                if livre_doc and livre_doc.get("auteur_id"):
+                    auteur_oid_str = str(livre_doc["auteur_id"])
+                    auteur_nom = auteurs_map.get(auteur_oid_str, auteur_nom)
+
+                # Date d'émission
+                emission_oid = avis.get("emission_oid", "")
+                emission_doc = emissions_map.get(emission_oid)
+                emission_date = None
+                if emission_doc and emission_doc.get("date"):
+                    em_date = emission_doc["date"]
+                    if isinstance(em_date, datetime):
+                        emission_date = em_date.strftime("%Y-%m-%d")
+                    else:
+                        emission_date = str(em_date)[:10]
+
+                oeuvre: dict[str, Any] = {
+                    "livre_oid": livre_oid,
+                    "livre_titre": livre_titre,
+                    "auteur_nom": auteur_nom,
+                    "auteur_oid": auteur_oid_str,
+                    "editeur": avis.get("editeur_extrait", ""),
+                    "note": avis.get("note"),
+                    "commentaire": avis.get("commentaire", ""),
+                    "section": avis.get("section", ""),
+                    "emission_date": emission_date,
+                    "emission_oid": emission_oid,
+                }
+                oeuvres.append(oeuvre)
+
+                # Coups de coeur: note >= 9
+                if avis.get("note") is not None and avis["note"] >= 9:
+                    coups_de_coeur.append(oeuvre)
+
+            # Tri par date d'émission décroissante
+            oeuvres.sort(
+                key=lambda x: x.get("emission_date") or "",
+                reverse=True,
+            )
+            coups_de_coeur.sort(
+                key=lambda x: x.get("emission_date") or "",
+                reverse=True,
+            )
+
+            return {
+                "critique_id": str(critique["_id"]),
+                "nom": critique.get("nom", ""),
+                "animateur": critique.get("animateur", False),
+                "variantes": critique.get("variantes", []),
+                "nombre_avis": len(all_avis),
+                "note_moyenne": note_moyenne,
+                "note_distribution": note_distribution,
+                "coups_de_coeur": coups_de_coeur,
+                "oeuvres": oeuvres,
+            }
+
+        except Exception as e:
+            print(f"Erreur lors de la récupération du critique {critique_id}: {e}")
+            return None
 
     def get_avis_by_livre(self, livre_oid: str) -> list[dict[str, Any]]:
         """
