@@ -2159,6 +2159,130 @@ class MongoDBService:
             return 0
         return int(self.avis_collection.count_documents({"emission_oid": emission_oid}))
 
+    def get_palmares(self, page: int = 1, limit: int = 30) -> dict[str, Any]:
+        """Get books ranked by average rating (descending).
+
+        Only books with at least 2 reviews are included.
+        Tied ratings are broken by number of reviews (descending),
+        then by title (alphabetical).
+
+        Args:
+            page: Page number (1-indexed)
+            limit: Number of items per page
+
+        Returns:
+            Dict with items, total, page, limit, total_pages
+        """
+        skip = (page - 1) * limit
+
+        pipeline: list[dict[str, Any]] = [
+            # Match avis with both livre_oid and note
+            {"$match": {"livre_oid": {"$ne": None}, "note": {"$ne": None}}},
+            # Group by book, compute average and count
+            {
+                "$group": {
+                    "_id": "$livre_oid",
+                    "note_moyenne": {"$avg": "$note"},
+                    "nombre_avis": {"$sum": 1},
+                }
+            },
+            # Filter: minimum 2 reviews
+            {"$match": {"nombre_avis": {"$gte": 2}}},
+            # Sort by note desc, then nombre_avis desc
+            {"$sort": {"note_moyenne": -1, "nombre_avis": -1}},
+            # Lookup book info
+            {
+                "$lookup": {
+                    "from": "livres",
+                    "let": {"livre_id": {"$toObjectId": "$_id"}},
+                    "pipeline": [
+                        {"$match": {"$expr": {"$eq": ["$_id", "$$livre_id"]}}}
+                    ],
+                    "as": "livre_info",
+                }
+            },
+            {"$unwind": {"path": "$livre_info", "preserveNullAndEmptyArrays": True}},
+            # Lookup author info
+            {
+                "$lookup": {
+                    "from": "auteurs",
+                    "localField": "livre_info.auteur_id",
+                    "foreignField": "_id",
+                    "as": "auteur_info",
+                }
+            },
+            {"$unwind": {"path": "$auteur_info", "preserveNullAndEmptyArrays": True}},
+            # Project final fields
+            {
+                "$project": {
+                    "_id": 1,
+                    "note_moyenne": {"$round": ["$note_moyenne", 1]},
+                    "nombre_avis": 1,
+                    "titre": "$livre_info.titre",
+                    "auteur_id": {"$toString": "$livre_info.auteur_id"},
+                    "auteur_nom": "$auteur_info.nom",
+                    "url_babelio": "$livre_info.url_babelio",
+                }
+            },
+            # Secondary sort by titre for stable ordering of equal notes
+            {"$sort": {"note_moyenne": -1, "nombre_avis": -1, "titre": 1}},
+            # Facet for pagination
+            {
+                "$facet": {
+                    "metadata": [{"$count": "total"}],
+                    "data": [{"$skip": skip}, {"$limit": limit}],
+                }
+            },
+        ]
+
+        if self.avis_collection is None:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 0,
+            }
+
+        result = list(self.avis_collection.aggregate(pipeline))
+
+        if not result or not result[0]:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 0,
+            }
+
+        facet = result[0]
+        metadata = facet.get("metadata", [])
+        total = metadata[0]["total"] if metadata else 0
+        data = facet.get("data", [])
+
+        items = [
+            {
+                "livre_id": str(doc["_id"]),
+                "titre": doc.get("titre", ""),
+                "auteur_id": doc.get("auteur_id", ""),
+                "auteur_nom": doc.get("auteur_nom", ""),
+                "note_moyenne": doc.get("note_moyenne", 0),
+                "nombre_avis": doc.get("nombre_avis", 0),
+                "url_babelio": doc.get("url_babelio"),
+            }
+            for doc in data
+        ]
+
+        total_pages = (total + limit - 1) // limit if total > 0 else 0
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages,
+        }
+
 
 # Instance globale du service
 mongodb_service = MongoDBService()

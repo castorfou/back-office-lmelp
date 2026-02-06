@@ -1269,6 +1269,54 @@ total_count = len(editeurs_set)
 
 ---
 
+## Palmares API
+
+Endpoint pour récupérer le classement des livres par note moyenne décroissante, avec enrichissement Calibre.
+
+### GET /api/palmares
+
+Récupère la liste paginée des livres classés par note moyenne (minimum 2 avis).
+
+#### Paramètres
+
+- `page` (query, optional, default=1): Numéro de page
+- `limit` (query, optional, default=30): Nombre d'éléments par page
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "items": [
+    {
+      "livre_id": "6956ba2affd13096430f9cb9",
+      "titre": "Le Lambeau",
+      "auteur_id": "6950027a26f38eb0ca5aabed",
+      "auteur_nom": "Philippe Lançon",
+      "note_moyenne": 10.0,
+      "nombre_avis": 4,
+      "url_babelio": "https://www.babelio.com/...",
+      "calibre_in_library": true,
+      "calibre_read": true,
+      "calibre_rating": 8
+    }
+  ],
+  "total": 861,
+  "page": 1,
+  "limit": 30,
+  "total_pages": 29
+}
+```
+
+**Notes**:
+
+- Pipeline MongoDB `$facet` pour pagination serveur avec comptage total en une seule requête
+- Enrichissement Calibre via matching par titre normalisé (NFKD, case-insensitive)
+- `calibre_rating` est `null` si le livre n'est pas lu (même s'il a une note dans Calibre)
+- Si Calibre n'est pas disponible, les champs `calibre_*` sont `false`/`null`
+
+---
+
 ## Roadmap API
 
 - [ ] Authentification JWT
