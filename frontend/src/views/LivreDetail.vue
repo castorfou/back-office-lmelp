@@ -155,6 +155,72 @@
         </div>
       </section>
 
+      <!-- Avis des critiques (Issue #201) -->
+      <section
+        v-if="avisGrouped.length > 0"
+        class="avis-critiques-section"
+        data-test="avis-critiques-section"
+      >
+        <h2>Avis des critiques</h2>
+
+        <div
+          v-for="group in avisGrouped"
+          :key="group.emission_oid"
+          class="avis-emission-group"
+          data-test="avis-emission-group"
+        >
+          <h3 class="emission-group-header">
+            <router-link
+              v-if="group.emission_date"
+              :to="`/emissions/${formatDateForUrl(group.emission_date_raw)}`"
+              class="emission-date-link"
+            >
+              {{ group.emission_date }}
+            </router-link>
+            <span v-else>Émission inconnue</span>
+          </h3>
+
+          <table class="avis-table">
+            <thead>
+              <tr>
+                <th>Critique</th>
+                <th>Commentaire</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="avis in group.avis"
+                :key="avis.id"
+                data-test="avis-row"
+              >
+                <td class="critique-cell">
+                  <router-link
+                    v-if="avis.critique_oid"
+                    :to="`/critique/${avis.critique_oid}`"
+                    class="critique-link"
+                  >
+                    {{ avis.critique_nom || avis.critique_nom_extrait }}
+                  </router-link>
+                  <span v-else>{{ avis.critique_nom_extrait }}</span>
+                </td>
+                <td class="commentaire-cell">{{ avis.commentaire }}</td>
+                <td class="note-cell">
+                  <span
+                    v-if="avis.note != null"
+                    class="note-badge-small"
+                    :class="noteClass(avis.note)"
+                  >
+                    {{ avis.note }}
+                  </span>
+                  <span v-else class="note-missing">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Bouton retour -->
       <div class="actions">
         <button @click="$router.back()" class="btn-secondary">
@@ -180,14 +246,53 @@ export default {
       loading: false,
       error: null,
       annasArchiveBaseUrl: 'https://fr.annas-archive.org', // Fallback default (Issue #188)
-      tagsCopied: false // Issue #200: Copy feedback
+      tagsCopied: false, // Issue #200: Copy feedback
+      avis: [] // Issue #201: Avis des critiques
     };
   },
+  computed: {
+    avisGrouped() {
+      if (!this.avis || this.avis.length === 0) return [];
+
+      // Group avis by emission_oid
+      const groups = new Map();
+      for (const avis of this.avis) {
+        const key = avis.emission_oid || 'unknown';
+        if (!groups.has(key)) {
+          groups.set(key, {
+            emission_oid: key,
+            emission_date: avis.emission_date ? this.formatDate(avis.emission_date) : null,
+            emission_date_raw: avis.emission_date ? avis.emission_date.split('T')[0] : null,
+            avis: [],
+          });
+        }
+        groups.get(key).avis.push(avis);
+      }
+
+      // Sort groups by date descending, sort avis within by critique name
+      const sorted = Array.from(groups.values()).sort((a, b) => {
+        if (!a.emission_date_raw) return 1;
+        if (!b.emission_date_raw) return -1;
+        return b.emission_date_raw.localeCompare(a.emission_date_raw);
+      });
+
+      for (const group of sorted) {
+        group.avis.sort((a, b) => {
+          const nameA = (a.critique_nom || a.critique_nom_extrait || '').toLowerCase();
+          const nameB = (b.critique_nom || b.critique_nom_extrait || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      }
+
+      return sorted;
+    },
+  },
   async mounted() {
-    // Issue #188: Charger livre et URL Anna's Archive en parallèle
+    // Charger livre, URL Anna's Archive et avis en parallèle
     await Promise.all([
       this.loadLivre(),
-      this.loadAnnasArchiveUrl()
+      this.loadAnnasArchiveUrl(),
+      this.loadAvis()
     ]);
   },
   methods: {
@@ -211,6 +316,18 @@ export default {
         }
       } finally {
         this.loading = false;
+      }
+    },
+    async loadAvis() {
+      // Issue #201: Load critic reviews for this book
+      try {
+        const livreId = this.$route.params.id;
+        const response = await axios.get(`/api/avis/by-livre/${livreId}`);
+        this.avis = response.data.avis || [];
+      } catch (err) {
+        // Silently handle - avis are not critical for the page
+        console.warn('Failed to load avis:', err);
+        this.avis = [];
       }
     },
     async loadAnnasArchiveUrl() {
@@ -572,6 +689,98 @@ export default {
 
 .emission-card:hover .emission-arrow {
   opacity: 1;
+}
+
+/* Section avis des critiques (Issue #201) */
+.avis-critiques-section {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.avis-critiques-section h2 {
+  font-size: 1.5rem;
+  color: #2c3e50;
+  margin: 0 0 1.5rem 0;
+}
+
+.avis-emission-group {
+  margin-bottom: 1.5rem;
+}
+
+.avis-emission-group:last-child {
+  margin-bottom: 0;
+}
+
+.emission-group-header {
+  font-size: 1.1rem;
+  color: #555;
+  margin: 0 0 0.75rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.avis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.avis-table th,
+.avis-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  vertical-align: top;
+}
+
+.avis-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.avis-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.critique-cell {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.critique-link {
+  color: #1976d2;
+  text-decoration: none;
+}
+
+.critique-link:hover {
+  text-decoration: underline;
+}
+
+.commentaire-cell {
+  font-style: italic;
+  color: #555;
+}
+
+.note-cell {
+  text-align: center;
+  width: 60px;
+}
+
+.note-badge-small {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: white;
+}
+
+.note-missing {
+  color: #999;
 }
 
 /* Actions */

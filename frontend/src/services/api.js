@@ -564,6 +564,16 @@ export const avisService = {
   },
 
   /**
+   * Récupère les avis d'un livre
+   * @param {string} livreId - ID du livre
+   * @returns {Promise<Object>} Liste des avis {avis: [...]}
+   */
+  async getAvisByLivre(livreId) {
+    const response = await api.get(`/avis/by-livre/${livreId}`);
+    return response.data;
+  },
+
+  /**
    * Extrait les avis depuis le summary d'une émission
    * @param {string} emissionId - ID de l'émission
    * @returns {Promise<Object>} Résultat de l'extraction

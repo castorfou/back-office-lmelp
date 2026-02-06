@@ -4243,17 +4243,39 @@ async def get_avis_by_livre(livre_id: str) -> JSONResponse:
 
         result = []
         for avis in avis_list:
-            result.append(
-                {
-                    "id": str(avis["_id"]),
-                    "emission_oid": avis.get("emission_oid"),
-                    "critique_oid": avis.get("critique_oid"),
-                    "critique_nom_extrait": avis.get("critique_nom_extrait", ""),
-                    "commentaire": avis.get("commentaire", ""),
-                    "note": avis.get("note"),
-                    "section": avis.get("section"),
-                }
-            )
+            enriched: dict[str, str | int | None] = {
+                "id": str(avis["_id"]),
+                "emission_oid": avis.get("emission_oid"),
+                "critique_oid": avis.get("critique_oid"),
+                "critique_nom_extrait": avis.get("critique_nom_extrait", ""),
+                "commentaire": avis.get("commentaire", ""),
+                "note": avis.get("note"),
+                "section": avis.get("section"),
+            }
+
+            # Enrich with critic name if resolved
+            critique_oid = avis.get("critique_oid")
+            if critique_oid and mongodb_service.critiques_collection is not None:
+                critique = mongodb_service.critiques_collection.find_one(
+                    {"_id": ObjectId(critique_oid)}
+                )
+                if critique:
+                    enriched["critique_nom"] = critique.get("nom", "")
+
+            # Enrich with emission date
+            emission_oid = avis.get("emission_oid")
+            if emission_oid and mongodb_service.emissions_collection is not None:
+                emission = mongodb_service.emissions_collection.find_one(
+                    {"_id": ObjectId(emission_oid)}
+                )
+                if emission:
+                    emission_date = emission.get("date")
+                    if emission_date and hasattr(emission_date, "isoformat"):
+                        enriched["emission_date"] = emission_date.isoformat()
+                    elif emission_date:
+                        enriched["emission_date"] = str(emission_date)
+
+            result.append(enriched)
 
         return JSONResponse(content={"avis": result})
 
