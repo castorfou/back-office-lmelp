@@ -942,6 +942,7 @@ Récupère les détails d'un livre avec tous les épisodes où il est mentionné
   "auteur_id": "68e2c3ba1391489c77ccdee1",  // pragma: allowlist secret
   "editeur": "Gallimard",
   "nombre_episodes": 2,
+  "calibre_tags": ["guillaume", "lmelp_240112", "lmelp_240905", "lmelp_arnaud_viviant"],
   "episodes": [
     {
       "episode_id": "68c707ad6e51b9428ab87e9e",  // pragma: allowlist secret
@@ -960,6 +961,7 @@ Récupère les détails d'un livre avec tous les épisodes où il est mentionné
 ```
 
 **Notes**:
+- `calibre_tags` : liste de tags Calibre calculés dynamiquement à partir des avis du livre. Contient des tags `lmelp_yyMMdd` (date d'émission), `lmelp_prenom_nom` (critiques coup de cœur), et optionnellement le tag de bibliothèque virtuelle Calibre (`CALIBRE_VIRTUAL_LIBRARY_TAG`) en première position si le livre est trouvé dans Calibre. Liste vide si aucun avis
 - Les épisodes incluent un flag `programme` indiquant si le livre était au programme (true) ou coup de cœur (false)
 - Utilise une agrégation MongoDB avec `$lookup` pour joindre les collections
 

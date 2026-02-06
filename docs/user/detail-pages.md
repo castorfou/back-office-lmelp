@@ -85,7 +85,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 │  [📘] [A]  📖 L'Étranger                                     │
 │  Babelio  Anna's ✍️ Auteur : Albert Camus                  │
 │         🏢 Éditeur : Gallimard                               │
-│         📅 Mentionné dans 2 épisodes                         │
+│         📅 2 émissions  lmelp_240324 lmelp_arnaud_viviant 📋│
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -109,7 +109,13 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
   - **Anna's Archive** : Recherche du livre sur Anna's Archive (toujours disponible)
 - **Auteur** : Nom de l'auteur (clickable)
 - **Éditeur** : Maison d'édition
-- **Nombre d'épisodes** : Total des mentions dans les émissions
+- **Nombre d'émissions** : Total des mentions dans les émissions
+- **Tags Calibre** : Tags calculés dynamiquement, affichés comme badges violets en police monospace à côté du compteur d'émissions. Trois types de tags :
+    - `lmelp_yyMMdd` : un tag par émission où le livre a été discuté (date au format année-mois-jour sur 2 chiffres)
+    - `lmelp_prenom_nom` : un tag par critique ayant donné un coup de cœur au livre
+    - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier si le livre est présent dans Calibre
+    - Un bouton 📋 permet de copier tous les tags (séparés par des virgules) dans le presse-papier. Le bouton affiche ✓ pendant 2 secondes après la copie
+    - Si aucun tag n'est disponible, cette section n'est pas affichée
 - **Liste des épisodes** : Tous les épisodes mentionnant ce livre
   - Titre de l'épisode
   - Date de diffusion
@@ -120,6 +126,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 - **Cliquer sur l'icône Babelio** : Ouverture de la fiche livre sur Babelio.com (nouvel onglet)
 - **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet)
 - **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
+- **Copier les tags Calibre** : Bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier
 - **Cliquer sur un épisode** : Navigation vers la validation bibliographique avec l'épisode pré-sélectionné
 - **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
 

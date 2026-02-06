@@ -2146,6 +2146,19 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
         if not livre_data:
             raise HTTPException(status_code=404, detail="Livre non trouvé")
 
+        # Issue #200: Prepend CALIBRE_VIRTUAL_LIBRARY_TAG if book found in Calibre
+        if (
+            calibre_service._available
+            and settings.calibre_virtual_library_tag
+            and "calibre_tags" in livre_data
+        ):
+            calibre_index = _build_calibre_index()
+            norm_title = _normalize_title(livre_data.get("titre", ""))
+            if norm_title in calibre_index:
+                livre_data["calibre_tags"].insert(
+                    0, settings.calibre_virtual_library_tag
+                )
+
         return livre_data
     except HTTPException:
         raise
