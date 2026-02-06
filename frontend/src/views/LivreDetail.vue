@@ -89,6 +89,27 @@
               <span class="stat-badge">
                 {{ livre.nombre_emissions }} émission{{ livre.nombre_emissions > 1 ? 's' : '' }}
               </span>
+              <!-- Tags Calibre (Issue #200) -->
+              <span
+                v-if="livre.calibre_tags && livre.calibre_tags.length > 0"
+                class="tags-section"
+                data-test="tags-section"
+              >
+                <span
+                  v-for="tag in livre.calibre_tags"
+                  :key="tag"
+                  class="tag-badge"
+                  data-test="tag-badge"
+                >{{ tag }}</span>
+                <button
+                  @click="copyTags"
+                  class="copy-tags-btn"
+                  :title="tagsCopied ? 'Copié !' : 'Copier les tags'"
+                  data-test="copy-tags-btn"
+                >
+                  {{ tagsCopied ? '✓' : '📋' }}
+                </button>
+              </span>
             </div>
           </div>
         </div>
@@ -158,7 +179,8 @@ export default {
       livre: null,
       loading: false,
       error: null,
-      annasArchiveBaseUrl: 'https://fr.annas-archive.org' // Fallback default (Issue #188)
+      annasArchiveBaseUrl: 'https://fr.annas-archive.org', // Fallback default (Issue #188)
+      tagsCopied: false // Issue #200: Copy feedback
     };
   },
   async mounted() {
@@ -239,6 +261,18 @@ export default {
 
       // Utiliser l'URL dynamique au lieu du hardcoded (Issue #188)
       return `${this.annasArchiveBaseUrl}/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
+    },
+    async copyTags() {
+      // Issue #200: Copy Calibre tags to clipboard
+      if (!this.livre?.calibre_tags?.length) return;
+      const tagsString = this.livre.calibre_tags.join(', ');
+      try {
+        await navigator.clipboard.writeText(tagsString);
+        this.tagsCopied = true;
+        setTimeout(() => { this.tagsCopied = false; }, 2000);
+      } catch (err) {
+        console.error('Erreur copie tags:', err);
+      }
     }
   }
 };
@@ -384,6 +418,39 @@ export default {
   border-radius: 20px;
   font-weight: 500;
   font-size: 0.9rem;
+}
+
+/* Tags Calibre (Issue #200) */
+.tags-section {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tag-badge {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.copy-tags-btn {
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.copy-tags-btn:hover {
+  background: #f5f5f5;
+  border-color: #7b1fa2;
 }
 
 /* Title row with note badge */

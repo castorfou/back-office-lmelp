@@ -1104,6 +1104,14 @@ class MongoDBService:
             # Trier par date décroissante
             emissions_list.sort(key=lambda x: str(x.get("date", "")), reverse=True)
 
+            # Issue #200: Build Calibre-style tags from avis data
+            # Build emissions_by_id map for tag generation
+            emissions_by_id: dict[str, dict[str, Any]] = {}
+            for em in emissions_by_episode.values():
+                em_id_str = str(em["_id"])
+                emissions_by_id[em_id_str] = em
+            calibre_tags = self._build_calibre_tags(all_avis, emissions_by_id)
+
             return {
                 "livre_id": str(livre_data["_id"]),
                 "titre": livre_data["titre"],
@@ -1114,11 +1122,46 @@ class MongoDBService:
                 "note_moyenne": note_moyenne,
                 "nombre_emissions": len(emissions_list),
                 "emissions": emissions_list,
+                "calibre_tags": calibre_tags,
             }
 
         except Exception as e:
             print(f"Erreur lors de la récupération du livre {livre_id}: {e}")
             return None
+
+    def _build_calibre_tags(
+        self,
+        all_avis: list[dict[str, Any]],
+        emissions_by_id: dict[str, dict[str, Any]],
+    ) -> list[str]:
+        """Build Calibre-style tags from avis data (Issue #200).
+
+        Returns list of tags:
+        - lmelp_yyMMdd for each emission date (chronological order)
+        - lmelp_prenom_nom for each coup de coeur critic (alphabetical order)
+        """
+        date_tags: set[str] = set()
+        critic_tags: set[str] = set()
+
+        for avis in all_avis:
+            # Get emission date for lmelp_yyMMdd tag
+            em_oid = avis.get("emission_oid", "")
+            emission = emissions_by_id.get(em_oid)
+            if emission:
+                em_date = emission.get("date")
+                if isinstance(em_date, datetime):
+                    date_tag = f"lmelp_{em_date.strftime('%y%m%d')}"
+                    date_tags.add(date_tag)
+
+            # Get critic name for coup_de_coeur → lmelp_prenom_nom
+            if avis.get("section") == "coup_de_coeur":
+                critic_name = avis.get("critique_nom_extrait", "")
+                if critic_name:
+                    tag = "lmelp_" + critic_name.lower().replace(" ", "_")
+                    critic_tags.add(tag)
+
+        # Sort: dates chronologically, critics alphabetically
+        return sorted(date_tags) + sorted(critic_tags)
 
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0
