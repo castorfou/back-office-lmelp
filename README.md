@@ -245,6 +245,13 @@ export BABELIO_CACHE_LOG=1
 - 🎯 **Bibliothèque virtuelle** : Support des tags pour filtrage (ex: afficher uniquement tag "guillaume")
 - 📖 **Métadonnées complètes** : Auteurs, éditeur, ISBN, note, tags, colonnes personnalisées (#read, #paper, #text)
 
+#### Palmarès des livres
+- 🏆 **Classement par note** : Livres classés par note moyenne décroissante (minimum 2 avis)
+- 📖 **Intégration Calibre** : Statut de lecture et note Calibre pour chaque livre
+- 🏷️ **Filtres interactifs** : Lus / Non lus / Dans Calibre (persistés dans localStorage)
+- ∞ **Infinite scroll** : Chargement progressif par pages de 30
+- 🔗 **Liens rapides** : Accès direct à la fiche livre, fiche auteur, Calibre et Anna's Archive
+
 #### Pages de Détail Auteur et Livre
 - 👤 **Page auteur** : `/auteur/:id` - Vue détaillée d'un auteur avec tous ses livres triés alphabétiquement
 - 📖 **Page livre** : `/livre/:id` - Vue détaillée d'un livre avec liste des épisodes où il est mentionné
@@ -295,6 +302,9 @@ GET /api/livre/{id}               # Détails d'un livre avec ses épisodes
 # Recherche textuelle
 GET /api/search?q={query}&limit={n}              # Recherche simple multi-collections
 GET /api/advanced-search?q={query}&entities={...}&page={n}&limit={m}  # Recherche avec filtres et pagination
+
+# Palmarès
+GET /api/palmares                 # Classement des livres par note moyenne (pagination)
 
 # Calibre (Issue #119)
 GET /api/calibre/status           # Statut de l'intégration Calibre
