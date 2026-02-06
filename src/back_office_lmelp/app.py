@@ -2501,6 +2501,61 @@ async def get_validation_status_breakdown() -> list[dict[str, Any]] | JSONRespon
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+# Endpoint Palmarès (Issue #195)
+def _normalize_title(title: str) -> str:
+    """Normalize a title for matching: lowercase, remove accents/ligatures."""
+    import unicodedata
+
+    nfkd = unicodedata.normalize("NFKD", title)
+    ascii_str = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return ascii_str.lower().strip()
+
+
+def _build_calibre_index() -> dict[str, dict[str, Any]]:
+    """Build a lookup index of Calibre books by normalized title."""
+    try:
+        if not calibre_service._available:
+            return {}
+        books = calibre_service.get_all_books_summary()
+        return {_normalize_title(b["title"]): b for b in books}
+    except Exception:
+        return {}
+
+
+def _enrich_with_calibre(
+    result: dict[str, Any], calibre_index: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """Add calibre_in_library, calibre_read, calibre_rating to each item."""
+    for item in result["items"]:
+        norm_title = _normalize_title(item.get("titre", ""))
+        calibre_book = calibre_index.get(norm_title)
+        if calibre_book:
+            item["calibre_in_library"] = True
+            item["calibre_read"] = calibre_book.get("read")
+            item["calibre_rating"] = calibre_book.get("rating")
+        else:
+            item["calibre_in_library"] = False
+            item["calibre_read"] = None
+            item["calibre_rating"] = None
+    return result
+
+
+@app.get("/api/palmares", response_model=dict[str, Any])
+async def get_palmares(page: int = 1, limit: int = 30) -> dict[str, Any] | JSONResponse:
+    """Get books ranked by average rating (descending).
+
+    Returns paginated list of books with at least 2 reviews,
+    sorted by average rating. Enriched with Calibre data when available.
+    """
+    try:
+        result = mongodb_service.get_palmares(page=page, limit=limit)
+        calibre_index = _build_calibre_index()
+        return _enrich_with_calibre(result, calibre_index)
+    except Exception as e:
+        logger.error(f"Error getting palmares: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 # Endpoint pour la configuration Anna's Archive (Issue #188)
 @app.get("/api/config/annas-archive-url")
 async def get_annas_archive_url() -> dict[str, str]:

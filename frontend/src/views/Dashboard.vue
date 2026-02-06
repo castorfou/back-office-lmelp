@@ -136,6 +136,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-palmares"
+            @click="navigateToPalmares"
+          >
+            <div class="function-icon">🏆</div>
+            <h3>Palmarès</h3>
+            <p>Classement des livres par note décroissante</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-generation-avis"
             @click="navigateToGenerationAvis"
           >
@@ -522,6 +533,10 @@ export default {
 
     navigateToCalibre() {
       this.$router.push('/calibre');
+    },
+
+    navigateToPalmares() {
+      this.$router.push('/palmares');
     },
 
     navigateToGenerationAvis() {

@@ -232,6 +232,11 @@ export default {
   },
 
   async mounted() {
+    // Pre-fill search from query param (e.g., from Palmares page)
+    if (this.$route.query.search) {
+      this.searchText = this.$route.query.search;
+    }
+
     await this.loadCalibreStatus();
     if (this.calibreStatus.available) {
       await Promise.all([

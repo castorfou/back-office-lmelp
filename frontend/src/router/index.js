@@ -16,6 +16,7 @@ import CalibreLibrary from '../views/CalibreLibrary.vue';
 import IdentificationCritiques from '../views/IdentificationCritiques.vue';
 import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
 import DuplicateBooks from '../views/DuplicateBooks.vue';
+import Palmares from '../views/Palmares.vue';
 
 const routes = [
   {
@@ -128,6 +129,14 @@ const routes = [
     component: DuplicateBooks,
     meta: {
       title: 'Gestion des Doublons - Back-office LMELP'
+    }
+  },
+  {
+    path: '/palmares',
+    name: 'Palmares',
+    component: Palmares,
+    meta: {
+      title: 'Palmarès - Back-office LMELP'
     }
   },
   {
