@@ -449,13 +449,25 @@ class TestGetAvisByLivre:
     def test_get_avis_by_livre_returns_list(self):
         """Test que GET retourne la liste des avis du livre."""
         livre_id = str(ObjectId())
+        emission_id = ObjectId()
+        critique_id = ObjectId()
 
         self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = MagicMock()
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.critiques_collection.find_one.return_value = {
+            "_id": critique_id,
+            "nom": "Critique Test",
+        }
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": emission_id,
+            "date": "2025-01-01T00:00:00.000Z",
+        }
         self.mock_mongodb.get_avis_by_livre.return_value = [
             {
                 "_id": ObjectId(),
-                "emission_oid": "em1",
-                "critique_oid": "critique1",
+                "emission_oid": str(emission_id),
+                "critique_oid": str(critique_id),
                 "critique_nom_extrait": "Critique Test",
                 "commentaire": "Excellent",
                 "note": 10,

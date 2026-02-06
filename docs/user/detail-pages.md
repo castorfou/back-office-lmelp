@@ -89,15 +89,29 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  Épisodes :                                                  │
+│  Émissions présentant "L'Étranger" :                         │
 │                                                              │
-│  📺 Les nouvelles pages du polar                            │
-│      📅 12/01/2025                                           │
-│      ⭐ Au programme                                         │
+│  📅 12 janvier 2025  · 3 avis  · ⭐ 7.5                     │
+│  📅  5 septembre 2024  · 2 avis  · ⭐ 8.0                   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Avis des critiques                                          │
 │                                                              │
-│  📺 Spécial rentrée littéraire                              │
-│      📅 05/09/2024                                           │
-│      💙 Coup de cœur                                         │
+│  📅 12 janvier 2025                                          │
+│  ┌────────────┬──────────────────────┬──────┐               │
+│  │ Critique   │ Commentaire          │ Note │               │
+│  ├────────────┼──────────────────────┼──────┤               │
+│  │ A. Viviant │ Impressionnant       │  8   │               │
+│  │ E. Philippe│ Très belle découverte│  9   │               │
+│  └────────────┴──────────────────────┴──────┘               │
+│                                                              │
+│  📅 5 septembre 2024                                         │
+│  ┌────────────┬──────────────────────┬──────┐               │
+│  │ Critique   │ Commentaire          │ Note │               │
+│  ├────────────┼──────────────────────┼──────┤               │
+│  │ A. Viviant │ Remarquable          │  7   │               │
+│  └────────────┴──────────────────────┴──────┘               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,10 +130,16 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
     - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier si le livre est présent dans Calibre
     - Un bouton 📋 permet de copier tous les tags (séparés par des virgules) dans le presse-papier. Le bouton affiche ✓ pendant 2 secondes après la copie
     - Si aucun tag n'est disponible, cette section n'est pas affichée
-- **Liste des épisodes** : Tous les épisodes mentionnant ce livre
-  - Titre de l'épisode
-  - Date de diffusion
-  - Type de mention (Au programme / Coup de cœur)
+- **Liste des émissions** : Toutes les émissions mentionnant ce livre
+  - Date de l'émission (clickable vers la page émission)
+  - Nombre d'avis et note moyenne par émission
+- **Avis des critiques** : Les avis individuels des critiques, groupés par émission
+  - Section affichée uniquement si des avis structurés existent pour ce livre
+  - Chaque émission forme un groupe avec sa date en en-tête
+  - Tableau par groupe : Critique, Commentaire, Note
+  - Les noms de critiques sont clickables vers la page critique (si résolu)
+  - Les dates d'émission sont clickables vers la page émission
+  - Les notes sont colorées selon le barème habituel (vert >= 9, jaune-vert >= 7, etc.)
 
 ### Actions disponibles
 
@@ -127,7 +147,8 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 - **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet)
 - **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
 - **Copier les tags Calibre** : Bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier
-- **Cliquer sur un épisode** : Navigation vers la validation bibliographique avec l'épisode pré-sélectionné
+- **Cliquer sur une émission** : Navigation vers la page émission correspondante
+- **Cliquer sur un critique** : Accès à la page détail du critique
 - **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
 
 ## Page Détail Critique
