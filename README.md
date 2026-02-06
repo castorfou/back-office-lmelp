@@ -254,7 +254,7 @@ export BABELIO_CACHE_LOG=1
 
 #### Pages de Détail Auteur et Livre
 - 👤 **Page auteur** : `/auteur/:id` - Vue détaillée d'un auteur avec tous ses livres triés alphabétiquement
-- 📖 **Page livre** : `/livre/:id` - Vue détaillée d'un livre avec liste des épisodes où il est mentionné
+- 📖 **Page livre** : `/livre/:id` - Vue détaillée d'un livre avec liste des épisodes où il est mentionné, tags Calibre associés (dates d'émission, coups de coeur) et copie en un clic
 - 🔗 **Navigation inter-pages** : Liens clickables depuis recherche simple/avancée vers pages détail
 - 🎯 **Liens depuis biblio validation** : Auteurs et titres clickables dans la page `/livres-auteurs`
 - 🔄 **Liens épisodes** : Navigation directe depuis un livre vers validation biblio avec épisode pré-sélectionné

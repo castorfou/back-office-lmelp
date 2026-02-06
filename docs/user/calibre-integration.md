@@ -149,6 +149,32 @@ Nouvelle page accessible depuis l'accueil :
 - **Infinite scroll** : Chargement progressif de 50 livres à la fois
 - **Statistiques** : Total livres, livres lus, pourcentage de lecture
 
+### Tags Calibre sur la page Livre
+
+Sur la page de détail d'un livre (`/livre/{id}`), des tags Calibre sont calculés dynamiquement et affichés comme badges violets à côté du compteur d'émissions. Ces tags suivent la convention de nommage Calibre pour le projet lmelp :
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  📖 La Deuxième Vie                                         │
+│  ✍️ Philippe Sollers                                       │
+│  📅 1 émission  guillaume  lmelp_240324  lmelp_arnaud_…  📋│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Types de tags** :
+
+| Tag | Format | Source | Exemple |
+|-----|--------|--------|---------|
+| Bibliothèque virtuelle | `CALIBRE_VIRTUAL_LIBRARY_TAG` | Calibre | `guillaume` |
+| Date d'émission | `lmelp_yyMMdd` | Collection `avis` + `emissions` | `lmelp_240324` |
+| Critique coup de cœur | `lmelp_prenom_nom` | Collection `avis` (section coup_de_coeur) | `lmelp_arnaud_viviant` |
+
+**Ordre d'affichage** : tag bibliothèque virtuelle (si présent) → dates chronologiques → critiques alphabétiques.
+
+**Bouton copie** : Le bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier (ex: `guillaume, lmelp_240324, lmelp_arnaud_viviant`). Ces tags peuvent être collés directement dans Calibre pour taguer un livre.
+
+**Dégradation gracieuse** : Si Calibre n'est pas disponible, seuls les tags `lmelp_*` sont affichés. Si le livre n'a aucun avis, aucun tag n'est affiché.
+
 ### Recherche avancée étendue
 
 Dans la page de **recherche avancée**, nouveau champ :
