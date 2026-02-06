@@ -1,0 +1,12 @@
+cases:
+- input:
+    name: Emmanuel Carrère
+  output:
+    original: Emmanuel Carrère
+    status: verified
+  timestamp: 1234567890
+- input:
+    name: Test Author
+  output:
+    status: verified
+  timestamp: 1234567890
