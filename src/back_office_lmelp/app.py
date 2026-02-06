@@ -2532,7 +2532,9 @@ def _enrich_with_calibre(
         if calibre_book:
             item["calibre_in_library"] = True
             item["calibre_read"] = calibre_book.get("read")
-            item["calibre_rating"] = calibre_book.get("rating")
+            item["calibre_rating"] = (
+                calibre_book.get("rating") if calibre_book.get("read") else None
+            )
         else:
             item["calibre_in_library"] = False
             item["calibre_read"] = None

@@ -194,6 +194,15 @@ export default {
   },
 
   data() {
+    const saved = (() => {
+      try {
+        const raw = localStorage.getItem('palmares-filters');
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    })();
+
     return {
       items: [],
       total: 0,
@@ -205,10 +214,16 @@ export default {
       annasArchiveBaseUrl: 'https://fr.annas-archive.org',
       calibreIcon: calibreIcon,
       observer: null,
-      filterRead: true,
-      filterUnread: true,
-      filterInCalibre: true,
+      filterRead: saved?.filterRead ?? true,
+      filterUnread: saved?.filterUnread ?? true,
+      filterInCalibre: saved?.filterInCalibre ?? true,
     };
+  },
+
+  watch: {
+    filterRead() { this.saveFilters(); },
+    filterUnread() { this.saveFilters(); },
+    filterInCalibre() { this.saveFilters(); },
   },
 
   computed: {
@@ -321,6 +336,18 @@ export default {
     getCalibreUrl(item) {
       const searchQuery = item.titre || '';
       return `/calibre?search=${encodeURIComponent(searchQuery)}`;
+    },
+
+    saveFilters() {
+      try {
+        localStorage.setItem('palmares-filters', JSON.stringify({
+          filterRead: this.filterRead,
+          filterUnread: this.filterUnread,
+          filterInCalibre: this.filterInCalibre,
+        }));
+      } catch {
+        // localStorage not available
+      }
     },
 
     getAnnasArchiveUrl(item) {

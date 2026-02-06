@@ -480,3 +480,45 @@ class TestPalmaresWithCalibre:
         assert item["calibre_in_library"] is False
         assert item["calibre_read"] is None
         assert item["calibre_rating"] is None
+
+    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_palmares_calibre_rating_ignored_when_not_read(
+        self, mock_mongodb, mock_calibre, client
+    ):
+        """Test that calibre_rating is None when book is in Calibre but not read."""
+        mock_mongodb.get_palmares.return_value = {
+            "items": [
+                {
+                    "livre_id": "id1",
+                    "titre": "La seule histoire",
+                    "auteur_id": "a1",
+                    "auteur_nom": "Julian Barnes",
+                    "note_moyenne": 10.0,
+                    "nombre_avis": 4,
+                    "url_babelio": None,
+                },
+            ],
+            "total": 1,
+            "page": 1,
+            "limit": 30,
+            "total_pages": 1,
+        }
+        mock_calibre._available = True
+        mock_calibre.get_all_books_summary.return_value = [
+            {
+                "id": 55,
+                "title": "La seule histoire",
+                "authors": ["Julian Barnes"],
+                "read": False,
+                "rating": 10,
+            }
+        ]
+
+        response = client.get("/api/palmares")
+        data = response.json()
+        item = data["items"][0]
+
+        assert item["calibre_in_library"] is True
+        assert item["calibre_read"] is False
+        assert item["calibre_rating"] is None  # Rating ignored when not read

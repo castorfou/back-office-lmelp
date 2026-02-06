@@ -66,6 +66,7 @@ describe('Palmares.vue', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    localStorage.clear();
 
     router = createRouter({
       history: createMemoryHistory(),
@@ -406,6 +407,69 @@ describe('Palmares.vue', () => {
 
       await chip.trigger('click');
       expect(wrapper.vm.filterRead).toBe(true);
+    });
+  });
+
+  describe('Filter persistence (localStorage)', () => {
+    const dataWithCalibre = {
+      items: [
+        {
+          livre_id: 'id1',
+          titre: 'Livre Lu',
+          auteur_id: 'a1',
+          auteur_nom: 'Auteur 1',
+          note_moyenne: 10.0,
+          nombre_avis: 4,
+          calibre_in_library: true,
+          calibre_read: true,
+          calibre_rating: 8,
+        },
+        {
+          livre_id: 'id2',
+          titre: 'Livre Non Lu',
+          auteur_id: 'a2',
+          auteur_nom: 'Auteur 2',
+          note_moyenne: 9.0,
+          nombre_avis: 3,
+          calibre_in_library: true,
+          calibre_read: false,
+          calibre_rating: null,
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 30,
+      total_pages: 1,
+    };
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it('should restore filters from localStorage on mount', async () => {
+      localStorage.setItem('palmares-filters', JSON.stringify({
+        filterRead: false,
+        filterUnread: true,
+        filterInCalibre: false,
+      }));
+
+      await mountPalmares(dataWithCalibre);
+
+      expect(wrapper.vm.filterRead).toBe(false);
+      expect(wrapper.vm.filterUnread).toBe(true);
+      expect(wrapper.vm.filterInCalibre).toBe(false);
+    });
+
+    it('should save filters to localStorage when toggled', async () => {
+      await mountPalmares(dataWithCalibre);
+
+      wrapper.vm.filterRead = false;
+      await wrapper.vm.$nextTick();
+
+      const saved = JSON.parse(localStorage.getItem('palmares-filters'));
+      expect(saved.filterRead).toBe(false);
+      expect(saved.filterUnread).toBe(true);
+      expect(saved.filterInCalibre).toBe(true);
     });
   });
 });
