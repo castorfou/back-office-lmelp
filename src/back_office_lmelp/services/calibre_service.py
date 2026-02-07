@@ -324,7 +324,6 @@ class CalibreService:
                 b.id,
                 b.title,
                 b.sort,
-                b.isbn,
                 b.timestamp,
                 b.pubdate,
                 b.last_modified,
@@ -417,7 +416,7 @@ class CalibreService:
         cursor.execute(
             """
             SELECT
-                id, title, sort, isbn, timestamp, pubdate, last_modified,
+                id, title, sort, timestamp, pubdate, last_modified,
                 path, uuid, has_cover, series_index
             FROM books
             WHERE id = ?
@@ -512,6 +511,92 @@ class CalibreService:
         conn.close()
         return result
 
+    def get_all_books_with_tags(self) -> list[dict[str, Any]]:
+        """Get a summary of all books including tags for matching and corrections.
+
+        Extends get_all_books_summary() with tags data.
+        Returns a list of dicts with id, title, authors, read, rating, tags.
+        Applies virtual library filter if configured.
+        """
+        if not self._available:
+            return []
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        query = "SELECT b.id, b.title FROM books b"
+        params: list[Any] = []
+
+        if self._virtual_library_tag:
+            query += """
+                JOIN books_tags_link btl_filter ON b.id = btl_filter.book
+                JOIN tags t_filter ON btl_filter.tag = t_filter.id
+                WHERE t_filter.name = ?
+            """
+            params.append(self._virtual_library_tag)
+
+        query += " ORDER BY b.title"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        result = []
+        for row in rows:
+            book_id = row["id"]
+            title = row["title"]
+
+            # Get authors
+            cursor.execute(
+                """SELECT a.name FROM authors a
+                   JOIN books_authors_link bal ON a.id = bal.author
+                   WHERE bal.book = ?""",
+                (book_id,),
+            )
+            authors = [r["name"] for r in cursor.fetchall()]
+
+            # Get tags
+            cursor.execute(
+                """SELECT t.name FROM tags t
+                   JOIN books_tags_link btl ON t.id = btl.tag
+                   WHERE btl.book = ?""",
+                (book_id,),
+            )
+            tags = [r["name"] for r in cursor.fetchall()]
+
+            # Get rating
+            cursor.execute(
+                """SELECT r.rating FROM ratings r
+                   JOIN books_ratings_link brl ON r.id = brl.rating
+                   WHERE brl.book = ?""",
+                (book_id,),
+            )
+            rating_row = cursor.fetchone()
+            rating = rating_row["rating"] if rating_row else None
+
+            # Get read status
+            read = None
+            read_col_id = self._custom_columns_map.get("read")
+            if read_col_id:
+                cursor.execute(
+                    f"SELECT value FROM custom_column_{read_col_id} WHERE book = ?",
+                    (book_id,),
+                )
+                read_row = cursor.fetchone()
+                read = bool(read_row["value"]) if read_row else None
+
+            result.append(
+                {
+                    "id": book_id,
+                    "title": title,
+                    "authors": authors,
+                    "tags": tags,
+                    "read": read,
+                    "rating": rating,
+                }
+            )
+
+        conn.close()
+        return result
+
     def _build_book_from_row(
         self, row: sqlite3.Row, conn: sqlite3.Connection
     ) -> CalibreBook:
@@ -596,7 +681,7 @@ class CalibreService:
         rating_row = cursor.fetchone()
         rating = rating_row["rating"] if rating_row else None
 
-        # ISBN (dans la table identifiers, pas books.isbn)
+        # ISBN (dans la table identifiers uniquement)
         cursor.execute(
             """
             SELECT val FROM identifiers
@@ -606,7 +691,7 @@ class CalibreService:
             (book_id,),
         )
         isbn_row = cursor.fetchone()
-        isbn = isbn_row["val"] if isbn_row else (row["isbn"] or None)
+        isbn = isbn_row["val"] if isbn_row else None
 
         # Commentaires
         cursor.execute("SELECT text FROM comments WHERE book = ?", (book_id,))

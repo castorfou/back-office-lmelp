@@ -1,5 +1,6 @@
 """Tests simplifiés pour le service MongoDB synchrone."""
 
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -147,3 +148,85 @@ class TestMongoDBServiceSimple:
         # Vérifier que les ObjectIds sont convertis en strings
         assert result[0]["_id"] == "507f1f77bcf86cd799439011"
         assert result[1]["_id"] == "507f1f77bcf86cd799439012"
+
+
+class TestGetExpectedCalibreTags:
+    """Tests pour get_expected_calibre_tags (Issue #199)."""
+
+    @pytest.fixture
+    def mongodb_service(self):
+        """Create a MongoDB service instance with mocked collections."""
+        service = MongoDBService()
+        service.avis_collection = MagicMock()
+        service.emissions_collection = MagicMock()
+        return service
+
+    def test_returns_expected_lmelp_tags_for_livre(self, mongodb_service):
+        """Retourne les tags lmelp_ attendus pour un livre donné."""
+        em_id = ObjectId("507f1f77bcf86cd799439011")
+
+        # Mock avis for this livre: one regular avis + one coup de coeur
+        mongodb_service.avis_collection.find.return_value = [
+            {
+                "livre_oid": "livre1",
+                "emission_oid": str(em_id),
+                "section": "chronique",
+                "note": 7,
+            },
+            {
+                "livre_oid": "livre1",
+                "emission_oid": str(em_id),
+                "section": "coup_de_coeur",
+                "critique_nom_extrait": "Michel Crement",
+                "note": 9,
+            },
+        ]
+
+        # Mock emission with date
+        mongodb_service.emissions_collection.find.return_value = [
+            {"_id": em_id, "date": datetime(2024, 9, 22)},
+        ]
+
+        result = mongodb_service.get_expected_calibre_tags(["livre1"])
+
+        assert "livre1" in result
+        assert "lmelp_240922" in result["livre1"]
+        assert "lmelp_michel_crement" in result["livre1"]
+
+    def test_returns_empty_for_livre_without_avis(self, mongodb_service):
+        """Retourne une liste vide pour un livre sans avis."""
+        mongodb_service.avis_collection.find.return_value = []
+        mongodb_service.emissions_collection.find.return_value = []
+
+        result = mongodb_service.get_expected_calibre_tags(["livre_no_avis"])
+
+        assert result.get("livre_no_avis", []) == []
+
+    def test_returns_multiple_livres(self, mongodb_service):
+        """Retourne les tags pour plusieurs livres en une seule requête."""
+        em_id1 = ObjectId("507f1f77bcf86cd799439011")
+        em_id2 = ObjectId("507f1f77bcf86cd799439012")
+
+        # Avis for 2 different livres
+        mongodb_service.avis_collection.find.return_value = [
+            {
+                "livre_oid": "livre1",
+                "emission_oid": str(em_id1),
+                "section": "chronique",
+            },
+            {
+                "livre_oid": "livre2",
+                "emission_oid": str(em_id2),
+                "section": "chronique",
+            },
+        ]
+
+        mongodb_service.emissions_collection.find.return_value = [
+            {"_id": em_id1, "date": datetime(2024, 9, 22)},
+            {"_id": em_id2, "date": datetime(2023, 3, 15)},
+        ]
+
+        result = mongodb_service.get_expected_calibre_tags(["livre1", "livre2"])
+
+        assert "lmelp_240922" in result.get("livre1", [])
+        assert "lmelp_230315" in result.get("livre2", [])

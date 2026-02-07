@@ -211,7 +211,7 @@ export default {
       pageSize: 30,
       loading: false,
       error: null,
-      annasArchiveBaseUrl: 'https://fr.annas-archive.org',
+      annasArchiveBaseUrl: 'https://fr.annas-archive.li',
       calibreIcon: calibreIcon,
       observer: null,
       filterRead: saved?.filterRead ?? true,

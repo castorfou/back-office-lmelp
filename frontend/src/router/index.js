@@ -17,6 +17,7 @@ import IdentificationCritiques from '../views/IdentificationCritiques.vue';
 import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
 import DuplicateBooks from '../views/DuplicateBooks.vue';
 import Palmares from '../views/Palmares.vue';
+import CalibreCorrections from '../views/CalibreCorrections.vue';
 
 const routes = [
   {
@@ -137,6 +138,14 @@ const routes = [
     component: Palmares,
     meta: {
       title: 'Palmarès - Back-office LMELP'
+    }
+  },
+  {
+    path: '/calibre-corrections',
+    name: 'CalibreCorrections',
+    component: CalibreCorrections,
+    meta: {
+      title: 'Corrections Calibre - Back-office LMELP'
     }
   },
   {

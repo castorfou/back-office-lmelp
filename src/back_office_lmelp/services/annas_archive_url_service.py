@@ -44,7 +44,7 @@ class AnnasArchiveUrlService:
         self.settings = settings
         self.cache_service = cache_service
         self.wikipedia_url = "https://en.wikipedia.org/wiki/Anna%27s_Archive"
-        self.hardcoded_default = "https://fr.annas-archive.org"
+        self.hardcoded_default = "https://fr.annas-archive.li"
         self._debug_log_enabled = os.getenv("ANNAS_ARCHIVE_DEBUG_LOG", "0").lower() in (
             "1",
             "true",

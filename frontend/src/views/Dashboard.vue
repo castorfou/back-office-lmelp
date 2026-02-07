@@ -147,6 +147,19 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-calibre-corrections"
+            @click="navigateToCalibreCorrections"
+          >
+            <div class="function-icon">
+              <img :src="calibreIcon" alt="Calibre" class="function-icon-img" />
+            </div>
+            <h3>Corrections Calibre</h3>
+            <p>Liaison MongoDB-Calibre : auteurs, titres et tags manquants</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-generation-avis"
             @click="navigateToGenerationAvis"
           >
@@ -537,6 +550,10 @@ export default {
 
     navigateToPalmares() {
       this.$router.push('/palmares');
+    },
+
+    navigateToCalibreCorrections() {
+      this.$router.push('/calibre-corrections');
     },
 
     navigateToGenerationAvis() {

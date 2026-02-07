@@ -1110,7 +1110,33 @@ class MongoDBService:
             for em in emissions_by_episode.values():
                 em_id_str = str(em["_id"])
                 emissions_by_id[em_id_str] = em
-            calibre_tags = self._build_calibre_tags(all_avis, emissions_by_id)
+
+            # Build critiques_by_id for official critic names
+            # critique_oid is String in avis, but _id is ObjectId in critiques
+            critiques_by_id: dict[str, str] = {}
+            critique_oid_strs = {
+                a.get("critique_oid", "") for a in all_avis if a.get("critique_oid")
+            }
+            if critique_oid_strs and self.critiques_collection is not None:
+                from bson import ObjectId as BsonObjectId
+
+                critique_object_ids = []
+                for oid in critique_oid_strs:
+                    with contextlib.suppress(Exception):
+                        critique_object_ids.append(BsonObjectId(oid))
+
+                if critique_object_ids:
+                    critiques_docs = list(
+                        self.critiques_collection.find(
+                            {"_id": {"$in": critique_object_ids}}
+                        )
+                    )
+                    for c in critiques_docs:
+                        critiques_by_id[str(c["_id"])] = c.get("nom", "")
+
+            calibre_tags = self._build_calibre_tags(
+                all_avis, emissions_by_id, critiques_by_id=critiques_by_id
+            )
 
             return {
                 "livre_id": str(livre_data["_id"]),
@@ -1133,12 +1159,16 @@ class MongoDBService:
         self,
         all_avis: list[dict[str, Any]],
         emissions_by_id: dict[str, dict[str, Any]],
+        critiques_by_id: dict[str, str] | None = None,
     ) -> list[str]:
         """Build Calibre-style tags from avis data (Issue #200).
 
         Returns list of tags:
         - lmelp_yyMMdd for each emission date (chronological order)
         - lmelp_prenom_nom for each coup de coeur critic (alphabetical order)
+
+        When critiques_by_id is provided, uses the official critique name
+        (resolved via critique_oid) instead of critique_nom_extrait (LLM name).
         """
         date_tags: set[str] = set()
         critic_tags: set[str] = set()
@@ -1155,13 +1185,119 @@ class MongoDBService:
 
             # Get critic name for coup_de_coeur → lmelp_prenom_nom
             if avis.get("section") == "coup_de_coeur":
-                critic_name = avis.get("critique_nom_extrait", "")
+                # Prefer official name via critique_oid over LLM-extracted name
+                critic_name = ""
+                critique_oid = avis.get("critique_oid", "")
+                if critique_oid and critiques_by_id:
+                    critic_name = critiques_by_id.get(critique_oid, "")
+                if not critic_name:
+                    critic_name = avis.get("critique_nom_extrait", "")
                 if critic_name:
-                    tag = "lmelp_" + critic_name.lower().replace(" ", "_")
+                    from ..utils.text_utils import normalize_for_matching
+
+                    normalized = normalize_for_matching(critic_name)
+                    tag = "lmelp_" + normalized.replace(" ", "_")
                     critic_tags.add(tag)
 
         # Sort: dates chronologically, critics alphabetically
         return sorted(date_tags) + sorted(critic_tags)
+
+    def get_expected_calibre_tags(self, livre_ids: list[str]) -> dict[str, list[str]]:
+        """Compute expected Calibre lmelp_ tags for multiple livres in bulk.
+
+        Uses the same logic as _build_calibre_tags() but for multiple livres.
+
+        Args:
+            livre_ids: List of livre _id strings.
+
+        Returns:
+            Dict mapping livre_id → list of expected lmelp_ tags.
+        """
+        if not livre_ids or self.avis_collection is None:
+            return {}
+
+        try:
+            # Bulk fetch all avis for these livres
+            all_avis = list(
+                self.avis_collection.find({"livre_oid": {"$in": livre_ids}})
+            )
+            if not all_avis:
+                return {}
+
+            # Collect all emission_oid references
+            emission_oids = {
+                avis.get("emission_oid", "")
+                for avis in all_avis
+                if avis.get("emission_oid")
+            }
+
+            # Bulk fetch emissions
+            from bson import ObjectId as BsonObjectId
+
+            emissions_by_id: dict[str, dict[str, Any]] = {}
+            if emission_oids and self.emissions_collection is not None:
+                emission_object_ids = []
+                for oid in emission_oids:
+                    with contextlib.suppress(Exception):
+                        emission_object_ids.append(BsonObjectId(oid))
+
+                if emission_object_ids:
+                    emissions = list(
+                        self.emissions_collection.find(
+                            {"_id": {"$in": emission_object_ids}}
+                        )
+                    )
+                    for em in emissions:
+                        emissions_by_id[str(em["_id"])] = em
+
+            # Bulk fetch critiques for official critic names
+            # critique_oid is String in avis, but _id is ObjectId in critiques
+            critiques_by_id: dict[str, str] = {}
+            critique_oid_strs = {
+                avis.get("critique_oid", "")
+                for avis in all_avis
+                if avis.get("critique_oid")
+            }
+            if critique_oid_strs and self.critiques_collection is not None:
+                critique_object_ids = []
+                for oid in critique_oid_strs:
+                    with contextlib.suppress(Exception):
+                        critique_object_ids.append(BsonObjectId(oid))
+
+                if critique_object_ids:
+                    critiques_docs = list(
+                        self.critiques_collection.find(
+                            {"_id": {"$in": critique_object_ids}}
+                        )
+                    )
+                    for c in critiques_docs:
+                        critiques_by_id[str(c["_id"])] = c.get("nom", "")
+
+            # Group avis by livre_oid
+            avis_by_livre: dict[str, list[dict[str, Any]]] = {}
+            for avis in all_avis:
+                livre_oid = avis.get("livre_oid", "")
+                if livre_oid:
+                    avis_by_livre.setdefault(livre_oid, []).append(avis)
+
+            # Build tags for each livre using existing _build_calibre_tags
+            result: dict[str, list[str]] = {}
+            for livre_id in livre_ids:
+                livre_avis = avis_by_livre.get(livre_id, [])
+                if livre_avis:
+                    tags = self._build_calibre_tags(
+                        livre_avis,
+                        emissions_by_id,
+                        critiques_by_id=critiques_by_id,
+                    )
+                    if tags:
+                        result[livre_id] = tags
+
+            return result
+
+        except Exception as e:
+            print(f"Erreur get_expected_calibre_tags: {e}")
+            return {}
 
     def search_editeurs(
         self, query: str, limit: int = 10, offset: int = 0

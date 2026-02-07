@@ -32,11 +32,12 @@ from back_office_lmelp.services.calibre_service import CalibreService
 def mock_book_row():
     """Crée une ligne SQL simulée pour un livre."""
     # Structure basée sur la vraie table books de Calibre
+    # Note: pas de colonne isbn (supprimée dans Calibre récent,
+    # ISBN est uniquement dans la table identifiers)
     row = {
         "id": 3,
         "title": "Le Silence de la mer",
         "sort": "Silence de la mer, Le",
-        "isbn": "",  # ISBN est dans table identifiers, pas books
         "timestamp": "2024-01-15 10:30:00",
         "pubdate": "1942-02-01",
         "last_modified": "2024-01-15 10:30:00",
@@ -546,6 +547,180 @@ class TestCalibreServiceGetBook:
         book = service.get_book(999)
 
         assert book is None
+
+
+class TestCalibreServiceNoIsbnColumn:
+    """Tests pour Calibre sans colonne isbn dans la table books.
+
+    Les versions récentes de Calibre n'ont plus de colonne isbn dans la table books.
+    L'ISBN est uniquement dans la table identifiers.
+    """
+
+    @pytest.fixture
+    def mock_book_row_no_isbn(self):
+        """Ligne SQL simulée SANS colonne isbn (Calibre récent)."""
+        row = {
+            "id": 3,
+            "title": "Le Silence de la mer",
+            "sort": "Silence de la mer, Le",
+            "timestamp": "2024-01-15 10:30:00",
+            "pubdate": "1942-02-01",
+            "last_modified": "2024-01-15 10:30:00",
+            "path": "Vercors/Le Silence de la mer (3)",
+            "uuid": "12345678-1234-1234-1234-123456789012",
+            "has_cover": 1,
+            "series_index": 1.0,
+        }
+        mock_row = MagicMock()
+        mock_row.__getitem__ = lambda self, key: row[key]
+        mock_row.keys.return_value = row.keys()
+        return mock_row
+
+    def _setup_available_service(
+        self, mock_connect, mock_path_class, mock_settings, virtual_tag=None
+    ):
+        """Configure les mocks pour un service disponible."""
+        mock_settings.calibre_library_path = "/calibre"
+        mock_settings.calibre_virtual_library_tag = virtual_tag
+
+        mock_library_path = MagicMock(spec=Path)
+        mock_library_path.exists.return_value = True
+        mock_library_path.is_dir.return_value = True
+
+        mock_db_path = MagicMock(spec=Path)
+        mock_db_path.exists.return_value = True
+        mock_db_path.__str__ = lambda self: "/calibre/metadata.db"
+
+        mock_library_path.__truediv__ = lambda self, other: mock_db_path
+        mock_path_class.return_value = mock_library_path
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_get_book_works_without_isbn_column(
+        self, mock_connect, mock_path_class, mock_settings, mock_book_row_no_isbn
+    ):
+        """get_book fonctionne même sans colonne isbn dans books."""
+        self._setup_available_service(mock_connect, mock_path_class, mock_settings)
+
+        # Connexion init
+        mock_conn_init = MagicMock()
+        mock_cursor_init = MagicMock()
+        mock_cursor_init.fetchone.return_value = [943]
+        mock_cursor_init.fetchall.return_value = []
+        mock_conn_init.cursor.return_value = mock_cursor_init
+
+        # Connexion get_book
+        mock_conn_get = MagicMock()
+        mock_cursor_get = MagicMock()
+
+        def mock_execute_side_effect(query, params=None):
+            if "WHERE id = ?" in query:
+                mock_cursor_get.fetchone.return_value = mock_book_row_no_isbn
+            elif "authors" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "Vercors"}]
+            elif "tags" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "roman"}]
+            elif "publishers" in query or "series" in query or "ratings" in query:
+                mock_cursor_get.fetchone.return_value = None
+            elif "identifiers" in query and "isbn" in query:
+                mock_cursor_get.fetchone.return_value = {"val": "978-2-07-040850-4"}
+            elif "comments" in query:
+                mock_cursor_get.fetchone.return_value = None
+            elif "languages" in query:
+                mock_cursor_get.fetchall.return_value = [{"lang_code": "fra"}]
+            elif "custom_column" in query:
+                mock_cursor_get.fetchone.return_value = None
+
+        mock_cursor_get.execute = Mock(side_effect=mock_execute_side_effect)
+        mock_conn_get.cursor.return_value = mock_cursor_get
+
+        mock_conn_custom = MagicMock()
+        mock_cursor_custom = MagicMock()
+        mock_cursor_custom.fetchall.return_value = []
+        mock_conn_custom.cursor.return_value = mock_cursor_custom
+
+        mock_connect.side_effect = [mock_conn_init, mock_conn_custom, mock_conn_get]
+
+        service = CalibreService()
+        book = service.get_book(3)
+
+        assert book is not None
+        assert book.title == "Le Silence de la mer"
+        assert book.isbn == "978-2-07-040850-4"
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_get_books_works_without_isbn_column(
+        self, mock_connect, mock_path_class, mock_settings, mock_book_row_no_isbn
+    ):
+        """get_books fonctionne même sans colonne isbn dans books."""
+        self._setup_available_service(mock_connect, mock_path_class, mock_settings)
+
+        # Connexion init
+        mock_conn_init = MagicMock()
+        mock_cursor_init = MagicMock()
+        mock_cursor_init.fetchone.return_value = [943]
+        mock_cursor_init.fetchall.return_value = []
+        mock_conn_init.cursor.return_value = mock_cursor_init
+
+        # Connexion count_books
+        mock_conn_count = MagicMock()
+        mock_cursor_count = MagicMock()
+        mock_cursor_count.fetchone.return_value = [943]
+        mock_conn_count.cursor.return_value = mock_cursor_count
+
+        # Connexion get_books
+        mock_conn_get = MagicMock()
+        mock_cursor_get = MagicMock()
+
+        mock_cursor_get.fetchall.return_value = [mock_book_row_no_isbn]
+
+        def mock_execute_side_effect(query, params=None):
+            if "authors" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "Vercors"}]
+            elif "tags" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "roman"}]
+            elif (
+                "publishers" in query
+                or "series" in query
+                or "ratings" in query
+                or "identifiers" in query
+                and "isbn" in query
+                or "comments" in query
+            ):
+                mock_cursor_get.fetchone.return_value = None
+            elif "languages" in query:
+                mock_cursor_get.fetchall.return_value = [{"lang_code": "fra"}]
+            elif "custom_column" in query:
+                mock_cursor_get.fetchone.return_value = None
+            else:
+                mock_cursor_get.fetchall.return_value = [mock_book_row_no_isbn]
+
+        mock_cursor_get.execute = Mock(side_effect=mock_execute_side_effect)
+        mock_cursor_get.fetchall = Mock(return_value=[mock_book_row_no_isbn])
+        mock_conn_get.cursor.return_value = mock_cursor_get
+
+        mock_conn_custom = MagicMock()
+        mock_cursor_custom = MagicMock()
+        mock_cursor_custom.fetchall.return_value = []
+        mock_conn_custom.cursor.return_value = mock_cursor_custom
+
+        mock_connect.side_effect = [
+            mock_conn_init,
+            mock_conn_custom,
+            mock_conn_count,
+            mock_conn_get,
+        ]
+
+        service = CalibreService()
+        result = service.get_books(limit=5, offset=0)
+
+        assert isinstance(result, CalibreBookList)
+        assert len(result.books) == 1
+        assert result.books[0].title == "Le Silence de la mer"
+        assert result.books[0].isbn is None  # No isbn column, no identifiers entry
 
 
 class TestCalibreServiceGetAuthors:

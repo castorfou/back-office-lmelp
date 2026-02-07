@@ -178,6 +178,44 @@ describe('Palmares.vue', () => {
       expect(annaLink.attributes('href')).toContain('annas-archive');
     });
 
+    it('should use dynamic Anna\'s Archive URL from API', async () => {
+      await mountPalmares();
+
+      const annaLink = wrapper.find('[data-test="annas-archive-link"]');
+      // Should use the URL returned by the API (https://fr.annas-archive.se)
+      // NOT the hardcoded default (https://fr.annas-archive.org which is dead)
+      expect(annaLink.attributes('href')).toContain('https://fr.annas-archive.se/search');
+      expect(annaLink.attributes('href')).not.toContain('annas-archive.org');
+    });
+
+    it('should use working default URL when API fails', async () => {
+      axios.get.mockImplementation((url) => {
+        if (url === '/api/palmares') {
+          return Promise.resolve({ data: mockPalmaresData });
+        }
+        if (url === '/api/config/annas-archive-url') {
+          return Promise.reject(new Error('API unavailable'));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      await router.push('/palmares');
+      await router.isReady();
+
+      wrapper = mount(Palmares, {
+        global: { plugins: [router] },
+      });
+
+      await wrapper.vm.$nextTick();
+      await new Promise(r => setTimeout(r, 10));
+      await wrapper.vm.$nextTick();
+
+      const annaLink = wrapper.find('[data-test="annas-archive-link"]');
+      // Even when API fails, the default URL should be a working domain
+      expect(annaLink.attributes('href')).not.toContain('annas-archive.org');
+      expect(annaLink.attributes('href')).toContain('annas-archive.li');
+    });
+
     it('should have Calibre search link', async () => {
       await mountPalmares();
 

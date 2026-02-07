@@ -325,10 +325,10 @@ class TestPalmaresService:
 class TestPalmaresWithCalibre:
     """Tests for Calibre enrichment in palmares endpoint."""
 
-    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.mongodb_service")
     def test_palmares_items_include_calibre_fields(
-        self, mock_mongodb, mock_calibre, client
+        self, mock_mongodb, mock_matching, client
     ):
         """Test that items include calibre_* fields when Calibre is available."""
         mock_mongodb.get_palmares.return_value = {
@@ -348,17 +348,26 @@ class TestPalmaresWithCalibre:
             "limit": 30,
             "total_pages": 1,
         }
-        # Mock Calibre available with matching book
-        mock_calibre._available = True
-        mock_calibre.get_all_books_summary.return_value = [
-            {
+        mock_matching.get_calibre_index.return_value = {
+            "le lambeau": {
                 "id": 42,
                 "title": "Le lambeau",
                 "authors": ["Philippe Lançon"],
                 "read": True,
                 "rating": 10,
+                "tags": [],
             }
-        ]
+        }
+
+        # Use real enrich_palmares_item logic
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        real_service = CalibreMatchingService.__new__(CalibreMatchingService)
+        mock_matching.enrich_palmares_item.side_effect = (
+            real_service.enrich_palmares_item
+        )
 
         response = client.get("/api/palmares")
         data = response.json()
@@ -368,10 +377,10 @@ class TestPalmaresWithCalibre:
         assert "calibre_read" in item
         assert "calibre_rating" in item
 
-    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.mongodb_service")
     def test_palmares_calibre_match_by_normalized_title(
-        self, mock_mongodb, mock_calibre, client
+        self, mock_mongodb, mock_matching, client
     ):
         """Test that matching works with case/accent differences."""
         mock_mongodb.get_palmares.return_value = {
@@ -391,16 +400,25 @@ class TestPalmaresWithCalibre:
             "limit": 30,
             "total_pages": 1,
         }
-        mock_calibre._available = True
-        mock_calibre.get_all_books_summary.return_value = [
-            {
+        mock_matching.get_calibre_index.return_value = {
+            "l'ordre du jour": {
                 "id": 100,
                 "title": "L'ordre du jour",
                 "authors": ["Eric Vuillard"],
                 "read": True,
                 "rating": 8,
+                "tags": [],
             }
-        ]
+        }
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        real_service = CalibreMatchingService.__new__(CalibreMatchingService)
+        mock_matching.enrich_palmares_item.side_effect = (
+            real_service.enrich_palmares_item
+        )
 
         response = client.get("/api/palmares")
         data = response.json()
@@ -410,9 +428,9 @@ class TestPalmaresWithCalibre:
         assert item["calibre_read"] is True
         assert item["calibre_rating"] == 8
 
-    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_palmares_no_calibre_match(self, mock_mongodb, mock_calibre, client):
+    def test_palmares_no_calibre_match(self, mock_mongodb, mock_matching, client):
         """Test items without Calibre match have null calibre fields."""
         mock_mongodb.get_palmares.return_value = {
             "items": [
@@ -431,16 +449,16 @@ class TestPalmaresWithCalibre:
             "limit": 30,
             "total_pages": 1,
         }
-        mock_calibre._available = True
-        mock_calibre.get_all_books_summary.return_value = [
-            {
-                "id": 1,
-                "title": "Other Book",
-                "authors": ["Other Author"],
-                "read": True,
-                "rating": 6,
-            }
-        ]
+        mock_matching.get_calibre_index.return_value = {}
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        real_service = CalibreMatchingService.__new__(CalibreMatchingService)
+        mock_matching.enrich_palmares_item.side_effect = (
+            real_service.enrich_palmares_item
+        )
 
         response = client.get("/api/palmares")
         data = response.json()
@@ -450,9 +468,9 @@ class TestPalmaresWithCalibre:
         assert item["calibre_read"] is None
         assert item["calibre_rating"] is None
 
-    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_palmares_calibre_unavailable(self, mock_mongodb, mock_calibre, client):
+    def test_palmares_calibre_unavailable(self, mock_mongodb, mock_matching, client):
         """Test that palmares works when Calibre is not available."""
         mock_mongodb.get_palmares.return_value = {
             "items": [
@@ -471,7 +489,16 @@ class TestPalmaresWithCalibre:
             "limit": 30,
             "total_pages": 1,
         }
-        mock_calibre._available = False
+        mock_matching.get_calibre_index.return_value = {}
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        real_service = CalibreMatchingService.__new__(CalibreMatchingService)
+        mock_matching.enrich_palmares_item.side_effect = (
+            real_service.enrich_palmares_item
+        )
 
         response = client.get("/api/palmares")
         data = response.json()
@@ -481,10 +508,10 @@ class TestPalmaresWithCalibre:
         assert item["calibre_read"] is None
         assert item["calibre_rating"] is None
 
-    @patch("back_office_lmelp.app.calibre_service")
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.mongodb_service")
     def test_palmares_calibre_rating_ignored_when_not_read(
-        self, mock_mongodb, mock_calibre, client
+        self, mock_mongodb, mock_matching, client
     ):
         """Test that calibre_rating is None when book is in Calibre but not read."""
         mock_mongodb.get_palmares.return_value = {
@@ -504,16 +531,25 @@ class TestPalmaresWithCalibre:
             "limit": 30,
             "total_pages": 1,
         }
-        mock_calibre._available = True
-        mock_calibre.get_all_books_summary.return_value = [
-            {
+        mock_matching.get_calibre_index.return_value = {
+            "la seule histoire": {
                 "id": 55,
                 "title": "La seule histoire",
                 "authors": ["Julian Barnes"],
                 "read": False,
                 "rating": 10,
+                "tags": [],
             }
-        ]
+        }
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        real_service = CalibreMatchingService.__new__(CalibreMatchingService)
+        mock_matching.enrich_palmares_item.side_effect = (
+            real_service.enrich_palmares_item
+        )
 
         response = client.get("/api/palmares")
         data = response.json()

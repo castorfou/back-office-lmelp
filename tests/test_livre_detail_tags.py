@@ -94,10 +94,11 @@ class TestCalibreTagsGeneration:
 class TestCalibreVirtualLibraryTag:
     """Tests for CALIBRE_VIRTUAL_LIBRARY_TAG prepended to calibre_tags."""
 
+    @patch("back_office_lmelp.app.calibre_matching_service")
     @patch("back_office_lmelp.app.calibre_service")
     @patch("back_office_lmelp.app.mongodb_service")
     def test_calibre_virtual_library_tag_prepended_when_book_in_calibre(
-        self, mock_mongodb_service, mock_calibre_service, client
+        self, mock_mongodb_service, mock_calibre_service, mock_matching_service, client
     ):
         """Test that CALIBRE_VIRTUAL_LIBRARY_TAG is prepended when book found in Calibre."""
         livre_id = str(ObjectId())
@@ -114,17 +115,18 @@ class TestCalibreVirtualLibraryTag:
             "calibre_tags": ["lmelp_240324", "lmelp_arnaud_viviant"],
         }
 
-        # Calibre is available and book is found
+        # Calibre is available and book is found in index
         mock_calibre_service._available = True
-        mock_calibre_service.get_all_books_summary.return_value = [
-            {
+        mock_matching_service.get_calibre_index.return_value = {
+            "la deuxieme vie": {
                 "id": 1,
                 "title": "La Deuxième Vie",
                 "authors": ["Sollers"],
                 "read": True,
                 "rating": 8,
+                "tags": [],
             }
-        ]
+        }
 
         with patch("back_office_lmelp.app.settings") as mock_settings:
             mock_settings.calibre_virtual_library_tag = "guillaume"
@@ -139,12 +141,14 @@ class TestCalibreVirtualLibraryTag:
             "lmelp_arnaud_viviant",
         ]
 
-    @patch("back_office_lmelp.app.calibre_service")
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_no_calibre_tag_when_calibre_unavailable(
-        self, mock_mongodb_service, mock_calibre_service, client
+    def test_virtual_library_tag_added_even_when_calibre_unavailable(
+        self, mock_mongodb_service, client
     ):
-        """Test that no virtual library tag is added when Calibre is unavailable."""
+        """Test that virtual library tag is still added even when Calibre service is unavailable.
+
+        The tag is needed for copy-paste into Calibre regardless of service status.
+        """
         livre_id = str(ObjectId())
         mock_mongodb_service.get_livre_with_episodes.return_value = {
             "livre_id": livre_id,
@@ -159,20 +163,24 @@ class TestCalibreVirtualLibraryTag:
             "calibre_tags": ["lmelp_240101"],
         }
 
-        mock_calibre_service._available = False
-
-        response = client.get(f"/api/livre/{livre_id}")
+        with patch("back_office_lmelp.app.settings") as mock_settings:
+            mock_settings.calibre_virtual_library_tag = "guillaume"
+            response = client.get(f"/api/livre/{livre_id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["calibre_tags"] == ["lmelp_240101"]
+        assert data["calibre_tags"] == ["guillaume", "lmelp_240101"]
 
-    @patch("back_office_lmelp.app.calibre_service")
     @patch("back_office_lmelp.app.mongodb_service")
-    def test_no_calibre_tag_when_book_not_in_calibre(
-        self, mock_mongodb_service, mock_calibre_service, client
+    def test_virtual_library_tag_prepended_even_when_book_not_in_calibre(
+        self, mock_mongodb_service, client
     ):
-        """Test that no virtual library tag is added when book not found in Calibre."""
+        """Test that CALIBRE_VIRTUAL_LIBRARY_TAG is prepended even when book not in Calibre.
+
+        Bug fix: guillaume tag should always appear when calibre_tags has lmelp_ tags,
+        regardless of whether the book exists in the Calibre library.
+        The purpose is to have the correct tags ready to copy into Calibre.
+        """
         livre_id = str(ObjectId())
         mock_mongodb_service.get_livre_with_episodes.return_value = {
             "livre_id": livre_id,
@@ -184,19 +192,35 @@ class TestCalibreVirtualLibraryTag:
             "note_moyenne": None,
             "nombre_emissions": 0,
             "emissions": [],
-            "calibre_tags": [],
+            "calibre_tags": ["lmelp_200412"],
         }
 
-        mock_calibre_service._available = True
-        mock_calibre_service.get_all_books_summary.return_value = [
-            {
-                "id": 1,
-                "title": "Autre Livre",
-                "authors": ["Autre"],
-                "read": True,
-                "rating": 8,
-            }
-        ]
+        with patch("back_office_lmelp.app.settings") as mock_settings:
+            mock_settings.calibre_virtual_library_tag = "guillaume"
+            response = client.get(f"/api/livre/{livre_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["calibre_tags"] == ["guillaume", "lmelp_200412"]
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_no_virtual_library_tag_when_no_calibre_tags(
+        self, mock_mongodb_service, client
+    ):
+        """Test that virtual library tag is NOT added when there are no lmelp_ tags."""
+        livre_id = str(ObjectId())
+        mock_mongodb_service.get_livre_with_episodes.return_value = {
+            "livre_id": livre_id,
+            "titre": "Livre Sans Tags",
+            "auteur_id": str(ObjectId()),
+            "auteur_nom": "Auteur Test",
+            "editeur": "Editeur Test",
+            "url_babelio": None,
+            "note_moyenne": None,
+            "nombre_emissions": 0,
+            "emissions": [],
+            "calibre_tags": [],
+        }
 
         with patch("back_office_lmelp.app.settings") as mock_settings:
             mock_settings.calibre_virtual_library_tag = "guillaume"
@@ -382,3 +406,125 @@ class TestBuildCalibreTags:
 
         date_tags = [t for t in tags if t[6:].isdigit()]
         assert date_tags == ["lmelp_240324"]
+
+    def test_build_tags_uses_official_critique_name_via_critique_oid(self):
+        """Test that _build_calibre_tags uses the official critique name from
+        critiques_by_id when critique_oid is present, not critique_nom_extrait.
+
+        Real bug: critique_nom_extrait="Raphaël Léris" (LLM error)
+        but critique_oid points to "Raphaëlle Leyris" (correct name).
+        Expected tag: lmelp_raphaëlle_leyris (not lmelp_raphaël_léris).
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        service = MongoDBService.__new__(MongoDBService)
+
+        critique_id = str(ObjectId())
+        emission_oid = str(ObjectId())
+        all_avis = [
+            {
+                "emission_oid": emission_oid,
+                "section": "coup_de_coeur",
+                "critique_nom_extrait": "Raphaël Léris",  # Wrong LLM name
+                "critique_oid": critique_id,
+                "note": 9,
+            }
+        ]
+        emissions_by_id = {
+            emission_oid: {"date": datetime(2025, 1, 12)},
+        }
+        critiques_by_id = {
+            critique_id: "Raphaëlle Leyris",  # Official name
+        }
+
+        tags = service._build_calibre_tags(
+            all_avis, emissions_by_id, critiques_by_id=critiques_by_id
+        )
+
+        assert "lmelp_raphaelle_leyris" in tags
+        assert "lmelp_raphaël_léris" not in tags
+        assert "lmelp_raphaëlle_leyris" not in tags
+
+    def test_build_tags_falls_back_to_critique_nom_extrait_without_oid(self):
+        """Test that _build_calibre_tags falls back to critique_nom_extrait
+        when critique_oid is not present or not in critiques_by_id."""
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        service = MongoDBService.__new__(MongoDBService)
+
+        emission_oid = str(ObjectId())
+        all_avis = [
+            {
+                "emission_oid": emission_oid,
+                "section": "coup_de_coeur",
+                "critique_nom_extrait": "Arnaud Viviant",
+                "note": 9,
+            }
+        ]
+        emissions_by_id = {
+            emission_oid: {"date": datetime(2024, 3, 24)},
+        }
+
+        # No critiques_by_id passed (backwards compatible)
+        tags = service._build_calibre_tags(all_avis, emissions_by_id)
+
+        assert "lmelp_arnaud_viviant" in tags
+
+    def test_build_tags_normalizes_accents_in_critic_name(self):
+        """Test that accents are removed from critic names in tags.
+
+        Real bug: "Nelly Kapriélian" → lmelp_nelly_kapriélian (with accent)
+        Expected: lmelp_nelly_kaprielian (without accent, ASCII-safe).
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        service = MongoDBService.__new__(MongoDBService)
+
+        critique_id = str(ObjectId())
+        emission_oid = str(ObjectId())
+        all_avis = [
+            {
+                "emission_oid": emission_oid,
+                "section": "coup_de_coeur",
+                "critique_nom_extrait": "Nelly Kapriélian",
+                "critique_oid": critique_id,
+                "note": 9,
+            }
+        ]
+        emissions_by_id = {
+            emission_oid: {"date": datetime(2023, 8, 27)},
+        }
+        critiques_by_id = {
+            critique_id: "Nelly Kapriélian",
+        }
+
+        tags = service._build_calibre_tags(
+            all_avis, emissions_by_id, critiques_by_id=critiques_by_id
+        )
+
+        assert "lmelp_nelly_kaprielian" in tags
+        assert "lmelp_nelly_kapriélian" not in tags
+
+    def test_build_tags_normalizes_accents_without_critiques_by_id(self):
+        """Test that accents are normalized even when using critique_nom_extrait fallback."""
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        service = MongoDBService.__new__(MongoDBService)
+
+        emission_oid = str(ObjectId())
+        all_avis = [
+            {
+                "emission_oid": emission_oid,
+                "section": "coup_de_coeur",
+                "critique_nom_extrait": "Leïla Slimani",
+                "note": 9,
+            }
+        ]
+        emissions_by_id = {
+            emission_oid: {"date": datetime(2024, 3, 24)},
+        }
+
+        tags = service._build_calibre_tags(all_avis, emissions_by_id)
+
+        assert "lmelp_leila_slimani" in tags
+        assert "lmelp_leïla_slimani" not in tags
