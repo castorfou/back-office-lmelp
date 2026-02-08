@@ -245,6 +245,14 @@ export BABELIO_CACHE_LOG=1
 - 🎯 **Bibliothèque virtuelle** : Support des tags pour filtrage (ex: afficher uniquement tag "guillaume")
 - 📖 **Métadonnées complètes** : Auteurs, éditeur, ISBN, note, tags, colonnes personnalisées (#read, #paper, #text)
 
+#### Corrections Calibre
+- 🔗 **Matching MongoDB-Calibre** : Algorithme à 3 niveaux (exact, containment, validation auteur)
+- 👤 **Corrections auteurs** : Détection des différences de noms d'auteurs entre MongoDB et Calibre
+- 📖 **Corrections titres** : Identification des différences de titres après matching
+- 🏷️ **Tags manquants** : Détection des tags `lmelp_` attendus mais absents dans Calibre
+- 📋 **Copier-coller** : Bouton de copie des tags complets (virtual library + notable + lmelp_) pour Calibre
+- 🔄 **Cache intelligent** : Cache de 5 minutes avec invalidation manuelle après corrections
+
 #### Palmarès des livres
 - 🏆 **Classement par note** : Livres classés par note moyenne décroissante (minimum 2 avis)
 - 📖 **Intégration Calibre** : Statut de lecture et note Calibre pour chaque livre
@@ -310,6 +318,9 @@ GET /api/palmares                 # Classement des livres par note moyenne (pagi
 GET /api/calibre/status           # Statut de l'intégration Calibre
 GET /api/calibre/statistics       # Statistiques de la bibliothèque
 GET /api/calibre/books            # Liste des livres (pagination, tri, filtres)
+GET /api/calibre/matching         # Matching MongoDB-Calibre (3 niveaux)
+GET /api/calibre/corrections      # Corrections à appliquer (auteurs, titres, tags)
+POST /api/calibre/cache/invalidate  # Invalider le cache matching
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/

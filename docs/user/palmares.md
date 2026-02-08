@@ -75,10 +75,11 @@ Le palmarès utilise un **infinite scroll** : les livres sont chargés par pages
 
 ## Matching Calibre
 
-Le rapprochement entre les livres du palmarès (MongoDB) et la bibliothèque Calibre se fait par **normalisation du titre** :
+Le rapprochement entre les livres du palmarès (MongoDB) et la bibliothèque Calibre utilise la normalisation `normalize_for_matching()` :
 
 - Insensible à la casse (majuscules/minuscules)
 - Insensible aux accents (é → e, ô → o, etc.)
-- Normalisation Unicode NFKD
+- Conversion des ligatures (œ → oe, æ → ae)
+- Normalisation des tirets (cadratin → simple) et apostrophes (typographique → simple)
 
-Ce matching est approximatif ; certains livres peuvent ne pas être reconnus si le titre diffère significativement entre les deux sources.
+Le palmarès utilise un index titre normalisé → livre Calibre pour un lookup rapide. Pour un matching plus complet (incluant containment et validation auteur), voir la page [Corrections Calibre](calibre-integration.md#corrections-calibre).

@@ -169,11 +169,43 @@ Sur la page de détail d'un livre (`/livre/{id}`), des tags Calibre sont calcul�
 | Date d'émission | `lmelp_yyMMdd` | Collection `avis` + `emissions` | `lmelp_240324` |
 | Critique coup de cœur | `lmelp_prenom_nom` | Collection `avis` (section coup_de_coeur) | `lmelp_arnaud_viviant` |
 
-**Ordre d'affichage** : tag bibliothèque virtuelle (si présent) → dates chronologiques → critiques alphabétiques.
+**Ordre d'affichage** : tag bibliothèque virtuelle → tags notables (`babelio`, `lu`, `onkindle` si présents) → dates chronologiques → critiques alphabétiques.
 
 **Bouton copie** : Le bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier (ex: `guillaume, lmelp_240324, lmelp_arnaud_viviant`). Ces tags peuvent être collés directement dans Calibre pour taguer un livre.
 
-**Dégradation gracieuse** : Si Calibre n'est pas disponible, seuls les tags `lmelp_*` sont affichés. Si le livre n'a aucun avis, aucun tag n'est affiché.
+**Dégradation gracieuse** : Le tag de bibliothèque virtuelle est affiché dès que des tags `lmelp_*` existent, que le livre soit ou non dans Calibre. L'utilisateur dispose ainsi de tous les tags prêts à copier-coller. Si le livre n'a aucun avis, aucun tag n'est affiché.
+
+### Corrections Calibre
+
+La page **Corrections Calibre** (`/calibre-corrections`) identifie les différences entre les données MongoDB et Calibre pour les livres matchés, et propose les corrections à appliquer dans Calibre.
+
+**Accès** : Depuis le Dashboard, cliquez sur la carte **"Corrections Calibre"**.
+
+#### Matching MongoDB-Calibre
+
+L'algorithme de matching utilise 3 niveaux successifs :
+
+| Niveau | Méthode | Description |
+|--------|---------|-------------|
+| **Exact** | Titre normalisé identique | Accents, ligatures, tirets, apostrophes normalisés |
+| **Containment** | Un titre contient l'autre | Gère les sous-titres, tomes, prix (min 4 caractères) |
+| **Validation auteur** | Comparaison tolérante des noms | Pour les cas où plusieurs candidats sont trouvés par containment |
+
+La normalisation (`normalize_for_matching()`) applique : minuscules, suppression des accents, conversion des ligatures (œ→oe, æ→ae), normalisation des tirets et apostrophes typographiques.
+
+#### Sections de corrections
+
+La page affiche 3 catégories de corrections, chacune dans une section dépliable :
+
+1. **Corrections auteurs** : Livres dont le nom d'auteur diffère entre MongoDB et Calibre (formats différents, orthographe, pipe Calibre vs naturel MongoDB).
+
+2. **Corrections titres** : Livres dont le titre diffère après matching (sous-titres, tomes, casse). Seuls les livres matchés par containment ou validation auteur sont concernés.
+
+3. **Tags `lmelp_*` manquants** : Livres matchés dont les tags `lmelp_` attendus ne sont pas tous présents dans Calibre. Pour chaque livre, un bouton **📋 Copier** fournit la liste complète des tags à coller dans Calibre, dans l'ordre : tag bibliothèque virtuelle → tags notables (`babelio`, `lu`, `onkindle`) → tags `lmelp_*`.
+
+#### Cache et rafraîchissement
+
+Les données de matching sont mises en cache pendant 5 minutes. Un bouton **"Rafraîchir"** permet d'invalider le cache manuellement après avoir appliqué des corrections dans Calibre.
 
 ### Recherche avancée étendue
 

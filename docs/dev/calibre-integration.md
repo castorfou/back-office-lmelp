@@ -42,6 +42,78 @@ L'intégration Calibre permet d'accéder à une bibliothèque Calibre comme sour
 
 **Isolation des sources** : Les services MongoDB et Calibre sont indépendants. L'indisponibilité de Calibre n'affecte pas MongoDB.
 
+## Service de Matching MongoDB-Calibre
+
+### Architecture
+
+Le `CalibreMatchingService` (`src/back_office_lmelp/services/calibre_matching_service.py`) orchestre le rapprochement entre les livres MongoDB et Calibre. Il dépend de `CalibreService` et `MongoDBService`.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              CalibreMatchingService                     │
+│                                                         │
+│  ┌──────────────────┐         ┌──────────────────┐     │
+│  │ CalibreService   │         │ MongoDBService   │     │
+│  │ .get_all_books_  │         │ .get_all_books() │     │
+│  │  with_tags()     │         │ .get_all_authors()│    │
+│  │                  │         │ .get_expected_    │     │
+│  │                  │         │  calibre_tags()   │     │
+│  └──────────────────┘         └──────────────────┘     │
+│           │                            │                │
+│           ▼                            ▼                │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │         normalize_for_matching(text)              │  │
+│  │         (text_utils.py)                           │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Algorithme de matching (`match_all()`)
+
+Trois niveaux appliqués séquentiellement :
+
+1. **Tier 1 - Exact** : Les titres MongoDB et Calibre sont normalisés via `normalize_for_matching()` (minuscules, sans accents, ligatures converties, tirets et apostrophes normalisés). Les titres identiques après normalisation constituent un match exact.
+
+2. **Tier 2 - Containment** : Pour les livres non matchés en Tier 1, on vérifie si le titre normalisé de l'un contient celui de l'autre (minimum 4 caractères pour le plus court, `MIN_CONTAINMENT_LENGTH`). Ceci gère les sous-titres, tomes et prix littéraires. Si un seul candidat est trouvé, l'auteur est validé.
+
+3. **Tier 3 - Author validated** : Si le containment produit plusieurs candidats, la validation auteur départage les ambiguïtés. La comparaison d'auteurs (`_authors_match()`) est tolérante : normalisation des tokens de noms, gestion du format pipe Calibre (`Sarr| Mohamed Mbougar`), virgule (`Sarr, Mohamed`) et naturel MongoDB (`Mohamed Mbougar Sarr`). Un token significatif en commun (>1 caractère) suffit.
+
+### Normalisation des auteurs (`_normalize_author_parts()`)
+
+```python
+# Formats supportés :
+"Mohamed Mbougar Sarr"    → {"mohamed", "mbougar", "sarr"}
+"Appanah| Nathacha"       → {"appanah", "nathacha"}
+"Sarr, Mohamed Mbougar"   → {"sarr", "mohamed", "mbougar"}
+"Kœnig| Gaspard"          → {"koenig", "gaspard"}  # ligature convertie
+```
+
+### Cache
+
+Les données de matching (livres Calibre, livres MongoDB, auteurs) sont mises en cache en mémoire avec un TTL de 5 minutes (`_cache_ttl = 300`). Le cache est invalidable manuellement via `invalidate_cache()` (endpoint `POST /api/calibre/cache/invalidate`).
+
+### Corrections (`get_corrections()`)
+
+Retourne un dict avec 3 catégories + statistiques :
+
+- `author_corrections` : Livres matchés dont les noms d'auteurs diffèrent (après normalisation)
+- `title_corrections` : Livres matchés dont les titres diffèrent (matchés par containment ou author_validated)
+- `missing_lmelp_tags` : Livres matchés dont les tags `lmelp_*` attendus (calculés par `MongoDBService.get_expected_calibre_tags()`) sont absents des tags Calibre actuels. Chaque entrée fournit un champ `all_tags_to_copy` avec l'ordre : `[virtual_library_tag]` + `[notable_tags]` + `[lmelp_*]`
+
+### Enrichissement du palmarès
+
+`enrich_palmares_item()` et `get_calibre_index()` remplacent l'ancien `_enrich_with_calibre()` de `app.py`. L'index Calibre est un dict `{titre_normalisé: calibre_book_data}` permettant un lookup O(1) par titre.
+
+### Endpoints API
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/calibre/matching` | GET | Résultats complets du matching avec statistiques par tier |
+| `/api/calibre/corrections` | GET | Corrections groupées (auteurs, titres, tags manquants) |
+| `/api/calibre/cache/invalidate` | POST | Invalide le cache de 5 minutes |
+
+**Placement des routes** : Ces routes sont définies AVANT `/api/calibre/books/{book_id}` pour éviter la capture par la route paramétrée.
+
 ## API Calibre Python
 
 ### Bibliothèque utilisée
