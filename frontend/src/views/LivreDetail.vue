@@ -245,7 +245,7 @@ export default {
       livre: null,
       loading: false,
       error: null,
-      annasArchiveBaseUrl: 'https://fr.annas-archive.org', // Fallback default (Issue #188)
+      annasArchiveBaseUrl: 'https://fr.annas-archive.li', // Fallback default (Issue #188)
       tagsCopied: false, // Issue #200: Copy feedback
       avis: [] // Issue #201: Avis des critiques
     };

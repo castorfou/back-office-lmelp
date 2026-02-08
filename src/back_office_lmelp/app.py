@@ -47,6 +47,7 @@ from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
 from .services.babelio_service import babelio_service
 from .services.books_extraction_service import books_extraction_service
+from .services.calibre_matching_service import CalibreMatchingService
 from .services.calibre_service import calibre_service
 from .services.collections_management_service import collections_management_service
 from .services.critiques_extraction_service import critiques_extraction_service
@@ -55,8 +56,16 @@ from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
 from .services.radiofrance_service import RadioFranceService
-from .services.stats_service import stats_service
 from .settings import settings
+
+
+# Service de matching MongoDB-Calibre (Issue #199)
+calibre_matching_service = CalibreMatchingService(
+    calibre_service,
+    mongodb_service,
+    virtual_library_tag=settings.calibre_virtual_library_tag,
+)
+from .services.stats_service import stats_service
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
@@ -759,6 +768,64 @@ async def get_calibre_books(
         raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
+@app.get("/api/calibre/matching", response_model=None)
+async def get_calibre_matching() -> dict[str, Any] | JSONResponse:
+    """Retourne les résultats du matching MongoDB-Calibre.
+
+    Matching à 3 niveaux : exact, containment, author_validated.
+    Issue #199.
+    """
+    try:
+        matches = calibre_matching_service.match_all()
+        # Compute statistics
+        exact = sum(1 for m in matches if m["match_type"] == "exact")
+        containment = sum(1 for m in matches if m["match_type"] == "containment")
+        author_validated = sum(
+            1 for m in matches if m["match_type"] == "author_validated"
+        )
+        return {
+            "matches": matches,
+            "statistics": {
+                "total_matches": len(matches),
+                "exact_matches": exact,
+                "containment_matches": containment,
+                "author_validated_matches": author_validated,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error getting calibre matching: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/calibre/corrections", response_model=None)
+async def get_calibre_corrections() -> dict[str, Any] | JSONResponse:
+    """Retourne les corrections à appliquer dans Calibre.
+
+    Catégories : auteurs, titres, tags lmelp_ manquants.
+    Issue #199.
+    """
+    try:
+        return calibre_matching_service.get_corrections()
+    except Exception as e:
+        logger.error(f"Error getting calibre corrections: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/calibre/cache/invalidate", response_model=None)
+async def invalidate_calibre_cache() -> dict[str, str] | JSONResponse:
+    """Invalide le cache du matching Calibre.
+
+    Appelé après une correction dans Calibre pour forcer le rechargement.
+    Issue #199.
+    """
+    try:
+        calibre_matching_service.invalidate_cache()
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error invalidating calibre cache: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/calibre/books/{book_id}")
@@ -2146,18 +2213,11 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
         if not livre_data:
             raise HTTPException(status_code=404, detail="Livre non trouvé")
 
-        # Issue #200: Prepend CALIBRE_VIRTUAL_LIBRARY_TAG if book found in Calibre
-        if (
-            calibre_service._available
-            and settings.calibre_virtual_library_tag
-            and "calibre_tags" in livre_data
-        ):
-            calibre_index = _build_calibre_index()
-            norm_title = _normalize_title(livre_data.get("titre", ""))
-            if norm_title in calibre_index:
-                livre_data["calibre_tags"].insert(
-                    0, settings.calibre_virtual_library_tag
-                )
+        # Issue #200: Prepend CALIBRE_VIRTUAL_LIBRARY_TAG when calibre_tags exist
+        # Tag is added regardless of whether book is in Calibre library,
+        # so user always has the correct tags ready to copy into Calibre.
+        if settings.calibre_virtual_library_tag and livre_data.get("calibre_tags"):
+            livre_data["calibre_tags"].insert(0, settings.calibre_virtual_library_tag)
 
         return livre_data
     except HTTPException:
@@ -2514,47 +2574,7 @@ async def get_validation_status_breakdown() -> list[dict[str, Any]] | JSONRespon
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# Endpoint Palmarès (Issue #195)
-def _normalize_title(title: str) -> str:
-    """Normalize a title for matching: lowercase, remove accents/ligatures."""
-    import unicodedata
-
-    nfkd = unicodedata.normalize("NFKD", title)
-    ascii_str = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return ascii_str.lower().strip()
-
-
-def _build_calibre_index() -> dict[str, dict[str, Any]]:
-    """Build a lookup index of Calibre books by normalized title."""
-    try:
-        if not calibre_service._available:
-            return {}
-        books = calibre_service.get_all_books_summary()
-        return {_normalize_title(b["title"]): b for b in books}
-    except Exception:
-        return {}
-
-
-def _enrich_with_calibre(
-    result: dict[str, Any], calibre_index: dict[str, dict[str, Any]]
-) -> dict[str, Any]:
-    """Add calibre_in_library, calibre_read, calibre_rating to each item."""
-    for item in result["items"]:
-        norm_title = _normalize_title(item.get("titre", ""))
-        calibre_book = calibre_index.get(norm_title)
-        if calibre_book:
-            item["calibre_in_library"] = True
-            item["calibre_read"] = calibre_book.get("read")
-            item["calibre_rating"] = (
-                calibre_book.get("rating") if calibre_book.get("read") else None
-            )
-        else:
-            item["calibre_in_library"] = False
-            item["calibre_read"] = None
-            item["calibre_rating"] = None
-    return result
-
-
+# Endpoint Palmarès (Issue #195, enrichissement Calibre Issue #199)
 @app.get("/api/palmares", response_model=dict[str, Any])
 async def get_palmares(page: int = 1, limit: int = 30) -> dict[str, Any] | JSONResponse:
     """Get books ranked by average rating (descending).
@@ -2564,8 +2584,10 @@ async def get_palmares(page: int = 1, limit: int = 30) -> dict[str, Any] | JSONR
     """
     try:
         result = mongodb_service.get_palmares(page=page, limit=limit)
-        calibre_index = _build_calibre_index()
-        return _enrich_with_calibre(result, calibre_index)
+        calibre_index = calibre_matching_service.get_calibre_index()
+        for item in result["items"]:
+            calibre_matching_service.enrich_palmares_item(item, calibre_index)
+        return result
     except Exception as e:
         logger.error(f"Error getting palmares: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -2590,7 +2612,7 @@ async def get_annas_archive_url() -> dict[str, str]:
     except Exception as e:
         logger.error(f"Error getting Anna's Archive URL: {e}")
         # Fallback to hardcoded default
-        return {"url": "https://fr.annas-archive.org"}
+        return {"url": "https://fr.annas-archive.li"}
 
 
 # Endpoints pour la migration Babelio (Issue #124)

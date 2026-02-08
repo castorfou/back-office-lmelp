@@ -118,3 +118,43 @@ def create_accent_insensitive_regex(term: str) -> str:
             i += 1
 
     return "".join(result)
+
+
+def normalize_for_matching(text: str) -> str:
+    """Normalise un texte pour le matching : minuscules, sans accents ni ligatures.
+
+    Produit une chaîne normalisée (pas un regex) pour comparaison directe.
+    Applique les mêmes normalisations que create_accent_insensitive_regex
+    mais retourne du texte brut.
+
+    Args:
+        text: Le texte à normaliser (ex: "L'Œuvre au noir", "Carrère")
+
+    Returns:
+        Texte normalisé en minuscules, sans accents, ligatures converties.
+        Exemple: "L'Œuvre au noir" -> "l'oeuvre au noir"
+    """
+    import re
+
+    if not text:
+        return ""
+
+    # Étape 1: Normaliser les ligatures AVANT la décomposition NFD
+    result = text.replace("œ", "oe").replace("Œ", "Oe")
+    result = result.replace("æ", "ae").replace("Æ", "Ae")
+
+    # Étape 2: Décomposition NFD + retrait des accents
+    nfd = unicodedata.normalize("NFD", result)
+    result = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+
+    # Étape 3: Normaliser tirets et apostrophes typographiques
+    result = result.replace("\u2013", "-")  # Tiret cadratin → simple
+    result = result.replace("\u2014", "-")  # Tiret em-dash → simple
+    result = result.replace("\u2019", "'")  # Apostrophe typographique → simple
+    result = result.replace("\u2018", "'")  # Apostrophe ouvrante → simple
+
+    # Étape 4: Minuscules + collapse whitespace + strip
+    result = result.lower().strip()
+    result = re.sub(r"\s+", " ", result)
+
+    return result

@@ -127,7 +127,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 - **Tags Calibre** : Tags calculés dynamiquement, affichés comme badges violets en police monospace à côté du compteur d'émissions. Trois types de tags :
     - `lmelp_yyMMdd` : un tag par émission où le livre a été discuté (date au format année-mois-jour sur 2 chiffres)
     - `lmelp_prenom_nom` : un tag par critique ayant donné un coup de cœur au livre
-    - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier si le livre est présent dans Calibre
+    - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier dès que des tags `lmelp_*` existent, que le livre soit ou non dans Calibre. L'utilisateur dispose ainsi de tous les tags prêts à copier-coller dans Calibre
     - Un bouton 📋 permet de copier tous les tags (séparés par des virgules) dans le presse-papier. Le bouton affiche ✓ pendant 2 secondes après la copie
     - Si aucun tag n'est disponible, cette section n'est pas affichée
 - **Liste des émissions** : Toutes les émissions mentionnant ce livre

@@ -214,6 +214,6 @@ describe('LivreDetail - Lien Anna\'s Archive (Issue #165 + #188)', () => {
     // THEN: Le lien doit utiliser l'URL par défaut
     const annasLink = wrapper.find('[data-test="annas-archive-link"]')
     const href = annasLink.attributes('href')
-    expect(href).toContain('https://fr.annas-archive.org/search')
+    expect(href).toContain('https://fr.annas-archive.li/search')
   })
 })

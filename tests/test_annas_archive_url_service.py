@@ -219,7 +219,7 @@ class TestAnnasArchiveUrlService:
             url = await service.get_url()
 
             # THEN: Le hardcoded default est retourné
-            assert url == "https://fr.annas-archive.org"
+            assert url == "https://fr.annas-archive.li"
 
     # ========== Health Check Tests ==========
 

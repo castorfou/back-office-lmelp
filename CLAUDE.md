@@ -618,15 +618,22 @@ await asyncio.sleep(5)  # 5 seconds between Babelio requests
 
 ### Text Normalization for Accent and Typographic Insensitivity
 
-**Pattern recommandé**: Utiliser `create_accent_insensitive_regex()` pour toutes les recherches textuelles.
+**Deux fonctions disponibles** dans `text_utils.py` :
 
-**Normalisations automatiques**:
+1. **`create_accent_insensitive_regex(term)`** : Produit un pattern regex pour les recherches MongoDB `$regex`
+2. **`normalize_for_matching(text)`** : Produit un plain text normalisé pour les comparaisons d'égalité et containment
+
+**Quand utiliser chacune** :
+- `create_accent_insensitive_regex()` : recherches textuelles MongoDB, filtrage utilisateur
+- `normalize_for_matching()` : matching titre/auteur, construction de tags Calibre, index de lookup
+
+**Normalisations automatiques** (les deux fonctions) :
 - **Accents**: é ↔ e, à ↔ a, ô ↔ o, etc.
 - **Ligatures**: œ ↔ oe, æ ↔ ae
 - **Tirets**: – (cadratin U+2013) ↔ - (simple U+002D)
 - **Apostrophes**: ' (typographique U+2019) ↔ ' (simple U+0027)
 
-**Backend (Python)**:
+**Backend (Python) - Recherche MongoDB** :
 ```python
 from ..utils.text_utils import create_accent_insensitive_regex
 
@@ -635,6 +642,23 @@ regex_pattern = create_accent_insensitive_regex(search_term)
 
 # Utiliser avec MongoDB $regex
 search_query = {"field": {"$regex": regex_pattern, "$options": "i"}}
+```
+
+**Backend (Python) - Matching et comparaisons** :
+```python
+from ..utils.text_utils import normalize_for_matching
+
+# Comparer des titres (égalité ou containment)
+norm_mongo = normalize_for_matching(mongo_title)
+norm_calibre = normalize_for_matching(calibre_title)
+if norm_mongo == norm_calibre:  # exact match
+    ...
+if shorter in longer:  # containment match
+    ...
+
+# Construire des tags ASCII-safe
+tag = "lmelp_" + normalize_for_matching(critic_name).replace(" ", "_")
+# "Nelly Kapriélian" → "lmelp_nelly_kaprielian"
 ```
 
 **Frontend (JavaScript)**:
@@ -651,10 +675,6 @@ const match = removeAccents(data.toLowerCase()).includes(normalized);
 - Recherche `"Marie-Claire"` trouve `"Marie–Claire Blais"` (tiret cadratin)
 - Recherche `"l'ami"` trouve `"L'ami retrouvé"` (apostrophe typographique)
 - Recherche `"carrere"` trouve `"Carrère"` (accents)
-
-**Références**:
-- Issue #92: Recherche insensible aux accents
-- Issue #173: Support des caractères typographiques (ligatures, tirets, apostrophes)
 
 ### Separation of Concerns - MongoDB Collections
 
