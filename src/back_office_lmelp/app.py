@@ -2226,6 +2226,183 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+# --- Refresh Babelio endpoints (Issue #189) ---
+
+
+class ApplyRefreshRequest(BaseModel):
+    """Données à appliquer lors du refresh Babelio."""
+
+    titre: str | None = None
+    editeur: str | None = None
+    auteur_nom: str | None = None
+    auteur_url_babelio: str | None = None
+
+
+@app.post("/api/livres/{livre_id}/refresh-babelio", response_model=dict[str, Any])
+async def refresh_livre_from_babelio(livre_id: str) -> dict[str, Any]:
+    """Scrape Babelio et retourne une comparaison current vs babelio (Issue #189).
+
+    Args:
+        livre_id: ID du livre (MongoDB ObjectId)
+
+    Returns:
+        Dict avec current, babelio, changes_detected
+    """
+    # Validation ObjectId
+    try:
+        ObjectId(livre_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Livre non trouvé") from e
+
+    # Récupérer le livre
+    assert mongodb_service.livres_collection is not None
+    livre = mongodb_service.livres_collection.find_one({"_id": ObjectId(livre_id)})
+    if not livre:
+        raise HTTPException(status_code=404, detail="Livre non trouvé")
+
+    url_babelio = livre.get("url_babelio")
+    if not url_babelio:
+        raise HTTPException(
+            status_code=400,
+            detail="Ce livre n'a pas d'URL Babelio configurée",
+        )
+
+    # Récupérer l'auteur actuel
+    auteur_id = livre.get("auteur_id")
+    auteur = None
+    if auteur_id:
+        assert mongodb_service.auteurs_collection is not None
+        auteur = mongodb_service.auteurs_collection.find_one(
+            {
+                "_id": auteur_id
+                if isinstance(auteur_id, ObjectId)
+                else ObjectId(auteur_id)
+            }
+        )
+
+    # Issue #189: Résoudre le nom de l'éditeur (string ou via editeur_id)
+    editeur_nom = livre.get("editeur", "")
+    editeur_needs_migration = False
+    if not editeur_nom and livre.get("editeur_id"):
+        # Livre déjà migré: résoudre editeur_id -> nom
+        assert mongodb_service.editeurs_collection is not None
+        editeur_doc = mongodb_service.editeurs_collection.find_one(
+            {"_id": livre["editeur_id"]}
+        )
+        if editeur_doc:
+            editeur_nom = editeur_doc.get("nom", "")
+    elif editeur_nom and not livre.get("editeur_id"):
+        # Livre avec editeur string mais sans editeur_id -> migration nécessaire
+        editeur_needs_migration = True
+
+    current = {
+        "titre": livre.get("titre", ""),
+        "editeur": editeur_nom,
+        "auteur_nom": auteur.get("nom", "") if auteur else "",
+        "auteur_url_babelio": auteur.get("url_babelio") if auteur else None,
+    }
+
+    # Scraper Babelio
+    try:
+        babelio_titre = await babelio_service.fetch_full_title_from_url(url_babelio)
+        babelio_editeur = await babelio_service.fetch_publisher_from_url(url_babelio)
+        babelio_auteur_url = await babelio_service.fetch_author_url_from_page(
+            url_babelio
+        )
+        babelio_auteur_nom = await babelio_service._scrape_author_from_book_page(
+            url_babelio
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors du scraping Babelio: {str(e)}",
+        ) from e
+
+    babelio = {
+        "titre": babelio_titre,
+        "editeur": babelio_editeur,
+        "auteur_nom": babelio_auteur_nom,
+        "auteur_url_babelio": babelio_auteur_url,
+    }
+
+    # Détecter les changements (valeurs ou migration structurelle)
+    changes_detected = editeur_needs_migration or any(
+        current.get(key) != babelio.get(key)
+        for key in ("titre", "editeur", "auteur_nom", "auteur_url_babelio")
+    )
+
+    return {
+        "status": "success",
+        "livre_id": livre_id,
+        "current": current,
+        "babelio": babelio,
+        "changes_detected": changes_detected,
+        "editeur_needs_migration": editeur_needs_migration,
+    }
+
+
+@app.post("/api/livres/{livre_id}/apply-refresh", response_model=dict[str, Any])
+async def apply_livre_refresh(
+    livre_id: str, request: ApplyRefreshRequest
+) -> dict[str, Any]:
+    """Applique les modifications validées par l'utilisateur (Issue #189).
+
+    Args:
+        livre_id: ID du livre
+        request: Données à appliquer
+
+    Returns:
+        Confirmation avec détails des mises à jour
+    """
+    # Validation ObjectId
+    try:
+        ObjectId(livre_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Livre non trouvé") from e
+
+    # Récupérer le livre pour l'auteur_id
+    assert mongodb_service.livres_collection is not None
+    livre = mongodb_service.livres_collection.find_one({"_id": ObjectId(livre_id)})
+    if not livre:
+        raise HTTPException(status_code=404, detail="Livre non trouvé")
+
+    auteur_id = livre.get("auteur_id")
+
+    # Préparer les mises à jour du livre
+    livre_updates: dict[str, Any] = {}
+    editeur_created = False
+
+    if request.titre:
+        livre_updates["titre"] = request.titre
+
+    if request.editeur:
+        editeur_oid, editeur_created = mongodb_service.get_or_create_editeur(
+            request.editeur
+        )
+        # Issue #189: editeur_id remplace editeur (string), pas de duplication
+        # update_livre_from_refresh fera le $unset du champ editeur
+        livre_updates["editeur_id"] = editeur_oid
+
+    # Mettre à jour le livre si des changements existent
+    if livre_updates:
+        mongodb_service.update_livre_from_refresh(livre_id, livre_updates)
+
+    # Mettre à jour l'auteur
+    if auteur_id and (request.auteur_nom or request.auteur_url_babelio):
+        auteur_id_str = str(auteur_id)
+        mongodb_service.update_auteur_name_and_url(
+            auteur_id_str,
+            nom=request.auteur_nom,
+            url_babelio=request.auteur_url_babelio,
+        )
+
+    return {
+        "status": "success",
+        "livre_id": livre_id,
+        "editeur_created": editeur_created,
+    }
+
+
 @app.get("/api/critique/{critique_id}", response_model=dict[str, Any])
 async def get_critique_detail(critique_id: str) -> dict[str, Any]:
     """Récupère les détails d'un critique avec stats et oeuvres enrichies (Issue #191).

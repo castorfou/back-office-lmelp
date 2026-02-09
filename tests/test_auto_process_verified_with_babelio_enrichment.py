@@ -70,9 +70,16 @@ def test_auto_process_enriched_books_updates_editeur():
     mongodb_service = MongoDBService()
     mock_livres_collection = Mock()
     mock_auteurs_collection = Mock()
+    # Issue #189: editeurs_collection needed for get_or_create_editeur
+    mock_editeurs_collection = Mock()
+    mock_editeurs_collection.find.return_value = []  # Editeur not found → will be created
+    mock_editeurs_insert_result = Mock()
+    mock_editeurs_insert_result.inserted_id = ObjectId()
+    mock_editeurs_collection.insert_one.return_value = mock_editeurs_insert_result
 
     mongodb_service.livres_collection = mock_livres_collection
     mongodb_service.auteurs_collection = mock_auteurs_collection
+    mongodb_service.editeurs_collection = mock_editeurs_collection
 
     # Mock find_one pour retourner le livre existant
     mock_livres_collection.find_one.return_value = livres_doc
@@ -119,18 +126,16 @@ def test_auto_process_enriched_books_updates_editeur():
         # Assert 2: Vérifier que le livre a été trouvé et traité
         assert result["processed_count"] == 1, "Un livre devrait être traité"
 
-        # Assert 3: Vérifier que livres.editeur a été mis à jour
-        assert livres_doc["editeur"] == "P.O.L.", (
-            f"Expected livres.editeur='P.O.L.' but got '{livres_doc['editeur']}'"
-        )
-
-        # Assert 4: Vérifier que update_one a été appelé
+        # Assert 3: Vérifier que update_one a été appelé avec editeur_id (Issue #189)
         mock_livres_collection.update_one.assert_called_once()
         call_args = mock_livres_collection.update_one.call_args
         assert call_args[0][0] == {"_id": book_id}, "Filter doit chercher par _id"
-        assert "editeur" in call_args[0][1]["$set"], "$set doit contenir editeur"
-        assert call_args[0][1]["$set"]["editeur"] == "P.O.L.", (
-            "Editeur doit être P.O.L."
+        update_doc = call_args[0][1]
+        # Issue #189: editeur_id dans $set au lieu de editeur string
+        assert "editeur_id" in update_doc["$set"], "$set doit contenir editeur_id"
+        # Issue #189: editeur string supprimé via $unset
+        assert "editeur" in update_doc.get("$unset", {}), (
+            "$unset doit supprimer editeur string"
         )
 
 
@@ -165,9 +170,16 @@ def test_auto_process_no_update_when_editeur_same():
     mongodb_service = MongoDBService()
     mock_livres_collection = Mock()
     mock_auteurs_collection = Mock()
+    # Issue #189: editeurs_collection needed for get_or_create_editeur
+    mock_editeurs_collection = Mock()
+    mock_editeurs_collection.find.return_value = [
+        {"_id": ObjectId(), "nom": "Gallimard"},
+    ]
+    mock_editeurs_collection.insert_one = Mock()
 
     mongodb_service.livres_collection = mock_livres_collection
     mongodb_service.auteurs_collection = mock_auteurs_collection
+    mongodb_service.editeurs_collection = mock_editeurs_collection
 
     mock_livres_collection.find_one.return_value = livres_doc
     mock_livres_collection.update_one = Mock()

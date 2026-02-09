@@ -1017,6 +1017,7 @@ class MongoDBService:
                         "titre": 1,
                         "auteur_id": 1,
                         "editeur": 1,
+                        "editeur_id": 1,  # Issue #189
                         "url_babelio": 1,  # Issue #124
                         "auteur": 1,
                         "episodes_data": 1,
@@ -1138,12 +1139,25 @@ class MongoDBService:
                 all_avis, emissions_by_id, critiques_by_id=critiques_by_id
             )
 
+            # Issue #189: Résoudre editeur - soit string, soit via editeur_id
+            editeur_nom = livre_data.get("editeur", "")
+            if (
+                not editeur_nom
+                and livre_data.get("editeur_id")
+                and self.editeurs_collection is not None
+            ):
+                editeur_doc = self.editeurs_collection.find_one(
+                    {"_id": livre_data["editeur_id"]}
+                )
+                if editeur_doc:
+                    editeur_nom = editeur_doc.get("nom", "")
+
             return {
                 "livre_id": str(livre_data["_id"]),
                 "titre": livre_data["titre"],
                 "auteur_id": str(livre_data["auteur_id"]),
                 "auteur_nom": auteur_nom,
-                "editeur": livre_data.get("editeur", ""),
+                "editeur": editeur_nom,
                 "url_babelio": livre_data.get("url_babelio"),
                 "note_moyenne": note_moyenne,
                 "nombre_emissions": len(emissions_list),
@@ -1688,6 +1702,14 @@ class MongoDBService:
             raise Exception("Connexion MongoDB non établie")
 
         try:
+            # Issue #189: Résoudre editeur → editeur_id via get_or_create_editeur
+            editeur_name = book_data.get("babelio_publisher") or book_data.get(
+                "editeur", ""
+            )
+            editeur_oid = None
+            if editeur_name and editeur_name.strip():
+                editeur_oid, _ = self.get_or_create_editeur(editeur_name)
+
             # Vérifier si le livre existe déjà (même titre + même auteur)
             existing_book = self.livres_collection.find_one(
                 {"titre": book_data["titre"], "auteur_id": book_data["auteur_id"]}
@@ -1698,12 +1720,13 @@ class MongoDBService:
                 # Préparer les mises à jour
                 update_ops: dict[str, Any] = {}
 
-                # Issue #85: Si l'éditeur a changé (ex: enrichissement Babelio), mettre à jour
-                if existing_book.get("editeur") != book_data.get("editeur"):
+                # Issue #189: Migrer editeur string → editeur_id
+                if editeur_oid and not existing_book.get("editeur_id"):
                     update_ops["$set"] = {
-                        "editeur": book_data["editeur"],
+                        "editeur_id": editeur_oid,
                         "updated_at": datetime.now(),
                     }
+                    update_ops["$unset"] = {"editeur": ""}
 
                 # Issue #96 Bug Fix: Ajouter les nouveaux épisodes/avis_critiques avec $addToSet
                 # $addToSet évite les doublons automatiquement
@@ -1734,10 +1757,18 @@ class MongoDBService:
                 self._add_book_to_author(book_data["auteur_id"], book_id)
                 return book_id
 
+            # Issue #189: Préparer book_data avec editeur_id pour l'insertion
+            insert_data = dict(book_data)
+            if editeur_oid:
+                insert_data["editeur_id"] = editeur_oid
+                # Retirer editeur string pour ne pas le stocker
+                insert_data.pop("editeur", None)
+                insert_data.pop("babelio_publisher", None)
+
             # Créer le nouveau livre
             from ..models.book import Book
 
-            formatted_data = Book.for_mongodb_insert(book_data)
+            formatted_data = Book.for_mongodb_insert(insert_data)
             result = self.livres_collection.insert_one(formatted_data)
             book_id = ObjectId(result.inserted_id)
 
@@ -2461,6 +2492,128 @@ class MongoDBService:
             "limit": limit,
             "total_pages": total_pages,
         }
+
+    # --- Editeur management (Issue #189) ---
+
+    def search_editeur_by_name(self, name: str) -> dict[str, Any] | None:
+        """Recherche un éditeur par nom (insensible casse/accents).
+
+        Charge tous les éditeurs et compare via normalize_for_matching().
+
+        Args:
+            name: Nom de l'éditeur à rechercher
+
+        Returns:
+            Document éditeur si trouvé, None sinon
+        """
+        if self.editeurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        from ..utils.text_utils import normalize_for_matching
+
+        normalized_name = normalize_for_matching(name)
+        for editeur in self.editeurs_collection.find():
+            if normalize_for_matching(editeur.get("nom", "")) == normalized_name:
+                result: dict[str, Any] = editeur
+                return result
+        return None
+
+    def create_editeur(self, name: str) -> ObjectId:
+        """Crée un nouvel éditeur avec timestamps.
+
+        Args:
+            name: Nom de l'éditeur
+
+        Returns:
+            ObjectId du nouvel éditeur
+        """
+        if self.editeurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        now = datetime.now()
+        result = self.editeurs_collection.insert_one(
+            {"nom": name, "created_at": now, "updated_at": now}
+        )
+        return result.inserted_id
+
+    def get_or_create_editeur(self, name: str) -> tuple[ObjectId, bool]:
+        """Trouve un éditeur existant ou en crée un nouveau.
+
+        Args:
+            name: Nom de l'éditeur
+
+        Returns:
+            Tuple (ObjectId, created: bool)
+        """
+        existing = self.search_editeur_by_name(name)
+        if existing:
+            return existing["_id"], False
+        new_id = self.create_editeur(name)
+        return new_id, True
+
+    # --- Livre/Auteur refresh helpers (Issue #189) ---
+
+    def update_livre_from_refresh(self, livre_id: str, updates: dict[str, Any]) -> bool:
+        """Met à jour un livre avec les données rafraîchies.
+
+        Quand editeur_id est fourni, le champ editeur (string) est supprimé
+        du document ($unset) pour éviter la duplication.
+
+        Args:
+            livre_id: ID du livre
+            updates: Champs à mettre à jour (titre, editeur_id)
+
+        Returns:
+            True si le livre a été trouvé et mis à jour
+        """
+        if self.livres_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        updates["updated_at"] = datetime.now()
+        update_doc: dict[str, Any] = {"$set": updates}
+
+        # Issue #189: Si editeur_id est fourni, supprimer le champ editeur string
+        if "editeur_id" in updates:
+            update_doc["$unset"] = {"editeur": ""}
+
+        result = self.livres_collection.update_one(
+            {"_id": ObjectId(livre_id)}, update_doc
+        )
+        return bool(result.matched_count > 0)
+
+    def update_auteur_name_and_url(
+        self,
+        auteur_id: str,
+        nom: str | None = None,
+        url_babelio: str | None = None,
+    ) -> bool:
+        """Met à jour le nom et/ou l'URL Babelio d'un auteur.
+
+        Args:
+            auteur_id: ID de l'auteur
+            nom: Nouveau nom (si None, pas de mise à jour)
+            url_babelio: Nouvelle URL Babelio (si None, pas de mise à jour)
+
+        Returns:
+            True si mis à jour, False si rien à mettre à jour
+        """
+        if self.auteurs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        set_fields: dict[str, Any] = {}
+        if nom is not None:
+            set_fields["nom"] = nom
+        if url_babelio is not None:
+            set_fields["url_babelio"] = url_babelio
+
+        if not set_fields:
+            return False
+
+        set_fields["updated_at"] = datetime.now()
+        result = self.auteurs_collection.update_one(
+            {"_id": ObjectId(auteur_id)}, {"$set": set_fields}
+        )
+        return bool(result.matched_count > 0)
 
 
 # Instance globale du service
