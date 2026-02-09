@@ -17,6 +17,12 @@ class TestLivreEpisodesArrayBug:
         service = MongoDBService()
         service.livres_collection = MagicMock()
         service.auteurs_collection = MagicMock()
+        # Issue #189: editeurs_collection needed for get_or_create_editeur
+        mock_editeurs = MagicMock()
+        mock_editeurs.find.return_value = [
+            {"_id": ObjectId(), "nom": "Gallimard"},
+        ]
+        service.editeurs_collection = mock_editeurs
         return service
 
     def test_create_book_if_not_exists_should_add_episode_to_existing_book(

@@ -61,19 +61,26 @@ class Book:
         """
         now = datetime.now()
 
-        # Issue #85: Priorité à babelio_publisher si disponible
-        editeur = data.get("babelio_publisher") or data.get("editeur", "")
-
-        return {
+        # Issue #189: Si editeur_id est fourni, l'utiliser (pas de champ editeur string)
+        # Sinon, fallback sur editeur string (compatibilité)
+        result: dict[str, Any] = {
             "titre": data["titre"],
             "auteur_id": data["auteur_id"],
-            "editeur": editeur,
             "url_babelio": data.get("url_babelio"),
             "episodes": data.get("episodes", []),
             "avis_critiques": data.get("avis_critiques", []),
             "created_at": now,
             "updated_at": now,
         }
+
+        if data.get("editeur_id"):
+            result["editeur_id"] = data["editeur_id"]
+        else:
+            # Issue #85: Priorité à babelio_publisher si disponible
+            editeur = data.get("babelio_publisher") or data.get("editeur", "")
+            result["editeur"] = editeur
+
+        return result
 
     def add_episode_reference(self, episode_id: ObjectId) -> None:
         """

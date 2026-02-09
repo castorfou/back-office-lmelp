@@ -145,6 +145,7 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 
 - **Cliquer sur l'icône Babelio** : Ouverture de la fiche livre sur Babelio.com (nouvel onglet)
 - **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet)
+- **Ré-extraire depuis Babelio** : Bouton orange visible uniquement si le livre possède une URL Babelio. Scrape les données fraîches (titre, auteur, éditeur) depuis Babelio et les applique automatiquement si des différences sont détectées. Une notification toast confirme le résultat (succès en vert, données identiques en bleu, erreur en rouge). L'éditeur mis à jour est stocké via la collection `editeurs` dédiée
 - **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
 - **Copier les tags Calibre** : Bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier
 - **Cliquer sur une émission** : Navigation vers la page émission correspondante

@@ -71,6 +71,17 @@
               >
                 {{ livre.note_moyenne.toFixed(1) }}
               </span>
+              <!-- Bouton refresh Babelio (Issue #189) -->
+              <button
+                v-if="livre.url_babelio"
+                @click="refreshFromBabelio"
+                class="btn-refresh-babelio"
+                :disabled="refreshLoading"
+                :title="refreshLoading ? 'Chargement...' : 'Ré-extraire depuis Babelio'"
+                data-test="refresh-babelio-btn"
+              >
+                <span :class="{ 'spinning': refreshLoading }">&#x21BB;</span> Ré-extraire
+              </button>
             </div>
             <div class="livre-meta">
               <div class="livre-author">
@@ -227,6 +238,16 @@
           ← Retour
         </button>
       </div>
+
+      <!-- Toast notification (Issue #189) -->
+      <div
+        v-if="toast"
+        class="toast"
+        :class="`toast-${toast.type}`"
+        data-test="toast"
+      >
+        {{ toast.message }}
+      </div>
     </div>
   </div>
 </template>
@@ -247,7 +268,13 @@ export default {
       error: null,
       annasArchiveBaseUrl: 'https://fr.annas-archive.li', // Fallback default (Issue #188)
       tagsCopied: false, // Issue #200: Copy feedback
-      avis: [] // Issue #201: Avis des critiques
+      avis: [], // Issue #201: Avis des critiques
+      // Issue #189: Refresh Babelio
+      refreshLoading: false,
+      showRefreshModal: false,
+      refreshData: null,
+      toast: null,
+      toastTimer: null
     };
   },
   computed: {
@@ -294,6 +321,12 @@ export default {
       this.loadAnnasArchiveUrl(),
       this.loadAvis()
     ]);
+  },
+  beforeUnmount() {
+    if (this.toastTimer) {
+      clearTimeout(this.toastTimer);
+      this.toastTimer = null;
+    }
   },
   methods: {
     async loadLivre() {
@@ -390,6 +423,48 @@ export default {
       } catch (err) {
         console.error('Erreur copie tags:', err);
       }
+    },
+    // Issue #189: Refresh Babelio methods
+    async refreshFromBabelio() {
+      this.refreshLoading = true;
+
+      try {
+        const livreId = this.$route.params.id;
+        const response = await axios.post(`/api/livres/${livreId}/refresh-babelio`);
+        const data = response.data;
+
+        if (!data.changes_detected) {
+          this.showToast('info', 'Données identiques, aucune modification nécessaire.');
+          return;
+        }
+
+        // Auto-apply changes
+        const babelioData = data.babelio;
+        await axios.post(`/api/livres/${livreId}/apply-refresh`, {
+          titre: babelioData.titre,
+          editeur: babelioData.editeur,
+          auteur_nom: babelioData.auteur_nom,
+          auteur_url_babelio: babelioData.auteur_url_babelio,
+        });
+
+        this.showToast('success', 'Modifications appliquées avec succès !');
+        await this.loadLivre();
+      } catch (err) {
+        const message = err.response?.data?.detail || 'Erreur lors du rafraîchissement';
+        this.showToast('error', message);
+      } finally {
+        this.refreshLoading = false;
+      }
+    },
+    showToast(type, message) {
+      if (this.toastTimer) {
+        clearTimeout(this.toastTimer);
+      }
+      this.toast = { type, message };
+      this.toastTimer = setTimeout(() => {
+        this.toast = null;
+        this.toastTimer = null;
+      }, 5000);
     }
   }
 };
@@ -803,5 +878,69 @@ export default {
 
 .btn-secondary:hover {
   background: #bdbdbd;
+}
+
+/* Bouton refresh Babelio (Issue #189) */
+.btn-refresh-babelio {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0.4rem 0.9rem;
+  background: #f57c00;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.btn-refresh-babelio:hover:not(:disabled) {
+  background: #e65100;
+}
+
+.btn-refresh-babelio:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-refresh-babelio .spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* Toast notification (Issue #189) */
+.toast {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: toast-in 0.3s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.toast-success {
+  background: #2e7d32;
+}
+
+.toast-info {
+  background: #1565c0;
+}
+
+.toast-error {
+  background: #d32f2f;
 }
 </style>

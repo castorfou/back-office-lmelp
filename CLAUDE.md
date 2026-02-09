@@ -336,7 +336,7 @@ server: {
   "titre": str,
   "auteur_id": ObjectId(...),  # ⚠️ UN SEUL auteur
   "url_babelio": str,
-  "editeur": str,
+  "editeur_id": ObjectId(...),  # Réf. collection editeurs (Issue #189)
   "episodes": list[str],
   ...
 }
