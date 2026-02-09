@@ -187,7 +187,8 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - ⚠️ **Cas problématiques** : Collection MongoDB `babelio_problematic_cases` pour traitement manuel
 - ✅ **Validation intelligente** : Normalisation texte automatique (ligatures œ→oe, ponctuation, casse)
 - 🔄 **Stratégie de secours** : Recherche élargie si correspondance exacte échoue
-- 🏢 **Éditeur enrichi** : Scraping automatique de l'éditeur depuis Babelio
+- 🏢 **Éditeur enrichi** : Scraping automatique de l'éditeur depuis Babelio, stocké via collection `editeurs` dédiée
+- 🔄 **Ré-extraction Babelio** : Bouton sur la page livre pour rafraîchir titre, auteur et éditeur depuis Babelio (auto-apply avec toast notification)
 - 🤖 **Tolérance fautes** : Corrections orthographiques (ex: "Houllebeck" → "Michel Houellebecq")
 
 ##### Cache disque Babelio (diagnostic)
