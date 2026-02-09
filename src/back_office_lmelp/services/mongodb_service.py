@@ -2534,7 +2534,7 @@ class MongoDBService:
         result = self.editeurs_collection.insert_one(
             {"nom": name, "created_at": now, "updated_at": now}
         )
-        return result.inserted_id
+        return ObjectId(result.inserted_id)
 
     def get_or_create_editeur(self, name: str) -> tuple[ObjectId, bool]:
         """Trouve un éditeur existant ou en crée un nouveau.
