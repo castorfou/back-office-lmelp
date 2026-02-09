@@ -83,6 +83,34 @@ Lors de l'extraction des livres depuis les avis critiques, le système enrichit 
 - ✅ **Qualité des données** : Source Babelio fiable et à jour
 - ✅ **Performance** : Cache intelligent évite les requêtes redondantes
 
+## Ré-extraction manuelle depuis Babelio
+
+La page détail d'un livre affiche un bouton orange **↻ Ré-extraire** (visible uniquement si le livre possède une URL Babelio) permettant de rafraîchir les données du livre.
+
+### Données rafraîchies
+
+- **Titre** : Titre complet depuis Babelio
+- **Éditeur** : Nom de l'éditeur, stocké via la collection `editeurs` dédiée (avec recherche accent/case insensitive)
+- **Auteur** : Nom et URL Babelio de l'auteur
+
+### Fonctionnement
+
+1. Cliquer sur le bouton **↻ Ré-extraire** (animation de rotation pendant le chargement)
+2. Le système scrape les données fraîches depuis Babelio (~20 secondes)
+3. Si des différences sont détectées, elles sont appliquées automatiquement
+4. Une notification toast confirme le résultat :
+     - **Vert** : Modifications appliquées avec succès
+     - **Bleu** : Données déjà à jour (aucune modification nécessaire)
+     - **Rouge** : Erreur lors de l'extraction
+
+### Gestion des éditeurs
+
+Lors du rafraîchissement, l'éditeur extrait est référencé dans la collection `editeurs` :
+
+- Si l'éditeur existe déjà (recherche insensible aux accents et à la casse), son identifiant est réutilisé
+- Sinon, un nouvel éditeur est créé automatiquement
+- Le livre est mis à jour avec la référence `editeur_id` au lieu d'un simple champ texte
+
 ## Cas d'usage typiques
 
 ### Utilisateur final (consultation)

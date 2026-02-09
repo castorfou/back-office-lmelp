@@ -838,12 +838,14 @@ class Book:
     id: str
     titre: str
     auteur_id: str  # ObjectId reference
-    editeur: str
+    editeur_id: str  # ObjectId reference vers collection editeurs
     episodes: list[str]  # ObjectId references
     avis_critiques: list[str]  # ObjectId references
     created_at: datetime
     updated_at: datetime
 ```
+
+> **Note** : Le champ `editeur` (string) est remplacé par `editeur_id` (ObjectId) référençant la collection `editeurs`. Les livres existants avec l'ancien format sont migrés automatiquement lors de leur prochain traitement. L'API retourne toujours `editeur` (string résolu) pour la rétrocompatibilité.
 
 ### Request Models
 
@@ -978,6 +980,85 @@ Récupère les détails d'un livre avec tous les épisodes où il est mentionné
   "detail": "Book not found"
 }
 ```
+
+### POST /api/livres/{livre_id}/refresh-babelio
+
+Scrape les données fraîches depuis Babelio (titre, auteur, éditeur) et retourne une comparaison avec les données actuelles du livre.
+
+#### Paramètres
+
+- `livre_id` (path, required): ObjectId MongoDB du livre
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "current": {
+    "titre": "L'Etranger",
+    "editeur": "Gallimard",
+    "auteur_nom": "Albert Camus",
+    "auteur_url_babelio": null
+  },
+  "babelio": {
+    "titre": "L'Étranger",
+    "editeur": "Gallimard",
+    "auteur_nom": "Albert Camus",
+    "auteur_url_babelio": "https://www.babelio.com/auteur/Albert-Camus/2tried"
+  },
+  "changes_detected": true,
+  "editeur_needs_migration": false
+}
+```
+
+**400 Bad Request** - Pas d'URL Babelio configurée
+```json
+{
+  "detail": "Ce livre n'a pas d'URL Babelio configurée"
+}
+```
+
+**404 Not Found** - Livre non trouvé
+
+---
+
+### POST /api/livres/{livre_id}/apply-refresh
+
+Applique les modifications validées depuis Babelio. L'éditeur est stocké via `editeur_id` (référence à la collection `editeurs`).
+
+#### Paramètres
+
+- `livre_id` (path, required): ObjectId MongoDB du livre
+
+#### Request Body
+
+```json
+{
+  "titre": "L'Étranger",
+  "editeur": "Gallimard",
+  "auteur_nom": "Albert Camus",
+  "auteur_url_babelio": "https://www.babelio.com/auteur/Albert-Camus/2tried"
+}
+```
+
+Tous les champs sont optionnels (seuls les champs fournis sont mis à jour).
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "status": "success",
+  "livre_id": "68e2c3ba1391489c77ccdee2",
+  "editeur_created": false
+}
+```
+
+- `editeur_created` : `true` si un nouvel éditeur a été créé dans la collection `editeurs`
+
+**404 Not Found** - Livre non trouvé
+
+---
 
 ### GET /api/critique/{critique_id}
 
