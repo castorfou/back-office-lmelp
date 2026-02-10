@@ -312,6 +312,44 @@ class TestSearchService:
         result = mongodb_service.search_livres("", limit=10)
         assert result == {"livres": [], "total_count": 0}
 
+    def test_search_livres_converts_editeur_id_to_string(self):
+        """Test que search_livres convertit editeur_id (ObjectId) en string.
+
+        GIVEN: Un livre MongoDB avec editeur_id de type ObjectId (migration #189)
+        WHEN: search_livres est appelé
+        THEN: editeur_id est converti en string dans le résultat
+        """
+        from bson import ObjectId
+
+        mock_livres = [
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439012"),
+                "titre": "Simone Émonet",
+                "auteur_id": ObjectId("507f1f77bcf86cd799439011"),
+                "editeur_id": ObjectId("6988e9fd63136a4c296dd3fc"),
+            }
+        ]
+        mock_auteur = {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "nom": "Auteur Test",
+        }
+
+        mock_cursor = Mock()
+        mock_cursor.skip.return_value.limit.return_value = mock_livres
+        self.mock_livres_collection.find.return_value = mock_cursor
+        self.mock_livres_collection.count_documents.return_value = 1
+        self.mock_auteurs_collection.find_one.return_value = mock_auteur
+
+        result = mongodb_service.search_livres("Émonet", limit=10)
+
+        assert len(result["livres"]) == 1
+        livre = result["livres"][0]
+        # Tous les ObjectId doivent être convertis en string
+        assert isinstance(livre["_id"], str)
+        assert isinstance(livre["auteur_id"], str)
+        assert isinstance(livre["editeur_id"], str)
+        assert livre["editeur_id"] == "6988e9fd63136a4c296dd3fc"
+
     def test_search_livres_includes_author_name(self):
         """Test que search_livres enrichit les résultats avec le nom de l'auteur."""
         # Mock des livres avec auteur_id

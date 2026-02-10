@@ -757,6 +757,10 @@ class MongoDBService:
                     # Convertir auteur_id en string
                     livre["auteur_id"] = str(livre["auteur_id"])
 
+                # Convertir editeur_id en string si présent
+                if "editeur_id" in livre and livre["editeur_id"]:
+                    livre["editeur_id"] = str(livre["editeur_id"])
+
                 results.append(livre)
 
             return {"livres": results, "total_count": total_count}
