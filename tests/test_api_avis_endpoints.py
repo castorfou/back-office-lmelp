@@ -124,6 +124,63 @@ class TestGetAvisByEmission:
         data = response.json()
         assert data["avis"][0]["livre_titre"] == "Titre Enrichi depuis MongoDB"
 
+    def test_get_avis_enriches_editeur_from_livre(self):
+        """Test que GET enrichit avec l'éditeur officiel si livre résolu.
+
+        GIVEN: Un avis avec livre_oid résolu et editeur_extrait="POL"
+        WHEN: GET /api/avis/by-emission est appelé
+        THEN: L'avis contient editeur="P.O.L." (depuis collection livres)
+        """
+        emission_id = str(ObjectId())
+        livre_id = ObjectId()
+        auteur_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": str(livre_id),
+                "critique_oid": None,
+                "commentaire": "Virtuose",
+                "note": 9,
+                "section": "programme",
+                "livre_titre_extrait": "Kolkhoze",
+                "auteur_nom_extrait": "Emmanuel Carrère",
+                "editeur_extrait": "POL",
+                "critique_nom_extrait": "Laurent Chalumeau",
+            }
+        ]
+        self.mock_mongodb.livres_collection = MagicMock()
+        self.mock_mongodb.livres_collection.find_one.return_value = {
+            "_id": livre_id,
+            "titre": "Kolkhoze",
+            "auteur_id": auteur_id,
+            "editeur": "P.O.L.",
+        }
+        self.mock_mongodb.livres_collection.count_documents.return_value = 1
+        self.mock_mongodb.auteurs_collection = MagicMock()
+        self.mock_mongodb.auteurs_collection.find_one.return_value = {
+            "_id": auteur_id,
+            "nom": "Emmanuel Carrère",
+        }
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": "episode-123",
+        }
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        avis = data["avis"][0]
+        # L'éditeur officiel du livre doit être enrichi
+        assert avis["editeur"] == "P.O.L."
+        # editeur_extrait reste disponible pour référence
+        assert avis["editeur_extrait"] == "POL"
+
 
 class TestExtractAvisFromEmission:
     """Tests pour POST /api/avis/extract/{emission_id}."""

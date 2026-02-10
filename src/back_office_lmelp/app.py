@@ -4140,6 +4140,10 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 )
                 if livre:
                     enriched["livre_titre"] = livre.get("titre", "")
+                    # Enrichir avec l'éditeur officiel du livre
+                    editeur_officiel = livre.get("editeur", "")
+                    if editeur_officiel:
+                        enriched["editeur"] = editeur_officiel
                     auteur_id = livre.get("auteur_id")
                     if auteur_id:
                         enriched["auteur_oid"] = str(auteur_id)

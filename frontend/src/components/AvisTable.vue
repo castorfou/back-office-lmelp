@@ -266,7 +266,8 @@ export default {
             titre: avis.livre_titre || avis.livre_titre_extrait,
             // auteur_nom = nom officiel MongoDB (enrichi par l'API), sinon fallback sur nom extrait
             auteur: avis.auteur_nom || avis.auteur_nom_extrait,
-            editeur: avis.editeur_extrait,
+            // editeur = éditeur officiel MongoDB (enrichi par l'API), sinon fallback sur éditeur extrait
+            editeur: avis.editeur || avis.editeur_extrait,
             livre_oid: avis.livre_oid,
             auteur_oid: avis.auteur_oid,
             avis: [],
