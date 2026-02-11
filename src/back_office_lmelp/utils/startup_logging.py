@@ -66,6 +66,14 @@ def log_startup_info() -> None:
     print("🚀 DÉMARRAGE BACK-OFFICE LMELP")
     print("=" * 50)
 
+    # Version (Issue #205)
+    from .build_info import get_build_info
+
+    build_info = get_build_info()
+    print(f"🏷️  Version: {build_info['commit_short']} ({build_info['environment']})")
+    if build_info.get("commit_url"):
+        print(f"   Commit: {build_info['commit_url']}")
+
     # Version Python
     python_version = sys.version.split()[0]
     print(f"🐍 Python: {python_version}")

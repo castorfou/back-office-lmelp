@@ -163,6 +163,14 @@ const routes = [
     meta: {
       title: 'Émissions - Back-office LMELP'
     }
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: () => import('../views/AboutPage.vue'),
+    meta: {
+      title: 'À propos - Back-office LMELP'
+    }
   }
 ];
 

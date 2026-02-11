@@ -39,7 +39,7 @@ class TestAPIRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["message"] == "Back-office LMELP API"
-        assert data["version"] == "0.1.0"
+        assert "version" in data  # Version dynamique depuis git (Issue #205)
 
     def test_get_episodes_success(
         self, client, mock_mongodb_service, mock_memory_guard

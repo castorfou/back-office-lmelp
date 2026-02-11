@@ -64,6 +64,84 @@ Aucune authentification requise pour l'instant (développement local).
 
 ## Endpoints
 
+### GET /api/version
+
+Retourne les informations de version et de build de l'application.
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "commit_hash": "92e69cfa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e",  // pragma: allowlist secret
+  "commit_short": "92e69cf",
+  "commit_date": "2026-02-10 15:30:00 +0100",
+  "build_date": "2026-02-10T16:00:00Z",
+  "commit_url": "https://github.com/castorfou/back-office-lmelp/commit/92e69cf...",
+  "environment": "docker"
+}
+```
+
+**Champs** :
+
+| Champ | Description |
+|-------|-------------|
+| `commit_hash` | Hash complet du commit Git (40 caractères) |
+| `commit_short` | Hash court (7 caractères) |
+| `commit_date` | Date du commit |
+| `build_date` | Date de construction de l'image Docker |
+| `commit_url` | Lien direct vers le commit sur GitHub |
+| `environment` | `"docker"` (production) ou `"development"` (dev local) |
+
+**Fonctionnement** (3 niveaux de fallback) :
+
+1. Lecture de `build_info.json` (Docker, chemin `/app/build_info.json`)
+2. Lecture depuis Git via `subprocess` (développement local)
+3. Valeurs `"unknown"` par défaut
+
+---
+
+### GET /api/changelog
+
+Retourne l'historique des commits référençant des issues ou Pull Requests.
+
+#### Réponse
+
+**200 OK**
+```json
+[
+  {
+    "hash": "92e69cf",
+    "date": "2026-02-10 15:30:00 +0100",
+    "message": "fix: resolve search ObjectId serialization (#208)"
+  },
+  {
+    "hash": "fecc6ae",
+    "date": "2026-02-09 10:15:00 +0100",
+    "message": "feat: correction des données livres via refresh babelio (#189)"
+  }
+]
+```
+
+**Notes** :
+
+- Seuls les commits dont le message contient `#XXX` (référence issue/PR) sont inclus
+- Triés par ordre chronologique décroissant (plus récent en premier)
+- En Docker : lu depuis `changelog.json` (pré-généré au build)
+- En dev : généré dynamiquement via `git log --first-parent`
+
+#### Exemple de requête
+
+```bash
+# Version courante
+curl "http://localhost:<PORT>/api/version" | jq
+
+# 3 dernières entrées du changelog
+curl "http://localhost:<PORT>/api/changelog" | jq '.[0:3]'
+```
+
+---
+
 ### GET /episodes
 
 Récupère la liste de tous les épisodes.

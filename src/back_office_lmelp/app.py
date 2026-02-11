@@ -66,9 +66,14 @@ calibre_matching_service = CalibreMatchingService(
     virtual_library_tag=settings.calibre_virtual_library_tag,
 )
 from .services.stats_service import stats_service
+from .utils.build_info import get_build_info, get_changelog
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 
+
+# Build info cached au démarrage (Issue #205)
+_build_info = get_build_info()
+_changelog = get_changelog()
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +307,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Back-office LMELP",
     description="Interface de gestion pour la base de données du Masque et la Plume",
-    version="0.1.0",
+    version=_build_info.get("commit_short", "0.1.0"),
     lifespan=lifespan,
 )
 
@@ -372,7 +377,22 @@ app.add_middleware(EnrichedLoggingMiddleware)
 @app.get("/")
 async def root() -> dict[str, str]:
     """Point d'entrée de l'API."""
-    return {"message": "Back-office LMELP API", "version": "0.1.0"}
+    return {
+        "message": "Back-office LMELP API",
+        "version": _build_info.get("commit_short", "unknown"),
+    }
+
+
+@app.get("/api/version")
+async def version() -> dict[str, Any]:
+    """Information de version et de build (Issue #205)."""
+    return _build_info
+
+
+@app.get("/api/changelog")
+async def changelog() -> list[dict[str, str]]:
+    """Changelog des commits référençant des issues/PRs (Issue #205)."""
+    return _changelog
 
 
 @app.get("/health")

@@ -290,6 +290,13 @@
         </div>
       </section>
     </main>
+
+    <!-- Footer version (Issue #205) -->
+    <footer class="version-footer" v-if="versionInfo">
+      <router-link to="/about" class="version-link" :title="versionTooltip">
+        v. {{ versionInfo.commit_short }} ({{ formattedCommitDate }})
+      </router-link>
+    </footer>
   </div>
 </template>
 
@@ -351,6 +358,7 @@ export default {
       episodesSansEmissionCount: null,
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
+      versionInfo: null,
       loading: true,
       error: null
     };
@@ -412,6 +420,33 @@ export default {
       return `${percentage}%`;
     },
 
+    formattedCommitDate() {
+      if (!this.versionInfo?.commit_date) return null;
+      try {
+        const date = new Date(this.versionInfo.commit_date);
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit'
+        });
+      } catch {
+        return this.versionInfo.commit_date;
+      }
+    },
+
+    versionTooltip() {
+      if (!this.versionInfo) return '';
+      const parts = [`Commit: ${this.versionInfo.commit_hash}`];
+      if (this.versionInfo.commit_date) {
+        parts.push(`Date: ${this.versionInfo.commit_date}`);
+      }
+      if (this.versionInfo.build_date) {
+        parts.push(`Build: ${this.versionInfo.build_date}`);
+      }
+      parts.push(`Env: ${this.versionInfo.environment}`);
+      return parts.join('\n');
+    },
+
     babelioAuthorsCompletionPercentage() {
       if (!this.collectionsStatistics ||
           this.collectionsStatistics.auteurs_uniques == null ||
@@ -438,7 +473,8 @@ export default {
       this.loadStatistics(),
       this.loadCollectionsStatistics(),
       this.loadCritiquesManquants(),
-      this.loadDuplicateStatistics()
+      this.loadDuplicateStatistics(),
+      this.loadVersionInfo()
     ]);
   },
 
@@ -509,6 +545,15 @@ export default {
         console.error('Erreur lors du chargement des stats doublons:', error);
         this.duplicateBooksCount = null;
         this.duplicateAuthorsCount = null;
+      }
+    },
+
+    async loadVersionInfo() {
+      try {
+        const response = await axios.get('/api/version');
+        this.versionInfo = response.data;
+      } catch (error) {
+        console.error('Erreur lors du chargement de la version:', error);
       }
     },
 
@@ -811,6 +856,25 @@ export default {
   .dashboard-content {
     gap: 2rem;
   }
+}
+
+.version-footer {
+  text-align: center;
+  padding: 1rem 0;
+  margin-top: 2rem;
+  border-top: 1px solid #eee;
+  font-size: 0.8rem;
+}
+
+.version-link {
+  color: #999;
+  text-decoration: none;
+  font-family: monospace;
+}
+
+.version-link:hover {
+  color: #667eea;
+  text-decoration: underline;
 }
 
 @media (max-width: 480px) {

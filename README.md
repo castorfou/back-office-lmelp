@@ -322,6 +322,10 @@ GET /api/calibre/books            # Liste des livres (pagination, tri, filtres)
 GET /api/calibre/matching         # Matching MongoDB-Calibre (3 niveaux)
 GET /api/calibre/corrections      # Corrections à appliquer (auteurs, titres, tags)
 POST /api/calibre/cache/invalidate  # Invalider le cache matching
+
+# Version et changelog (Issue #205)
+GET /api/version                  # Informations de version (commit hash, date, environnement)
+GET /api/changelog                # Historique des commits référençant des issues/PRs
 ```
 
 **📚 Documentation complète** : https://castorfou.github.io/back-office-lmelp/

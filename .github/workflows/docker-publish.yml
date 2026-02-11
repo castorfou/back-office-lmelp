@@ -27,6 +27,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation (Issue #205)
+
+      - name: Generate build info and changelog
+        run: bash scripts/generate-changelog.sh
 
       - name: Free up disk space
         run: |
