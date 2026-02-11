@@ -33,6 +33,9 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy source code
 COPY src/ /app/src/
 
+# Copy build info and changelog for version display (Issue #205)
+COPY build_info.json changelog.json /app/
+
 # Copy scripts directory (needed for migration_runner imports)
 COPY scripts/ /app/scripts/
 
