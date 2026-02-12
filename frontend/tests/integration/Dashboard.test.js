@@ -223,7 +223,7 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('12'); // couples_suggested_pas_en_base
     expect(wrapper.text()).toContain('8');  // couples_not_found_pas_en_base
     expect(wrapper.text()).toContain('117'); // episodes_without_avis_critiques
-    expect(wrapper.text()).toContain('0');   // avis_critiques_without_analysis
+    // Note: avis_critiques_without_analysis=0 is hidden (Issue #212)
   });
 
   it('affiche les libellés des statistiques des collections (Issue #128)', async () => {
@@ -379,5 +379,121 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     expect(foundAvisCritiquesCard).toBe(true);
     expect(foundEpisodesCard).toBe(true);
+  });
+
+  // ========== TESTS TDD POUR ISSUE #212 - MASQUER STATS À 0 ==========
+
+  it('masque les cartes de statistiques dont la valeur est 0 (Issue #212)', async () => {
+    const statsWithZeros = {
+      episodes_non_traites: 5,
+      couples_en_base: 42,
+      couples_suggested_pas_en_base: 0,
+      couples_not_found_pas_en_base: 0,
+      episodes_without_avis_critiques: 117,
+      avis_critiques_without_analysis: 0,
+      last_episode_date: '2024-12-10T20:00:00',
+      books_without_url_babelio: 0,
+      authors_without_url_babelio: 0,
+      emissions_sans_avis: 0,
+      emissions_with_problems: 0
+    };
+
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(statsWithZeros);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Les cartes avec valeur 0 ne doivent PAS être rendues
+    const statCards = wrapper.findAll('.stat-card');
+    const cardLabels = statCards.map(card => card.text());
+
+    expect(cardLabels.some(t => t.includes('Livres suggérés'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Livres non trouvés'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Avis critiques sans analyse'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Livres sans lien Babelio'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Auteurs sans lien Babelio'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Émissions sans avis'))).toBe(false);
+    expect(cardLabels.some(t => t.includes('Émissions avec problème'))).toBe(false);
+
+    // Les cartes avec valeur non-zéro DOIVENT être présentes
+    expect(cardLabels.some(t => t.includes('Épisodes sans avis critiques'))).toBe(true);
+
+    // La carte "Dernière mise à jour" doit toujours être visible
+    expect(cardLabels.some(t => t.includes('Dernière mise à jour'))).toBe(true);
+  });
+
+  it('affiche les cartes de statistiques dont la valeur est non-zéro (Issue #212)', async () => {
+    const statsAllNonZero = {
+      episodes_non_traites: 5,
+      couples_en_base: 42,
+      couples_suggested_pas_en_base: 12,
+      couples_not_found_pas_en_base: 8,
+      episodes_without_avis_critiques: 117,
+      avis_critiques_without_analysis: 3,
+      last_episode_date: '2024-12-10T20:00:00',
+      books_without_url_babelio: 5,
+      authors_without_url_babelio: 3,
+      emissions_sans_avis: 2,
+      emissions_with_problems: 1
+    };
+
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(statsAllNonZero);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Toutes les cartes avec valeur non-zéro doivent être visibles
+    const statCards = wrapper.findAll('.stat-card');
+    const cardLabels = statCards.map(card => card.text());
+
+    expect(cardLabels.some(t => t.includes('Livres suggérés'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Livres non trouvés'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Avis critiques sans analyse'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Livres sans lien Babelio'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Auteurs sans lien Babelio'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Émissions sans avis'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Émissions avec problème'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Épisodes sans avis critiques'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Dernière mise à jour'))).toBe(true);
+  });
+
+  it('affiche les cartes en chargement (null) même si valeur finale sera 0 (Issue #212)', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+
+    let resolveCollectionsStats;
+    const collectionsStatsPromise = new Promise(resolve => {
+      resolveCollectionsStats = resolve;
+    });
+    livresAuteursService.getCollectionsStatistics.mockReturnValue(collectionsStatsPromise);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    // Pendant le chargement (valeurs null), les cartes doivent être visibles avec '...'
+    const statCards = wrapper.findAll('.stat-card');
+    const cardLabels = statCards.map(card => card.text());
+
+    expect(cardLabels.some(t => t.includes('Livres suggérés'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('Avis critiques sans analyse'))).toBe(true);
+    expect(cardLabels.some(t => t.includes('...'))).toBe(true);
   });
 });
