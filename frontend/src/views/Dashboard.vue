@@ -29,6 +29,7 @@
             <div class="stat-label">Dernière mise à jour</div>
           </a>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.emissions_sans_avis !== 0"
             class="stat-card clickable-stat"
             @click="navigateToEmissions"
             :title="tooltips.emissionsSansAvis"
@@ -37,6 +38,7 @@
             <div class="stat-label">Émissions sans avis</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.emissions_with_problems !== 0"
             class="stat-card clickable-stat"
             @click="navigateToEmissions"
             :title="tooltips.emissionsWithProblems"
@@ -45,6 +47,7 @@
             <div class="stat-label">Émissions avec problème</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.episodes_without_avis_critiques !== 0"
             class="stat-card clickable-stat"
             @click="navigateToGenerationAvis"
             :title="tooltips.episodesSansAvis"
@@ -53,6 +56,7 @@
             <div class="stat-label">Épisodes sans avis critiques</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.avis_critiques_without_analysis !== 0"
             class="stat-card clickable-stat"
             @click="navigateToLivresAuteurs"
             :title="tooltips.avisSansAnalyse"
@@ -61,6 +65,7 @@
             <div class="stat-label">Avis critiques sans analyse</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.couples_suggested_pas_en_base !== 0"
             class="stat-card clickable-stat"
             @click="navigateToLivresAuteurs"
             :title="tooltips.livresSuggeres"
@@ -69,6 +74,7 @@
             <div class="stat-label">Livres suggérés</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.couples_not_found_pas_en_base !== 0"
             class="stat-card clickable-stat"
             @click="navigateToLivresAuteurs"
             :title="tooltips.livresNonTrouves"
@@ -77,6 +83,7 @@
             <div class="stat-label">Livres non trouvés</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.books_without_url_babelio !== 0"
             class="stat-card clickable-stat"
             @click="navigateToBabelioMigration"
             :title="tooltips.livresSansLienBabelio"
@@ -85,6 +92,7 @@
             <div class="stat-label">Livres sans lien Babelio</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.authors_without_url_babelio !== 0"
             class="stat-card clickable-stat"
             @click="navigateToBabelioMigration"
             :title="tooltips.auteursSansLienBabelio"
@@ -93,6 +101,7 @@
             <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
           <div
+            v-if="critiquesManquantsCount !== 0"
             class="stat-card clickable-stat"
             @click="navigateToIdentificationCritiques"
             :title="tooltips.critiquesManquants"
@@ -101,6 +110,7 @@
             <div class="stat-label">Critiques manquants</div>
           </div>
           <div
+            v-if="episodesSansEmissionCount !== 0"
             class="stat-card clickable-stat"
             @click="navigateToEmissions"
             :title="tooltips.episodesSansEmission"
@@ -109,6 +119,7 @@
             <div class="stat-label">Épisodes sans émission</div>
           </div>
           <div
+            v-if="totalDuplicatesCount !== 0"
             class="stat-card clickable-stat"
             @click="navigateToDuplicates"
             :title="tooltips.doublons"
