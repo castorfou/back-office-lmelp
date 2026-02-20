@@ -256,6 +256,53 @@ class TestSearchEmissionsService:
             f"Le champ 'commentaire' doit être dans la recherche $or, fields trouvés: {searched_fields}"
         )
 
+    def test_search_emissions_context_shows_commentaire_when_match_in_commentaire(self):
+        """Quand la recherche matche dans commentaire, search_context inclut l'extrait du commentaire."""
+        service = MongoDBService.__new__(MongoDBService)
+
+        emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        emission_date = datetime(2026, 2, 13)
+
+        mock_avis_collection = MagicMock()
+        mock_emissions_collection = MagicMock()
+
+        # La query matche SEULEMENT dans le commentaire, pas dans titre/auteur/éditeur
+        mock_avis_collection.find.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": str(emission_id),
+                "livre_titre_extrait": "Départ",
+                "auteur_nom_extrait": "Julian Barnes",
+                "editeur_extrait": "Stock",
+                "commentaire": "Roman qui donne envie d'aimer la vie, grande complicité avec le lecteur",
+                "section": "programme",
+            }
+        ]
+        mock_avis_collection.count_documents.return_value = 1
+
+        mock_emissions_collection.find.return_value.sort.return_value = [
+            {"_id": emission_id, "date": emission_date}
+        ]
+
+        service.avis_collection = mock_avis_collection
+        service.emissions_collection = mock_emissions_collection
+
+        result = service.search_emissions("Roman qui donne envie")
+
+        emission = result["emissions"][0]
+        search_context = emission["search_context"]
+
+        # Le contexte doit contenir livre/auteur ET l'extrait du commentaire
+        assert "Julian Barnes" in search_context, (
+            f"Le search_context doit contenir l'auteur pour le contexte, got: '{search_context}'"
+        )
+        assert "Départ" in search_context, (
+            f"Le search_context doit contenir le titre pour le contexte, got: '{search_context}'"
+        )
+        assert "Roman qui donne envie" in search_context, (
+            f"Le search_context doit contenir l'extrait du commentaire, got: '{search_context}'"
+        )
+
     def test_search_emissions_empty_result_when_no_match(self):
         """search_emissions() retourne liste vide si aucun résultat."""
         service = MongoDBService.__new__(MongoDBService)

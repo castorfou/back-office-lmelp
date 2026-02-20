@@ -1512,18 +1512,39 @@ class MongoDBService:
                 matched_avis = emissions_map.get(emission_id_str, [])
                 context_parts = []
                 seen_books: set[str] = set()
+                query_lower = query_stripped.lower()
                 for avis in matched_avis:
                     auteur = avis.get("auteur_nom_extrait", "")
                     titre = avis.get("livre_titre_extrait", "")
+                    commentaire = avis.get("commentaire", "")
                     book_key = f"{auteur}-{titre}"
                     if book_key not in seen_books:
                         seen_books.add(book_key)
+                        # Base : toujours commencer par auteur - titre
                         if auteur and titre:
-                            context_parts.append(f"{auteur} - {titre}")
+                            book_label = f"{auteur} - {titre}"
                         elif titre:
-                            context_parts.append(titre)
+                            book_label = titre
+                        else:
+                            book_label = ""
+                        # Si le match vient du commentaire, ajouter l'extrait
+                        commentaire_lower = commentaire.lower() if commentaire else ""
+                        if commentaire and query_lower in commentaire_lower:
+                            idx = commentaire_lower.find(query_lower)
+                            start = max(0, idx - 30)
+                            end = min(len(commentaire), idx + len(query_stripped) + 30)
+                            snippet = commentaire[start:end].strip()
+                            if start > 0:
+                                snippet = "..." + snippet
+                            if end < len(commentaire):
+                                snippet = snippet + "..."
+                            context_parts.append(
+                                f"{book_label} : {snippet}" if book_label else snippet
+                            )
+                        elif book_label:
+                            context_parts.append(book_label)
 
-                search_context = ", ".join(context_parts[:3])  # Max 3 livres
+                search_context = " | ".join(context_parts[:3])  # Max 3 livres
 
                 results.append(
                     {
