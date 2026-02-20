@@ -41,8 +41,9 @@
               />
             </a>
 
-            <!-- Icône Anna's Archive (Issue #165) -->
+            <!-- Icône Anna's Archive (Issue #165) - masquée si dans Calibre (Issue #214) -->
             <a
+              v-if="!livre.calibre_in_library"
               :href="getAnnasArchiveUrl()"
               target="_blank"
               rel="noopener noreferrer"
@@ -100,17 +101,42 @@
               <span class="stat-badge">
                 {{ livre.nombre_emissions }} émission{{ livre.nombre_emissions > 1 ? 's' : '' }}
               </span>
-              <!-- Tags Calibre (Issue #200) -->
+              <!-- Statut Calibre (Issue #214) -->
+              <span
+                v-if="livre.calibre_in_library"
+                class="calibre-status-section"
+                data-test="calibre-in-library"
+              >
+                <span class="calibre-badge in-library" title="Dans la bibliothèque Calibre">
+                  📚
+                </span>
+                <span
+                  class="calibre-read-badge"
+                  :class="livre.calibre_read ? 'read' : 'not-read'"
+                  data-test="calibre-read-badge"
+                >
+                  {{ livre.calibre_read ? '✓ Lu' : '◯ Non lu' }}
+                </span>
+                <span
+                  v-if="livre.calibre_read && livre.calibre_rating != null"
+                  class="calibre-rating"
+                  :title="`Note Calibre: ${livre.calibre_rating}/10`"
+                  data-test="calibre-rating"
+                >
+                  {{ livre.calibre_rating }}/10
+                </span>
+              </span>
+              <!-- Tags Calibre (Issue #200, #214) -->
               <span
                 v-if="livre.calibre_tags && livre.calibre_tags.length > 0"
                 class="tags-section"
                 data-test="tags-section"
               >
                 <span
-                  v-for="tag in livre.calibre_tags"
+                  v-for="tag in displayedCalibreTags"
                   :key="tag"
-                  class="tag-badge"
-                  data-test="tag-badge"
+                  :class="['tag-badge', isTagMissingFromCalibre(tag) ? 'tag-missing' : 'tag-present']"
+                  :data-test="isTagMissingFromCalibre(tag) ? 'tag-missing' : 'tag-badge'"
                 >{{ tag }}</span>
                 <button
                   @click="copyTags"
@@ -313,6 +339,15 @@ export default {
 
       return sorted;
     },
+    displayedCalibreTags() {
+      // Issue #214: Exclude virtual library tag (non-lmelp_ tags like "guillaume")
+      // when book is in Calibre, as it's not informative for the delta display.
+      // Always show lmelp_ tags (expected tags).
+      if (!this.livre?.calibre_tags) return [];
+      if (!this.livre.calibre_in_library) return this.livre.calibre_tags;
+      // When in Calibre, filter out the virtual library tag (non-lmelp_ tags)
+      return this.livre.calibre_tags.filter((t) => t.startsWith('lmelp_'));
+    },
   },
   async mounted() {
     // Charger livre, URL Anna's Archive et avis en parallèle
@@ -412,10 +447,33 @@ export default {
       // Utiliser l'URL dynamique au lieu du hardcoded (Issue #188)
       return `${this.annasArchiveBaseUrl}/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
     },
+    isTagMissingFromCalibre(tag) {
+      // Issue #214: Check if an expected tag is missing from current Calibre tags
+      if (!this.livre?.calibre_in_library) return false;
+      if (!this.livre?.calibre_current_tags) return false;
+      return !this.livre.calibre_current_tags.includes(tag);
+    },
     async copyTags() {
-      // Issue #200: Copy Calibre tags to clipboard
+      // Issue #200/#214: Copy Calibre tags to clipboard
+      // When book is in Calibre, also include notable tags (babelio, lu, onkindle)
+      // already present in calibre_current_tags (they must be preserved).
       if (!this.livre?.calibre_tags?.length) return;
-      const tagsString = this.livre.calibre_tags.join(', ');
+
+      const NOTABLE_TAGS = ['babelio', 'lu', 'onkindle'];
+      let tagsToCopy = [...this.livre.calibre_tags];
+
+      if (this.livre.calibre_in_library && this.livre.calibre_current_tags) {
+        const currentTags = this.livre.calibre_current_tags;
+        const notablePresent = NOTABLE_TAGS.filter((t) => currentTags.includes(t));
+        // Add notable tags not already in calibre_tags (avoid duplicates)
+        for (const notable of notablePresent) {
+          if (!tagsToCopy.includes(notable)) {
+            tagsToCopy.push(notable);
+          }
+        }
+      }
+
+      const tagsString = tagsToCopy.join(', ');
       try {
         await navigator.clipboard.writeText(tagsString);
         this.tagsCopied = true;
@@ -612,6 +670,43 @@ export default {
   font-size: 0.9rem;
 }
 
+/* Calibre status section (Issue #214) */
+.calibre-status-section {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.calibre-badge {
+  font-size: 1rem;
+}
+
+.calibre-read-badge {
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.calibre-read-badge.read {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.calibre-read-badge.not-read {
+  background: #f5f5f5;
+  color: #757575;
+}
+
+.calibre-rating {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* Tags Calibre (Issue #200) */
 .tags-section {
   display: flex;
@@ -621,6 +716,28 @@ export default {
 }
 
 .tag-badge {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: monospace;
+}
+
+/* Tag delta (Issue #214): missing tags highlighted in orange */
+.tag-missing {
+  background: #fff3e0;
+  color: #e65100;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: monospace;
+  border: 1px dashed #ff6d00;
+}
+
+.tag-present {
   background: #f3e5f5;
   color: #7b1fa2;
   padding: 0.3rem 0.7rem;

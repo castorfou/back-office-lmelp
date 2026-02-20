@@ -85,7 +85,9 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 │  [📘] [A]  📖 L'Étranger                                     │
 │  Babelio  Anna's ✍️ Auteur : Albert Camus                  │
 │         🏢 Éditeur : Gallimard                               │
-│         📅 2 émissions  lmelp_240324 lmelp_arnaud_viviant 📋│
+│         📅 2 émissions  📚 ✓ Lu  8/10                       │
+│         lmelp_240324 lmelp_arnaud_viviant 📋                │
+│         (tags orange = manquants dans Calibre)               │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -120,15 +122,20 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 - **Titre du livre** : Affiché en haut de page
 - **Liens externes** : Icônes 80x80px cliquables vers les services externes
   - **Babelio** : Fiche du livre sur Babelio.com (si disponible)
-  - **Anna's Archive** : Recherche du livre sur Anna's Archive (toujours disponible)
+  - **Anna's Archive** : Recherche du livre sur Anna's Archive — **masqué** si le livre est dans Calibre (inutile si déjà possédé)
 - **Auteur** : Nom de l'auteur (clickable)
 - **Éditeur** : Maison d'édition
 - **Nombre d'émissions** : Total des mentions dans les émissions
-- **Tags Calibre** : Tags calculés dynamiquement, affichés comme badges violets en police monospace à côté du compteur d'émissions. Trois types de tags :
+- **Statut Calibre** : Affiché à côté du compteur d'émissions si Calibre est configuré :
+  - **📚** : Indicateur "Dans la bibliothèque Calibre"
+  - **✓ Lu** (vert) ou **◯ Non lu** (gris) : Statut de lecture
+  - **N/10** (bleu) : Note Calibre si le livre a été lu et noté
+- **Tags Calibre** : Tags calculés dynamiquement à côté du compteur d'émissions. Trois types de tags :
     - `lmelp_yyMMdd` : un tag par émission où le livre a été discuté (date au format année-mois-jour sur 2 chiffres)
     - `lmelp_prenom_nom` : un tag par critique ayant donné un coup de cœur au livre
-    - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier dès que des tags `lmelp_*` existent, que le livre soit ou non dans Calibre. L'utilisateur dispose ainsi de tous les tags prêts à copier-coller dans Calibre
-    - Un bouton 📋 permet de copier tous les tags (séparés par des virgules) dans le presse-papier. Le bouton affiche ✓ pendant 2 secondes après la copie
+    - Tag de bibliothèque virtuelle (ex: `guillaume`) : affiché en premier dès que des tags `lmelp_*` existent, que le livre soit ou non dans Calibre. **Masqué du delta** quand le livre est dans Calibre (non informatif)
+    - **Couleur des tags** : Si le livre est dans Calibre, les tags `lmelp_` manquants dans Calibre apparaissent en **orange avec bordure pointillée** ; les tags déjà présents en **violet** (normal)
+    - Un bouton 📋 permet de copier tous les tags (séparés par des virgules) dans le presse-papier. Quand le livre est dans Calibre, le bouton inclut aussi les tags "notables" (`babelio`, `lu`, `onkindle`) déjà présents dans Calibre. Le bouton affiche ✓ pendant 2 secondes après la copie
     - Si aucun tag n'est disponible, cette section n'est pas affichée
 - **Liste des émissions** : Toutes les émissions mentionnant ce livre
   - Date de l'émission (clickable vers la page émission)
@@ -144,10 +151,10 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 ### Actions disponibles
 
 - **Cliquer sur l'icône Babelio** : Ouverture de la fiche livre sur Babelio.com (nouvel onglet)
-- **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet)
+- **Cliquer sur l'icône Anna's Archive** : Recherche du livre (titre + auteur) sur Anna's Archive (nouvel onglet) — disponible uniquement si le livre n'est pas dans Calibre
 - **Ré-extraire depuis Babelio** : Bouton orange visible uniquement si le livre possède une URL Babelio. Scrape les données fraîches (titre, auteur, éditeur) depuis Babelio et les applique automatiquement si des différences sont détectées. Une notification toast confirme le résultat (succès en vert, données identiques en bleu, erreur en rouge). L'éditeur mis à jour est stocké via la collection `editeurs` dédiée
 - **Cliquer sur l'auteur** : Accès à la page détail de cet auteur
-- **Copier les tags Calibre** : Bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier
+- **Copier les tags Calibre** : Bouton 📋 copie tous les tags séparés par des virgules dans le presse-papier. Quand le livre est dans Calibre, inclut les tags "notables" (`babelio`, `lu`, `onkindle`) déjà présents dans Calibre
 - **Cliquer sur une émission** : Navigation vers la page émission correspondante
 - **Cliquer sur un critique** : Accès à la page détail du critique
 - **Retour au Dashboard** : Bouton "🏠 Accueil" en haut de page
