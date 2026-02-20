@@ -207,6 +207,32 @@ La page affiche 3 catégories de corrections, chacune dans une section dépliabl
 
 Les données de matching sont mises en cache pendant 5 minutes. Un bouton **"Rafraîchir"** permet d'invalider le cache manuellement après avoir appliqué des corrections dans Calibre.
 
+### Page OnKindle
+
+La page **OnKindle** (`/onkindle`) affiche tous les livres Calibre portant le tag `onkindle`, enrichis avec les données MongoDB quand une correspondance est trouvée.
+
+**Accès** : Depuis le Dashboard, cliquez sur la carte **"OnKindle"**.
+
+**Informations affichées** :
+
+| Colonne | Description |
+|---------|-------------|
+| **Auteur** | Lien vers la fiche auteur si trouvé dans MongoDB, texte sinon |
+| **Titre** | Lien vers la fiche livre si trouvé dans MongoDB, texte sinon |
+| **Note** | Note moyenne des critiques LMELP (badge coloré), si disponible |
+| **Babelio** | Icône cliquable vers la fiche Babelio, si disponible |
+
+**Fonctionnalités** :
+
+- **Tri par colonnes** : Cliquez sur Auteur, Titre ou Note pour trier. Le tri est accent-insensitif ("À prendre" s'affiche avant "Zola").
+- **Persistance du tri** : Le tri choisi est mémorisé dans l'URL (`?sort=auteur&dir=asc`) et restauré au rechargement de la page.
+- **Enrichissement MongoDB** : Les livres Calibre matchés avec MongoDB affichent leur note LMELP et leur lien Babelio.
+- **Dégradation gracieuse** : Si Calibre n'est pas disponible, un message explicite est affiché.
+
+**Correspondance Calibre-MongoDB** :
+
+L'algorithme de matching utilise la normalisation des titres (`normalize_for_matching()`), insensible aux accents, ligatures, tirets et apostrophes typographiques. Un livre Calibre sans correspondance MongoDB s'affiche quand même (titre et auteur en texte simple, sans note ni lien).
+
 ### Recherche avancée étendue
 
 Dans la page de **recherche avancée**, nouveau champ :

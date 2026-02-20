@@ -112,7 +112,50 @@ Retourne un dict avec 3 catégories + statistiques :
 | `/api/calibre/corrections` | GET | Corrections groupées (auteurs, titres, tags manquants) |
 | `/api/calibre/cache/invalidate` | POST | Invalide le cache de 5 minutes |
 
+| `/api/calibre/onkindle` | GET | Livres Calibre tagués `onkindle`, enrichis MongoDB |
+
 **Placement des routes** : Ces routes sont définies AVANT `/api/calibre/books/{book_id}` pour éviter la capture par la route paramétrée.
+
+### Endpoint `/api/calibre/onkindle`
+
+Retourne les livres Calibre portant le tag `onkindle`, enrichis avec les données MongoDB correspondantes.
+
+**Réponse** :
+```json
+{
+  "books": [
+    {
+      "calibre_id": 42,
+      "titre": "À prendre ou à laisser",
+      "auteurs": ["Éric Dupont"],
+      "calibre_rating": 8,
+      "calibre_read": true,
+      "mongo_livre_id": "abc123",
+      "auteur_id": "aut456",
+      "note_moyenne": 8.5,
+      "url_babelio": "https://www.babelio.com/..."
+    }
+  ],
+  "total": 12
+}
+```
+
+**Champs enrichissement** (`mongo_livre_id`, `auteur_id`, `note_moyenne`, `url_babelio`) sont `null` si le livre Calibre n'a pas de correspondance dans MongoDB.
+
+**Méthode** : `CalibreMatchingService.get_onkindle_books()` — filtre les livres Calibre sur `"onkindle" in tags`, puis apparie avec MongoDB via `normalize_for_matching()` et enrichit avec `MongoDBService.get_notes_for_livres()`.
+
+### `MongoDBService.get_notes_for_livres(livre_ids)`
+
+Agrégation sur la collection `avis` (PAS `avis_critiques`) pour calculer la note moyenne par livre.
+
+```python
+def get_notes_for_livres(self, livre_ids: list[str]) -> dict[str, float]:
+    """Retourne {livre_id: note_moyenne} pour les IDs donnés."""
+    # Pipeline d'agrégation sur avis_collection
+    # avis.livre_oid est un String → pas de conversion ObjectId
+```
+
+**Important** : La collection `avis_critiques` contient les résumés LLM (pas de champ `note`). La collection `avis` contient les notes réelles des critiques.
 
 ## API Calibre Python
 

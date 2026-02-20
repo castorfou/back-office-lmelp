@@ -417,3 +417,76 @@ class CalibreMatchingService:
                 "total_matches": len(matches),
             },
         }
+
+    def get_onkindle_books(self) -> list[dict[str, Any]]:
+        """Retourne les livres Calibre tagués 'onkindle', enrichis avec les données MongoDB.
+
+        Pour chaque livre Calibre avec le tag 'onkindle', cherche le livre correspondant
+        dans MongoDB (matching par titre normalisé) et enrichit avec :
+        - mongo_livre_id, auteur_id, url_babelio (depuis livres collection)
+        - note_moyenne (calculée depuis avis_critiques)
+
+        Returns:
+            Liste de dicts triés par titre, avec données Calibre + enrichissement MongoDB.
+        """
+        if not self._calibre_service._available:
+            return []
+
+        try:
+            calibre_books, mongo_livres, authors_by_id = self._get_data()
+        except Exception as e:
+            logger.error(f"Erreur récupération données onkindle: {e}")
+            return []
+
+        # Filter calibre books with onkindle tag
+        onkindle_books = [b for b in calibre_books if "onkindle" in b.get("tags", [])]
+
+        if not onkindle_books:
+            return []
+
+        # Build MongoDB lookup: norm_title → mongo livre
+        mongo_by_norm: dict[str, dict[str, Any]] = {}
+        for livre in mongo_livres:
+            norm = normalize_for_matching(livre.get("titre", ""))
+            if norm:
+                mongo_by_norm[norm] = livre
+
+        # Build result with MongoDB enrichment
+        matched_livre_ids = []
+        pre_result = []
+        for book in sorted(onkindle_books, key=lambda b: b["title"]):
+            norm = normalize_for_matching(book["title"])
+            mongo_livre = mongo_by_norm.get(norm)
+
+            mongo_livre_id = None
+            auteur_id = None
+            url_babelio = None
+
+            if mongo_livre:
+                mongo_livre_id = str(mongo_livre["_id"])
+                auteur_id_raw = mongo_livre.get("auteur_id")
+                auteur_id = str(auteur_id_raw) if auteur_id_raw else None
+                url_babelio = mongo_livre.get("url_babelio")
+                matched_livre_ids.append(mongo_livre_id)
+
+            pre_result.append(
+                {
+                    "calibre_id": book["id"],
+                    "titre": book["title"],
+                    "auteurs": book["authors"],
+                    "calibre_rating": book.get("rating"),
+                    "calibre_read": book.get("read"),
+                    "mongo_livre_id": mongo_livre_id,
+                    "auteur_id": auteur_id,
+                    "url_babelio": url_babelio,
+                    "note_moyenne": None,  # Will be filled below
+                }
+            )
+
+        # Enrich with notes from avis_critiques
+        notes_by_id = self._mongodb_service.get_notes_for_livres(matched_livre_ids)
+        for item in pre_result:
+            if item["mongo_livre_id"]:
+                item["note_moyenne"] = notes_by_id.get(item["mongo_livre_id"])
+
+        return pre_result

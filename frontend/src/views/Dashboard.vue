@@ -130,9 +130,9 @@
         </div>
       </section>
 
-      <!-- Section Fonctions -->
+      <!-- Section Consultation -->
       <section class="functions-section">
-        <h2>Fonctions disponibles</h2>
+        <h2>Consultation</h2>
         <div class="functions-grid">
           <div
             class="function-card clickable"
@@ -158,17 +158,45 @@
 
           <div
             class="function-card clickable"
-            data-testid="function-calibre-corrections"
-            @click="navigateToCalibreCorrections"
+            data-testid="function-onkindle"
+            @click="navigateToOnKindle"
+          >
+            <div class="function-icon">📱</div>
+            <h3>OnKindle</h3>
+            <p>Livres Calibre sur la liseuse avec notes et liens Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-advanced-search"
+            @click="navigateToAdvancedSearch"
+          >
+            <div class="function-icon">🔎</div>
+            <h3>Recherche avancée</h3>
+            <p>Recherche avec filtres et critères spécifiques</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-calibre-library"
+            @click="navigateToCalibre"
           >
             <div class="function-icon">
               <img :src="calibreIcon" alt="Calibre" class="function-icon-img" />
             </div>
-            <h3>Corrections Calibre</h3>
-            <p>Liaison MongoDB-Calibre : auteurs, titres et tags manquants</p>
+            <h3>Bibliothèque Calibre</h3>
+            <p>Consultation et gestion de la bibliothèque personnelle</p>
             <div class="function-arrow">→</div>
           </div>
+        </div>
+      </section>
 
+      <!-- Section Correction de la base -->
+      <section class="functions-section">
+        <h2>Correction de la base</h2>
+        <div class="functions-grid">
           <div
             class="function-card clickable"
             data-testid="function-generation-avis"
@@ -177,17 +205,6 @@
             <div class="function-icon">🤖</div>
             <h3>Génération Avis Critiques (LLM)</h3>
             <p>Génération automatique 2 phases depuis transcriptions</p>
-            <div class="function-arrow">→</div>
-          </div>
-
-          <div
-            class="function-card clickable"
-            data-testid="function-episode-edit"
-            @click="navigateToEpisodes"
-          >
-            <div class="function-icon">📝</div>
-            <h3>Episode - Modification Titre/Description</h3>
-            <p>Sélectionnez un épisode pour modifier son titre et sa description</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -215,19 +232,6 @@
 
           <div
             class="function-card clickable"
-            data-testid="function-babelio-test"
-            @click="navigateToBabelioTest"
-          >
-            <div class="function-icon">
-              <img :src="babelioIcon" alt="Babelio" class="function-icon-img" />
-            </div>
-            <h3>Recherche Babelio</h3>
-            <p>Vérification orthographique des auteurs, livres et éditeurs via Babelio</p>
-            <div class="function-arrow">→</div>
-          </div>
-
-          <div
-            class="function-card clickable"
             data-testid="function-babelio-migration"
             @click="navigateToBabelioMigration"
           >
@@ -236,6 +240,41 @@
             </div>
             <h3>Liaison Babelio</h3>
             <p>Lier Auteurs et Livres aux pages Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-emissions-correction"
+            @click="navigateToEmissions"
+          >
+            <div class="function-icon">📺</div>
+            <h3>Émissions</h3>
+            <p>Vérification et correction des émissions (badge statut, liens)</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-episode-edit"
+            @click="navigateToEpisodes"
+          >
+            <div class="function-icon">📝</div>
+            <h3>Episode - Modification Titre/Description</h3>
+            <p>Sélectionnez un épisode pour modifier son titre et sa description</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-babelio-test"
+            @click="navigateToBabelioTest"
+          >
+            <div class="function-icon">
+              <img :src="babelioIcon" alt="Babelio" class="function-icon-img" />
+            </div>
+            <h3>Recherche Babelio</h3>
+            <p>Vérification orthographique des auteurs, livres et éditeurs via Babelio</p>
             <div class="function-arrow">→</div>
           </div>
 
@@ -252,17 +291,6 @@
 
           <div
             class="function-card clickable"
-            data-testid="function-advanced-search"
-            @click="navigateToAdvancedSearch"
-          >
-            <div class="function-icon">🔎</div>
-            <h3>Recherche avancée</h3>
-            <p>Recherche avec filtres et critères spécifiques</p>
-            <div class="function-arrow">→</div>
-          </div>
-
-          <div
-            class="function-card clickable"
             data-testid="function-masquer-episodes"
             @click="navigateToMasquerEpisodes"
           >
@@ -274,29 +302,15 @@
 
           <div
             class="function-card clickable"
-            data-testid="function-calibre-library"
-            @click="navigateToCalibre"
+            data-testid="function-calibre-corrections"
+            @click="navigateToCalibreCorrections"
           >
             <div class="function-icon">
               <img :src="calibreIcon" alt="Calibre" class="function-icon-img" />
             </div>
-            <h3>Bibliothèque Calibre</h3>
-            <p>Consultation et gestion de la bibliothèque personnelle</p>
+            <h3>Corrections Calibre</h3>
+            <p>Liaison MongoDB-Calibre : auteurs, titres et tags manquants</p>
             <div class="function-arrow">→</div>
-          </div>
-
-          <div class="function-card coming-soon">
-            <div class="function-icon">📊</div>
-            <h3>Rapports et analyses</h3>
-            <p>Générer des rapports sur l'état des corrections</p>
-            <div class="coming-soon-label">Bientôt disponible</div>
-          </div>
-
-          <div class="function-card coming-soon">
-            <div class="function-icon">⚙️</div>
-            <h3>Configuration</h3>
-            <p>Paramètres et configuration du système</p>
-            <div class="coming-soon-label">Bientôt disponible</div>
           </div>
         </div>
       </section>
@@ -612,6 +626,10 @@ export default {
       this.$router.push('/calibre-corrections');
     },
 
+    navigateToOnKindle() {
+      this.$router.push('/onkindle');
+    },
+
     navigateToGenerationAvis() {
       this.$router.push('/generation-avis-critiques');
     },
@@ -665,6 +683,11 @@ export default {
   margin-bottom: 1.5rem;
   color: #333;
   text-align: center;
+}
+
+.functions-section + .functions-section {
+  border-top: 2px solid #e8eaf0;
+  padding-top: 1rem;
 }
 
 .stats-grid {
