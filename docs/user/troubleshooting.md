@@ -350,6 +350,38 @@ localStorage.debug = '*'
 
 ## Problèmes connus et workarounds
 
+### Lien RadioFrance incorrect (pointe vers un clip de livre au lieu de l'émission complète)
+
+**Symptômes :**
+- Le logo RadioFrance cliquable ouvre une page de clip (~9 min) au lieu de l'émission complète (~47 min)
+- L'URL stockée contient un titre de livre (ex: `aqua-de-gaspard-koenig-...`) au lieu du titre de l'épisode
+
+**Cause :** L'URL a été récupérée et sauvegardée avant que le filtrage par durée soit en place (avant la version #215).
+
+**Solution :** Supprimer le champ `episode_page_url` de l'épisode concerné dans MongoDB, puis laisser l'interface refaire le fetch automatiquement.
+
+1. **Identifier l'ID MongoDB de l'épisode** via la page émissions ou livres-auteurs (visible dans l'URL ou les outils développeur)
+
+2. **Supprimer le champ en MongoDB** :
+   ```javascript
+   // Dans MongoDB Compass ou mongosh :
+   use masque_et_la_plume
+   db.episodes.updateOne(
+     { _id: ObjectId("VOTRE_EPISODE_ID") },
+     { $unset: { episode_page_url: "" } }
+   )
+   ```
+
+3. **Naviguer vers la page de l'épisode** :
+   - Page émission : `/emissions/YYYYMMDD` (ex: `/emissions/20260213`)
+   - Page livres-auteurs : sélectionner l'épisode dans la liste déroulante
+
+4. **L'URL correcte est refetchée automatiquement** à l'affichage, car le champ `episode_page_url` est absent. Le logo RadioFrance réapparaît avec le lien vers l'émission complète.
+
+**Vérification :** Le nouveau lien doit pointer vers une URL de type `le-masque-et-la-plume-du-...` (et non un titre de livre individuel).
+
+---
+
 ### 1. Port 54321 occupé (Issue #1 - RÉSOLU)
 
 **Problème précédent :** Le port 54321 restait occupé après arrêt du serveur FastAPI
