@@ -18,6 +18,7 @@ import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
 import DuplicateBooks from '../views/DuplicateBooks.vue';
 import Palmares from '../views/Palmares.vue';
 import CalibreCorrections from '../views/CalibreCorrections.vue';
+import OnKindle from '../views/OnKindle.vue';
 
 const routes = [
   {
@@ -146,6 +147,14 @@ const routes = [
     component: CalibreCorrections,
     meta: {
       title: 'Corrections Calibre - Back-office LMELP'
+    }
+  },
+  {
+    path: '/onkindle',
+    name: 'OnKindle',
+    component: OnKindle,
+    meta: {
+      title: 'OnKindle - Back-office LMELP'
     }
   },
   {

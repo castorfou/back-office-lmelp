@@ -285,6 +285,17 @@
             <div class="function-arrow">→</div>
           </div>
 
+          <div
+            class="function-card clickable"
+            data-testid="function-onkindle"
+            @click="navigateToOnKindle"
+          >
+            <div class="function-icon">📱</div>
+            <h3>OnKindle</h3>
+            <p>Livres Calibre sur la liseuse avec notes et liens Babelio</p>
+            <div class="function-arrow">→</div>
+          </div>
+
           <div class="function-card coming-soon">
             <div class="function-icon">📊</div>
             <h3>Rapports et analyses</h3>
@@ -610,6 +621,10 @@ export default {
 
     navigateToCalibreCorrections() {
       this.$router.push('/calibre-corrections');
+    },
+
+    navigateToOnKindle() {
+      this.$router.push('/onkindle');
     },
 
     navigateToGenerationAvis() {

@@ -2497,6 +2497,34 @@ class MongoDBService:
             "total_pages": total_pages,
         }
 
+    def get_notes_for_livres(self, livre_ids: list[str]) -> dict[str, float]:
+        """Calcule les notes moyennes pour une liste de livres.
+
+        Args:
+            livre_ids: Liste des IDs de livres (strings)
+
+        Returns:
+            Dict {livre_id: note_moyenne} pour les livres ayant au moins un avis noté
+        """
+        if self.avis_collection is None or not livre_ids:
+            return {}
+
+        pipeline: list[dict[str, Any]] = [
+            {"$match": {"livre_oid": {"$in": livre_ids}, "note": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": "$livre_oid",
+                    "note_moyenne": {"$avg": "$note"},
+                }
+            },
+        ]
+
+        result = {}
+        for doc in self.avis_collection.aggregate(pipeline):
+            result[doc["_id"]] = round(doc["note_moyenne"], 1)
+
+        return result
+
     # --- Editeur management (Issue #189) ---
 
     def search_editeur_by_name(self, name: str) -> dict[str, Any] | None:

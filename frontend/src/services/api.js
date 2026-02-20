@@ -443,6 +443,15 @@ export const calibreService = {
   async getAuthors(params = {}) {
     const response = await api.get('/calibre/authors', { params });
     return response.data;
+  },
+
+  /**
+   * Récupère les livres Calibre tagués 'onkindle', enrichis avec les données MongoDB
+   * @returns {Promise<Object>} { books: Array, total: number }
+   */
+  async getOnKindleBooks() {
+    const response = await api.get('/calibre/onkindle');
+    return response.data;
   }
 };
 

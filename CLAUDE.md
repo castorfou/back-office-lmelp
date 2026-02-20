@@ -692,13 +692,36 @@ tag = "lmelp_" + normalize_for_matching(critic_name).replace(" ", "_")
 # "Nelly Kapriélian" → "lmelp_nelly_kaprielian"
 ```
 
-**Frontend (JavaScript)**:
+**Frontend (JavaScript) - Filtrage/recherche** :
 ```javascript
 import { removeAccents } from '@/utils/textUtils';
 
 // Normaliser pour comparaison simple
 const normalized = removeAccents(searchText.toLowerCase());
 const match = removeAccents(data.toLowerCase()).includes(normalized);
+```
+
+**Frontend (JavaScript) - Tri de tableaux** :
+
+**CRITIQUE** : Ne jamais utiliser `<`/`>` ou `.toLowerCase()` pour trier du texte français — `À` (U+00C0) se retrouve après `Z` !
+
+```javascript
+// ❌ MAUVAIS - "À prendre" apparaît en DERNIER (après "Zola")
+sorted.sort((a, b) => {
+  const valA = (a.titre || '').toLowerCase();
+  const valB = (b.titre || '').toLowerCase();
+  if (valA < valB) return -1;  // Comparaison Unicode brute : À > Z !
+  return valA > valB ? 1 : 0;
+});
+
+// ✅ CORRECT - localeCompare avec locale française
+sorted.sort((a, b) => {
+  const strA = a.titre || '';
+  const strB = b.titre || '';
+  const cmp = strA.localeCompare(strB, 'fr', { sensitivity: 'base' });
+  return sortDir === 'asc' ? cmp : -cmp;
+});
+// { sensitivity: 'base' } traite à/a/A/À comme équivalents pour le tri
 ```
 
 **Exemples concrets**:

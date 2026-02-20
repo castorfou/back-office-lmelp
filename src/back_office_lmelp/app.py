@@ -893,6 +893,29 @@ async def get_calibre_statistics() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
 
 
+@app.get("/api/calibre/onkindle", response_model=None)
+async def get_onkindle_books() -> dict[str, Any] | JSONResponse:
+    """Retourne les livres Calibre tagués 'onkindle', enrichis avec les données MongoDB.
+
+    Returns:
+        Dict avec 'books' (liste) et 'total' (int)
+
+    Raises:
+        503: Si Calibre n'est pas disponible
+    """
+    if not calibre_service.is_available():
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Calibre non disponible"},
+        )
+
+    try:
+        books = calibre_matching_service.get_onkindle_books()
+        return {"books": books, "total": len(books)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+
+
 @app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
 async def get_livres_auteurs(
     episode_oid: str, limit: int | None = None
