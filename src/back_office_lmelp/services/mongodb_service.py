@@ -1510,12 +1510,34 @@ class MongoDBService:
 
                 # Construire le contexte depuis les avis matchés pour cette émission
                 matched_avis = emissions_map.get(emission_id_str, [])
+
+                # Pré-charger les vrais titres depuis livres_collection (batch)
+                livre_oids = [
+                    avis.get("livre_oid")
+                    for avis in matched_avis
+                    if avis.get("livre_oid")
+                ]
+                livres_titles: dict[str, str] = {}
+                if livre_oids and self.livres_collection is not None:
+                    livre_oids_as_objectid = [
+                        ObjectId(oid) for oid in livre_oids if oid
+                    ]
+                    for livre in self.livres_collection.find(
+                        {"_id": {"$in": livre_oids_as_objectid}},
+                        {"titre": 1},
+                    ):
+                        livres_titles[str(livre["_id"])] = livre.get("titre", "")
+
                 context_parts = []
                 seen_books: set[str] = set()
                 query_lower = query_stripped.lower()
                 for avis in matched_avis:
                     auteur = avis.get("auteur_nom_extrait", "")
-                    titre = avis.get("livre_titre_extrait", "")
+                    livre_oid = avis.get("livre_oid", "")
+                    # Utiliser le vrai titre depuis livres, fallback sur extrait
+                    titre = livres_titles.get(livre_oid) or avis.get(
+                        "livre_titre_extrait", ""
+                    )
                     commentaire = avis.get("commentaire", "")
                     book_key = f"{auteur}-{titre}"
                     if book_key not in seen_books:

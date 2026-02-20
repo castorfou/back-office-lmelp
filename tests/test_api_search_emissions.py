@@ -303,6 +303,58 @@ class TestSearchEmissionsService:
             f"Le search_context doit contenir l'extrait du commentaire, got: '{search_context}'"
         )
 
+    def test_search_emissions_uses_real_title_from_livres_collection(self):
+        """search_emissions() utilise le vrai titre depuis livres (pas livre_titre_extrait tronqué)."""
+        service = MongoDBService.__new__(MongoDBService)
+
+        emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        livre_id = ObjectId("6994e74f95e08117826da195")
+        emission_date = datetime(2026, 2, 13)
+
+        mock_avis_collection = MagicMock()
+        mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+
+        # avis.livre_titre_extrait est tronqué ("Départ") mais le vrai titre est "Départ(s)"
+        mock_avis_collection.find.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": str(emission_id),
+                "livre_oid": str(livre_id),
+                "livre_titre_extrait": "Départ",  # tronqué !
+                "auteur_nom_extrait": "Julian Barnes",
+                "editeur_extrait": "Stock",
+                "commentaire": "Roman qui donne envie d'aimer la vie",
+                "section": "programme",
+            }
+        ]
+        mock_avis_collection.count_documents.return_value = 1
+
+        mock_emissions_collection.find.return_value.sort.return_value = [
+            {"_id": emission_id, "date": emission_date}
+        ]
+
+        # livres retourne le vrai titre complet (find() itérable)
+        mock_livres_collection.find.return_value = [
+            {"_id": livre_id, "titre": "Départ(s)"}
+        ]
+
+        service.avis_collection = mock_avis_collection
+        service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+
+        result = service.search_emissions("Barnes")
+
+        emission = result["emissions"][0]
+        search_context = emission["search_context"]
+
+        assert "Départ(s)" in search_context, (
+            f"Le titre doit venir de livres.titre ('Départ(s)'), got: '{search_context}'"
+        )
+        assert "Départ" in search_context and "Départ(s)" in search_context, (
+            "Le titre complet doit apparaître dans le contexte"
+        )
+
     def test_search_emissions_empty_result_when_no_match(self):
         """search_emissions() retourne liste vide si aucun résultat."""
         service = MongoDBService.__new__(MongoDBService)
