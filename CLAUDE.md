@@ -539,6 +539,37 @@ stopPolling() {
 
 **Advantages**: More control, proper cleanup, no infinite reconnection.
 
+### RadioFrance JSON-LD Structure
+
+**CRITICAL**: RadioFrance JSON-LD uses non-standard fields — always verify before implementing:
+
+- **Duration**: in `RadioEpisode.mainEntity.duration` (NOT `timeRequired` which is absent)
+- **Date**: in `RadioEpisode.dateCreated` (NOT `datePublished` which belongs to `NewsArticle`)
+- **Duration format**: `P0Y0M0DT0H47M40S` (full ISO 8601, not short `PT47M25S`)
+- **Publication delay**: full episodes are published 1-2 days after broadcast date
+
+```python
+# Structure réelle RadioFrance (deux scripts JSON-LD sur la même page) :
+# Script 1 - NewsArticle: {"@type": "NewsArticle", "datePublished": "2026-02-15T..."}
+# Script 2 - RadioEpisode: {
+#   "@type": "RadioEpisode",
+#   "dateCreated": "2026-02-15T09:12:30.000Z",   ← date à utiliser
+#   "mainEntity": {
+#     "@type": "AudioObject",
+#     "duration": "P0Y0M0DT0H47M40S"             ← durée à utiliser
+#   }
+# }
+```
+
+**Distinguishing full episodes from book clips** (same search results page):
+- Full episode: ~47 min (`duration >= 1800s`), `dateCreated` = broadcast Sunday + 2 days
+- Book clip: ~9 min (`duration < 600s`), `dateCreated` = exact broadcast date
+
+**Correct filter**: `duration >= min_duration_seconds AND |page_date - episode_date| <= 7 days`
+- ❌ Date-only filter: accepts clips (same date) and rejects full episode (published 2 days later)
+- ❌ Duration-only filter: accepts other weeks' full episodes (no date bound)
+- ✅ Combined filter: accepts only the right week's full episode
+
 ### External API Pagination with Guard Rails
 
 **When searching external APIs that paginate results:**
