@@ -47,6 +47,9 @@ def mock_mongodb_service():
         mock_service_source.search_editeurs = MagicMock(
             return_value={"editeurs": [], "total_count": 0}
         )
+        mock_service_source.search_emissions = MagicMock(
+            return_value={"emissions": [], "total_count": 0}
+        )
         mock_service_source.search_critical_reviews_for_authors_books = MagicMock(
             return_value={"editeurs": []}
         )
