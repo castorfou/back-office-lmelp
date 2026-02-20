@@ -77,31 +77,7 @@
           </ul>
         </div>
 
-        <!-- Épisodes -->
-        <div v-if="results.episodes.length > 0" class="result-category">
-          <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }}/{{ results.episodes_total_count || results.episodes.length }})</h4>
-          <ul class="result-list">
-            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item" :class="{'clickable-item': episode.emission_date}">
-              <router-link v-if="episode.emission_date" :to="`/emissions/${episode.emission_date}`" class="result-link episode-link">
-                <div class="episode-content">
-                  <div class="episode-main-info">
-                    <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                    <div class="episode-context" v-html="formatSearchContext(episode)"></div>
-                  </div>
-                </div>
-                <span class="result-arrow">→</span>
-              </router-link>
-              <div v-else class="episode-content">
-                <div class="episode-main-info">
-                  <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                  <div class="episode-context" v-html="formatSearchContext(episode)"></div>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        <!-- Émissions -->
+        <!-- Émissions (les épisodes ne sont pas affichés dans la recherche rapide) -->
         <div v-if="results.emissions && results.emissions.length > 0" class="result-category">
           <h4 class="category-title">📻 ÉMISSIONS ({{ results.emissions.length }}/{{ results.emissions_total_count || results.emissions.length }})</h4>
           <ul class="result-list">
@@ -115,12 +91,6 @@
               </router-link>
             </li>
           </ul>
-        </div>
-
-        <!-- Catégories vides - ne s'affichent plus pour économiser l'espace -->
-        <div v-if="results.episodes.length === 0" class="result-category empty">
-          <h4 class="category-title">🎙️ ÉPISODES (0)</h4>
-          <p class="empty-message">(aucun épisode contenant "{{ lastSearchQuery }}")</p>
         </div>
 
         <!-- Lien vers recherche avancée -->
@@ -345,7 +315,6 @@ export default {
 
       // Extraire environ 10 mots avant et après
       const words = text.split(' ');
-      const allText = words.join(' ');
 
       // Trouver l'index du mot contenant la requête
       let wordIndex = 0;

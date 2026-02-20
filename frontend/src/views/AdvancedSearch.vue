@@ -220,7 +220,7 @@ export default {
       error: null,
       showResults: false,
       filters: {
-        episodes: true,
+        episodes: false,
         auteurs: true,
         livres: true,
         editeurs: true,

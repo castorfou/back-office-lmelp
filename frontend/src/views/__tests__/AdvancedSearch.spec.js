@@ -50,6 +50,45 @@ const mockSearchResults = {
   },
 };
 
+describe('AdvancedSearch.vue - Default filters (Issue #219)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('should have episodes filter unchecked by default', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/search', name: 'search', component: AdvancedSearch }],
+    });
+
+    // Mount without navigating to any route with query
+    const wrapper = mount(AdvancedSearch, {
+      global: { plugins: [router] },
+    });
+
+    // The episodes filter should be false by default
+    expect(wrapper.vm.filters.episodes).toBe(false);
+  });
+
+  it('should not include episodes in selectedEntities by default', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/search', name: 'search', component: AdvancedSearch }],
+    });
+
+    const wrapper = mount(AdvancedSearch, {
+      global: { plugins: [router] },
+    });
+
+    expect(wrapper.vm.selectedEntities).not.toContain('episodes');
+    // Other entities should still be selected
+    expect(wrapper.vm.selectedEntities).toContain('auteurs');
+    expect(wrapper.vm.selectedEntities).toContain('livres');
+    expect(wrapper.vm.selectedEntities).toContain('editeurs');
+    expect(wrapper.vm.selectedEntities).toContain('emissions');
+  });
+});
+
 describe('AdvancedSearch.vue - Navigation URL (Issue #219)', () => {
   let router;
 
