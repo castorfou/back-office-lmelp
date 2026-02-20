@@ -279,9 +279,8 @@ export default {
     // Debounce la fonction de recherche (300ms)
     this.debouncedSearch = debounce(this.performSearch, 300);
 
-    // Récupérer la requête depuis l'URL si présente
-    const urlParams = new URLSearchParams(window.location.search);
-    const queryFromUrl = urlParams.get('q');
+    // Récupérer la requête depuis l'URL si présente (via Vue Router)
+    const queryFromUrl = this.$route.query.q;
     if (queryFromUrl && queryFromUrl.length >= 3) {
       this.searchQuery = queryFromUrl;
       this.performSearch();
@@ -349,9 +348,8 @@ export default {
         this.pagination = response.pagination;
         this.showResults = true;
 
-        // Mettre à jour l'URL sans recharger la page
-        const newUrl = `${window.location.pathname}?q=${encodeURIComponent(query)}`;
-        window.history.pushState({}, '', newUrl);
+        // Mettre à jour l'URL via Vue Router (préserve l'historique de navigation)
+        await this.$router.replace({ path: '/search', query: { q: query } });
       } catch (error) {
         console.error('Erreur lors de la recherche:', error);
         this.error = error.message || 'Une erreur est survenue';
@@ -388,7 +386,7 @@ export default {
       this.filters.emissions = false;
     },
 
-    clearSearch() {
+    async clearSearch() {
       this.searchQuery = '';
       this.showResults = false;
       this.error = null;
@@ -406,8 +404,8 @@ export default {
         emissions: [],
         emissions_total_count: 0
       };
-      // Nettoyer l'URL
-      window.history.pushState({}, '', window.location.pathname);
+      // Nettoyer l'URL via Vue Router
+      await this.$router.replace({ path: '/search' });
     },
 
     formatDate(dateString) {
