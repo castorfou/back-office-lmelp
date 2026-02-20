@@ -412,3 +412,246 @@ class TestRadioFranceService:
             # THEN: Devrait retourner l'URL malgré le datetime object
             assert result is not None
             assert "test-episode" in result
+
+
+class TestRadioFranceDurationFilter:
+    """Tests pour le filtrage par durée - Issue #215.
+
+    RadioFrance crée deux types d'URLs pour une même date d'émission :
+    1. Clip spécifique à un livre (court, < 15 min) - aqua-de-gaspard-koenig-3030201
+    2. Émission complète (long, > 40 min) - le-masque-et-la-plume-du-dimanche-15-fevrier-2026-8246986
+
+    Le filtre par durée permet de ne retourner que les émissions complètes.
+    """
+
+    @pytest.fixture
+    def service(self):
+        return RadioFranceService()
+
+    def test_parse_iso_duration_minutes_and_seconds(self, service):
+        """_parse_iso_duration parse PT47M25S correctement."""
+        result = service._parse_iso_duration("PT47M25S")
+        assert result == 2845  # 47*60 + 25
+
+    def test_parse_iso_duration_minutes_only(self, service):
+        """_parse_iso_duration parse PT9M correctement."""
+        result = service._parse_iso_duration("PT9M")
+        assert result == 540  # 9*60
+
+    def test_parse_iso_duration_hours_and_minutes(self, service):
+        """_parse_iso_duration parse PT1H30M correctement."""
+        result = service._parse_iso_duration("PT1H30M")
+        assert result == 5400  # 90*60
+
+    def test_parse_iso_duration_invalid_returns_none(self, service):
+        """_parse_iso_duration retourne None pour un format invalide."""
+        assert service._parse_iso_duration("invalid") is None
+        assert service._parse_iso_duration("") is None
+        assert service._parse_iso_duration("PT") is None
+
+    def test_parse_iso_duration_full_format_from_radiofrance(self, service):
+        """RED TEST - _parse_iso_duration parse le format réel RadioFrance P0Y0M0DT0H47M40S."""
+        # Format réel extrait de RadioFrance (mainEntity.duration)
+        assert service._parse_iso_duration("P0Y0M0DT0H47M40S") == 2860  # 47*60+40
+        assert service._parse_iso_duration("P0Y0M0DT0H9M56S") == 596  # 9*60+56
+
+    @pytest.mark.asyncio
+    async def test_extract_episode_date_and_duration_returns_both(self, service):
+        """_extract_episode_date_and_duration retourne date ET durée depuis mainEntity.duration."""
+        # Format réel RadioFrance : durée dans mainEntity.duration (pas timeRequired)
+        episode_html = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"RadioEpisode","dateCreated":"2026-02-15T09:12:30.000Z","mainEntity":{"@type":"AudioObject","duration":"P0Y0M0DT0H47M40S"}}]}</script>
+</head>
+<body><h1>Test Episode</h1></body>
+</html>"""
+
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=episode_html)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = Mock()
+        mock_session.get = Mock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            date, duration = await service._extract_episode_date_and_duration(
+                "https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/test-8246986"
+            )
+
+        assert date == "2026-02-15"
+        assert duration == 2860  # 47*60 + 40
+
+    @pytest.mark.asyncio
+    async def test_extract_episode_date_and_duration_no_duration_field(self, service):
+        """_extract_episode_date_and_duration retourne None pour la durée si absent."""
+        episode_html = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"RadioEpisode","dateCreated":"2026-02-13T09:00:00.000Z"}]}</script>
+</head>
+<body></body>
+</html>"""
+
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value=episode_html)
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+
+        mock_session = Mock()
+        mock_session.get = Mock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            date, duration = await service._extract_episode_date_and_duration(
+                "https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/test-8246986"
+            )
+
+        assert date == "2026-02-13"
+        assert duration is None
+
+    @pytest.mark.asyncio
+    async def test_search_should_skip_short_book_clips_and_return_full_episode(
+        self, service
+    ):
+        """RED TEST - Issue #215: devrait sauter les clips courts et retourner l'émission complète.
+
+        Reproduit le bug réel: recherche pour l'émission du 13/02/2026 retourne le clip
+        "Aqua de Gaspard Koenig" (9 min) au lieu de l'émission complète (47 min).
+
+        Données réelles RadioFrance :
+            1. aqua-de-gaspard-koenig-3030201 : dateCreated=2026-02-13, duration=9min56s (596s)
+               → rejeté car 596s < 1430s (= 2860//2)
+            2. le-masque-et-la-plume-du-dimanche-15-fevrier-2026-8246986 : dateCreated=2026-02-15, duration=47min40s (2860s)
+               → accepté car 2860s >= 1430s ET date diff=2j ≤ 7j
+
+        Note: L'émission complète a dateCreated=2026-02-15 (diff=2j vs 2026-02-13 de la DB).
+        La fenêtre de ±7 jours permet d'accepter ce décalage de publication RadioFrance.
+
+        WHEN: search_episode_page_url(title, date="2026-02-13", min_duration_seconds=1430)
+        THEN: Retourne l'URL de l'émission complète (47 min), PAS le clip (9 min)
+        """
+        # Charger les fixtures HTML
+        fixtures_dir = pathlib.Path(__file__).parent / "fixtures" / "radiofrance"
+
+        with open(
+            fixtures_dir / "search_2026_02_13_with_clip_and_full.html",
+            encoding="utf-8",
+        ) as f:
+            search_html = f.read()
+
+        with open(
+            fixtures_dir / "episode_2026_02_13_clip_aqua.html", encoding="utf-8"
+        ) as f:
+            clip_html = f.read()
+
+        with open(
+            fixtures_dir / "episode_2026_02_13_full_episode.html", encoding="utf-8"
+        ) as f:
+            full_episode_html = f.read()
+
+        # Mock des réponses HTTP selon l'URL
+        def make_mock_response(html_content):
+            mock_resp = Mock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(return_value=html_content)
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+            return mock_resp
+
+        mock_search_response = make_mock_response(search_html)
+        mock_clip_response = make_mock_response(clip_html)
+        mock_full_episode_response = make_mock_response(full_episode_html)
+
+        def mock_get(url, **kwargs):
+            if "search=" in str(url):
+                return mock_search_response
+            elif "aqua-de-gaspard-koenig" in str(url):
+                return mock_clip_response
+            else:
+                return mock_full_episode_response
+
+        def create_mock_session():
+            mock_session = Mock()
+            mock_session.get = Mock(side_effect=mock_get)
+            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session.__aexit__ = AsyncMock(return_value=None)
+            return mock_session
+
+        with patch("aiohttp.ClientSession", side_effect=lambda: create_mock_session()):
+            result = await service.search_episode_page_url(
+                "CRITIQUE l Gaspard Kœnig, Eric Vuillard, Julian Barnes...",
+                "2026-02-13",
+                min_duration_seconds=1430,  # 2860 // 2 (durée réelle de l'épisode en DB)
+            )
+
+        # THEN: L'URL de l'émission complète (47 min) est retournée, PAS le clip (9 min)
+        assert result is not None
+        assert "aqua-de-gaspard-koenig" not in result, (
+            f"Le clip 'Aqua' (9 min) ne devrait pas être retourné. Got: {result}"
+        )
+        assert "15-fevrier-2026" in result, (
+            f"L'émission complète du 15 février 2026 devrait être retournée. Got: {result}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_with_min_duration_but_no_duration_in_json_ld(self, service):
+        """Avec min_duration_seconds mais sans timeRequired dans JSON-LD: ne pas bloquer.
+
+        Si RadioFrance ne fournit pas timeRequired pour une URL, elle ne doit pas
+        être exclue (dégradation gracieuse).
+
+        GIVEN: Épisode sans timeRequired dans son JSON-LD
+        WHEN: search avec min_duration_seconds=1800
+        THEN: L'URL est quand même retournée (pas d'exclusion si durée inconnue)
+        """
+        # Page de recherche avec 1 seul résultat
+        # Note: HTML links are used as fallback since _extract_all_candidate_urls
+        # looks for top-level ItemList @type (RadioFrance puts it in @graph)
+        search_html = """<html><head>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ItemList","itemListElement":[{"@type":"ListItem","position":1,"url":"https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/test-episode-1234567"}]}]}</script>
+</head><body>
+<a href="/franceinter/podcasts/le-masque-et-la-plume/test-episode-1234567">Test Episode</a>
+</body></html>"""
+
+        # Page de l'épisode SANS timeRequired
+        episode_html = """<html><head>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"RadioEpisode","datePublished":"2026-02-13T09:00:00.000Z"}]}</script>
+</head><body></body></html>"""
+
+        def make_mock_response(html):
+            r = Mock()
+            r.status = 200
+            r.text = AsyncMock(return_value=html)
+            r.__aenter__ = AsyncMock(return_value=r)
+            r.__aexit__ = AsyncMock(return_value=None)
+            return r
+
+        def mock_get(url, **kwargs):
+            if "search=" in str(url):
+                return make_mock_response(search_html)
+            return make_mock_response(episode_html)
+
+        def create_mock_session():
+            s = Mock()
+            s.get = Mock(side_effect=mock_get)
+            s.__aenter__ = AsyncMock(return_value=s)
+            s.__aexit__ = AsyncMock(return_value=None)
+            return s
+
+        with patch("aiohttp.ClientSession", side_effect=lambda: create_mock_session()):
+            result = await service.search_episode_page_url(
+                "Test episode",
+                "2026-02-13",
+                min_duration_seconds=1800,
+            )
+
+        # THEN: L'URL est retournée malgré l'absence de durée (dégradation gracieuse)
+        assert result is not None
+        assert "test-episode-1234567" in result
