@@ -239,11 +239,12 @@ describe('Dashboard - Tests d\'intégration', () => {
     await wrapper.vm.$nextTick();
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    // Vérifier que les nouveaux libellés Issue #128 sont présents
+    // Vérifier que les nouveaux libellés Issue #128 sont présents (avec valeurs non-zéro dans le mock)
     expect(wrapper.text()).toMatch(/livres.*suggérés/i);
     expect(wrapper.text()).toMatch(/livres.*non.*trouvés/i);
     expect(wrapper.text()).toMatch(/épisodes.*sans.*avis.*critiques/i);
-    expect(wrapper.text()).toMatch(/avis.*critiques.*sans.*analyse/i);
+    // Note: avis_critiques_without_analysis=0 dans le mock → carte masquée (Issue #212)
+    expect(wrapper.text()).not.toMatch(/avis.*critiques.*sans.*analyse/i);
     expect(wrapper.text()).toMatch(/livres.*sans.*lien.*babelio/i);
     expect(wrapper.text()).toMatch(/auteurs.*sans.*lien.*babelio/i);
   });
@@ -309,8 +310,9 @@ describe('Dashboard - Tests d\'intégration', () => {
     await wrapper.vm.$nextTick();
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    // Test TDD: "Avis critiques sans analyse" doit être présent
-    expect(wrapper.text()).toMatch(/avis.*critiques.*sans.*analyse/i);
+    // Test TDD: "Avis critiques sans analyse" masquée si valeur=0 (Issue #212)
+    // mockCollectionsStatistics.avis_critiques_without_analysis = 0 → carte masquée
+    expect(wrapper.text()).not.toMatch(/avis.*critiques.*sans.*analyse/i);
 
     // Test TDD: "Livres vérifiés" NE DOIT PAS être présent
     expect(wrapper.text()).not.toMatch(/livres.*vérifiés/i);
