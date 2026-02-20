@@ -27,7 +27,7 @@ Sur la page d'accueil, cliquez sur la carte **"Recherche avancée"** dans la sec
 │  [ Rechercher dans les épisodes, auteurs, livres... ]  [🔍] │
 │                                                              │
 │  Filtrer par catégorie :                                     │
-│  ☑ Épisodes  ☑ Auteurs  ☑ Livres  ☑ Éditeurs               │
+│  ☑ Épisodes  ☑ Auteurs  ☑ Livres  ☑ Éditeurs  ☑ Émissions  │
 │                                                              │
 │  Résultats par page : [10 ▼]                                │
 └─────────────────────────────────────────────────────────────┘
@@ -104,6 +104,7 @@ Utilisez les cases à cocher pour affiner votre recherche :
 - **☑ Auteurs** : Recherche dans les noms d'auteurs
 - **☑ Livres** : Recherche dans les titres de livres
 - **☑ Éditeurs** : Recherche dans les noms d'éditeurs
+- **☑ Émissions** : Recherche dans les livres, auteurs, éditeurs et commentaires des avis de chaque émission
 
 **Par défaut** : Toutes les catégories sont sélectionnées.
 
@@ -162,6 +163,12 @@ Chaque catégorie affiche ses résultats dans un bloc distinct :
 **🏢 Éditeurs**
 - **Nom** de l'éditeur
 - **Compteur total** : Nombre d'éditeurs uniques trouvés
+
+**📻 Émissions**
+- **Date** de l'émission (format JJ/MM/AAAA), lien cliquable vers `/emissions/YYYYMMDD`
+- **Contexte** : Livres/auteurs qui ont matché la recherche dans cette émission
+- Recherche dans : titres de livres, noms d'auteurs, éditeurs, **commentaires des critiques**
+- **Déduplication** : plusieurs avis d'une même émission → un seul résultat
 
 #### Contexte de recherche pour les épisodes
 
@@ -234,7 +241,7 @@ La recherche éditeurs combine plusieurs sources de données :
 
 ### Navigation vers pages de détail
 
-Les résultats de recherche pour **Auteurs** et **Livres** sont clickables et permettent d'accéder aux pages de détail correspondantes :
+Les résultats de recherche pour **Auteurs**, **Livres**, **Épisodes** et **Émissions** sont clickables et permettent d'accéder aux pages correspondantes :
 
 #### Auteurs clickables
 
@@ -269,6 +276,21 @@ Cliquez sur un titre de livre pour accéder à sa **page détail** :
 ```
 
 → Clic sur "L'Étranger" → Page détail avec liste des épisodes
+
+#### Épisodes et Émissions clickables
+
+Les **épisodes** et les **émissions** trouvés dans les résultats sont cliquables et naviguent vers la page émission correspondante (`/emissions/YYYYMMDD`).
+
+**Exemple** :
+```
+🎙️ Épisodes (3 résultats)
+───────────────────────────
+• 13/02/2026  Julian Barnes - Départ  →  ← clickable
+
+📻 Émissions (1 résultat)
+───────────────────────────
+• 13/02/2026  Julian Barnes - Départ  →  ← clickable
+```
 
 📖 *Pour plus de détails, voir [Pages de Détail Auteur et Livre](detail-pages.md)*
 

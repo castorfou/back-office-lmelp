@@ -136,12 +136,45 @@ describe('TextSearchEngine', () => {
     expect(wrapper.text()).toContain('👤 AUTEURS (1)');
     expect(wrapper.text()).toContain('📚 LIVRES (1)');
     // Note: 🏢 ÉDITEURS (0) n'apparaît plus car les catégories vides sont masquées
-    expect(wrapper.text()).toContain('🎙️ ÉPISODES (1/1)'); // Nouveau format avec count total
+    // Note: 🎙️ ÉPISODES n'est pas affiché par défaut dans la recherche rapide
+    expect(wrapper.text()).not.toContain('🎙️ ÉPISODES');
 
-    // Vérifier les résultats
+    // Vérifier les résultats (auteurs et livres)
     expect(wrapper.text()).toContain('Albert Camus');
     expect(wrapper.text()).toContain('L\'Étranger');
-    expect(wrapper.text()).toContain('Épisode sur Camus');
+    // Les épisodes ne s'affichent pas dans la recherche rapide
+    expect(wrapper.text()).not.toContain('Épisode sur Camus');
+  });
+
+  it('does not display episodes section in quick search (disabled by default)', async () => {
+    const mockResults = {
+      query: 'roman',
+      results: {
+        auteurs: [],
+        livres: [],
+        editeurs: [],
+        episodes: [
+          { titre: 'Épisode du 13/02/2026', score: 0.9, match_type: 'partial', date: '2026-02-13', emission_date: '20260213' }
+        ],
+        episodes_total_count: 1,
+        emissions: [],
+        emissions_total_count: 0
+      }
+    };
+
+    searchService.search.mockResolvedValue(mockResults);
+
+    wrapper = mount(TextSearchEngine);
+
+    const input = wrapper.find('input');
+    await input.setValue('roman');
+
+    await new Promise(resolve => setTimeout(resolve, 400));
+    await wrapper.vm.$nextTick();
+
+    // Les épisodes ne doivent pas être affichés dans la recherche rapide
+    expect(wrapper.text()).not.toContain('🎙️ ÉPISODES');
+    expect(wrapper.text()).not.toContain('Épisode du 13/02/2026');
   });
 
   it('displays book results with author name when available', async () => {

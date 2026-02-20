@@ -1981,6 +1981,11 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
         editeurs_search_result = mongodb_service.search_editeurs(q, limit)
         editeurs_list = editeurs_search_result.get("editeurs", [])
 
+        # Recherche dans les émissions (via collection avis - titres/auteurs/éditeurs)
+        emissions_search_result = mongodb_service.search_emissions(q, limit)
+        emissions_list = emissions_search_result.get("emissions", [])
+        emissions_total_count = emissions_search_result.get("total_count", 0)
+
         # Structure de la réponse - utilise les collections dédiées en priorité
         response = {
             "query": q,
@@ -2001,10 +2006,20 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
                         "match_type": episode.get("match_type", "none"),
                         "search_context": episode.get("search_context", ""),
                         "_id": episode.get("_id", ""),
+                        "emission_date": episode.get("emission_date"),
                     }
                     for episode in episodes_list
                 ],
                 "episodes_total_count": episodes_total_count,
+                "emissions": [
+                    {
+                        "_id": emission.get("_id", ""),
+                        "emission_date": emission.get("emission_date"),
+                        "search_context": emission.get("search_context", ""),
+                    }
+                    for emission in emissions_list
+                ],
+                "emissions_total_count": emissions_total_count,
             },
         }
 
@@ -2057,7 +2072,7 @@ async def advanced_search(
         )
 
     # Parser les entités demandées
-    valid_entities = {"auteurs", "livres", "editeurs", "episodes"}
+    valid_entities = {"auteurs", "livres", "editeurs", "episodes", "emissions"}
     requested_entities = valid_entities.copy()  # Par défaut, toutes les entités
 
     if entities:
@@ -2087,6 +2102,8 @@ async def advanced_search(
             "editeurs_total_count": 0,
             "episodes": [],
             "episodes_total_count": 0,
+            "emissions": [],
+            "emissions_total_count": 0,
         }
 
         # Rechercher dans les entités demandées avec offset et limit
@@ -2103,6 +2120,7 @@ async def advanced_search(
                     "match_type": episode.get("match_type", "none"),
                     "search_context": episode.get("search_context", ""),
                     "_id": episode.get("_id", ""),
+                    "emission_date": episode.get("emission_date"),
                 }
                 for episode in episodes_list
             ]
@@ -2128,12 +2146,28 @@ async def advanced_search(
                 "total_count", 0
             )
 
+        if "emissions" in requested_entities:
+            # Recherche dans les émissions (via collection avis - titres/auteurs/éditeurs)
+            emissions_search_result = mongodb_service.search_emissions(q, limit, offset)
+            results["emissions"] = [
+                {
+                    "_id": emission.get("_id", ""),
+                    "emission_date": emission.get("emission_date"),
+                    "search_context": emission.get("search_context", ""),
+                }
+                for emission in emissions_search_result.get("emissions", [])
+            ]
+            results["emissions_total_count"] = emissions_search_result.get(
+                "total_count", 0
+            )
+
         # Calculer le nombre total de pages (basé sur la plus grande collection)
         max_total = max(
             results["episodes_total_count"],
             results["auteurs_total_count"],
             results["livres_total_count"],
             results["editeurs_total_count"],
+            results["emissions_total_count"],
         )
         total_pages = (max_total + limit - 1) // limit if max_total > 0 else 1
 

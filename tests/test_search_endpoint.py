@@ -33,6 +33,9 @@ class TestSearchEndpoint:
         assert response.status_code == 400
         assert "3 caractères minimum" in response.json()["detail"]
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -43,6 +46,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que la recherche retourne une réponse structurée."""
         # Mock des retours
@@ -50,6 +54,7 @@ class TestSearchEndpoint:
         mock_search_auteurs.return_value = {"auteurs": [], "total_count": 0}
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=test")
         assert response.status_code == 200
@@ -64,6 +69,9 @@ class TestSearchEndpoint:
         assert "editeurs" in data["results"]
         assert "episodes" in data["results"]
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -74,6 +82,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que l'endpoint accepte le paramètre limit."""
         # Mock des retours avec des données limitées
@@ -81,6 +90,7 @@ class TestSearchEndpoint:
         mock_search_auteurs.return_value = {"auteurs": [], "total_count": 0}
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=test&limit=5")
         assert response.status_code == 200
@@ -91,6 +101,9 @@ class TestSearchEndpoint:
             if not category_name.endswith("_total_count"):
                 assert len(category) <= 5
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -101,6 +114,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que chaque résultat inclut score et match_type."""
         # Mock des retours avec des données contenant score et match_type
@@ -122,6 +136,7 @@ class TestSearchEndpoint:
         }
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=test")
         assert response.status_code == 200
@@ -140,6 +155,9 @@ class TestSearchEndpoint:
                 "none",
             ]
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -150,16 +168,21 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que la recherche gère les caractères spéciaux."""
         mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_auteurs.return_value = {"auteurs": [], "total_count": 0}
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=camus&")
         assert response.status_code == 200
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -170,12 +193,14 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que la recherche est insensible à la casse."""
         mock_search_episodes.return_value = {"episodes": [], "total_count": 0}
         mock_search_auteurs.return_value = {"auteurs": [], "total_count": 0}
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=CAMUS")
         assert response.status_code == 200
@@ -183,6 +208,9 @@ class TestSearchEndpoint:
         data = response.json()
         assert data["query"] == "CAMUS"
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -193,6 +221,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que la réponse inclut episodes_total_count."""
         mock_search_episodes.return_value = {
@@ -217,6 +246,7 @@ class TestSearchEndpoint:
         mock_search_auteurs.return_value = {"auteurs": [], "total_count": 0}
         mock_search_livres.return_value = {"livres": [], "total_count": 0}
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=test")
         assert response.status_code == 200
@@ -229,6 +259,9 @@ class TestSearchEndpoint:
         for episode in data["results"]["episodes"]:
             assert "search_context" in episode
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -239,6 +272,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que la recherche interroge les collections dédiées auteurs et livres."""
         # Mock des retours avec des données des collections
@@ -259,6 +293,7 @@ class TestSearchEndpoint:
             "total_count": 1,
         }
         mock_search_editeurs.return_value = {"editeurs": [], "total_count": 0}
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=Camus")
         assert response.status_code == 200
@@ -278,6 +313,9 @@ class TestSearchEndpoint:
         assert data["results"]["livres"][0]["titre"] == "L'Étranger"
         assert data["results"]["livres_total_count"] == 1
 
+    @patch(
+        "back_office_lmelp.services.mongodb_service.mongodb_service.search_emissions"
+    )
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_episodes")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_auteurs")
     @patch("back_office_lmelp.services.mongodb_service.mongodb_service.search_livres")
@@ -288,6 +326,7 @@ class TestSearchEndpoint:
         mock_search_livres,
         mock_search_auteurs,
         mock_search_episodes,
+        mock_search_emissions,
     ):
         """Test que /api/search utilise search_editeurs() pour les éditeurs."""
         # Mock des retours
@@ -298,6 +337,7 @@ class TestSearchEndpoint:
             "editeurs": [{"nom": "Gallimard"}],
             "total_count": 1,
         }
+        mock_search_emissions.return_value = {"emissions": [], "total_count": 0}
 
         response = self.client.get("/api/search?q=Gallimard")
         assert response.status_code == 200

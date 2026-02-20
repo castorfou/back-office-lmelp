@@ -47,6 +47,10 @@
             <input type="checkbox" v-model="filters.editeurs" @change="handleFilterChange" />
             <span class="checkbox-label">🏢 Éditeurs</span>
           </label>
+          <label class="filter-checkbox">
+            <input type="checkbox" v-model="filters.emissions" @change="handleFilterChange" />
+            <span class="checkbox-label">📻 Émissions</span>
+          </label>
         </div>
         <div class="filter-actions">
           <button @click="selectAllFilters" class="btn-secondary">Tout sélectionner</button>
@@ -118,13 +122,38 @@
         <div v-if="results.episodes && results.episodes.length > 0" class="result-category">
           <h3 class="category-title">🎙️ ÉPISODES ({{ results.episodes_total_count || results.episodes.length }})</h3>
           <ul class="result-list">
-            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
-              <div class="episode-content">
+            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item" :class="{'clickable-item': episode.emission_date}">
+              <router-link v-if="episode.emission_date" :to="`/emissions/${episode.emission_date}`" class="result-link episode-link">
+                <div class="episode-content">
+                  <div class="episode-main-info">
+                    <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
+                    <div class="episode-context" v-html="highlightSearchTerm(episode.search_context || episode.titre || '')"></div>
+                  </div>
+                </div>
+                <span class="result-arrow">→</span>
+              </router-link>
+              <div v-else class="episode-content">
                 <div class="episode-main-info">
                   <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                  <div class="episode-context" v-html="episode.search_context || episode.titre"></div>
+                  <div class="episode-context" v-html="highlightSearchTerm(episode.search_context || episode.titre || '')"></div>
                 </div>
               </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Émissions -->
+        <div v-if="results.emissions && results.emissions.length > 0" class="result-category">
+          <h3 class="category-title">📻 ÉMISSIONS ({{ results.emissions_total_count || results.emissions.length }})</h3>
+          <ul class="result-list">
+            <li v-for="emission in results.emissions" :key="`emission-${emission._id}`" class="result-item clickable-item">
+              <router-link :to="`/emissions/${emission.emission_date}`" class="result-link">
+                <div class="emission-content">
+                  <span class="emission-date-primary">{{ formatEmissionDate(emission.emission_date) }}</span>
+                  <span class="emission-context" v-html="highlightSearchTerm(emission.search_context || '')"></span>
+                </div>
+                <span class="result-arrow">→</span>
+              </router-link>
             </li>
           </ul>
         </div>
@@ -191,10 +220,11 @@ export default {
       error: null,
       showResults: false,
       filters: {
-        episodes: true,
+        episodes: false,
         auteurs: true,
         livres: true,
-        editeurs: true
+        editeurs: true,
+        emissions: true
       },
       results: {
         auteurs: [],
@@ -203,7 +233,9 @@ export default {
         livres_total_count: 0,
         editeurs: [],
         episodes: [],
-        episodes_total_count: 0
+        episodes_total_count: 0,
+        emissions: [],
+        emissions_total_count: 0
       },
       pagination: {
         page: 1,
@@ -219,7 +251,8 @@ export default {
         this.results.auteurs.length > 0 ||
         this.results.livres.length > 0 ||
         this.results.editeurs.length > 0 ||
-        this.results.episodes.length > 0
+        this.results.episodes.length > 0 ||
+        (this.results.emissions && this.results.emissions.length > 0)
       );
     },
     totalResults() {
@@ -227,7 +260,8 @@ export default {
         this.results.auteurs_total_count +
         this.results.livres_total_count +
         this.results.episodes_total_count +
-        this.results.editeurs.length
+        this.results.editeurs.length +
+        (this.results.emissions_total_count || 0)
       );
     },
     selectedEntities() {
@@ -236,6 +270,7 @@ export default {
       if (this.filters.auteurs) entities.push('auteurs');
       if (this.filters.livres) entities.push('livres');
       if (this.filters.editeurs) entities.push('editeurs');
+      if (this.filters.emissions) entities.push('emissions');
       return entities;
     }
   },
@@ -244,9 +279,8 @@ export default {
     // Debounce la fonction de recherche (300ms)
     this.debouncedSearch = debounce(this.performSearch, 300);
 
-    // Récupérer la requête depuis l'URL si présente
-    const urlParams = new URLSearchParams(window.location.search);
-    const queryFromUrl = urlParams.get('q');
+    // Récupérer la requête depuis l'URL si présente (via Vue Router)
+    const queryFromUrl = this.$route.query.q;
     if (queryFromUrl && queryFromUrl.length >= 3) {
       this.searchQuery = queryFromUrl;
       this.performSearch();
@@ -314,9 +348,8 @@ export default {
         this.pagination = response.pagination;
         this.showResults = true;
 
-        // Mettre à jour l'URL sans recharger la page
-        const newUrl = `${window.location.pathname}?q=${encodeURIComponent(query)}`;
-        window.history.pushState({}, '', newUrl);
+        // Mettre à jour l'URL via Vue Router (préserve l'historique de navigation)
+        await this.$router.replace({ path: '/search', query: { q: query } });
       } catch (error) {
         console.error('Erreur lors de la recherche:', error);
         this.error = error.message || 'Une erreur est survenue';
@@ -341,6 +374,7 @@ export default {
       this.filters.auteurs = true;
       this.filters.livres = true;
       this.filters.editeurs = true;
+      this.filters.emissions = true;
       this.handleFilterChange();
     },
 
@@ -349,9 +383,10 @@ export default {
       this.filters.auteurs = false;
       this.filters.livres = false;
       this.filters.editeurs = false;
+      this.filters.emissions = false;
     },
 
-    clearSearch() {
+    async clearSearch() {
       this.searchQuery = '';
       this.showResults = false;
       this.error = null;
@@ -365,10 +400,12 @@ export default {
         livres_total_count: 0,
         editeurs: [],
         episodes: [],
-        episodes_total_count: 0
+        episodes_total_count: 0,
+        emissions: [],
+        emissions_total_count: 0
       };
-      // Nettoyer l'URL
-      window.history.pushState({}, '', window.location.pathname);
+      // Nettoyer l'URL via Vue Router
+      await this.$router.replace({ path: '/search' });
     },
 
     formatDate(dateString) {
@@ -390,6 +427,24 @@ export default {
         return `${livre.auteur_nom} - ${livre.titre}`;
       }
       return livre.titre;
+    },
+
+    formatEmissionDate(emissionDate) {
+      // Convert YYYYMMDD to localized date string
+      if (!emissionDate || emissionDate.length !== 8) return emissionDate;
+      try {
+        const year = emissionDate.substring(0, 4);
+        const month = emissionDate.substring(4, 6);
+        const day = emissionDate.substring(6, 8);
+        const date = new Date(`${year}-${month}-${day}`);
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch (error) {
+        return emissionDate;
+      }
     },
 
     highlightSearchTerm(text) {
@@ -701,6 +756,38 @@ export default {
 }
 
 .episode-context {
+  font-size: 0.9rem;
+  color: #333;
+  line-height: 1.4;
+  flex-grow: 1;
+}
+
+.episode-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.emission-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex-grow: 1;
+}
+
+.emission-date-primary {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e67e22;
+  background: rgba(230, 126, 34, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.emission-context {
   font-size: 0.9rem;
   color: #333;
   line-height: 1.4;

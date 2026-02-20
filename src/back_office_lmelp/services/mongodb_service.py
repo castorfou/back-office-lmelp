@@ -570,6 +570,7 @@ class MongoDBService:
             # Conversion ObjectId simple - score minimal pour compatibility frontend
             results = []
             for episode in episodes:
+                episode_original_id = episode["_id"]
                 episode["_id"] = str(episode["_id"])
 
                 # Assigner un score minimal (MongoDB a trouvé l'épisode donc il est pertinent)
@@ -578,6 +579,16 @@ class MongoDBService:
 
                 # Extraire le contexte de recherche
                 episode["search_context"] = self._extract_search_context(query, episode)
+
+                # Enrichir avec emission_date pour lien cliquable vers /emissions/YYYYMMDD
+                emission_date_str = None
+                if self.emissions_collection is not None:
+                    emission = self.emissions_collection.find_one(
+                        {"episode_id": episode_original_id}
+                    )
+                    if emission and emission.get("date"):
+                        emission_date_str = emission["date"].strftime("%Y%m%d")
+                episode["emission_date"] = emission_date_str
 
                 results.append(episode)
 
@@ -1391,6 +1402,185 @@ class MongoDBService:
         except Exception as e:
             print(f"Erreur lors de la recherche d'éditeurs: {e}")
             return {"editeurs": [], "total_count": 0}
+
+    def search_emissions(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> dict[str, Any]:
+        """Recherche textuelle dans les émissions via la collection avis.
+
+        Cherche dans les champs propres et structurés de la collection avis :
+        livre_titre_extrait, auteur_nom_extrait, editeur_extrait, commentaire.
+        Sections "programme" et "coup_de_coeur" uniquement (sans noms de critiques).
+
+        Args:
+            query: Terme de recherche (ex: "Camus" trouvera "Albert Camus")
+            limit: Nombre maximum de résultats à retourner
+            offset: Offset pour la pagination
+
+        Returns:
+            Dict avec clés "emissions" (liste de résultats) et "total_count"
+        """
+        if self.avis_collection is None or self.emissions_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        if not query or len(query.strip()) == 0:
+            return {"emissions": [], "total_count": 0}
+
+        try:
+            from bson import ObjectId
+
+            from ..utils.text_utils import create_accent_insensitive_regex
+
+            query_stripped = query.strip()
+            regex_pattern = create_accent_insensitive_regex(query_stripped)
+
+            # Chercher dans les champs propres de la collection avis
+            search_query = {
+                "$or": [
+                    {
+                        "livre_titre_extrait": {
+                            "$regex": regex_pattern,
+                            "$options": "i",
+                        }
+                    },
+                    {
+                        "auteur_nom_extrait": {
+                            "$regex": regex_pattern,
+                            "$options": "i",
+                        }
+                    },
+                    {
+                        "editeur_extrait": {
+                            "$regex": regex_pattern,
+                            "$options": "i",
+                        }
+                    },
+                    {
+                        "commentaire": {
+                            "$regex": regex_pattern,
+                            "$options": "i",
+                        }
+                    },
+                ]
+            }
+
+            # Compter les avis correspondants (avant déduplication)
+            matching_avis = list(self.avis_collection.find(search_query))
+            total_avis_count = len(matching_avis)
+
+            if total_avis_count == 0:
+                return {"emissions": [], "total_count": 0}
+
+            # Dédupliquer par emission_oid, collecter les livres/auteurs matchés
+            emissions_map: dict[str, list[dict[str, Any]]] = {}
+            for avis in matching_avis:
+                emission_oid = avis.get("emission_oid")
+                if not emission_oid:
+                    continue
+                if emission_oid not in emissions_map:
+                    emissions_map[emission_oid] = []
+                emissions_map[emission_oid].append(avis)
+
+            # Nombre total d'émissions uniques
+            total_count = len(emissions_map)
+
+            if total_count == 0:
+                return {"emissions": [], "total_count": 0}
+
+            # Récupérer les émissions (avec conversion String → ObjectId, CRITIQUE)
+            emission_oids_as_objectid = [ObjectId(oid) for oid in emissions_map if oid]
+            emissions_docs = list(
+                self.emissions_collection.find(
+                    {"_id": {"$in": emission_oids_as_objectid}}
+                ).sort("date", -1)
+            )
+
+            # Paginer sur les émissions triées
+            paginated_emissions = emissions_docs[offset : offset + limit]
+
+            results = []
+            for emission in paginated_emissions:
+                emission_id_str = str(emission["_id"])
+                emission_date = emission.get("date")
+
+                # Format YYYYMMDD pour l'URL /emissions/YYYYMMDD
+                emission_date_str = (
+                    emission_date.strftime("%Y%m%d") if emission_date else None
+                )
+
+                # Construire le contexte depuis les avis matchés pour cette émission
+                matched_avis = emissions_map.get(emission_id_str, [])
+
+                # Pré-charger les vrais titres depuis livres_collection (batch)
+                livre_oids = [
+                    avis.get("livre_oid")
+                    for avis in matched_avis
+                    if avis.get("livre_oid")
+                ]
+                livres_titles: dict[str, str] = {}
+                if livre_oids and self.livres_collection is not None:
+                    livre_oids_as_objectid = [
+                        ObjectId(oid) for oid in livre_oids if oid
+                    ]
+                    for livre in self.livres_collection.find(
+                        {"_id": {"$in": livre_oids_as_objectid}},
+                        {"titre": 1},
+                    ):
+                        livres_titles[str(livre["_id"])] = livre.get("titre", "")
+
+                context_parts = []
+                seen_books: set[str] = set()
+                query_lower = query_stripped.lower()
+                for avis in matched_avis:
+                    auteur = avis.get("auteur_nom_extrait", "")
+                    livre_oid = avis.get("livre_oid", "")
+                    # Utiliser le vrai titre depuis livres, fallback sur extrait
+                    titre = livres_titles.get(livre_oid) or avis.get(
+                        "livre_titre_extrait", ""
+                    )
+                    commentaire = avis.get("commentaire", "")
+                    book_key = f"{auteur}-{titre}"
+                    if book_key not in seen_books:
+                        seen_books.add(book_key)
+                        # Base : toujours commencer par auteur - titre
+                        if auteur and titre:
+                            book_label = f"{auteur} - {titre}"
+                        elif titre:
+                            book_label = titre
+                        else:
+                            book_label = ""
+                        # Si le match vient du commentaire, ajouter l'extrait
+                        commentaire_lower = commentaire.lower() if commentaire else ""
+                        if commentaire and query_lower in commentaire_lower:
+                            idx = commentaire_lower.find(query_lower)
+                            start = max(0, idx - 30)
+                            end = min(len(commentaire), idx + len(query_stripped) + 30)
+                            snippet = commentaire[start:end].strip()
+                            if start > 0:
+                                snippet = "..." + snippet
+                            if end < len(commentaire):
+                                snippet = snippet + "..."
+                            context_parts.append(
+                                f"{book_label} : {snippet}" if book_label else snippet
+                            )
+                        elif book_label:
+                            context_parts.append(book_label)
+
+                search_context = " | ".join(context_parts[:3])  # Max 3 livres
+
+                results.append(
+                    {
+                        "_id": emission_id_str,
+                        "date": emission_date,
+                        "emission_date": emission_date_str,
+                        "search_context": search_context,
+                    }
+                )
+
+            return {"emissions": results, "total_count": total_count}
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'émissions: {e}")
+            return {"emissions": [], "total_count": 0}
 
     def calculate_search_score(self, query: str, text: str) -> tuple[float, str]:
         """Calcule le score de pertinence et le type de match - STRICT: terme doit être présent."""

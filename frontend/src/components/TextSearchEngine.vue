@@ -77,25 +77,20 @@
           </ul>
         </div>
 
-        <!-- Épisodes -->
-        <div v-if="results.episodes.length > 0" class="result-category">
-          <h4 class="category-title">🎙️ ÉPISODES ({{ results.episodes.length }}/{{ results.episodes_total_count || results.episodes.length }})</h4>
+        <!-- Émissions (les épisodes ne sont pas affichés dans la recherche rapide) -->
+        <div v-if="results.emissions && results.emissions.length > 0" class="result-category">
+          <h4 class="category-title">📻 ÉMISSIONS ({{ results.emissions.length }}/{{ results.emissions_total_count || results.emissions.length }})</h4>
           <ul class="result-list">
-            <li v-for="episode in results.episodes" :key="`episode-${episode._id}`" class="result-item episode-item">
-              <div class="episode-content">
-                <div class="episode-main-info">
-                  <span class="episode-date-primary">{{ formatDate(episode.date) }}</span>
-                  <div class="episode-context" v-html="formatSearchContext(episode)"></div>
+            <li v-for="emission in results.emissions" :key="`emission-${emission._id}`" class="result-item clickable-item">
+              <router-link :to="`/emissions/${emission.emission_date}`" class="result-link">
+                <div class="emission-content">
+                  <span class="emission-date-primary">{{ formatEmissionDate(emission.emission_date) }}</span>
+                  <span class="emission-context" v-html="highlightSearchTerm(emission.search_context || '')"></span>
                 </div>
-              </div>
+                <span class="result-arrow">→</span>
+              </router-link>
             </li>
           </ul>
-        </div>
-
-        <!-- Catégories vides - ne s'affichent plus pour économiser l'espace -->
-        <div v-if="results.episodes.length === 0" class="result-category empty">
-          <h4 class="category-title">🎙️ ÉPISODES (0)</h4>
-          <p class="empty-message">(aucun épisode contenant "{{ lastSearchQuery }}")</p>
         </div>
 
         <!-- Lien vers recherche avancée -->
@@ -154,7 +149,9 @@ export default {
         livres: [],
         editeurs: [],
         episodes: [],
-        episodes_total_count: 0
+        episodes_total_count: 0,
+        emissions: [],
+        emissions_total_count: 0
       },
       showResults: false
     };
@@ -166,7 +163,8 @@ export default {
         this.results.auteurs.length > 0 ||
         this.results.livres.length > 0 ||
         this.results.editeurs.length > 0 ||
-        this.results.episodes.length > 0
+        this.results.episodes.length > 0 ||
+        (this.results.emissions && this.results.emissions.length > 0)
       );
     }
   },
@@ -317,7 +315,6 @@ export default {
 
       // Extraire environ 10 mots avant et après
       const words = text.split(' ');
-      const allText = words.join(' ');
 
       // Trouver l'index du mot contenant la requête
       let wordIndex = 0;
@@ -345,6 +342,24 @@ export default {
       return this.highlightSearchTerm(context);
     },
 
+    formatEmissionDate(emissionDate) {
+      // Convert YYYYMMDD to localized date string
+      if (!emissionDate || emissionDate.length !== 8) return emissionDate;
+      try {
+        const year = emissionDate.substring(0, 4);
+        const month = emissionDate.substring(4, 6);
+        const day = emissionDate.substring(6, 8);
+        const date = new Date(`${year}-${month}-${day}`);
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch (error) {
+        return emissionDate;
+      }
+    },
+
     clearSearch() {
       this.searchQuery = '';
       this.showResults = false;
@@ -356,7 +371,9 @@ export default {
         livres: [],
         editeurs: [],
         episodes: [],
-        episodes_total_count: 0
+        episodes_total_count: 0,
+        emissions: [],
+        emissions_total_count: 0
       };
     }
   }
@@ -631,6 +648,38 @@ export default {
   line-height: 1.4;
   flex-grow: 1;
   margin-left: 1rem;
+}
+
+.episode-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.emission-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex-grow: 1;
+}
+
+.emission-date-primary {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e67e22;
+  background: rgba(230, 126, 34, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.emission-context {
+  font-size: 0.9rem;
+  color: #333;
+  line-height: 1.4;
+  flex-grow: 1;
 }
 
 .empty-message {
