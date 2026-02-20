@@ -647,10 +647,19 @@ async def fetch_episode_page_url(episode_id: str) -> dict[str, Any]:
                 date_str = str(episode_date_raw)
                 episode_date = date_str.split("T")[0].split(" ")[0]
 
+        # Récupérer la durée de l'épisode pour filtrer les clips courts de RadioFrance
+        # (ex: clip 9 min "Aqua de Gaspard Koenig" vs émission complète 47 min)
+        episode_duree = episode_data.get("duree")  # en secondes
+        min_duration_seconds = None
+        if episode_duree and isinstance(episode_duree, int) and episode_duree > 0:
+            # Utiliser 50% de la durée connue comme seuil minimum
+            # Les clips de livres sont toujours < 15 min, les émissions complètes > 40 min
+            min_duration_seconds = episode_duree // 2
+
         # Chercher l'URL de la page sur RadioFrance
         radiofrance_service = RadioFranceService()
         episode_page_url = await radiofrance_service.search_episode_page_url(
-            episode_title, episode_date
+            episode_title, episode_date, min_duration_seconds=min_duration_seconds
         )
 
         if not episode_page_url:

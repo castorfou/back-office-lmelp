@@ -64,7 +64,10 @@ class RadioFranceService:
             self.client = None
 
     async def search_episode_page_url(
-        self, episode_title: str, episode_date: str | datetime | None = None
+        self,
+        episode_title: str,
+        episode_date: str | datetime | None = None,
+        min_duration_seconds: int | None = None,
     ) -> str | None:
         """Recherche l'URL de la page d'un épisode par son titre et optionnellement sa date.
 
@@ -73,6 +76,10 @@ class RadioFranceService:
             episode_date: Date de l'épisode au format YYYY-MM-DD (optionnel).
                          Si fournie, seules les URLs dont la date correspondent seront retournées.
                          Accepte aussi un datetime object (comme retourné par MongoDB).
+            min_duration_seconds: Durée minimale en secondes (optionnel).
+                         Si fournie, les URLs avec une durée inférieure sont ignorées.
+                         Permet de filtrer les clips courts (livres) vs émissions complètes.
+                         Si la durée n'est pas disponible dans le JSON-LD, l'URL n'est pas exclue.
 
         Returns:
             URL complète de la page de l'épisode, ou None si non trouvé
@@ -159,20 +166,51 @@ class RadioFranceService:
                         )
                         break
 
-                    # Parcourir chaque URL et vérifier sa date
+                    # Parcourir chaque URL et vérifier sa date (et durée si applicable)
+                    target_date = datetime.strptime(episode_date, "%Y-%m-%d")
                     for url in candidate_urls:
                         logger.warning(f"🔍 Checking URL: {url}")
-                        episode_date_from_page = await self._extract_episode_date(url)
+                        (
+                            episode_date_from_page,
+                            duration_from_page,
+                        ) = await self._extract_episode_date_and_duration(url)
                         logger.warning(
-                            f"🔍   → Date extracted: {episode_date_from_page}"
+                            f"🔍   → Date: {episode_date_from_page}, Duration: {duration_from_page}s"
                         )
-                        if episode_date_from_page and episode_date_from_page.startswith(
-                            episode_date
+                        if not episode_date_from_page:
+                            continue
+
+                        # Vérifier que la date est dans une fenêtre de ±7 jours
+                        # (RadioFrance publie parfois l'émission 2 jours après la diffusion)
+                        try:
+                            page_date = datetime.strptime(
+                                episode_date_from_page, "%Y-%m-%d"
+                            )
+                            date_diff = abs((page_date - target_date).days)
+                        except ValueError:
+                            continue
+
+                        if date_diff > 7:
+                            logger.warning(
+                                f"⏱ Skipping {url}: date diff {date_diff} days > 7"
+                            )
+                            continue
+
+                        # Filtrer par durée minimale si spécifiée
+                        if (
+                            min_duration_seconds
+                            and duration_from_page is not None
+                            and duration_from_page < min_duration_seconds
                         ):
                             logger.warning(
-                                f"✅ Found matching episode URL by date on page {page}: {url} (date: {episode_date_from_page})"
+                                f"⏱ Skipping {url}: duration {duration_from_page}s < min {min_duration_seconds}s"
                             )
-                            return url
+                            continue
+
+                        logger.warning(
+                            f"✅ Found matching episode URL by date on page {page}: {url} (date: {episode_date_from_page}, duration: {duration_from_page}s)"
+                        )
+                        return url
 
                     # Passer à la page suivante
                     page += 1
@@ -427,6 +465,134 @@ class RadioFranceService:
         except Exception as e:
             logger.debug(f"Error extracting date from {episode_url}: {e}")
             return None
+
+    def _parse_iso_duration(self, duration_str: str) -> int | None:
+        """Parse une durée ISO 8601 en secondes.
+
+        Formats supportés:
+        - PT47M25S (format court)
+        - PT1H30M (avec heures)
+        - P0Y0M0DT0H47M40S (format complet RadioFrance réel, mainEntity.duration)
+
+        Args:
+            duration_str: Durée au format ISO 8601
+
+        Returns:
+            Durée en secondes, ou None si le format est invalide
+        """
+        import re
+
+        if not duration_str:
+            return None
+
+        # Format court: PT47M25S, PT9M, PT1H30M
+        match = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$", duration_str)
+        if not match:
+            # Format complet ISO 8601: P0Y0M0DT0H47M40S (format réel RadioFrance)
+            match = re.match(
+                r"^P\d+Y\d+M\d+DT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$", duration_str
+            )
+        if not match:
+            return None
+
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        seconds = int(match.group(3) or 0)
+
+        total = hours * 3600 + minutes * 60 + seconds
+        # Return None if all components are 0 (invalid "PT" with no values)
+        return total if total > 0 else None
+
+    async def _extract_episode_date_and_duration(
+        self, episode_url: str
+    ) -> tuple[str | None, int | None]:
+        """Extrait la date et la durée de publication d'un épisode depuis son URL.
+
+        Fait une requête GET sur l'URL de l'épisode et extrait la date (datePublished)
+        et la durée (timeRequired) depuis le JSON-LD.
+
+        Args:
+            episode_url: URL complète de la page de l'épisode
+
+        Returns:
+            Tuple (date au format YYYY-MM-DD, durée en secondes).
+            Les deux peuvent être None si non trouvés.
+        """
+        try:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    episode_url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as response,
+            ):
+                if response.status != 200:
+                    logger.debug(
+                        f"Failed to fetch episode page {episode_url}: status {response.status}"
+                    )
+                    return None, None
+
+                html_content = await response.text()
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Chercher le JSON-LD avec date et durée
+                json_ld_scripts = soup.find_all("script", type="application/ld+json")
+                for script in json_ld_scripts:
+                    try:
+                        data = json.loads(script.string)
+
+                        items = []
+                        if isinstance(data, dict) and "@graph" in data:
+                            items = data["@graph"]
+                        elif isinstance(data, dict):
+                            items = [data]
+
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            # Priorité à RadioEpisode avec dateCreated + mainEntity.duration
+                            if item.get("@type") == "RadioEpisode":
+                                date_raw = item.get("dateCreated") or item.get(
+                                    "datePublished"
+                                )
+                                if date_raw:
+                                    date = str(date_raw).split("T")[0]
+                                    # Durée dans mainEntity.duration (format réel RadioFrance)
+                                    main_entity = item.get("mainEntity", {})
+                                    duration_str = main_entity.get("duration", "")
+                                    # Fallback sur timeRequired (ancien format)
+                                    if not duration_str:
+                                        duration_str = item.get("timeRequired", "")
+                                    duration = self._parse_iso_duration(duration_str)
+                                    return date, duration
+
+                    except (json.JSONDecodeError, KeyError, TypeError, IndexError):
+                        continue
+
+                # Fallback: chercher n'importe quelle date dans les scripts JSON-LD
+                for script in json_ld_scripts:
+                    try:
+                        data = json.loads(script.string)
+                        items = []
+                        if isinstance(data, dict) and "@graph" in data:
+                            items = data["@graph"]
+                        elif isinstance(data, dict):
+                            items = [data]
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            date_raw = item.get("datePublished") or item.get(
+                                "dateCreated"
+                            )
+                            if date_raw:
+                                return str(date_raw).split("T")[0], None
+                    except (json.JSONDecodeError, KeyError, TypeError, IndexError):
+                        continue
+
+                return None, None
+
+        except Exception as e:
+            logger.debug(f"Error extracting date/duration from {episode_url}: {e}")
+            return None, None
 
     async def extract_episode_metadata(self, episode_url: str) -> dict[str, Any]:
         """

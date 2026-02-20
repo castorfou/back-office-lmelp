@@ -71,7 +71,7 @@ class TestAzureOpenAIClientInitialization:
             "2024-09-01-preview",
             "2025-03-01-preview",
         )
-        assert os.getenv("AZURE_DEPLOYMENT_NAME") == "gpt-4o"
+        assert os.getenv("AZURE_DEPLOYMENT_NAME") == "gpt-4.1-dzs"
 
     def test_service_singleton_reads_environment_variables(self):
         """Test que le service singleton lit correctement les variables d'environnement."""

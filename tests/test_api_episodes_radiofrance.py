@@ -187,4 +187,7 @@ class TestFetchEpisodePageURL:
             assert data["episode_page_url"] == found_url
 
             # RED: Vérifier que search_episode_page_url a été appelé avec la date
-            mock_search.assert_called_once_with(episode_title, episode_date)
+            # Le mock_episode n'a pas de 'duree', donc min_duration_seconds=None
+            mock_search.assert_called_once_with(
+                episode_title, episode_date, min_duration_seconds=None
+            )
