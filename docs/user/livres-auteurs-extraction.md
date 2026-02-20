@@ -59,9 +59,10 @@ Ces indicateurs permettent d'identifier rapidement les épisodes nécessitant un
 Lorsqu'un épisode est sélectionné, un logo cliquable "Le Masque et la Plume" apparaît dans la section "Détails de l'épisode" si la page officielle RadioFrance est disponible.
 
 **Fonctionnement** :
-- **Auto-détection** : L'URL de la page RadioFrance est automatiquement recherchée et sauvegardée
+- **Auto-détection** : L'URL de la page RadioFrance est automatiquement recherchée et sauvegardée lors de la première consultation
 - **Logo cliquable** : Cliquez sur le logo pour ouvrir la page officielle dans un nouvel onglet
 - **Accès rapide** : Permet de consulter l'épisode complet sur radiofrance.fr
+- **Émission complète garantie** : Le système sélectionne toujours la page de l'émission complète et non les clips de livres individuels publiés par RadioFrance
 
 Cette fonctionnalité facilite l'accès à la source originale de l'émission pour vérifier les informations ou écouter l'épisode complet.
 

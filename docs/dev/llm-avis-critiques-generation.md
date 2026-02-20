@@ -649,9 +649,20 @@ async def fetch_episode_url():
     episode = mongodb_service.get_episode_by_id(episode_id)
     titre = episode.get("titre")
     date = episode.get("date")
+    duree = episode.get("duree")  # Durée en secondes (optionnel)
 
-    # Recherche via RadioFrance service
-    url = await radiofrance_service.search_episode_page_url(titre, date)
+    # Filtrage par durée minimale pour éviter les clips de livres individuels
+    # RadioFrance publie deux types d'URLs par émission :
+    # - Émission complète (~47 min) : URL souhaitée
+    # - Clip livre individuel (~9 min) : à ignorer
+    min_duration_seconds = None
+    if duree and isinstance(duree, int) and duree > 0:
+        min_duration_seconds = duree // 2  # 50% de la durée connue
+
+    # Recherche via RadioFrance service avec filtre durée + date ±7j
+    url = await radiofrance_service.search_episode_page_url(
+        titre, date, min_duration_seconds=min_duration_seconds
+    )
 
     if url:
         # Mise à jour MongoDB immédiate
@@ -662,6 +673,30 @@ async def fetch_episode_url():
 
     return url
 ```
+
+**Logique de sélection de l'URL** (méthode `search_episode_page_url`) :
+
+RadioFrance peut publier plusieurs types d'URLs pour la même date de diffusion :
+- **Émission complète** (ex: `le-masque-et-la-plume-du-dimanche-15-fevrier-2026-...`) : ~47 min
+- **Clip livre individuel** (ex: `aqua-de-gaspard-koenig-...`) : ~9 min
+
+Le service applique un double filtre sur chaque URL candidate :
+1. **Date** : la date de la page RadioFrance doit être dans un intervalle de ±7 jours par rapport à la date de l'épisode (RadioFrance publie parfois 1-2 jours après diffusion)
+2. **Durée** (si `min_duration_seconds` fourni) : la durée extraite de la page doit être ≥ `min_duration_seconds`
+
+Structure JSON-LD RadioFrance (réelle) :
+```json
+{
+  "@type": "RadioEpisode",
+  "dateCreated": "2026-02-15T09:12:30.000Z",
+  "mainEntity": {
+    "@type": "AudioObject",
+    "duration": "P0Y0M0DT0H47M40S"
+  }
+}
+```
+
+Note : la durée est dans `mainEntity.duration` (format ISO 8601 complet), et la date dans `dateCreated` (champ `RadioEpisode`).
 
 ### Nettoyage metadata
 
