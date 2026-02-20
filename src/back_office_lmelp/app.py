@@ -2248,6 +2248,16 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
         if settings.calibre_virtual_library_tag and livre_data.get("calibre_tags"):
             livre_data["calibre_tags"].insert(0, settings.calibre_virtual_library_tag)
 
+        # Issue #214: Enrich with Calibre library status (in_library, read, rating, current_tags)
+        try:
+            calibre_index = calibre_matching_service.get_calibre_index()
+            calibre_matching_service.enrich_palmares_item(livre_data, calibre_index)
+        except Exception:
+            livre_data["calibre_in_library"] = False
+            livre_data["calibre_read"] = None
+            livre_data["calibre_rating"] = None
+            livre_data["calibre_current_tags"] = None
+
         return livre_data
     except HTTPException:
         raise

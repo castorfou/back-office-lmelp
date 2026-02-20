@@ -307,7 +307,7 @@ class CalibreMatchingService:
     ) -> None:
         """Enrichit un item du palmarès avec les données Calibre.
 
-        Ajoute calibre_in_library, calibre_read, calibre_rating.
+        Ajoute calibre_in_library, calibre_read, calibre_rating, calibre_current_tags.
         """
         norm_title = normalize_for_matching(item.get("titre", ""))
         calibre_book = calibre_index.get(norm_title)
@@ -318,10 +318,12 @@ class CalibreMatchingService:
             item["calibre_rating"] = (
                 calibre_book.get("rating") if calibre_book.get("read") else None
             )
+            item["calibre_current_tags"] = calibre_book.get("tags")
         else:
             item["calibre_in_library"] = False
             item["calibre_read"] = None
             item["calibre_rating"] = None
+            item["calibre_current_tags"] = None
 
     def get_corrections(self) -> dict[str, Any]:
         """Calcule les corrections à appliquer dans Calibre.
