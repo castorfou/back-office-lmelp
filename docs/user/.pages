@@ -13,6 +13,7 @@ nav:
   - Palmarès: palmares.md
   - Gestion des doublons: gestion-doublons.md
   - Integration Calibre: calibre-integration.md
+  - Recommandation de livres: recommandation-livres.md
   - Version et À propos: version-about.md
   - Logs de debug: debug-logging.md
   - Résolution de problèmes: troubleshooting.md
