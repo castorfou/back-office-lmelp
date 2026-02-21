@@ -31,6 +31,9 @@ This enables direct use of tools like `ruff`, `mypy`, `pytest`, `mkdocs` without
 uv pip install -e .
 pre-commit install
 
+# Add a new dependency (updates pyproject.toml AND installs simultaneously)
+uv add --active <package-name>
+
 # Run backend (automatic port selection)
 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 
