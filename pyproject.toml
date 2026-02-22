@@ -131,6 +131,7 @@ extend-exclude = [
     "models/*",
     "logs/*",
     ".jupyter/*",
+    "notebooks/*.ipynb",
 ]
 
 # Version Python cible
