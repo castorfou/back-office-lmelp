@@ -31,7 +31,7 @@ inférer ce que vaudrait chaque case vide.
 
 ---
 
-## Deux grandes familles d'approches
+## Trois grandes familles d'approches
 
 ### Approche KNN — "Dis-moi qui te ressemble"
 
@@ -95,6 +95,37 @@ Le modèle n'est pas la vraie SVD mathématique (qui nécessite une matrice comp
 Il **apprend** P et Q par descente de gradient, uniquement sur les cases connues.
 C'est pourquoi on parle plus précisément de **factorisation matricielle**.
 
+### Approche implicit — "Optimise l'ordre, pas la note"
+
+`implicit` est une bibliothèque spécialisée dans les modèles orientés *ranking* plutôt que
+*prédiction de note*. Elle propose deux algorithmes aux philosophies différentes :
+
+**ALS** (*Alternating Least Squares*) :
+
+```
+Minimise : Σ c_ui (r_ui − pᵤ · qᵢ)²
+            avec c_ui = 1 + α × r_ui  ← niveau de confiance
+```
+
+La note brute n'est pas traitée comme une vérité absolue, mais comme un **niveau de confiance** :
+une note de 10 dit "je suis très sûr d'avoir aimé", une note de 6 dit "j'ai probablement aimé".
+ALS alterne entre la mise à jour des profils critiques (P) et des profils livres (Q), en gardant
+l'autre fixe — d'où son nom.
+
+**BPR** (*Bayesian Personalized Ranking*) :
+
+```
+Maximise : P(pᵤ · q_i+ > pᵤ · q_i−)
+           pour toutes les paires (i+ aimé, i− non aimé)
+```
+
+BPR optimise directement l'*ordre* des recommandations : il apprend à placer les livres aimés
+au-dessus des livres non vus, sans jamais chercher à prédire une note précise. C'est
+conceptuellement plus proche de l'objectif final ("quels 10 livres vous montrer ?").
+
+**Les deux produisent le même type d'espace latent** (`user_factors`, `item_factors`) — la
+différence est dans ce que cet espace a appris à optimiser.
+
 ---
 
 ## Les facteurs latents : le cœur de SVD
@@ -151,7 +182,12 @@ qu'utilisent les bibliothèques comme `implicit` (ALS) avec leurs `user_factors`
 
 ---
 
-## Évaluation : le RMSE
+## Évaluation : RMSE vs Précision@K
+
+Surprise (SVD) et implicit (ALS/BPR) n'optimisent pas le même objectif — ils ne se
+comparent donc pas avec la même métrique.
+
+### Le RMSE — métrique de Surprise
 
 Le RMSE (*Root Mean Square Error*) mesure l'écart moyen entre la note réelle et la note prédite.
 
@@ -166,6 +202,46 @@ Sur ce dataset, les repères sont :
 Un RMSE de 1.77 signifie qu'en moyenne le modèle se trompe de ±1.77 points sur 10.
 C'est correct pour un dataset aussi creux — mais rappelons que l'objectif final
 n'est pas de prédire une note exacte, mais de **bien ordonner les recommandations**.
+
+### La Précision@K — métrique de implicit
+
+ALS et BPR n'optimisent **pas** la prédiction de note — leur produit scalaire `pᵤ · qᵢ`
+ne produit pas un nombre dans [1, 10], c'est un score de ranking sans unité.
+Le RMSE y est donc dépourvu de sens. La métrique adaptée est la **Précision@K** :
+
+```
+Précision@K =  livres vraiment aimés parmi les K recommandations
+               ─────────────────────────────────────────────────
+                              K recommandations
+```
+
+*"Vraiment aimé" = note ≥ 7 dans le jeu de test.*
+
+Sur ce dataset, les repères (K=10, livres avec note ≥ 7 dans le test) :
+
+| Modèle | Précision@10 |
+|---|---|
+| ALS (implicit) | ~0.30 |
+| BPR (implicit) | ~0.25 |
+
+Ces chiffres varient selon le split train/test. L'important est l'ordre relatif :
+ALS surpasse légèrement BPR sur ce dataset très creux, probablement parce que
+BPR nécessite des paires positif/négatif fiables — difficile avec 91% de cases vides.
+
+### Comparaison des trois approches
+
+| Critère | Surprise SVD | implicit ALS | implicit BPR |
+|---|---|---|---|
+| **Objectif** | Prédire la note | Minimiser reconstruction pondérée | Maximiser le ranking |
+| **Métrique** | RMSE | Précision@K | Précision@K |
+| **Espace latent** | `svd.pu`, `svd.qi` | `user_factors`, `item_factors` | `user_factors`, `item_factors` |
+| **Facilité d'usage** | Haute (API Surprise) | Moyenne | Moyenne |
+| **Interprétabilité** | Bonne (notes 1-10) | Faible (scores sans unité) | Faible (scores sans unité) |
+| **Adapté si** | On veut prédire une note | On veut un bon classement | On veut un bon classement |
+
+**Conclusion pour ce dataset** : SVD (Surprise) reste le meilleur choix pour le projet #222 —
+son objectif (prédire une note) est aligné avec nos données (notes réelles 1-10),
+son espace latent est interprétable, et son RMSE de 1.77 est mesurable et comparable.
 
 ---
 
@@ -259,7 +335,10 @@ MongoDB (avis)          Calibre (notes)
 
 ## Pour aller plus loin
 
-- **Notebooks d'exploration** : `notebooks/spike_surprise_cf.ipynb` et `notebooks/spike_implicit_cf.ipynb`
+- **Notebooks d'exploration** :
+  - `notebooks/spike_surprise_cf.ipynb` — KNN, SVD, espace latent (Surprise)
+  - `notebooks/spike_implicit_cf.ipynb` — ALS, BPR, GridSearch, clustering (implicit)
+  - `notebooks/spike_svd_latent_cf.ipynb` — analyse approfondie de l'espace latent SVD : heatmap, biplot, ACP
 - **Issue de référence** : [#223 — Spike Surprise vs implicit](https://github.com/castorfou/back-office-lmelp/issues/223)
 - **Implémentation** : [#222 — Système de recommandation complet](https://github.com/castorfou/back-office-lmelp/issues/222)
 - **Netflix Prize** : la compétition qui a popularisé FunkSVD — [Wikipedia](https://en.wikipedia.org/wiki/Netflix_Prize)
