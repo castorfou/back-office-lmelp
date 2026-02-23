@@ -3,6 +3,8 @@
 import re
 from typing import Any
 
+from back_office_lmelp.utils.text_utils import normalize_for_matching
+
 
 class CritiquesExtractionService:
     """Service pour extraire les noms des critiques depuis les summaries."""
@@ -83,11 +85,9 @@ class CritiquesExtractionService:
             name: Nom à normaliser
 
         Returns:
-            Nom normalisé (minuscules, espaces nettoyés)
+            Nom normalisé (minuscules, sans accents, espaces nettoyés)
         """
-        # Remplacer les espaces multiples par un seul espace
-        normalized = re.sub(r"\s+", " ", name.strip())
-        return normalized.lower()
+        return normalize_for_matching(name)
 
     def find_matching_critique(
         self, detected_name: str, existing_critiques: list[dict[str, Any]]

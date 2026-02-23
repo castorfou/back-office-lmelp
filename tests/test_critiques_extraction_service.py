@@ -202,6 +202,22 @@ def test_find_matching_critique_no_match(service):
     assert result is None
 
 
+def test_find_matching_critique_accent_insensitive(service):
+    """Test que le matching est insensible aux accents (bug #226: Eric vs Éric).
+
+    "Eric Neuhoff" (sans accent sur É) doit matcher "Éric Neuhoff" (avec accent).
+    Sans ce fix, normalize_critique_name("Éric") == "éric" != "eric"
+    ce qui crée un doublon en base.
+    """
+    existing_critiques = [
+        {"nom": "Éric Neuhoff", "variantes": []},
+    ]
+    result = service.find_matching_critique("Eric Neuhoff", existing_critiques)
+    assert result is not None
+    assert result["nom"] == "Éric Neuhoff"
+    assert result["match_type"] == "exact"
+
+
 def test_extract_critiques_hyphenated_name_without_space(service):
     """Test que les noms composés avec tiret mais sans espace sont extraits.
 
