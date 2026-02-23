@@ -5,6 +5,11 @@ FROM python:3.11-slim AS builder
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Install build tools needed for packages requiring C compilation (e.g. scikit-surprise)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 
