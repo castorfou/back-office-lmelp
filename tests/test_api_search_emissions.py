@@ -91,29 +91,35 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),
-                "livre_titre_extrait": "La Peste",
-                "auteur_nom_extrait": "Albert Camus",
-                "editeur_extrait": "Gallimard",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "commentaire": "Albert Camus La Peste",
+            "section": "programme",
+        }
 
-        # find().sort() chain
+        # Pass 1 (commentaire search): returns avis
+        # Pass 2 (livre_oid search): empty (no livres matched)
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
+
         mock_emissions_collection.find.return_value.sort.return_value = [
-            {
-                "_id": emission_id,
-                "date": emission_date,
-            }
+            {"_id": emission_id, "date": emission_date}
         ]
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("Camus")
 
@@ -132,29 +138,33 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),
-                "livre_titre_extrait": "La Peste",
-                "auteur_nom_extrait": "Albert Camus",
-                "editeur_extrait": "Gallimard",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "commentaire": "Albert Camus La Peste",
+            "section": "programme",
+        }
 
-        # find().sort() chain
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
+
         mock_emissions_collection.find.return_value.sort.return_value = [
-            {
-                "_id": emission_id,
-                "date": emission_date,
-            }
+            {"_id": emission_id, "date": emission_date}
         ]
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("Camus")
         emission = result["emissions"][0]
@@ -170,38 +180,42 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        # Deux avis pour la même émission (même emission_oid)
-        mock_avis_collection.find.return_value = [
+        # Deux avis pour la même émission matchant via commentaire
+        avis_docs = [
             {
                 "_id": ObjectId(),
                 "emission_oid": str(emission_id),
-                "livre_titre_extrait": "La Peste",
-                "auteur_nom_extrait": "Albert Camus",
-                "editeur_extrait": "Gallimard",
+                "commentaire": "Albert Camus La Peste",
                 "section": "programme",
             },
             {
                 "_id": ObjectId(),
                 "emission_oid": str(emission_id),
-                "livre_titre_extrait": "L'Étranger",
-                "auteur_nom_extrait": "Albert Camus",
-                "editeur_extrait": "Gallimard",
+                "commentaire": "Albert Camus L'Étranger",
                 "section": "coup_de_coeur",
             },
         ]
-        mock_avis_collection.count_documents.return_value = 2
 
-        # find().sort() chain
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return avis_docs
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
+
         mock_emissions_collection.find.return_value.sort.return_value = [
-            {
-                "_id": emission_id,
-                "date": emission_date,
-            }
+            {"_id": emission_id, "date": emission_date}
         ]
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("Camus")
 
@@ -217,21 +231,28 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        # L'avis contient "Roman qui donne envie" dans commentaire,
-        # pas dans livre_titre_extrait / auteur_nom_extrait / editeur_extrait
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),
-                "livre_titre_extrait": "Départ",
-                "auteur_nom_extrait": "Julian Barnes",
-                "editeur_extrait": "Stock",
-                "commentaire": "Roman qui donne envie d'aimer la vie, grande complicité avec le lecteur",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "livre_titre_extrait": "Départ",
+            "auteur_nom_extrait": "Julian Barnes",
+            "editeur_extrait": "Stock",
+            "commentaire": "Roman qui donne envie d'aimer la vie, grande complicité avec le lecteur",
+            "section": "programme",
+        }
+
+        # commentaire search: returns avis; livre_oid search: empty
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
 
         mock_emissions_collection.find.return_value.sort.return_value = [
             {"_id": emission_id, "date": emission_date}
@@ -239,6 +260,8 @@ class TestSearchEmissionsService:
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("Roman qui donne envie")
 
@@ -246,14 +269,11 @@ class TestSearchEmissionsService:
             "La recherche dans le commentaire doit trouver l'émission"
         )
 
-        # Vérifier que la query MongoDB contient bien le champ commentaire
-        call_args = mock_avis_collection.find.call_args
-        assert call_args is not None
-        query = call_args[0][0]
-        or_clauses = query.get("$or", [])
-        searched_fields = [list(clause.keys())[0] for clause in or_clauses]
-        assert "commentaire" in searched_fields, (
-            f"Le champ 'commentaire' doit être dans la recherche $or, fields trouvés: {searched_fields}"
+        # Vérifier que la 1ère query avis.find contient bien le champ commentaire
+        first_call_args = mock_avis_collection.find.call_args_list[0]
+        query = first_call_args[0][0]
+        assert "commentaire" in query, (
+            f"Le 1er appel à avis.find() doit chercher dans 'commentaire'. Query: {query}"
         )
 
     def test_search_emissions_context_shows_commentaire_when_match_in_commentaire(self):
@@ -261,24 +281,33 @@ class TestSearchEmissionsService:
         service = MongoDBService.__new__(MongoDBService)
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        livre_id = ObjectId("6994e74f95e08117826da195")
         emission_date = datetime(2026, 2, 13)
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        # La query matche SEULEMENT dans le commentaire, pas dans titre/auteur/éditeur
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),
-                "livre_titre_extrait": "Départ",
-                "auteur_nom_extrait": "Julian Barnes",
-                "editeur_extrait": "Stock",
-                "commentaire": "Roman qui donne envie d'aimer la vie, grande complicité avec le lecteur",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "livre_oid": str(livre_id),
+            "livre_titre_extrait": "Départ",
+            "auteur_nom_extrait": "Julian Barnes",
+            "editeur_extrait": "Stock",
+            "commentaire": "Roman qui donne envie d'aimer la vie, grande complicité avec le lecteur",
+            "section": "programme",
+        }
+
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
 
         mock_emissions_collection.find.return_value.sort.return_value = [
             {"_id": emission_id, "date": emission_date}
@@ -286,6 +315,8 @@ class TestSearchEmissionsService:
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("Roman qui donne envie")
 
@@ -304,7 +335,7 @@ class TestSearchEmissionsService:
         )
 
     def test_search_emissions_uses_real_title_from_livres_collection(self):
-        """search_emissions() utilise le vrai titre depuis livres (pas livre_titre_extrait tronqué)."""
+        """search_emissions() utilise le vrai titre depuis livres pour le search_context."""
         service = MongoDBService.__new__(MongoDBService)
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -314,45 +345,54 @@ class TestSearchEmissionsService:
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
         mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
         # avis.livre_titre_extrait est tronqué ("Départ") mais le vrai titre est "Départ(s)"
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),
-                "livre_oid": str(livre_id),
-                "livre_titre_extrait": "Départ",  # tronqué !
-                "auteur_nom_extrait": "Julian Barnes",
-                "editeur_extrait": "Stock",
-                "commentaire": "Roman qui donne envie d'aimer la vie",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "livre_oid": str(livre_id),
+            "livre_titre_extrait": "Départ",  # tronqué !
+            "auteur_nom_extrait": "Julian Barnes",
+            "editeur_extrait": "Stock",
+            "commentaire": "Roman qui donne envie d'aimer la vie",
+            "section": "programme",
+        }
+
+        livre_doc = {"_id": livre_id, "titre": "Départ(s)", "editeur": "Stock"}
+
+        # Pass 2: livres trouve "Départ(s)" matching "Départ"
+        def livres_find_side_effect(query, *args, **kwargs):
+            if "$or" in query:
+                return [livre_doc]
+            # lookup by _id for context enrichment
+            return [livre_doc]
+
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "livre_oid" in query:
+                return [avis_doc]
+            return []
+
+        mock_livres_collection.find.side_effect = livres_find_side_effect
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_auteurs_collection.find.return_value = []
 
         mock_emissions_collection.find.return_value.sort.return_value = [
             {"_id": emission_id, "date": emission_date}
         ]
 
-        # livres retourne le vrai titre complet (find() itérable)
-        mock_livres_collection.find.return_value = [
-            {"_id": livre_id, "titre": "Départ(s)"}
-        ]
-
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
         service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
-        result = service.search_emissions("Barnes")
+        result = service.search_emissions("Départ")
 
         emission = result["emissions"][0]
         search_context = emission["search_context"]
 
         assert "Départ(s)" in search_context, (
             f"Le titre doit venir de livres.titre ('Départ(s)'), got: '{search_context}'"
-        )
-        assert "Départ" in search_context and "Départ(s)" in search_context, (
-            "Le titre complet doit apparaître dans le contexte"
         )
 
     def test_search_emissions_empty_result_when_no_match(self):
@@ -361,12 +401,17 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
         mock_avis_collection.find.return_value = []
-        mock_avis_collection.count_documents.return_value = 0
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         result = service.search_emissions("terme_inexistant_xyz")
 
@@ -374,7 +419,7 @@ class TestSearchEmissionsService:
         assert result["total_count"] == 0
 
     def test_search_emissions_uses_objectid_conversion(self):
-        """La jointure utilise ObjectId() pour convertir emission_oid (String → ObjectId)."""
+        """La jointure émissions utilise ObjectId() pour convertir emission_oid (String → ObjectId)."""
         service = MongoDBService.__new__(MongoDBService)
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -382,30 +427,37 @@ class TestSearchEmissionsService:
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
 
-        mock_avis_collection.find.return_value = [
-            {
-                "_id": ObjectId(),
-                "emission_oid": str(emission_id),  # String!
-                "livre_titre_extrait": "La Peste",
-                "auteur_nom_extrait": "Albert Camus",
-                "editeur_extrait": "Gallimard",
-                "section": "programme",
-            }
-        ]
-        mock_avis_collection.count_documents.return_value = 1
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),  # String!
+            "commentaire": "Albert Camus La Peste",
+            "section": "programme",
+        }
 
-        # find().sort() chain
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "commentaire" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis_collection.find.side_effect = avis_find_side_effect
+        mock_livres_collection.find.return_value = []
+        mock_auteurs_collection.find.return_value = []
+
         mock_emissions_collection.find.return_value.sort.return_value = [
             {"_id": emission_id, "date": emission_date}
         ]
 
         service.avis_collection = mock_avis_collection
         service.emissions_collection = mock_emissions_collection
+        service.livres_collection = mock_livres_collection
+        service.auteurs_collection = mock_auteurs_collection
 
         service.search_emissions("Camus")
 
-        # Vérifier que find() a été appelé avec ObjectId (pas String)
+        # Vérifier que emissions.find() a été appelé avec ObjectId (pas String)
         call_args = mock_emissions_collection.find.call_args
         assert call_args is not None
         query = call_args[0][0]
@@ -728,3 +780,275 @@ class TestAdvancedSearchWithEmissions:
             assert "emissions" in data["results"], (
                 "Par défaut (sans filtre), 'emissions' doit être dans les résultats"
             )
+
+
+# ===========================================================================
+# Tests TDD pour la recherche via sources canoniques (Issue #224)
+# ===========================================================================
+
+
+class TestSearchEmissionsCanonicalSources:
+    """Tests pour la recherche via sources canoniques (livres.titre, auteurs.nom).
+
+    Issue #224 : Searching "Quatre jours" didn't find the emission because
+    search_emissions() was querying avis.livre_titre_extrait (LLM-extracted,
+    non-canonical) instead of livres.titre (Babelio, canonical).
+
+    Fix: Use canonical sources for search:
+    - livres.titre (not avis.livre_titre_extrait)
+    - livres.editeur (not avis.editeur_extrait)
+    - auteurs.nom (not avis.auteur_nom_extrait)
+    - avis.commentaire (unchanged, already canonical)
+    """
+
+    def _make_service_with_mocks(
+        self,
+        avis_docs=None,
+        livres_docs=None,
+        auteurs_docs=None,
+        emission_date=None,
+        emission_id=None,
+    ):
+        """Helper to build a MongoDBService with all collections mocked."""
+        service = MongoDBService.__new__(MongoDBService)
+
+        if emission_id is None:
+            emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        if emission_date is None:
+            emission_date = datetime(2025, 12, 7)
+
+        mock_avis = MagicMock()
+        mock_emissions = MagicMock()
+        mock_livres = MagicMock()
+        mock_auteurs = MagicMock()
+
+        # Default: empty results
+        mock_avis.find.return_value = avis_docs if avis_docs is not None else []
+        mock_livres.find.return_value = livres_docs if livres_docs is not None else []
+        mock_auteurs.find.return_value = (
+            auteurs_docs if auteurs_docs is not None else []
+        )
+        mock_emissions.find.return_value.sort.return_value = [
+            {"_id": emission_id, "date": emission_date}
+        ]
+
+        service.avis_collection = mock_avis
+        service.emissions_collection = mock_emissions
+        service.livres_collection = mock_livres
+        service.auteurs_collection = mock_auteurs
+
+        return (
+            service,
+            emission_id,
+            mock_avis,
+            mock_livres,
+            mock_auteurs,
+            mock_emissions,
+        )
+
+    def test_search_by_canonical_titre_finds_emission_when_titre_extrait_differs(self):
+        """Issue #224: 'Quatre jours' doit trouver l'émission même si livre_titre_extrait='4 jours'.
+
+        Le titre Babelio (livres.titre) est 'Quatre jours sans ma mère'.
+        Le LLM a extrait '4 jours sans ma mère' dans avis.livre_titre_extrait.
+        La recherche doit utiliser livres.titre (source canonique).
+        """
+        emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        livre_id = ObjectId("6935d067705ddce2450b2588")
+
+        service = MongoDBService.__new__(MongoDBService)
+        mock_avis = MagicMock()
+        mock_emissions = MagicMock()
+        mock_livres = MagicMock()
+        mock_auteurs = MagicMock()
+
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "livre_oid": str(livre_id),
+            "livre_titre_extrait": "4 jours sans ma mère",  # LLM extracted (chiffre)
+            "auteur_nom_extrait": "Ramsès Kefi",
+            "editeur_extrait": "Philippe Rey",
+            "commentaire": "Un beau roman",
+            "section": "programme",
+        }
+
+        livre_doc = {
+            "_id": livre_id,  # ObjectId
+            "titre": "Quatre jours sans ma mère",  # Babelio canonical (lettres)
+            "editeur": "Philippe Rey",
+        }
+
+        # livres.find() returns the book matching "Quatre jours"
+        mock_livres.find.return_value = [livre_doc]
+        mock_auteurs.find.return_value = []
+
+        # avis.find() with livre_oid filter returns the linked avis
+        # We use side_effect to handle multiple calls:
+        # 1st call: commentaire search → empty (no match in commentaire)
+        # 2nd call: livre_oid filter → returns the avis
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "livre_oid" in query:
+                return [avis_doc]
+            if "commentaire" in str(query):
+                return []
+            return []
+
+        mock_avis.find.side_effect = avis_find_side_effect
+
+        mock_emissions.find.return_value.sort.return_value = [
+            {"_id": emission_id, "date": datetime(2025, 12, 7)}
+        ]
+
+        service.avis_collection = mock_avis
+        service.emissions_collection = mock_emissions
+        service.livres_collection = mock_livres
+        service.auteurs_collection = mock_auteurs
+
+        result = service.search_emissions("Quatre jours")
+
+        assert len(result["emissions"]) == 1, (
+            f"Searching 'Quatre jours' should find the emission via livres.titre "
+            f"(canonical), even though livre_titre_extrait='4 jours'. "
+            f"Got {len(result['emissions'])} results."
+        )
+        assert result["total_count"] == 1
+
+    def test_search_by_canonical_auteur_nom_finds_emission(self):
+        """La recherche par nom d'auteur utilise auteurs.nom (canonique), pas auteur_nom_extrait."""
+        emission_id = ObjectId("694fea90e46eedc769bcd96c")
+        livre_id = ObjectId("6935d067705ddce2450b2588")
+        auteur_id = ObjectId("6935d067705ddce2450b2587")
+
+        service = MongoDBService.__new__(MongoDBService)
+        mock_avis = MagicMock()
+        mock_emissions = MagicMock()
+        mock_livres = MagicMock()
+        mock_auteurs = MagicMock()
+
+        avis_doc = {
+            "_id": ObjectId(),
+            "emission_oid": str(emission_id),
+            "livre_oid": str(livre_id),
+            "livre_titre_extrait": "4 jours sans ma mère",
+            "auteur_nom_extrait": "R. Kefi",  # abbreviated, non-canonical
+            "editeur_extrait": "Philippe Rey",
+            "commentaire": "Un beau roman",
+            "section": "programme",
+        }
+
+        auteur_doc = {
+            "_id": auteur_id,  # ObjectId
+            "nom": "Ramsès Kefi",  # Babelio canonical full name
+        }
+
+        livre_doc_for_auteur = {
+            "_id": livre_id,  # ObjectId
+            "titre": "Quatre jours sans ma mère",
+            "auteur_id": auteur_id,
+            "editeur": "Philippe Rey",
+        }
+
+        # auteurs.find() returns the author matching "Kefi"
+        mock_auteurs.find.return_value = [auteur_doc]
+
+        # livres.find() returns books for that author (when queried by auteur_id)
+        # and empty list when queried for titre/editeur regex
+        def livres_find_side_effect(query, *args, **kwargs):
+            if "auteur_id" in query:
+                return [livre_doc_for_auteur]
+            # titre/editeur regex search: no match (searching "Kefi" in titre)
+            return []
+
+        mock_livres.find.side_effect = livres_find_side_effect
+
+        def avis_find_side_effect(query, *args, **kwargs):
+            if "livre_oid" in query:
+                return [avis_doc]
+            return []
+
+        mock_avis.find.side_effect = avis_find_side_effect
+
+        mock_emissions.find.return_value.sort.return_value = [
+            {"_id": emission_id, "date": datetime(2025, 12, 7)}
+        ]
+
+        service.avis_collection = mock_avis
+        service.emissions_collection = mock_emissions
+        service.livres_collection = mock_livres
+        service.auteurs_collection = mock_auteurs
+
+        result = service.search_emissions("Kefi")
+
+        assert len(result["emissions"]) == 1, (
+            f"Searching 'Kefi' should find the emission via auteurs.nom (canonical). "
+            f"Got {len(result['emissions'])} results."
+        )
+
+    def test_search_livres_titre_is_queried_not_livre_titre_extrait(self):
+        """La nouvelle implémentation doit chercher dans livres.titre, pas avis.livre_titre_extrait."""
+        service = MongoDBService.__new__(MongoDBService)
+        mock_avis = MagicMock()
+        mock_emissions = MagicMock()
+        mock_livres = MagicMock()
+        mock_auteurs = MagicMock()
+
+        mock_livres.find.return_value = []
+        mock_auteurs.find.return_value = []
+        mock_avis.find.return_value = []
+        mock_emissions.find.return_value.sort.return_value = []
+
+        service.avis_collection = mock_avis
+        service.emissions_collection = mock_emissions
+        service.livres_collection = mock_livres
+        service.auteurs_collection = mock_auteurs
+
+        service.search_emissions("Quatre jours")
+
+        # livres_collection.find() doit être appelé avec une query sur "titre"
+        assert mock_livres.find.called, "livres_collection.find() doit être appelé"
+        livres_call_args = mock_livres.find.call_args_list
+        searched_fields = []
+        for call in livres_call_args:
+            q = call[0][0] if call[0] else {}
+            for key in q:
+                if key == "$or":
+                    searched_fields.extend(list(c.keys())[0] for c in q[key])
+                else:
+                    searched_fields.append(key)
+        assert "titre" in searched_fields, (
+            f"livres_collection.find() doit chercher dans 'titre'. "
+            f"Fields found: {searched_fields}"
+        )
+
+    def test_search_auteurs_nom_is_queried_not_auteur_nom_extrait(self):
+        """La nouvelle implémentation doit chercher dans auteurs.nom, pas avis.auteur_nom_extrait."""
+        service = MongoDBService.__new__(MongoDBService)
+        mock_avis = MagicMock()
+        mock_emissions = MagicMock()
+        mock_livres = MagicMock()
+        mock_auteurs = MagicMock()
+
+        mock_livres.find.return_value = []
+        mock_auteurs.find.return_value = []
+        mock_avis.find.return_value = []
+        mock_emissions.find.return_value.sort.return_value = []
+
+        service.avis_collection = mock_avis
+        service.emissions_collection = mock_emissions
+        service.livres_collection = mock_livres
+        service.auteurs_collection = mock_auteurs
+
+        service.search_emissions("Kefi")
+
+        # auteurs_collection.find() doit être appelé avec une query sur "nom"
+        assert mock_auteurs.find.called, "auteurs_collection.find() doit être appelé"
+        auteurs_call_args = mock_auteurs.find.call_args_list
+        searched_fields = []
+        for call in auteurs_call_args:
+            q = call[0][0] if call[0] else {}
+            searched_fields.extend(q.keys())
+        assert "nom" in searched_fields, (
+            f"auteurs_collection.find() doit chercher dans 'nom'. "
+            f"Fields found: {searched_fields}"
+        )

@@ -1406,11 +1406,16 @@ class MongoDBService:
     def search_emissions(
         self, query: str, limit: int = 10, offset: int = 0
     ) -> dict[str, Any]:
-        """Recherche textuelle dans les émissions via la collection avis.
+        """Recherche textuelle dans les émissions via les sources canoniques.
 
-        Cherche dans les champs propres et structurés de la collection avis :
-        livre_titre_extrait, auteur_nom_extrait, editeur_extrait, commentaire.
-        Sections "programme" et "coup_de_coeur" uniquement (sans noms de critiques).
+        Cherche dans les sources de vérité canoniques (Babelio) :
+        - livres.titre et livres.editeur (pas les champs _extrait du LLM)
+        - auteurs.nom (pas auteur_nom_extrait)
+        - avis.commentaire (seul champ avis directement canonique)
+
+        Les champs avis.livre_titre_extrait / auteur_nom_extrait / editeur_extrait
+        sont des extractions LLM non canoniques et peuvent différer des titres
+        Babelio (ex: "4 jours" vs "Quatre jours").
 
         Args:
             query: Terme de recherche (ex: "Camus" trouvera "Albert Camus")
@@ -1433,39 +1438,62 @@ class MongoDBService:
 
             query_stripped = query.strip()
             regex_pattern = create_accent_insensitive_regex(query_stripped)
+            regex_query = {"$regex": regex_pattern, "$options": "i"}
 
-            # Chercher dans les champs propres de la collection avis
-            search_query = {
-                "$or": [
-                    {
-                        "livre_titre_extrait": {
-                            "$regex": regex_pattern,
-                            "$options": "i",
-                        }
-                    },
-                    {
-                        "auteur_nom_extrait": {
-                            "$regex": regex_pattern,
-                            "$options": "i",
-                        }
-                    },
-                    {
-                        "editeur_extrait": {
-                            "$regex": regex_pattern,
-                            "$options": "i",
-                        }
-                    },
-                    {
-                        "commentaire": {
-                            "$regex": regex_pattern,
-                            "$options": "i",
-                        }
-                    },
-                ]
-            }
+            # Collecter les avis matchés par ID pour déduplication
+            matching_avis_by_id: dict[str, dict[str, Any]] = {}
 
-            # Compter les avis correspondants (avant déduplication)
-            matching_avis = list(self.avis_collection.find(search_query))
+            # Pass 1 : avis dont le commentaire matche (directement canonique)
+            for avis in self.avis_collection.find({"commentaire": regex_query}):
+                avis_id = str(avis["_id"])
+                matching_avis_by_id[avis_id] = avis
+
+            # Pass 2 : livres dont le titre ou l'éditeur matche → avis liés via livre_oid
+            if self.livres_collection is not None:
+                matching_livres = list(
+                    self.livres_collection.find(
+                        {
+                            "$or": [
+                                {"titre": regex_query},
+                                {"editeur": regex_query},
+                            ]
+                        }
+                    )
+                )
+                if matching_livres:
+                    # livres._id est ObjectId, avis.livre_oid est String
+                    livre_ids_str = [str(livre["_id"]) for livre in matching_livres]
+                    for avis in self.avis_collection.find(
+                        {"livre_oid": {"$in": livre_ids_str}}
+                    ):
+                        avis_id = str(avis["_id"])
+                        matching_avis_by_id[avis_id] = avis
+
+            # Pass 3 : auteurs dont le nom matche → livres liés → avis liés
+            if (
+                self.auteurs_collection is not None
+                and self.livres_collection is not None
+            ):
+                matching_auteurs = list(
+                    self.auteurs_collection.find({"nom": regex_query})
+                )
+                if matching_auteurs:
+                    for auteur in matching_auteurs:
+                        # livres.auteur_id est ObjectId, auteurs._id est ObjectId
+                        auteur_livres = list(
+                            self.livres_collection.find({"auteur_id": auteur["_id"]})
+                        )
+                        if auteur_livres:
+                            auteur_livre_ids_str = [
+                                str(livre["_id"]) for livre in auteur_livres
+                            ]
+                            for avis in self.avis_collection.find(
+                                {"livre_oid": {"$in": auteur_livre_ids_str}}
+                            ):
+                                avis_id = str(avis["_id"])
+                                matching_avis_by_id[avis_id] = avis
+
+            matching_avis = list(matching_avis_by_id.values())
             total_avis_count = len(matching_avis)
 
             if total_avis_count == 0:
