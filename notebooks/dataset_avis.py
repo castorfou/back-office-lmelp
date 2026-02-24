@@ -57,6 +57,14 @@ df_masque = df_masque[
     ["critique_oid", "livre_oid", "note", "critique_nom", "livre_titre"]
 ].copy()
 
+# Remplacer les noms dénormalisés (critique_nom_extrait) par les noms canoniques
+# de la collection `critiques` — évite les doublons dus à des noms historiques incohérents
+critiques_raw = list(db.critiques.find({}, {"_id": 1, "nom": 1}))
+critiques_canonical = {str(c["_id"]): c["nom"] for c in critiques_raw}
+df_masque["critique_nom"] = (
+    df_masque["critique_oid"].map(critiques_canonical).fillna(df_masque["critique_nom"])
+)
+
 # Filtrer les notes manquantes ou hors échelle 1-10
 df_masque = df_masque.dropna(subset=["note", "critique_oid", "livre_oid"])
 df_masque = df_masque[df_masque["note"].between(1, 10)]
