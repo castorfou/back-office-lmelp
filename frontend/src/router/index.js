@@ -86,6 +86,14 @@ const routes = [
     }
   },
   {
+    path: '/critiques',
+    name: 'Critiques',
+    component: () => import('../views/Critiques.vue'),
+    meta: {
+      title: 'Critiques - Back-office LMELP'
+    }
+  },
+  {
     path: '/critique/:id',
     name: 'CritiqueDetail',
     component: () => import('../views/CritiqueDetail.vue'),

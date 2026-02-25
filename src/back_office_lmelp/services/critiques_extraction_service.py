@@ -106,14 +106,23 @@ class CritiquesExtractionService:
         normalized_detected = self.normalize_critique_name(detected_name)
 
         for critique in existing_critiques:
+            critique_id = str(critique["_id"])
             # Vérifier correspondance exacte
             if self.normalize_critique_name(critique["nom"]) == normalized_detected:
-                return {"nom": critique["nom"], "match_type": "exact"}
+                return {
+                    "id": critique_id,
+                    "nom": critique["nom"],
+                    "match_type": "exact",
+                }
 
             # Vérifier correspondance sur les variantes
             for variante in critique.get("variantes", []):
                 if self.normalize_critique_name(variante) == normalized_detected:
-                    return {"nom": critique["nom"], "match_type": "variante"}
+                    return {
+                        "id": critique_id,
+                        "nom": critique["nom"],
+                        "match_type": "variante",
+                    }
 
         return None
 

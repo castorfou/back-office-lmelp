@@ -166,9 +166,19 @@ def test_normalize_critique_name(service):
 
 def test_find_matching_critique_exact_match(service):
     """Test de recherche avec correspondance exacte."""
+    from bson import ObjectId
+
     existing_critiques = [
-        {"nom": "Blandine Rinkel", "variantes": []},
-        {"nom": "Arnaud Viviant", "variantes": ["Arnaud V."]},
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "nom": "Blandine Rinkel",
+            "variantes": [],
+        },
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439012"),
+            "nom": "Arnaud Viviant",
+            "variantes": ["Arnaud V."],
+        },
     ]
 
     result = service.find_matching_critique("Blandine Rinkel", existing_critiques)
@@ -176,12 +186,19 @@ def test_find_matching_critique_exact_match(service):
     assert result is not None
     assert result["nom"] == "Blandine Rinkel"
     assert result["match_type"] == "exact"
+    assert "id" in result
 
 
 def test_find_matching_critique_variante_match(service):
     """Test de recherche avec correspondance sur variante."""
+    from bson import ObjectId
+
     existing_critiques = [
-        {"nom": "Blandine Rinkel", "variantes": ["Blandine R.", "B. Rinkel"]},
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "nom": "Blandine Rinkel",
+            "variantes": ["Blandine R.", "B. Rinkel"],
+        },
     ]
 
     result = service.find_matching_critique("Blandine R.", existing_critiques)
@@ -189,12 +206,19 @@ def test_find_matching_critique_variante_match(service):
     assert result is not None
     assert result["nom"] == "Blandine Rinkel"
     assert result["match_type"] == "variante"
+    assert "id" in result
 
 
 def test_find_matching_critique_no_match(service):
     """Test de recherche sans correspondance."""
+    from bson import ObjectId
+
     existing_critiques = [
-        {"nom": "Blandine Rinkel", "variantes": []},
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "nom": "Blandine Rinkel",
+            "variantes": [],
+        },
     ]
 
     result = service.find_matching_critique("Patricia Martin", existing_critiques)
@@ -209,8 +233,14 @@ def test_find_matching_critique_accent_insensitive(service):
     Sans ce fix, normalize_critique_name("Éric") == "éric" != "eric"
     ce qui crée un doublon en base.
     """
+    from bson import ObjectId
+
     existing_critiques = [
-        {"nom": "Éric Neuhoff", "variantes": []},
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "nom": "Éric Neuhoff",
+            "variantes": [],
+        },
     ]
     result = service.find_matching_critique("Eric Neuhoff", existing_critiques)
     assert result is not None

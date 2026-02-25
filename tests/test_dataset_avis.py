@@ -22,8 +22,8 @@ import pytest
 from bson import ObjectId
 
 
-# Chemin absolu du script
-DATASET_SCRIPT = Path("/workspaces/back-office-lmelp/notebooks/dataset_avis.py")
+# Chemin du script relatif à ce fichier de test (tests/ -> .. -> notebooks/)
+DATASET_SCRIPT = Path(__file__).resolve().parents[1] / "notebooks" / "dataset_avis.py"
 
 
 def make_mock_db(avis_docs: list[dict], critiques_docs: list[dict]) -> MagicMock:
