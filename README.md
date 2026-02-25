@@ -254,6 +254,18 @@ export BABELIO_CACHE_LOG=1
 - 📋 **Copier-coller** : Bouton de copie des tags complets (virtual library + notable + lmelp_) pour Calibre
 - 🔄 **Cache intelligent** : Cache de 5 minutes avec invalidation manuelle après corrections
 
+#### Gestion des Critiques
+
+- 📋 **Liste complète** : Page `/critiques` avec tous les critiques, nombre d'avis et note moyenne
+- 🔠 **Tri interactif** : Colonnes triables (Nom, Avis, Note) avec `localeCompare` français
+- 🔗 **Accès direct** : Clic sur une ligne → fiche détaillée du critique (`/critique/:id`)
+- 🔀 **Fusion de doublons** : Outil de merge (source → cible) avec confirmation obligatoire par saisie du nom exact
+  - Repointe tous les avis `critique_oid` du doublon vers la cible
+  - Fusionne les variantes de noms sans doublons
+  - Supprime le critique source après fusion
+- 🎙️ **Carte Dashboard** : Accès rapide depuis la section Consultation
+- 🔗 **Liens depuis identification** : Page `/identification-critiques` affiche des `router-link` cliquables pour les critiques existants
+
 #### Palmarès des livres
 - 🏆 **Classement par note** : Livres classés par note moyenne décroissante (minimum 2 avis)
 - 📖 **Intégration Calibre** : Statut de lecture et note Calibre pour chaque livre
@@ -311,6 +323,10 @@ GET /api/livre/{id}               # Détails d'un livre avec ses épisodes
 # Recherche textuelle
 GET /api/search?q={query}&limit={n}              # Recherche simple multi-collections
 GET /api/advanced-search?q={query}&entities={...}&page={n}&limit={m}  # Recherche avec filtres et pagination
+
+# Critiques
+GET /api/critiques                # Liste tous les critiques avec nombre_avis et note_moyenne
+POST /api/critiques/merge         # Fusionner deux critiques doublons (source → cible, confirmation obligatoire)
 
 # Palmarès
 GET /api/palmares                 # Classement des livres par note moyenne (pagination)

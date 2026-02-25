@@ -159,12 +159,28 @@ df = (
 )
 df["note"] = df["note"].astype(float)
 
+# ── 4b. Filtrage des critiques avec trop peu d'avis ─────────────────────────
+# Les critiques avec moins de MIN_AVIS_PAR_CRITIQUE avis apportent peu
+# d'information pour le collaborative filtering et introduisent du bruit.
+
+MIN_AVIS_PAR_CRITIQUE = 10
+
+avis_par_critique = df.groupby("critique_oid").size()
+critiques_retenus = avis_par_critique[avis_par_critique >= MIN_AVIS_PAR_CRITIQUE].index
+n_exclus = df["critique_oid"].nunique() - len(critiques_retenus)
+df = df[df["critique_oid"].isin(critiques_retenus)].copy()
+
+if n_exclus > 0:
+    print(f"⚠️  {n_exclus} critique(s) exclus (< {MIN_AVIS_PAR_CRITIQUE} avis)")
+
 # ── 5. Statistiques et indices ───────────────────────────────────────────────
 
 n_avis = len(df)
 n_critiques = df["critique_oid"].nunique()
 n_livres = df["livre_oid"].nunique()
-sparsity = 1 - (n_avis / (n_critiques * n_livres))
+sparsity = (
+    1 - (n_avis / (n_critiques * n_livres)) if n_critiques * n_livres > 0 else 1.0
+)
 
 # Dictionnaires de lookup
 critique_names = dict(

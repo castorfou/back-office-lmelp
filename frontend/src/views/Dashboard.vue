@@ -190,6 +190,17 @@
             <p>Consultation et gestion de la bibliothèque personnelle</p>
             <div class="function-arrow">→</div>
           </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-critiques"
+            @click="navigateToCritiques"
+          >
+            <div class="function-icon">🎙️</div>
+            <h3>Critiques</h3>
+            <p>Liste de tous les critiques avec accès direct à leur fiche</p>
+            <div class="function-arrow">→</div>
+          </div>
         </div>
       </section>
 
@@ -636,6 +647,10 @@ export default {
 
     navigateToDuplicates() {
       this.$router.push('/duplicates');
+    },
+
+    navigateToCritiques() {
+      this.$router.push('/critiques');
     }
   }
 };

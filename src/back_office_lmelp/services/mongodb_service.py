@@ -2244,6 +2244,103 @@ class MongoDBService:
             return []
         return list(self.avis_collection.find({"emission_oid": emission_oid}))
 
+    def get_all_critiques(self) -> list[dict[str, Any]]:
+        """Retourne tous les critiques avec nombre_avis et note_moyenne (Issue #227).
+
+        Utilise un pipeline d'agrégation pour joindre la collection avis.
+        Note : avis.critique_oid est un String, critiques._id est un ObjectId —
+        la conversion via $toString est donc nécessaire pour le $lookup.
+
+        Returns:
+            Liste de critiques triés par nom, chacun avec les champs :
+            _id, nom, animateur, variantes, nombre_avis, note_moyenne
+        """
+        if self.critiques_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        pipeline: list[dict[str, Any]] = [
+            {
+                "$lookup": {
+                    "from": "avis",
+                    "let": {"cid": {"$toString": "$_id"}},
+                    "pipeline": [
+                        {"$match": {"$expr": {"$eq": ["$critique_oid", "$$cid"]}}}
+                    ],
+                    "as": "avis_list",
+                }
+            },
+            {
+                "$addFields": {
+                    "nombre_avis": {"$size": "$avis_list"},
+                    "note_moyenne": {"$avg": "$avis_list.note"},
+                }
+            },
+            {"$project": {"avis_list": 0}},
+            {"$sort": {"nom": 1}},
+        ]
+        return list(self.critiques_collection.aggregate(pipeline))
+
+    def merge_critiques(self, source_id: str, target_id: str) -> dict[str, Any]:
+        """Fusionne le critique source dans le critique target (Issue #227).
+
+        Opérations effectuées :
+        1. Tous les avis.critique_oid pointant sur source → remappés vers target
+        2. Les variantes de source fusionnées dans target (sans doublons)
+        3. Le critique source supprimé de la collection critiques
+
+        Note : avis.critique_oid est stocké en String, pas en ObjectId.
+
+        Args:
+            source_id: ID (string) du critique à supprimer
+            target_id: ID (string) du critique à conserver
+
+        Returns:
+            Dict avec merged_avis, deleted_critique, target_id
+        """
+        if self.critiques_collection is None or self.avis_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+
+        source = self.critiques_collection.find_one({"_id": ObjectId(source_id)})
+        target = self.critiques_collection.find_one({"_id": ObjectId(target_id)})
+
+        if not source or not target:
+            raise ValueError("Critique source ou target introuvable")
+
+        # 1. Remapper les avis (critique_oid est un String)
+        result = self.avis_collection.update_many(
+            {"critique_oid": source_id},
+            {"$set": {"critique_oid": target_id}},
+        )
+        merged_avis = result.modified_count
+
+        # 2. Fusionner les variantes de source dans target (sans doublons)
+        source_variantes: list[str] = source.get("variantes", [])
+        target_variantes: list[str] = target.get("variantes", [])
+        target_nom: str = target.get("nom", "")
+
+        new_variantes = list(target_variantes)
+        for v in source_variantes:
+            if v not in new_variantes and v != target_nom:
+                new_variantes.append(v)
+        # Ajouter le nom du source comme variante s'il n'y est pas déjà
+        source_nom: str = source.get("nom", "")
+        if source_nom and source_nom not in new_variantes and source_nom != target_nom:
+            new_variantes.append(source_nom)
+
+        self.critiques_collection.update_one(
+            {"_id": ObjectId(target_id)},
+            {"$set": {"variantes": new_variantes}},
+        )
+
+        # 3. Supprimer le critique source
+        self.critiques_collection.delete_one({"_id": ObjectId(source_id)})
+
+        return {
+            "merged_avis": merged_avis,
+            "deleted_critique": source_id,
+            "target_id": target_id,
+        }
+
     def get_avis_by_critique(self, critique_oid: str) -> list[dict[str, Any]]:
         """
         Récupère tous les avis d'un critique.

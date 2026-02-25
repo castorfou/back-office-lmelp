@@ -462,6 +462,28 @@ intersection = episode_ids_from_distinct & episode_ids_from_find  # Works!
 
 **Why**: MongoDB field types may differ from `_id` types (strings vs ObjectId). Always inspect real data with MCP tools before implementing set operations or comparisons.
 
+### MongoDB `$lookup` Cross-Type Join — `$toString` Pattern
+
+**CRITICAL**: When joining collections where `_id` (ObjectId) must match a String foreign key, use `$toString` in the `let` clause.
+
+```python
+# Context: critiques._id is ObjectId, avis.critique_oid is String
+# ❌ WRONG - Direct $lookup fails silently (ObjectId ≠ String → 0 results, no error)
+{"$lookup": {"from": "avis", "localField": "_id", "foreignField": "critique_oid", "as": "avis_list"}}
+
+# ✅ CORRECT - Convert _id to String for matching
+{"$lookup": {
+    "from": "avis",
+    "let": {"cid": {"$toString": "$_id"}},
+    "pipeline": [{"$match": {"$expr": {"$eq": ["$critique_oid", "$$cid"]}}}],
+    "as": "avis_list",
+}}
+```
+
+**Why it fails silently**: MongoDB does not raise an error on type mismatch in `$lookup` — it returns 0 results, making the bug hard to diagnose.
+
+**When to use**: Any aggregation `$lookup` where the join involves an ObjectId `_id` matched against a String foreign key.
+
 ### MongoDB DateTime vs String Handling
 
 **CRITICAL**: MongoDB returns `datetime` objects, but string operations expect `str`

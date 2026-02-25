@@ -254,6 +254,14 @@ class MergeDuplicateAuthorsRequest(BaseModel):
     auteur_ids: list[str]
 
 
+class MergeCritiquesRequest(BaseModel):
+    """Modèle pour fusionner deux critiques en doublon (Issue #227)."""
+
+    source_id: str
+    target_id: str
+    target_nom: str
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Gestion du cycle de vie de l'application."""
@@ -2499,6 +2507,94 @@ async def apply_livre_refresh(
     }
 
 
+@app.get("/api/critiques", response_model=list[dict[str, Any]])
+async def get_all_critiques() -> list[dict[str, Any]]:
+    """Liste tous les critiques avec leurs statistiques (Issue #227).
+
+    Returns:
+        Liste triée par nom avec id, nom, animateur, variantes, nombre_avis, note_moyenne
+    """
+    memory_check = memory_guard.check_memory_limit()
+    if memory_check:
+        if "LIMITE MÉMOIRE DÉPASSÉE" in memory_check:
+            memory_guard.force_shutdown(memory_check)
+        print(f"⚠️ {memory_check}")
+
+    try:
+        critiques = mongodb_service.get_all_critiques()
+        return [
+            {
+                "id": str(c["_id"]),
+                "nom": c.get("nom", ""),
+                "animateur": c.get("animateur", False),
+                "variantes": c.get("variantes", []),
+                "nombre_avis": c.get("nombre_avis", 0),
+                "note_moyenne": c.get("note_moyenne"),
+            }
+            for c in critiques
+        ]
+    except Exception as e:
+        logger.error(f"Erreur get_all_critiques: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/critiques/merge", response_model=dict[str, Any])
+async def merge_critiques(request: MergeCritiquesRequest) -> dict[str, Any]:
+    """Fusionne deux critiques doublons (Issue #227).
+
+    Le champ target_nom sert de confirmation obligatoire : il doit correspondre
+    exactement au nom du critique target pour éviter les erreurs irréversibles.
+
+    Args:
+        request: source_id (à supprimer), target_id (à conserver), target_nom (confirmation)
+
+    Returns:
+        Dict avec merged_avis, deleted_critique, target_id
+
+    Raises:
+        400: Si source_id == target_id, ou si target_nom ne correspond pas
+        404: Si source ou target introuvable
+    """
+    if request.source_id == request.target_id:
+        raise HTTPException(
+            status_code=400,
+            detail="source_id et target_id doivent être différents",
+        )
+
+    if mongodb_service.critiques_collection is None:
+        raise HTTPException(status_code=500, detail="Service MongoDB non disponible")
+
+    try:
+        from bson import ObjectId
+
+        target = mongodb_service.critiques_collection.find_one(
+            {"_id": ObjectId(request.target_id)}
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail="Critique target introuvable")
+
+        source = mongodb_service.critiques_collection.find_one(
+            {"_id": ObjectId(request.source_id)}
+        )
+        if not source:
+            raise HTTPException(status_code=404, detail="Critique source introuvable")
+
+        if target.get("nom") != request.target_nom:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Confirmation incorrecte : attendu '{target.get('nom')}', reçu '{request.target_nom}'",
+            )
+
+        result = mongodb_service.merge_critiques(request.source_id, request.target_id)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur merge_critiques: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.get("/api/critique/{critique_id}", response_model=dict[str, Any])
 async def get_critique_detail(critique_id: str) -> dict[str, Any]:
     """Récupère les détails d'un critique avec stats et oeuvres enrichies (Issue #191).
@@ -3250,6 +3346,7 @@ async def get_detected_critiques(episode_id: str) -> JSONResponse:
                         "status": "existing",
                         "match_type": match["match_type"],
                         "matched_critique": match["nom"],
+                        "matched_critique_id": match.get("id"),
                     }
                 )
             else:

@@ -139,7 +139,14 @@
               <div class="critique-info">
                 <div class="critique-name">
                   <!-- Afficher le nom correct pour les existants, sinon le nom détecté -->
-                  <span v-if="critique.status === 'existing' && critique.matched_critique">
+                  <router-link
+                    v-if="critique.status === 'existing' && critique.matched_critique_id"
+                    :to="`/critique/${critique.matched_critique_id}`"
+                    class="critique-link"
+                  >
+                    {{ critique.matched_critique }}
+                  </router-link>
+                  <span v-else-if="critique.status === 'existing' && critique.matched_critique">
                     {{ critique.matched_critique }}
                   </span>
                   <span v-else>
@@ -810,6 +817,16 @@ export default {
 .critique-existing {
   background: #f0fff4;
   border-color: #68d391;
+}
+
+.critique-link {
+  color: #2b6cb0;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.critique-link:hover {
+  text-decoration: underline;
 }
 
 .critique-info {
