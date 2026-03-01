@@ -19,5 +19,6 @@
 	"chat.tools.terminal.terminalProfile.linux": {
 		"path": "/usr/bin/zsh"
 	},
-	"terminal.integrated.suggest.enabled": false
+	"terminal.integrated.suggest.enabled": false,
+	"python.defaultInterpreterPath": "/workspaces/back-office-lmelp/.venv/bin/python"
 }
