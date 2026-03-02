@@ -201,6 +201,17 @@
             <p>Liste de tous les critiques avec accès direct à leur fiche</p>
             <div class="function-arrow">→</div>
           </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-recommendations"
+            @click="navigateToRecommendations"
+          >
+            <div class="function-icon">⭐</div>
+            <h3>Mes Recommandations</h3>
+            <p>Livres recommandés par collaborative filtering SVD (expérimental)</p>
+            <div class="function-arrow">→</div>
+          </div>
         </div>
       </section>
 
@@ -639,6 +650,10 @@ export default {
 
     navigateToOnKindle() {
       this.$router.push('/onkindle');
+    },
+
+    navigateToRecommendations() {
+      this.$router.push('/recommendations');
     },
 
     navigateToGenerationAvis() {

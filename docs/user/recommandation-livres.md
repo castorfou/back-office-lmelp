@@ -9,6 +9,38 @@ raisonnent, pourquoi ils fonctionnent, et quelles sont leurs limites sur ce data
 
 ---
 
+## Accéder aux recommandations
+
+Depuis le **Dashboard**, cliquez sur la carte **⭐ Mes Recommandations** dans la section Consultation. Le calcul SVD dure 5 à 10 secondes — un indicateur de chargement s'affiche pendant ce temps.
+
+### Le tableau de résultats
+
+| Colonne | Signification |
+|---------|--------------|
+| **#** | Rang (1 = meilleure recommandation) |
+| **Titre** | Lien vers la fiche livre |
+| **Auteur** | Lien vers la fiche auteur |
+| **Score** | Score hybride final (0.7×SVD + 0.3×Masque) |
+| **SVD** | Prédiction brute du modèle |
+| **Masque** | Moyenne des avis du Masque & la Plume |
+| **N critiques** | Nombre de critiques ayant noté ce livre |
+
+### Badges de score
+
+- **Vert** : Score ≥ 8 — forte recommandation
+- **Orange** : Score ≥ 6 — recommandation modérée
+- **Gris** : Score < 6 — faible recommandation
+
+### Conditions pour qu'un livre soit recommandé
+
+1. Vous avez noté au moins un livre dans Calibre (pour calibrer le modèle)
+2. Le livre n'est pas déjà dans votre bibliothèque Calibre avec une note
+3. Le livre a été noté par au moins 2 critiques du Masque
+
+> **Note expérimentale** : Le Hit Rate @20 est ~1.4% (contre 1.2% pour une sélection aléatoire). Les résultats sont indicatifs, non définitifs.
+
+---
+
 ## Le point de départ : une matrice presque vide
 
 Les données se présentent comme une matrice critique × livre :

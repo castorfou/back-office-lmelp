@@ -206,6 +206,9 @@ module = [
     "aiohttp.*",
     "pydantic.*",
     "starlette.*",
+    "pandas.*",
+    "surprise.*",
+    "implicit.*",
 ]
 ignore_missing_imports = true
 
@@ -243,6 +246,11 @@ disable_error_code = ["call-arg"]
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+# Configuration pour recommendation_service (ignore pandas/surprise untyped imports)
+[[tool.mypy.overrides]]
+module = "back_office_lmelp.services.recommendation_service"
+disable_error_code = ["import-untyped"]
 
 # Configuration pytest
 [tool.pytest.ini_options]
