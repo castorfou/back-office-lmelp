@@ -56,6 +56,7 @@ from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
 from .services.radiofrance_service import RadioFranceService
+from .services.recommendation_service import RecommendationService
 from .settings import settings
 
 
@@ -64,6 +65,12 @@ calibre_matching_service = CalibreMatchingService(
     calibre_service,
     mongodb_service,
     virtual_library_tag=settings.calibre_virtual_library_tag,
+)
+
+# Service de recommandations par collaborative filtering (Issue #222)
+recommendation_service = RecommendationService(
+    calibre_service,
+    mongodb_service,
 )
 from .services.stats_service import stats_service
 from .utils.build_info import get_build_info, get_changelog
@@ -2960,6 +2967,30 @@ async def get_palmares(page: int = 1, limit: int = 30) -> dict[str, Any] | JSONR
     except Exception as e:
         logger.error(f"Error getting palmares: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# Endpoint recommandations par collaborative filtering (Issue #222)
+@app.get("/api/recommendations/me", response_model=list[dict[str, Any]])
+async def get_recommendations(top_n: int = 20) -> list[dict[str, Any]]:
+    """Recommandations de livres par collaborative filtering SVD.
+
+    Combine les avis du Masque & la Plume (matrice critique×livre) avec
+    les notes personnelles Calibre pour recommander les livres non lus.
+
+    Score hybride : 0.7 × SVD + 0.3 × moyenne Masque
+
+    Args:
+        top_n: Nombre de recommandations à retourner (défaut: 20)
+
+    Returns:
+        Liste de dicts avec rank, livre_id, titre, auteur_id, auteur_nom,
+        score_hybride, svd_predict, masque_mean, masque_count.
+    """
+    try:
+        return recommendation_service.get_recommendations(top_n=top_n)
+    except Exception as e:
+        logger.error(f"Error getting recommendations: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Endpoint pour la configuration Anna's Archive (Issue #188)

@@ -1478,6 +1478,96 @@ Récupère la liste paginée des livres classés par note moyenne (minimum 2 avi
 
 ---
 
+## Recommendations API
+
+Endpoint de recommandations de livres par collaborative filtering SVD.
+
+### GET /api/recommendations/me
+
+Calcule et retourne les recommandations personnalisées de livres pour l'utilisateur.
+
+Le calcul est effectué en temps réel (~5–10 secondes) : entraînement SVD sur la matrice critique×livre, injection des notes Calibre, scoring hybride.
+
+#### Paramètres
+
+- `top_n` (query, optional, default=20) : Nombre maximum de recommandations à retourner
+
+#### Réponse
+
+**200 OK**
+```json
+[
+  {
+    "rank": 1,
+    "livre_id": "6948458b4c7793c317f9f795",
+    "titre": "Origines",
+    "auteur_id": "694845004c7793c317f9f700",
+    "auteur_nom": "Amin Maalouf",
+    "score_hybride": 8.421,
+    "svd_predict": 8.710,
+    "masque_mean": 7.50,
+    "masque_count": 4
+  }
+]
+```
+
+**Champs de la réponse** :
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `rank` | int | Classement (1 = meilleure recommandation) |
+| `livre_id` | string | ObjectId MongoDB du livre |
+| `titre` | string | Titre du livre |
+| `auteur_id` | string | ObjectId MongoDB de l'auteur |
+| `auteur_nom` | string | Nom de l'auteur |
+| `score_hybride` | float | Score final : 0.7×SVD + 0.3×masque_mean |
+| `svd_predict` | float | Prédiction brute SVD (échelle 1–10) |
+| `masque_mean` | float | Moyenne des notes Masque & la Plume |
+| `masque_count` | int | Nombre de critiques ayant noté ce livre |
+
+**Cas particuliers** :
+
+- Retourne `[]` si Calibre n'est pas disponible ou si l'utilisateur n'a pas de notes Calibre
+- Retourne `[]` si la collection `avis` est vide
+- Livres déjà dans Calibre avec une note sont exclus des résultats
+
+**500 Internal Server Error**
+```json
+{
+  "detail": "message d'erreur"
+}
+```
+
+#### Algorithme
+
+1. Charge les notes Calibre (`rating` en 2–10, utilisées directement sur l'échelle 1–10)
+2. Charge les avis MongoDB (collection `avis`)
+3. Filtre les critiques avec < 10 avis (trop peu pour être fiables)
+4. Injecte les notes Calibre comme utilisateur `"Moi"` dans le dataset
+5. Entraîne SVD Surprise (n_factors=20, n_epochs=50, lr_all=0.01, reg_all=0.1)
+6. Calcule `score = 0.7 × svd_predict + 0.3 × masque_mean` pour les livres non vus
+7. Enrichit avec titres et auteurs MongoDB
+
+#### Exemple d'utilisation
+
+```bash
+# Top 20 recommandations (défaut)
+curl "http://localhost:<PORT>/api/recommendations/me" | jq '.[0:3]'
+
+# Top 5 recommandations
+curl "http://localhost:<PORT>/api/recommendations/me?top_n=5" | jq
+```
+
+#### Notes techniques
+
+- **Timeout client recommandé** : 60 secondes (calcul SVD ~5–10s)
+- **Types MongoDB** : `avis.critique_oid` = String, `avis.livre_oid` = String, `avis.note` = Number
+- **Calibre rating scale** : valeurs 2, 4, 6, 8, 10 utilisées directement (déjà sur échelle 1–10)
+- **Filtre livres candidats** : notés par ≥ 2 critiques du Masque
+- **Filtre critiques actifs** : ≥ 10 avis dans la base
+
+---
+
 ## Roadmap API
 
 - [ ] Authentification JWT

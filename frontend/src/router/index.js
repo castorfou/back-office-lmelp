@@ -19,6 +19,7 @@ import DuplicateBooks from '../views/DuplicateBooks.vue';
 import Palmares from '../views/Palmares.vue';
 import CalibreCorrections from '../views/CalibreCorrections.vue';
 import OnKindle from '../views/OnKindle.vue';
+import Recommendations from '../views/Recommendations.vue';
 
 const routes = [
   {
@@ -163,6 +164,14 @@ const routes = [
     component: OnKindle,
     meta: {
       title: 'OnKindle - Back-office LMELP'
+    }
+  },
+  {
+    path: '/recommendations',
+    name: 'Recommendations',
+    component: Recommendations,
+    meta: {
+      title: 'Mes Recommandations - Back-office LMELP'
     }
   },
   {
