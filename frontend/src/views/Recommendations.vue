@@ -9,6 +9,32 @@
       Hit Rate @20 ~1.4% (baseline 1.2%). Résultats indicatifs uniquement.
     </div>
 
+    <!-- Explication de l'algorithme (repliable) -->
+    <div class="algo-accordion">
+      <button
+        @click="showAlgoDetails = !showAlgoDetails"
+        class="accordion-toggle"
+        :aria-expanded="showAlgoDetails"
+      >
+        <span class="toggle-icon">{{ showAlgoDetails ? '▼' : '▶' }}</span>
+        <span class="toggle-label">Comment sont calculées ces recommandations ?</span>
+      </button>
+      <div v-if="showAlgoDetails" class="accordion-content">
+        <p>
+          Le modèle apprend à partir de la matrice <strong>critique × livre</strong> (4 000+ avis
+          du Masque &amp; la Plume, échelle 1–10). Vos notes <strong>Calibre</strong> sont injectées
+          comme un 23ème critique, ce qui positionne votre profil de goûts dans le même espace latent
+          que les critiques professionnels.
+        </p>
+        <p>
+          Pour chaque livre que vous n'avez pas encore noté, le score est :
+          <strong>0,7 × SVD + 0,3 × moyenne Masque</strong>. Le composant SVD prédit votre note
+          personnelle ; la moyenne Masque corrige les artefacts du modèle sur les livres peu notés.
+          Seuls les livres notés par au moins 2 critiques apparaissent.
+        </p>
+      </div>
+    </div>
+
     <!-- Loading state -->
     <div v-if="loading" class="loading-state" data-test="loading">
       <div class="loading-spinner"></div>
@@ -110,6 +136,7 @@ export default {
       recommendations: [],
       loading: true,
       error: null,
+      showAlgoDetails: false,
     };
   },
 
@@ -153,7 +180,7 @@ export default {
   background: #fff3cd;
   color: #856404;
   padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid #ffc107;
+
   font-size: 0.9rem;
 }
 
@@ -333,5 +360,56 @@ export default {
 .score-low {
   background: #f8f9fa;
   color: #666;
+}
+
+/* Accordéon algo — style identique à /emissions */
+.algo-accordion {
+  margin: 0.75rem 1.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.accordion-toggle {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  transition: background-color 0.2s;
+  text-align: left;
+}
+
+.accordion-toggle:hover {
+  background: #e5e7eb;
+}
+
+.toggle-icon {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.accordion-content {
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.accordion-content p {
+  margin: 0 0 0.5rem;
+}
+
+.accordion-content p:last-child {
+  margin-bottom: 0;
 }
 </style>
