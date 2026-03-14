@@ -12,8 +12,20 @@ echo "=================================================================="
 # Mise à jour du système
 update_system() {
     echo "Mise à jour des paquets système..."
+    export DEBIAN_FRONTEND=noninteractive
+    # Empêcher tzdata de poser des questions et utiliser la timezone UTC par défaut
+    export TZ="Etc/UTC"
+    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime 2>/dev/null || true
+
     sudo apt-get update -qq
-    sudo apt-get upgrade -y -qq
+
+    # Options dpkg pour éviter les prompts de configuration
+    sudo apt-get -y -qq -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confnew" upgrade || {
+        echo "⚠️  'apt upgrade' a échoué ; continuer sans interrompre le postCreateCommand"
+        return 0
+    }
+
     echo "Système mis à jour"
 }
 
