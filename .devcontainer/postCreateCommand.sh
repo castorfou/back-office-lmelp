@@ -15,7 +15,10 @@ update_system() {
     export DEBIAN_FRONTEND=noninteractive
     # Empêcher tzdata de poser des questions et utiliser la timezone UTC par défaut
     export TZ="Etc/UTC"
-    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime 2>/dev/null || true
+    # Copier le fichier de timezone plutôt que créer un lien symbolique
+    if [ -f "/usr/share/zoneinfo/${TZ}" ]; then
+        sudo cp "/usr/share/zoneinfo/${TZ}" /etc/localtime || true
+    fi
 
     sudo mkdir -p /etc/apt/keyrings
 
