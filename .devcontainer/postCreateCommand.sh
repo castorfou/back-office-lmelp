@@ -15,6 +15,13 @@ update_system() {
     export DEBIAN_FRONTEND=noninteractive
     # Empêcher tzdata de poser des questions et utiliser la timezone UTC par défaut
     export TZ="Etc/UTC"
+    # S'assurer que /usr/share/zoneinfo/Etc/UTC est un fichier local (pas un lien cross-device)
+    if [ -L "/usr/share/zoneinfo/${TZ}" ] || [ ! -f "/usr/share/zoneinfo/${TZ}" ]; then
+        if [ -f "/usr/share/zoneinfo/UTC" ]; then
+            sudo rm -f "/usr/share/zoneinfo/${TZ}"
+            sudo cp "/usr/share/zoneinfo/UTC" "/usr/share/zoneinfo/${TZ}" || true
+        fi
+    fi
     # Copier le fichier de timezone plutôt que créer un lien symbolique
     if [ -f "/usr/share/zoneinfo/${TZ}" ]; then
         sudo cp "/usr/share/zoneinfo/${TZ}" /etc/localtime || true
