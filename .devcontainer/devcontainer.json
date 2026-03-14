@@ -47,9 +47,7 @@
             ],
             "settings": {
                 // Configuration Python
-                "python.defaultInterpreterPath": "./.venv/bin/python",
-                "python.terminal.activateEnvironment": true,
-				"python.terminal.activateEnvInCurrentTerminal": true,
+                "python.defaultInterpreterPath": "/workspaces/back-office-lmelp/.venv/bin/python",
                 "python.analysis.autoImportCompletions": true,
                 "python.analysis.typeCheckingMode": "basic",
 				"terminal.integrated.env.linux": {
