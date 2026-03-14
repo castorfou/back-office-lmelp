@@ -1,6 +1,6 @@
 {
   "template": "https://github.com/castorfou/PyFoundry.git",
-  "commit": "145d58dff60da11b0c78618be96229284c29939f",
+  "commit": "23c07240c771d00f3f763db0f5e30ae3101032db",
   "checkout": "35-corriger-les-appels-multiple-a-source-workspacesback-office-lmelpvenvbinactivate-dans-le-terminal",
   "context": {
     "cookiecutter": {
@@ -11,7 +11,7 @@
       "github_username": "castor_fou",
       "use_node": "y",
       "_template": "https://github.com/castorfou/PyFoundry.git",
-      "_commit": "145d58dff60da11b0c78618be96229284c29939f"
+      "_commit": "23c07240c771d00f3f763db0f5e30ae3101032db"
     }
   },
   "directory": null
