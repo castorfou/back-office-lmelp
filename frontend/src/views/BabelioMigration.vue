@@ -948,7 +948,7 @@ export default {
 
           // Délai entre requêtes pour ne pas spammer Babelio
           if (!this.stopCoverMigration_flag) {
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            await new Promise(resolve => setTimeout(resolve, 5000));
           }
         }
 
