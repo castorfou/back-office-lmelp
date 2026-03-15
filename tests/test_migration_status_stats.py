@@ -58,7 +58,10 @@ class TestMigrationStatusStats:
             500,
             490,
             5,
-        ]  # total, migrated, not_found
+            30,  # covers_with_url
+            40,  # covers_pending (without url_cover and url_babelio exists)
+            0,  # covers_pending (url_cover is None)
+        ]  # total, migrated, not_found, covers_with_url, covers_pending_1, covers_pending_2
         mock_auteurs.count_documents.side_effect = [
             400,
             380,
@@ -128,7 +131,10 @@ class TestMigrationStatusStats:
             500,
             490,
             5,
-        ]  # total, migrated, not_found
+            30,  # covers_with_url
+            40,  # covers_pending (without url_cover and url_babelio exists)
+            0,  # covers_pending (url_cover is None)
+        ]  # total, migrated, not_found, covers_with_url, covers_pending_1, covers_pending_2
         mock_auteurs.count_documents.side_effect = [
             400,
             380,
@@ -198,7 +204,10 @@ class TestMigrationStatusStats:
             500,
             490,
             5,
-        ]  # total, migrated, not_found
+            30,  # covers_with_url
+            40,  # covers_pending (without url_cover and url_babelio exists)
+            0,  # covers_pending (url_cover is None)
+        ]  # total, migrated, not_found, covers_with_url, covers_pending_1, covers_pending_2
         mock_auteurs.count_documents.side_effect = [
             400,
             380,
@@ -269,7 +278,10 @@ class TestMigrationStatusStats:
             500,
             490,
             5,
-        ]  # total, migrated, not_found
+            30,  # covers_with_url
+            40,  # covers_pending (without url_cover and url_babelio exists)
+            0,  # covers_pending (url_cover is None)
+        ]  # total, migrated, not_found, covers_with_url, covers_pending_1, covers_pending_2
         mock_auteurs.count_documents.side_effect = [
             400,
             380,

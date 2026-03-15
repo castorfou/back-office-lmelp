@@ -90,6 +90,23 @@ class BabelioMigrationService:
             # Extraire timestamp de l'ObjectId
             last_migration = latest_book["_id"].generation_time.isoformat()
 
+        # Statistiques couvertures
+        covers_with_url = livres_collection.count_documents(
+            {"url_cover": {"$exists": True, "$ne": None}}
+        )
+        covers_not_applicable = (
+            not_found_count  # Livres sans Babelio → pas de couverture
+        )
+        covers_pending = livres_collection.count_documents(
+            {
+                "url_babelio": {"$exists": True, "$ne": None},
+                "$or": [
+                    {"url_cover": {"$exists": False}},
+                    {"url_cover": None},
+                ],
+            }
+        )
+
         return {
             "total_books": total_books,
             "migrated_count": migrated_count,
@@ -106,7 +123,79 @@ class BabelioMigrationService:
             "authors_not_found_count": authors_not_found_count,
             "problematic_authors_count": problematic_authors_count,
             "authors_without_url_babelio": authors_without_url,
+            # Statistiques couvertures
+            "covers_total": migrated_count,  # Livres avec url_babelio (seuls candidats pour une couverture)
+            "covers_with_url": covers_with_url,
+            "covers_not_applicable": covers_not_applicable,
+            "covers_pending": covers_pending,
         }
+
+    def get_books_pending_covers(self) -> list[dict[str, Any]]:
+        """Retourne les livres ayant une url_babelio mais pas encore de url_cover.
+
+        Returns:
+            Liste de livres avec _id (string), titre, url_babelio
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+
+        books = list(
+            livres_collection.find(
+                {
+                    "url_babelio": {"$exists": True, "$ne": None},
+                    "$or": [
+                        {"url_cover": {"$exists": False}},
+                        {"url_cover": None},
+                    ],
+                },
+                {"_id": 1, "titre": 1, "url_babelio": 1},
+            )
+        )
+
+        # Sérialiser les ObjectId en string pour JSON
+        result = []
+        for book in books:
+            result.append(
+                {
+                    "_id": str(book["_id"]),
+                    "titre": book.get("titre", ""),
+                    "url_babelio": book.get("url_babelio", ""),
+                }
+            )
+        return result
+
+    def save_cover_url(self, livre_id: str, url_cover: str) -> bool:
+        """Sauvegarde l'URL de couverture dans MongoDB pour un livre.
+
+        Args:
+            livre_id: ID du livre MongoDB (string hex)
+            url_cover: URL de la couverture Babelio
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+        livres_collection = self.mongodb_service.db["livres"]
+
+        try:
+            livre_oid = ObjectId(livre_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {livre_id} - {e}")
+            return False
+
+        result = livres_collection.update_one(
+            {"_id": livre_oid},
+            {"$set": {"url_cover": url_cover, "updated_at": datetime.now(UTC)}},
+        )
+
+        if result.matched_count == 0:
+            logger.error(f"Livre {livre_id} non trouvé dans MongoDB")
+            return False
+
+        logger.info(f"✅ Couverture sauvegardée pour livre {livre_id}: {url_cover}")
+        return True
 
     def get_problematic_cases(self) -> list[dict[str, Any]]:
         """Récupère la liste des cas problématiques depuis MongoDB.

@@ -101,6 +101,15 @@
             <div class="stat-label">Auteurs sans lien Babelio</div>
           </div>
           <div
+            v-if="collectionsStatistics && collectionsStatistics.books_without_cover !== 0"
+            class="stat-card clickable-stat"
+            @click="navigateToBabelioCovers"
+            :title="tooltips.livresSansCouverture"
+          >
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.books_without_cover != null) ? collectionsStatistics.books_without_cover : '...' }}</div>
+            <div class="stat-label">Livres sans couverture</div>
+          </div>
+          <div
             v-if="critiquesManquantsCount !== 0"
             class="stat-card clickable-stat"
             @click="navigateToIdentificationCritiques"
@@ -394,6 +403,7 @@ export default {
         livresNonTrouves: `Livres avec statut "not_found" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "not_found"`,
         livresSansLienBabelio: `Livres sans URL Babelio et non marqués "not_found"\nCollection: livres\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
         auteursSansLienBabelio: `Auteurs sans URL Babelio et non marqués "not_found"\nCollection: auteurs\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
+        livresSansCouverture: `Livres avec URL Babelio mais sans couverture enregistrée\nCollection: livres\nFiltres: url_babelio IS NOT NULL AND url_cover IS NULL`,
         critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
         episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`,
         doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`
@@ -626,6 +636,10 @@ export default {
 
     navigateToBabelioMigration() {
       this.$router.push('/babelio-migration');
+    },
+
+    navigateToBabelioCovers() {
+      this.$router.push('/babelio-migration#covers');
     },
 
     navigateToAdvancedSearch() {

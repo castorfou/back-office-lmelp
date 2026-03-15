@@ -506,16 +506,14 @@ Total livres traités : 14"""
             ]
 
             # Mock avis_critiques_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
-            mock_avis_critiques_collection.distinct = (
-                lambda field: episodes_with_avis_str
+            mock_avis_critiques_collection.distinct = lambda field: (
+                episodes_with_avis_str
                 + [masked_episode_with_avis_1_str, masked_episode_with_avis_2_str]
             )
 
             # Mock cache_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
-            mock_cache_collection.distinct = (
-                lambda field: episodes_analyzed_str_with_masked
-                if field == "episode_oid"
-                else []
+            mock_cache_collection.distinct = lambda field: (
+                episodes_analyzed_str_with_masked if field == "episode_oid" else []
             )
 
             # Act

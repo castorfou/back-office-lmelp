@@ -103,6 +103,104 @@
         </ul>
       </div>
 
+      <!-- Statistiques Couvertures -->
+      <h3 class="stats-section-title" id="covers">🖼️ Couvertures</h3>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ status.covers_total || 0 }}</div>
+          <div class="stat-label">Liés à Babelio</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value">{{ status.covers_with_url || 0 }}</div>
+          <div class="stat-label">Liés avec succès</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value">{{ status.covers_not_applicable || 0 }}</div>
+          <div class="stat-label">Absents de Babelio</div>
+        </div>
+        <div class="stat-card pending">
+          <div class="stat-value">{{ status.covers_pending || 0 }}</div>
+          <div class="stat-label">En attente de liaison</div>
+        </div>
+      </div>
+
+      <!-- Légende couvertures -->
+      <div class="covers-legend">
+        <ul>
+          <li><strong>Liés à Babelio:</strong> Livres ayant une URL Babelio (seuls candidats pour une couverture)</li>
+          <li><strong>Liés avec succès:</strong> Livres ayant déjà une URL de couverture enregistrée</li>
+          <li><strong>Absents de Babelio:</strong> Livres sans page Babelio (pas de couverture possible)</li>
+          <li><strong>En attente de liaison:</strong> Livres avec URL Babelio mais sans couverture encore récupérée</li>
+        </ul>
+      </div>
+
+      <!-- Cookie Babelio -->
+      <div class="cookie-section">
+        <div class="cookie-header">
+          <label>🍪 Cookie Babelio
+            <span class="cookie-status" v-if="babelioCookies">✅ configuré</span>
+            <span class="cookie-status missing" v-else>⚠️ non configuré (couvertures limitées)</span>
+          </label>
+          <button class="btn-link" @click="showCookieHelp = !showCookieHelp">
+            {{ showCookieHelp ? 'Masquer' : 'Comment faire ?' }}
+          </button>
+        </div>
+        <div v-if="showCookieHelp" class="cookie-help">
+          <ol>
+            <li>Ouvre <a href="https://www.babelio.com" target="_blank">babelio.com</a> et connecte-toi</li>
+            <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
+            <li>Recharge la page babelio.com, clique sur la 1ère requête</li>
+            <li>Dans <strong>Network > Headers > Request Headers</strong>, copie la valeur du champ <strong>Cookie</strong> (bouton droit, Copy Value)</li>
+            <li>Colle-la ci-dessous</li>
+            <li>💡 Si le captcha revient pendant la migration, répète ces étapes</li>
+          </ol>
+        </div>
+        <textarea
+          v-model="babelioCookies"
+          @input="saveCookies"
+          placeholder="Colle ici la valeur du header Cookie copié depuis les DevTools de babelio.com..."
+          class="cookie-input"
+          rows="2"
+        ></textarea>
+      </div>
+
+      <!-- Cover migration button -->
+      <div class="migration-button-container">
+        <button
+          class="btn-migration"
+          @click="toggleCoverMigration"
+          :disabled="(status.covers_pending === 0) && !coverProgress.is_running"
+          :class="{ 'migration-running': coverProgress.is_running }"
+          :title="coverProgress.is_running ? 'Cliquer pour arrêter' : 'Cliquer pour lancer la liaison des couvertures'"
+        >
+          <span v-if="coverProgress.is_running">
+            <div class="spinner-inline"></div>
+            ⚙️ Liaison couvertures en cours...
+          </span>
+          <span v-else>
+            🖼️ Lancer la liaison des couvertures
+          </span>
+        </button>
+      </div>
+
+      <!-- Cover progress panel -->
+      <div v-if="coverProgress.is_running || coverProgress.logs.length > 0" class="migration-progress-panel">
+        <div class="progress-header">
+          <h3>
+            {{ coverProgress.is_running ? '⚙️ Liaison couvertures en cours' : '✅ Dernière liaison couvertures' }}
+          </h3>
+        </div>
+        <div v-if="coverProgress.total > 0" class="progress-bar-container">
+          <div class="progress-bar" :style="{ width: coverProgressPercentage + '%' }"></div>
+          <span class="progress-text">{{ coverProgress.processed }} / {{ coverProgress.total }}</span>
+        </div>
+        <div v-if="coverProgress.logs.length > 0" class="book-logs">
+          <div v-for="(log, idx) in coverProgress.logs.slice(-10)" :key="idx" class="book-log-entry">
+            {{ log.status === 'success' ? '✅' : log.status === 'mismatch' ? '⚠️' : '❌' }} {{ log.titre }} — {{ log.message }}
+          </div>
+        </div>
+      </div>
+
       <!-- Progress panel for migration -->
       <div v-if="migrationProgress.is_running || (migrationProgress.book_logs && migrationProgress.book_logs.length > 0)" class="migration-progress-panel">
         <div class="progress-header">
@@ -426,6 +524,16 @@ export default {
       },
       expandedBooks: {},
       pollInterval: null,
+      // Couvertures
+      coverProgress: {
+        is_running: false,
+        processed: 0,
+        total: 0,
+        logs: [],
+      },
+      stopCoverMigration_flag: false,
+      babelioCookies: sessionStorage.getItem('babelio_cookies') || '',
+      showCookieHelp: false,
       // Popup pour entrer URL Babelio
       showUrlPopup: false,
       urlPopupCase: null,
@@ -443,6 +551,8 @@ export default {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    // Arrêter la migration des couvertures si en cours
+    this.stopCoverMigration_flag = true;
   },
   computed: {
     totalItemsToProcess() {
@@ -452,6 +562,10 @@ export default {
     progressPercentage() {
       if (this.totalItemsToProcess === 0) return 0;
       return (this.migrationProgress.books_processed / this.totalItemsToProcess) * 100;
+    },
+    coverProgressPercentage() {
+      if (this.coverProgress.total === 0) return 0;
+      return (this.coverProgress.processed / this.coverProgress.total) * 100;
     },
   },
   methods: {
@@ -763,6 +877,117 @@ export default {
       }
     },
 
+    toggleCoverMigration() {
+      if (this.coverProgress.is_running) {
+        this.stopCoverMigration();
+      } else {
+        this.startCoverMigration();
+      }
+    },
+
+    async startCoverMigration() {
+      try {
+        const response = await axios.get('/api/babelio-migration/covers/pending');
+        const books = response.data;
+
+        if (!books || books.length === 0) {
+          this.showToast('Aucun livre en attente de couverture', 'info');
+          return;
+        }
+
+        this.coverProgress = {
+          is_running: true,
+          processed: 0,
+          total: books.length,
+          logs: [],
+        };
+        this.stopCoverMigration_flag = false;
+
+        for (const book of books) {
+          if (this.stopCoverMigration_flag) {
+            this.showToast('Liaison couvertures arrêtée', 'info');
+            break;
+          }
+
+          try {
+            // Fetch la page Babelio côté navigateur pour extraire og:image
+            const result = await this._extractCoverUrlFromBabelioPage(book.url_babelio, book.titre);
+
+            if (result && result.title_mismatch) {
+              this.coverProgress.logs.push({
+                titre: book.titre,
+                status: 'mismatch',
+                message: `Mauvaise page Babelio : "${result.page_title}"`,
+              });
+            } else if (result && result.url_cover) {
+              await axios.post('/api/babelio-migration/covers/save', {
+                livre_id: book._id,
+                url_cover: result.url_cover,
+              });
+              this.coverProgress.logs.push({
+                titre: book.titre,
+                status: 'success',
+                message: result.url_cover,
+              });
+            } else {
+              this.coverProgress.logs.push({
+                titre: book.titre,
+                status: 'error',
+                message: 'Pas de couverture trouvée',
+              });
+            }
+          } catch (err) {
+            this.coverProgress.logs.push({
+              titre: book.titre,
+              status: 'error',
+              message: err.message || 'Erreur',
+            });
+          }
+
+          this.coverProgress.processed++;
+
+          // Délai entre requêtes pour ne pas spammer Babelio
+          if (!this.stopCoverMigration_flag) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
+          }
+        }
+
+        this.coverProgress.is_running = false;
+        this.stopCoverMigration_flag = false;
+        await this.loadData();
+
+        if (!this.stopCoverMigration_flag) {
+          this.showToast(`Liaison couvertures terminée: ${this.coverProgress.processed} traité(s)`, 'success');
+        }
+      } catch (err) {
+        this.coverProgress.is_running = false;
+        this.showToast(`Erreur: ${err.message}`, 'error');
+      }
+    },
+
+    stopCoverMigration() {
+      this.stopCoverMigration_flag = true;
+    },
+
+    saveCookies() {
+      sessionStorage.setItem('babelio_cookies', this.babelioCookies);
+    },
+
+    async _extractCoverUrlFromBabelioPage(babelioUrl, expectedTitle = null) {
+      // Backend proxy avec cookie Babelio transmis depuis le navigateur
+      // Retourne { url_cover, title_mismatch, page_title } ou null en cas d'erreur
+      try {
+        const response = await axios.post('/api/babelio/extract-cover-url', {
+          babelio_url: babelioUrl,
+          expected_title: expectedTitle,
+          babelio_cookies: this.babelioCookies || null,
+        });
+        return response.data;
+      } catch {
+        return null;
+      }
+    },
+
     formatDate(timestamp) {
       if (!timestamp) return 'N/A';
       return new Date(timestamp).toLocaleString('fr-FR');
@@ -981,7 +1206,97 @@ h2 {
   border-color: #6c757d;
 }
 
+.covers-legend {
+  margin: 8px 0 12px;
+  font-size: 0.82rem;
+  color: #6c757d;
+}
+
+.covers-legend ul {
+  margin: 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.covers-legend li::before {
+  content: '— ';
+}
+
+.covers-legend strong {
+  color: #495057;
+}
+
 /* Migration Button */
+.cookie-section {
+  margin: 16px 0 8px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+}
+
+.cookie-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.cookie-header label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.cookie-status {
+  font-weight: normal;
+  font-size: 0.85rem;
+  color: #28a745;
+}
+
+.cookie-status.missing {
+  color: #856404;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.cookie-help {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.cookie-help ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.cookie-help li {
+  margin: 4px 0;
+}
+
+.cookie-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 6px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  resize: vertical;
+  color: #495057;
+}
+
 .migration-button-container {
   margin: 30px 0;
   text-align: center;

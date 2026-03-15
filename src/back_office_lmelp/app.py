@@ -241,6 +241,21 @@ class ExtractFromBabelioUrlRequest(BaseModel):
     babelio_url: str
 
 
+class SaveCoverUrlRequest(BaseModel):
+    """Modèle pour sauvegarder l'URL de couverture d'un livre (Issue #238)."""
+
+    livre_id: str
+    url_cover: str
+
+
+class ExtractCoverUrlRequest(BaseModel):
+    """Modèle pour extraire l'URL de couverture depuis une page Babelio (Issue #238)."""
+
+    babelio_url: str
+    expected_title: str | None = None
+    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
+
+
 class MergeDuplicateGroupRequest(BaseModel):
     """Modèle pour fusionner un groupe de doublons (Issue #178)."""
 
@@ -3052,6 +3067,74 @@ async def accept_suggestion(request: AcceptSuggestionRequest) -> JSONResponse:
                 status_code=404,
                 content={"status": "error", "message": "Livre non trouvé"},
             )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/babelio-migration/covers/pending")
+async def get_pending_covers() -> list[dict[str, Any]]:
+    """Retourne les livres ayant url_babelio mais pas encore de url_cover (Issue #238)."""
+    return babelio_migration_service.get_books_pending_covers()
+
+
+@app.post("/api/babelio-migration/covers/save")
+async def save_cover_url(request: SaveCoverUrlRequest) -> JSONResponse:
+    """Sauvegarde l'URL de couverture d'un livre dans MongoDB (Issue #238)."""
+    try:
+        success = babelio_migration_service.save_cover_url(
+            livre_id=request.livre_id,
+            url_cover=request.url_cover,
+        )
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Couverture sauvegardée pour livre {request.livre_id}",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio/extract-cover-url")
+async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
+    """Extrait l'URL de couverture depuis une page Babelio (proxy server-side, Issue #238)."""
+    try:
+        result = await babelio_service.fetch_cover_url_from_babelio_page(
+            request.babelio_url,
+            expected_title=request.expected_title,
+            babelio_cookies=request.babelio_cookies,
+        )
+        if isinstance(result, str) and result.startswith("TITLE_MISMATCH:"):
+            page_title = result[len("TITLE_MISMATCH:") :]
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "url_cover": None,
+                    "title_mismatch": True,
+                    "page_title": page_title,
+                },
+            )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "url_cover": result,
+                "title_mismatch": False,
+            },
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}

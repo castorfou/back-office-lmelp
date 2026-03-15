@@ -114,8 +114,11 @@ class TestSummaryCleanupOnPageLoad:
             patches[2] as mock_mark,
         ):
             mock_get_books.return_value = books
-            mock_is_corrected.side_effect = lambda cache_id: cache_id == ObjectId(
-                "68e4760abf26cd8dd9a0a372"  # pragma: allowlist secret
+            mock_is_corrected.side_effect = lambda cache_id: (
+                cache_id
+                == ObjectId(
+                    "68e4760abf26cd8dd9a0a372"  # pragma: allowlist secret
+                )
             )
 
             # Act

@@ -795,6 +795,132 @@ class BabelioService:
             logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
             return None
 
+    async def fetch_cover_url_from_babelio_page(
+        self,
+        babelio_url: str,
+        expected_title: str | None = None,
+        babelio_cookies: str | None = None,
+    ) -> str | None:
+        """Scrape l'URL de couverture depuis une page Babelio (Issue #238).
+
+        Args:
+            babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
+            expected_title: Titre attendu du livre. Si fourni, vérifie que la page
+                affiche bien ce livre (détecte les redirections Babelio vers un autre livre).
+
+        Returns:
+            URL de la couverture (str), None si non trouvée, ou "TITLE_MISMATCH:<page_title>"
+            si le titre de la page ne correspond pas au titre attendu.
+
+        Exemple:
+            cover_url = await service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/Millet-Simone-monet/1870367",
+                expected_title="Simone Émonet",
+            )
+            # → "https://www.babelio.com/couv/CVT_Simone-monet_42.jpg"
+
+        Note:
+            Utilise BeautifulSoup4 avec les sélecteurs:
+            1. <meta property="og:image"> (prioritaire)
+            2. <img src*="/couv/CVT_"> (fallback)
+        """
+        from ..utils.text_utils import normalize_for_matching
+
+        if not babelio_url or not babelio_url.strip():
+            return None
+
+        try:
+            # Headers identiques à un vrai navigateur Firefox (Sec-Fetch-* requis par Babelio)
+            page_headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "fr,en-US;q=0.9,en;q=0.8",
+                "Accept-Encoding": "gzip, deflate",
+                "Referer": "https://www.babelio.com/",
+                "DNT": "1",
+                "Sec-GPC": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+            }
+            if babelio_cookies:
+                page_headers["Cookie"] = babelio_cookies
+
+            timeout = aiohttp.ClientTimeout(total=10, connect=5)
+            async with (
+                aiohttp.ClientSession(
+                    headers=page_headers, timeout=timeout
+                ) as tmp_session,
+                tmp_session.get(babelio_url) as response,
+            ):
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping couverture: {babelio_url}"
+                    )
+                    return None
+
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                html = await response.text(encoding="cp1252")
+                soup = BeautifulSoup(html, "lxml")
+
+                # Validation du titre : vérifier que la page correspond au livre demandé
+                # (Babelio redirige parfois vers un autre livre via des URLs obsolètes)
+                if expected_title:
+                    h1 = soup.find("h1")
+                    if h1:
+                        page_title = normalize_for_matching(h1.get_text())
+                        norm_expected = normalize_for_matching(expected_title)
+                        if (
+                            norm_expected not in page_title
+                            and page_title not in norm_expected
+                        ):
+                            page_title_raw = h1.get_text().strip()
+                            logger.warning(
+                                f"Titre Babelio ne correspond pas pour {babelio_url}: "
+                                f"attendu='{expected_title}', page='{page_title_raw}'"
+                            )
+                            return f"TITLE_MISMATCH:{page_title_raw}"
+
+                # Priorité 1: og:image (peut pointer vers babelio.com ou un CDN comme Amazon)
+                og_image = soup.find("meta", property="og:image")
+                if og_image and hasattr(og_image, "get"):
+                    content = og_image.get("content")
+                    if content and str(content).startswith("http"):
+                        cover_url = str(content)
+                        logger.debug(
+                            f"Couverture trouvée (og:image) pour {babelio_url}: {cover_url}"
+                        )
+                        return cover_url
+
+                # Priorité 2: img avec src contenant /couv/CVT_
+                cover_img = soup.select_one('img[src*="/couv/CVT_"]')
+                if cover_img and hasattr(cover_img, "get"):
+                    src = cover_img.get("src")
+                    if src:
+                        src_str = str(src)
+                        if src_str.startswith("http"):
+                            logger.debug(
+                                f"Couverture trouvée (img CVT_) pour {babelio_url}: {src_str}"
+                            )
+                            return src_str
+                        # URL relative → construire URL absolue
+                        cover_url = "https://www.babelio.com" + src_str
+                        logger.debug(
+                            f"Couverture trouvée (img CVT_ relative) pour {babelio_url}: {cover_url}"
+                        )
+                        return cover_url
+
+                logger.debug(f"Couverture non trouvée pour {babelio_url}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Erreur scraping couverture pour {babelio_url}: {e}")
+            return None
+
     async def fetch_author_name_from_url(self, babelio_url: str) -> str | None:
         """Scrape le nom d'auteur depuis une page auteur Babelio.
 
