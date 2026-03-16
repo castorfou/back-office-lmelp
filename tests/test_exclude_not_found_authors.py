@@ -35,8 +35,8 @@ class TestExcludeNotFoundAuthors:
         ) as mock_service:
             mock_auteurs = MagicMock()
             mock_problematic = MagicMock()
-            mock_service.get_collection.side_effect = (
-                lambda name: mock_auteurs
+            mock_service.get_collection.side_effect = lambda name: (
+                mock_auteurs
                 if name == "auteurs"
                 else mock_problematic
                 if name == "babelio_problematic_cases"

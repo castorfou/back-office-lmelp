@@ -205,12 +205,12 @@ const router = createRouter({
   routes,
   // Configuration du comportement de scroll
   scrollBehavior(to, from, savedPosition) {
-    // Si l'utilisateur utilise les boutons précédent/suivant du navigateur,
-    // restaurer la position de scroll sauvegardée
     if (savedPosition) {
       return savedPosition;
     }
-    // Pour toute autre navigation, scroller vers le haut
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth' };
+    }
     return { top: 0, behavior: 'smooth' };
   }
 });

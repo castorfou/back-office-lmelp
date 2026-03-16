@@ -50,6 +50,7 @@ class TestStatsService:
                 **mock_cache_stats,
                 "books_without_url_babelio": 0,
                 "authors_without_url_babelio": 0,
+                "books_without_cover": 0,
                 "last_episode_date": None,
                 "episodes_without_avis_critiques": 0,
                 "avis_critiques_without_analysis": 0,
@@ -506,16 +507,14 @@ Total livres traités : 14"""
             ]
 
             # Mock avis_critiques_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
-            mock_avis_critiques_collection.distinct = (
-                lambda field: episodes_with_avis_str
+            mock_avis_critiques_collection.distinct = lambda field: (
+                episodes_with_avis_str
                 + [masked_episode_with_avis_1_str, masked_episode_with_avis_2_str]
             )
 
             # Mock cache_collection.distinct() → retourne des STRINGS (comme dans la vraie base!)
-            mock_cache_collection.distinct = (
-                lambda field: episodes_analyzed_str_with_masked
-                if field == "episode_oid"
-                else []
+            mock_cache_collection.distinct = lambda field: (
+                episodes_analyzed_str_with_masked if field == "episode_oid" else []
             )
 
             # Act

@@ -542,3 +542,163 @@ class TestBabelioMigrationService:
             json.dumps(cases)
         except TypeError as e:
             pytest.fail(f"Cases not JSON serializable: {e}")
+
+    def test_covers_total_should_equal_migrated_count(
+        self, migration_service, mock_mongodb_service
+    ):
+        """Test TDD: covers_total doit être égal à migrated_count (livres avec url_babelio).
+
+        Problème business réel:
+        - covers_total affichait total_books (tous les livres) au lieu de migrated_count
+        - Seuls les livres avec url_babelio sont candidats pour une couverture
+        - covers_total doit donc refléter migrated_count, pas total_books
+
+        Scénario:
+        - Total: 1624 livres
+        - Migrés (url_babelio): 1607 livres
+        - covers_total doit être 1607, pas 1624
+        """
+        from bson import ObjectId
+
+        # Arrange
+        mock_livres_collection = MagicMock()
+        mock_auteurs_collection = MagicMock()
+        mock_problematic_collection = MagicMock()
+
+        def count_documents_side_effect(query):
+            if query == {}:
+                return 1624  # Total livres
+            elif "url_babelio" in query and "$exists" in query["url_babelio"]:
+                return 1607  # Migrés (url_babelio)
+            elif "babelio_not_found" in query:
+                return 10
+            return 0
+
+        mock_livres_collection.count_documents.side_effect = count_documents_side_effect
+        mock_auteurs_collection.count_documents.return_value = 0
+        mock_problematic_collection.count_documents.return_value = 0
+        mock_livres_collection.find_one.return_value = {
+            "_id": ObjectId("507f1f77bcf86cd799439011")  # pragma: allowlist secret
+        }
+
+        def mock_getitem(key):
+            return {
+                "livres": mock_livres_collection,
+                "auteurs": mock_auteurs_collection,
+                "babelio_problematic_cases": mock_problematic_collection,
+            }.get(key, MagicMock())
+
+        mock_mongodb_service.db.__getitem__.side_effect = mock_getitem
+
+        # Act
+        result = migration_service.get_migration_status()
+
+        # Assert - covers_total doit être migrated_count, pas total_books
+        assert result["covers_total"] == 1607, (
+            f"covers_total devrait être 1607 (migrated_count), "
+            f"mais reçu {result['covers_total']} (total_books=1624)"
+        )
+        assert result["covers_total"] == result["migrated_count"], (
+            f"covers_total ({result['covers_total']}) doit être égal à "
+            f"migrated_count ({result['migrated_count']})"
+        )
+
+    def test_save_cover_mismatch_should_store_page_title_in_livre(
+        self, migration_service, mock_mongodb_service
+    ):
+        """save_cover_mismatch() doit stocker le titre de page Babelio erronée sur le livre.
+
+        Problème business :
+        - La page Babelio d'un livre redirige vers un autre livre (ex: "Fauves" au lieu de
+          "On ne sait rien de toi")
+        - On veut stocker ce cas pour traitement manuel ultérieur
+        - Champ cover_mismatch_page_title sur le document livre
+
+        Scénario :
+        1. Appeler save_cover_mismatch(livre_id, page_title)
+        2. Vérifier que livres.update_one a été appelé avec cover_mismatch_page_title
+        """
+        from bson import ObjectId
+
+        mock_livres_collection = MagicMock()
+        mock_livres_collection.update_one.return_value.matched_count = 1
+
+        mock_mongodb_service.db.__getitem__.side_effect = lambda name: (
+            mock_livres_collection if name == "livres" else MagicMock()
+        )
+
+        livre_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+        page_title = "Fauves"
+
+        result = migration_service.save_cover_mismatch(livre_id, page_title)
+
+        assert result is True
+        mock_livres_collection.update_one.assert_called_once()
+        call_args = mock_livres_collection.update_one.call_args
+        assert call_args[0][0] == {"_id": ObjectId(livre_id)}
+        assert "cover_mismatch_page_title" in call_args[0][1]["$set"]
+        assert call_args[0][1]["$set"]["cover_mismatch_page_title"] == page_title
+
+    def test_get_cover_mismatch_cases_should_return_books_with_mismatch(
+        self, migration_service, mock_mongodb_service
+    ):
+        """get_cover_mismatch_cases() doit retourner les livres avec cover_mismatch_page_title.
+
+        Problème business :
+        - Après la migration couvertures, certains livres ont cover_mismatch_page_title
+        - Cette méthode les expose pour permettre un traitement manuel
+        """
+        from bson import ObjectId
+
+        mock_livres_collection = MagicMock()
+        mock_livres_collection.find.return_value = iter(
+            [
+                {
+                    "_id": ObjectId(
+                        "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+                    ),
+                    "titre": "On ne sait rien de toi",
+                    "url_babelio": "https://www.babelio.com/livres/X/999",
+                    "cover_mismatch_page_title": "Fauves",
+                }
+            ]
+        )
+
+        mock_mongodb_service.db.__getitem__.side_effect = lambda name: (
+            mock_livres_collection if name == "livres" else MagicMock()
+        )
+
+        result = migration_service.get_cover_mismatch_cases()
+
+        assert len(result) == 1
+        assert result[0]["titre"] == "On ne sait rien de toi"
+        assert result[0]["cover_mismatch_page_title"] == "Fauves"
+        assert isinstance(result[0]["_id"], str)
+
+    def test_clear_cover_mismatch_should_remove_field_from_livre(
+        self, migration_service, mock_mongodb_service
+    ):
+        """clear_cover_mismatch() doit supprimer cover_mismatch_page_title du livre.
+
+        Problème business :
+        - L'utilisateur a traité manuellement un cas mismatch
+        - Il faut nettoyer le champ pour que le livre ne réapparaisse plus dans la liste
+        """
+        from bson import ObjectId
+
+        mock_livres_collection = MagicMock()
+        mock_livres_collection.update_one.return_value.matched_count = 1
+
+        mock_mongodb_service.db.__getitem__.side_effect = lambda name: (
+            mock_livres_collection if name == "livres" else MagicMock()
+        )
+
+        livre_id = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
+
+        result = migration_service.clear_cover_mismatch(livre_id)
+
+        assert result is True
+        mock_livres_collection.update_one.assert_called_once()
+        call_args = mock_livres_collection.update_one.call_args
+        assert call_args[0][0] == {"_id": ObjectId(livre_id)}
+        assert "cover_mismatch_page_title" in call_args[0][1]["$unset"]

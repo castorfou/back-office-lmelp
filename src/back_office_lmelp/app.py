@@ -241,6 +241,31 @@ class ExtractFromBabelioUrlRequest(BaseModel):
     babelio_url: str
 
 
+class SaveCoverUrlRequest(BaseModel):
+    """Modèle pour sauvegarder l'URL de couverture d'un livre (Issue #238)."""
+
+    livre_id: str
+    url_cover: str
+
+
+class ExtractCoverUrlRequest(BaseModel):
+    """Modèle pour extraire l'URL de couverture depuis une page Babelio (Issue #238)."""
+
+    babelio_url: str
+    expected_title: str | None = None
+    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
+
+
+class SaveCoverMismatchRequest(BaseModel):
+    """Modèle pour sauvegarder ou effacer un cas mismatch de couverture (Issue #238)."""
+
+    livre_id: str
+    page_title: str = ""  # Titre affiché sur la mauvaise page Babelio (vide pour clear)
+    cover_url_found: str | None = (
+        None  # URL cover trouvée sur la page (proposée à l'utilisateur)
+    )
+
+
 class MergeDuplicateGroupRequest(BaseModel):
     """Modèle pour fusionner un groupe de doublons (Issue #178)."""
 
@@ -3052,6 +3077,138 @@ async def accept_suggestion(request: AcceptSuggestionRequest) -> JSONResponse:
                 status_code=404,
                 content={"status": "error", "message": "Livre non trouvé"},
             )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/babelio-migration/covers/pending")
+async def get_pending_covers() -> list[dict[str, Any]]:
+    """Retourne les livres ayant url_babelio mais pas encore de url_cover (Issue #238)."""
+    return babelio_migration_service.get_books_pending_covers()
+
+
+@app.post("/api/babelio-migration/covers/save")
+async def save_cover_url(request: SaveCoverUrlRequest) -> JSONResponse:
+    """Sauvegarde l'URL de couverture d'un livre dans MongoDB (Issue #238)."""
+    try:
+        success = babelio_migration_service.save_cover_url(
+            livre_id=request.livre_id,
+            url_cover=request.url_cover,
+        )
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Couverture sauvegardée pour livre {request.livre_id}",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/babelio-migration/covers/mismatch")
+async def get_cover_mismatch_cases() -> list[dict[str, Any]]:
+    """Retourne les livres avec cover_mismatch_page_title (à traiter manuellement, Issue #238)."""
+    return babelio_migration_service.get_cover_mismatch_cases()
+
+
+@app.post("/api/babelio-migration/covers/save-mismatch")
+async def save_cover_mismatch(request: SaveCoverMismatchRequest) -> JSONResponse:
+    """Sauvegarde un cas mismatch de couverture pour traitement manuel (Issue #238)."""
+    try:
+        success = babelio_migration_service.save_cover_mismatch(
+            livre_id=request.livre_id,
+            page_title=request.page_title,
+            cover_url_found=request.cover_url_found,
+        )
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Mismatch sauvegardé pour livre {request.livre_id}",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/covers/clear-mismatch")
+async def clear_cover_mismatch(request: SaveCoverMismatchRequest) -> JSONResponse:
+    """Efface le cover_mismatch_page_title d'un livre (cas traité manuellement, Issue #238)."""
+    try:
+        success = babelio_migration_service.clear_cover_mismatch(
+            livre_id=request.livre_id
+        )
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Mismatch effacé pour livre {request.livre_id}",
+                },
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "message": "Livre non trouvé"},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio/extract-cover-url")
+async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
+    """Extrait l'URL de couverture depuis une page Babelio (proxy server-side, Issue #238)."""
+    try:
+        result = await babelio_service.fetch_cover_url_from_babelio_page(
+            request.babelio_url,
+            expected_title=request.expected_title,
+            babelio_cookies=request.babelio_cookies,
+        )
+        if isinstance(result, str) and result.startswith("TITLE_MISMATCH:"):
+            rest = result[len("TITLE_MISMATCH:") :]
+            page_title, cover_url_found = (
+                rest.split("|", 1) if "|" in rest else (rest, "")
+            )
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "url_cover": None,
+                    "title_mismatch": True,
+                    "page_title": page_title,
+                    "cover_url_found": cover_url_found or None,
+                },
+            )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "url_cover": result,
+                "title_mismatch": False,
+            },
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}

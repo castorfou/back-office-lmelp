@@ -41,6 +41,9 @@ class StatsService:
         stats["emissions_sans_avis"] = self._count_emissions_sans_avis()
         stats["emissions_with_problems"] = self._count_emissions_with_problems()
 
+        # Issue #238: Livres avec url_babelio mais sans url_cover
+        stats["books_without_cover"] = self._count_books_without_cover()
+
         return stats
 
     def _count_books_without_url_babelio(self) -> int:
@@ -507,6 +510,21 @@ Total livres traités : {total_traites}"""
                 count += 1
 
         return count
+
+    def _count_books_without_cover(self) -> int:
+        """Compte les livres avec url_babelio mais sans url_cover (Issue #238)."""
+        livres_collection = self.mongodb_service.get_collection("livres")
+        return int(
+            livres_collection.count_documents(
+                {
+                    "url_babelio": {"$exists": True, "$ne": None},
+                    "$or": [
+                        {"url_cover": {"$exists": False}},
+                        {"url_cover": None},
+                    ],
+                }
+            )
+        )
 
 
 # Instance globale pour utilisation directe
