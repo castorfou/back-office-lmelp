@@ -171,3 +171,138 @@ class TestFetchCoverUrlTitleValidation:
         assert result == "https://www.babelio.com/couv/CVT_Sphinx_5678.jpg", (
             "Doit matcher si le titre court est contenu dans le titre long de la page"
         )
+
+    @pytest.mark.asyncio
+    async def test_title_matching_tolerates_guillemets_and_colon_spacing(
+        self, mock_babelio_service
+    ):
+        """guillemets, espacement deux-points et parenthèses ne causent pas TITLE_MISMATCH.
+
+        Scénario réel : "Une belle grève de femmes: Retour sur la lutte des « Penn Sardin »,
+        Douarnenez, 1924." (base) vs "Une belle grève de femmes : Retour sur la lutte des
+        Penn Sardin, Douarnenez (1924)" (Babelio)
+        """
+        html = self._make_html(
+            h1_title="Une belle grève de femmes : Retour sur la lutte des Penn Sardin, Douarnenez (1924)",
+            og_image="https://www.babelio.com/couv/CVT_Penn-Sardin_1234.jpg",
+        )
+        mock_session = self._make_mock_session(html)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session,
+        ):
+            result = await mock_babelio_service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/X/123",
+                expected_title="Une belle grève de femmes: Retour sur la lutte des « Penn Sardin », Douarnenez, 1924.",
+            )
+
+        assert result == "https://www.babelio.com/couv/CVT_Penn-Sardin_1234.jpg", (
+            "Guillemets, espacement des deux-points et parenthèses ne doivent pas causer TITLE_MISMATCH"
+        )
+
+    @pytest.mark.asyncio
+    async def test_title_matching_tolerates_missing_comma(self, mock_babelio_service):
+        """virgule absente sur Babelio ne cause pas TITLE_MISMATCH.
+
+        Scénario réel : "La Chair est triste, hélas" (base) vs "La chair est triste hélas" (Babelio)
+        """
+        html = self._make_html(
+            h1_title="La chair est triste hélas",
+            og_image="https://www.babelio.com/couv/CVT_Chair_1234.jpg",
+        )
+        mock_session = self._make_mock_session(html)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session,
+        ):
+            result = await mock_babelio_service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/X/123",
+                expected_title="La Chair est triste, hélas",
+            )
+
+        assert result == "https://www.babelio.com/couv/CVT_Chair_1234.jpg", (
+            "L'absence de virgule sur Babelio ne doit pas causer TITLE_MISMATCH"
+        )
+
+    @pytest.mark.asyncio
+    async def test_title_matching_tolerates_hyphen_vs_space(self, mock_babelio_service):
+        """tiret vs espace ne cause pas TITLE_MISMATCH.
+
+        Scénario réel : "Faites-moi plaisir" (base) vs "Faites moi plaisir" (Babelio)
+        """
+        html = self._make_html(
+            h1_title="Faites moi plaisir",
+            og_image="https://www.babelio.com/couv/CVT_Faites_1234.jpg",
+        )
+        mock_session = self._make_mock_session(html)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session,
+        ):
+            result = await mock_babelio_service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/X/123",
+                expected_title="Faites-moi plaisir",
+            )
+
+        assert result == "https://www.babelio.com/couv/CVT_Faites_1234.jpg", (
+            "Tiret vs espace ne doit pas causer TITLE_MISMATCH"
+        )
+
+    @pytest.mark.asyncio
+    async def test_title_mismatch_includes_cover_url_found_on_page(
+        self, mock_babelio_service
+    ):
+        """en cas de TITLE_MISMATCH, l'URL cover trouvée sur la page est incluse dans le résultat.
+
+        Scénario : demande "On ne sait rien de toi" mais Babelio retourne "Fauves"
+        La page de "Fauves" a quand même une og:image — on la propose à l'utilisateur
+        pour qu'il puisse décider de l'accepter ou non.
+
+        Format retourné : "TITLE_MISMATCH:<page_title>|<cover_url>"
+        """
+        html = self._make_html(
+            h1_title="Fauves",
+            og_image="https://www.babelio.com/couv/CVT_Fauves_6863.jpg",
+        )
+        mock_session = self._make_mock_session(html)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session,
+        ):
+            result = await mock_babelio_service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/X/999",
+                expected_title="On ne sait rien de toi",
+            )
+
+        assert result.startswith("TITLE_MISMATCH:")
+        assert "|" in result, "Doit contenir '|' séparant le titre et l'URL cover"
+        _, cover_url = result[len("TITLE_MISMATCH:") :].split("|", 1)
+        assert cover_url == "https://www.babelio.com/couv/CVT_Fauves_6863.jpg", (
+            "L'URL cover trouvée sur la page doit être incluse même en cas de mismatch"
+        )
+
+    @pytest.mark.asyncio
+    async def test_title_mismatch_without_cover_url_has_empty_cover(
+        self, mock_babelio_service
+    ):
+        """en cas de TITLE_MISMATCH sans og:image, la partie cover_url est vide."""
+        html = """<html><head></head><body><h1>Fauves</h1></body></html>"""
+        mock_session = self._make_mock_session(html)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session,
+        ):
+            result = await mock_babelio_service.fetch_cover_url_from_babelio_page(
+                "https://www.babelio.com/livres/X/999",
+                expected_title="On ne sait rien de toi",
+            )
+
+        assert result.startswith("TITLE_MISMATCH:")
+        assert "|" in result
+        _, cover_url = result[len("TITLE_MISMATCH:") :].split("|", 1)
+        assert cover_url == ""

@@ -120,6 +120,40 @@ def create_accent_insensitive_regex(term: str) -> str:
     return "".join(result)
 
 
+def normalize_for_cover_title_matching(text: str) -> str:
+    """Normalise un titre pour la comparaison lors du scraping de couvertures Babelio.
+
+    Étend normalize_for_matching() avec des normalisations supplémentaires spécifiques
+    à la validation des couvertures, où les titres Babelio et base de données peuvent
+    différer en ponctuation, espacement autour des deux-points, et tirets.
+
+    Normalisations supplémentaires par rapport à normalize_for_matching() :
+    - Supprime la ponctuation : , . : ( ) « »
+    - Normalise les tirets en espaces
+    - Re-collapse les espaces
+
+    Args:
+        text: Le titre à normaliser
+
+    Returns:
+        Titre normalisé pour comparaison de couvertures.
+    """
+    import re
+
+    result = normalize_for_matching(text)
+
+    # Supprimer la ponctuation spécifique aux titres (guillemets, ponctuation, parenthèses)
+    result = re.sub(r"[,:.()\u00ab\u00bb]", " ", result)
+
+    # Normaliser les tirets en espaces (les titres peuvent différer en tirets vs espaces)
+    result = result.replace("-", " ")
+
+    # Re-collapse whitespace après substitutions
+    result = re.sub(r"\s+", " ", result).strip()
+
+    return result
+
+
 def normalize_for_matching(text: str) -> str:
     """Normalise un texte pour le matching : minuscules, sans accents ni ligatures.
 

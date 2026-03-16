@@ -824,7 +824,7 @@ class BabelioService:
             1. <meta property="og:image"> (prioritaire)
             2. <img src*="/couv/CVT_"> (fallback)
         """
-        from ..utils.text_utils import normalize_for_matching
+        from ..utils.text_utils import normalize_for_cover_title_matching
 
         if not babelio_url or not babelio_url.strip():
             return None
@@ -872,8 +872,10 @@ class BabelioService:
                 if expected_title:
                     h1 = soup.find("h1")
                     if h1:
-                        page_title = normalize_for_matching(h1.get_text())
-                        norm_expected = normalize_for_matching(expected_title)
+                        page_title = normalize_for_cover_title_matching(h1.get_text())
+                        norm_expected = normalize_for_cover_title_matching(
+                            expected_title
+                        )
                         if (
                             norm_expected not in page_title
                             and page_title not in norm_expected
@@ -883,7 +885,14 @@ class BabelioService:
                                 f"Titre Babelio ne correspond pas pour {babelio_url}: "
                                 f"attendu='{expected_title}', page='{page_title_raw}'"
                             )
-                            return f"TITLE_MISMATCH:{page_title_raw}"
+                            # Extraire quand même l'URL cover pour proposer à l'utilisateur
+                            cover_url_found = ""
+                            og_image = soup.find("meta", property="og:image")
+                            if og_image and hasattr(og_image, "get"):
+                                content = og_image.get("content")
+                                if content and str(content).startswith("http"):
+                                    cover_url_found = str(content)
+                            return f"TITLE_MISMATCH:{page_title_raw}|{cover_url_found}"
 
                 # Priorité 1: og:image (peut pointer vers babelio.com ou un CDN comme Amazon)
                 og_image = soup.find("meta", property="og:image")

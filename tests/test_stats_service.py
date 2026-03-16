@@ -50,6 +50,7 @@ class TestStatsService:
                 **mock_cache_stats,
                 "books_without_url_babelio": 0,
                 "authors_without_url_babelio": 0,
+                "books_without_cover": 0,
                 "last_episode_date": None,
                 "episodes_without_avis_critiques": 0,
                 "avis_critiques_without_analysis": 0,
