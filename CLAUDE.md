@@ -674,14 +674,16 @@ await asyncio.sleep(5)  # 5 seconds between Babelio requests
 
 ### Text Normalization for Accent and Typographic Insensitivity
 
-**Deux fonctions disponibles** dans `text_utils.py` :
+**Trois fonctions disponibles** dans `text_utils.py` :
 
 1. **`create_accent_insensitive_regex(term)`** : Produit un pattern regex pour les recherches MongoDB `$regex`
 2. **`normalize_for_matching(text)`** : Produit un plain text normalisé pour les comparaisons d'égalité et containment
+3. **`normalize_for_cover_title_matching(text)`** : Étend `normalize_for_matching` avec suppression de ponctuation (`, . : ( ) « »`) et normalisation des tirets en espaces — pour valider les titres de pages Babelio lors du scraping de couvertures
 
 **Quand utiliser chacune** :
 - `create_accent_insensitive_regex()` : recherches textuelles MongoDB, filtrage utilisateur
 - `normalize_for_matching()` : matching titre/auteur, construction de tags Calibre, index de lookup
+- `normalize_for_cover_title_matching()` : validation titre page Babelio vs titre attendu (cover scraping)
 
 **Normalisations automatiques** (les deux fonctions) :
 - **Accents**: é ↔ e, à ↔ a, ô ↔ o, etc.

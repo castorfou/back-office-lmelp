@@ -217,6 +217,57 @@ Le système respecte les limitations de Babelio :
 - **Gestion gracieuse** : Arrêt automatique si Babelio indisponible
 - **Reprise possible** : La migration peut être relancée à tout moment
 
+## Récupération automatique des couvertures
+
+### Objectif
+
+Le système récupère automatiquement les URLs de couvertures des livres depuis Babelio et les stocke dans le champ `url_cover` de la collection `livres`.
+
+### Pré-requis : cookie Babelio
+
+Le scraping de couvertures nécessite un cookie Babelio valide pour passer la protection anti-bot. Ce cookie est fourni par le navigateur, pas le serveur.
+
+**Obtenir le cookie Babelio :**
+1. Ouvrez [babelio.com](https://www.babelio.com) dans votre navigateur
+2. Appuyez sur **F12** → onglet **Réseau** (Network)
+3. Rechargez la page (F5)
+4. Cliquez sur la première requête vers `babelio.com`
+5. Dans l'onglet **En-têtes** → **En-têtes de la requête** → copiez la valeur du champ **Cookie**
+6. Collez cette valeur dans la zone de texte de la section Couvertures
+
+Le cookie est stocké temporairement dans le `sessionStorage` du navigateur et effacé à la fermeture de l'onglet.
+
+### Lancer la migration des couvertures
+
+Dans `/babelio-migration`, section **Couvertures** :
+
+1. Collez votre cookie Babelio dans la zone prévue
+2. Cliquez sur **Lancer la liaison des couvertures**
+3. Le système traite les livres un par un, avec un délai de 5 secondes entre chaque requête
+4. Les résultats s'affichent en temps réel :
+   - ✅ Couverture récupérée avec succès
+   - ⚠️ Redirection Babelio détectée (titre de page différent du titre attendu)
+   - ❌ Erreur
+
+### Statistiques des couvertures
+
+| Indicateur | Signification |
+|------------|--------------|
+| **Liés à Babelio** | Livres ayant une URL Babelio (base de travail) |
+| **Liés avec succès** | Livres avec `url_cover` récupérée |
+| **À traiter manuellement** | Cas de redirection Babelio détectés |
+| **En attente** | Livres restant à traiter |
+
+### Cas à traiter manuellement (redirections Babelio)
+
+Babelio redirige parfois une URL obsolète vers un livre différent. Lorsque cela se produit, le système détecte la redirection et affiche le cas dans la section **"À traiter manuellement"**.
+
+**Pour chaque cas :**
+- Le titre de la page Babelio réellement retournée est affiché
+- Un champ URL est pré-rempli avec la couverture trouvée sur la mauvaise page (peut tout de même convenir si c'est la bonne couverture)
+- **Sauvegarder** : accepte l'URL proposée (ou une URL modifiée manuellement)
+- **Ignorer** : marque le cas comme traité sans sauvegarder de couverture
+
 ## En cas de problème
 
 1. **Erreur de connexion** : Vérifiez votre connexion internet, puis cliquez sur Retry
