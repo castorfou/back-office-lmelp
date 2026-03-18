@@ -337,3 +337,47 @@ class TestGetRecommendations:
         result = svc.get_recommendations()
 
         assert result == []
+
+    def test_get_recommendations_are_reproducible(
+        self, service, mock_mongodb_service, mock_calibre_service
+    ):
+        """Les scores sont identiques entre deux appels successifs (random_state=42).
+
+        Garantit que la page OnKindle et la page Recommandations affichent
+        les mêmes scores pour un même livre (Issue #240).
+        """
+        from bson import ObjectId
+
+        livres_docs = [
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439011"),
+                "titre": "Livre Deux",
+                "auteur_id": ObjectId("507f1f77bcf86cd799430001"),
+            },
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439013"),
+                "titre": "Livre Trois",
+                "auteur_id": ObjectId("507f1f77bcf86cd799430001"),
+            },
+        ]
+        auteurs_docs = [
+            {"_id": ObjectId("507f1f77bcf86cd799430001"), "nom": "Auteur Alpha"},
+        ]
+
+        # Premier appel
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result1 = service.get_recommendations(top_n=20)
+
+        # Deuxième appel avec les mêmes données
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result2 = service.get_recommendations(top_n=20)
+
+        # Les scores doivent être identiques
+        assert len(result1) == len(result2)
+        for r1, r2 in zip(result1, result2):
+            assert r1["livre_id"] == r2["livre_id"]
+            assert r1["score_hybride"] == r2["score_hybride"]

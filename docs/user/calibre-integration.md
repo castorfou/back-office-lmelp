@@ -220,14 +220,17 @@ La page **OnKindle** (`/onkindle`) affiche tous les livres Calibre portant le ta
 | **Auteur** | Lien vers la fiche auteur si trouvé dans MongoDB, texte sinon |
 | **Titre** | Lien vers la fiche livre si trouvé dans MongoDB, texte sinon |
 | **Note** | Note moyenne des critiques LMELP (badge coloré), si disponible |
+| **Reco** | Score de recommandation personnalisé (algorithme SVD, badge coloré), si disponible |
 | **Babelio** | Icône cliquable vers la fiche Babelio, si disponible |
 
 **Fonctionnalités** :
 
-- **Tri par colonnes** : Cliquez sur Auteur, Titre ou Note pour trier. Le tri est accent-insensitif ("À prendre" s'affiche avant "Zola").
-- **Persistance du tri** : Le tri choisi est mémorisé dans l'URL (`?sort=auteur&dir=asc`) et restauré au rechargement de la page.
+- **Tri par colonnes** : Cliquez sur Auteur, Titre, Note ou Reco pour trier. Le tri est accent-insensitif ("À prendre" s'affiche avant "Zola").
+- **Tri par défaut** : Score de recommandation décroissant — répond à la question « quel livre de ma liseuse ai-je le plus de chances d'aimer ? »
+- **Persistance du tri** : Le tri choisi est mémorisé dans l'URL (`?sort=score&dir=desc`) et restauré au rechargement de la page.
 - **Enrichissement MongoDB** : Les livres Calibre matchés avec MongoDB affichent leur note LMELP et leur lien Babelio.
-- **Dégradation gracieuse** : Si Calibre n'est pas disponible, un message explicite est affiché.
+- **Score Reco** : Calculé par l'algorithme de collaborative filtering SVD (voir page Recommandations). Le score se charge en arrière-plan (~10 secondes) ; la table s'affiche immédiatement avec `-` dans la colonne Reco pendant le calcul.
+- **Dégradation gracieuse** : Si Calibre n'est pas disponible, un message explicite est affiché. Si l'API de recommandations échoue, `-` est affiché pour tous les scores sans bloquer la page.
 
 **Correspondance Calibre-MongoDB** :
 

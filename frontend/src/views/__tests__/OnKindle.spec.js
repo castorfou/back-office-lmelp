@@ -53,6 +53,33 @@ const mockOnKindleData = {
   ],
 };
 
+// Mock recommendations data matching live API shape
+const mockRecommendationsData = [
+  {
+    rank: 1,
+    livre_id: 'abc123', // matches mockOnKindleData books[0].mongo_livre_id (Le Lambeau)
+    titre: 'Le Lambeau',
+    auteur_id: 'aut1',
+    auteur_nom: 'Philippe Lançon',
+    score_hybride: 8.75,
+    svd_predict: 9.1,
+    masque_mean: 7.8,
+    masque_count: 5,
+  },
+  {
+    rank: 2,
+    livre_id: 'def456', // matches mockOnKindleData books[1].mongo_livre_id (La Serpe)
+    titre: 'La Serpe',
+    auteur_id: 'aut2',
+    auteur_nom: 'Philippe Jaenada',
+    score_hybride: 7.2,
+    svd_predict: 7.5,
+    masque_mean: 6.6,
+    masque_count: 3,
+  },
+  // 'Livre Non MongoDB' has mongo_livre_id: null → no match → score: null
+];
+
 describe('OnKindle.vue', () => {
   let wrapper;
   let router;
@@ -71,8 +98,11 @@ describe('OnKindle.vue', () => {
     });
   });
 
-  async function mountWithData(apiResponse = mockOnKindleData) {
+  async function mountWithData(apiResponse = mockOnKindleData, recoResponse = []) {
+    // First call: /api/calibre/onkindle
     axios.get.mockResolvedValueOnce({ data: apiResponse });
+    // Second call: /api/recommendations/me
+    axios.get.mockResolvedValueOnce({ data: recoResponse });
 
     wrapper = mount(OnKindle, {
       global: {
@@ -81,8 +111,7 @@ describe('OnKindle.vue', () => {
     });
 
     await router.isReady();
-    await wrapper.vm.$nextTick();
-    await wrapper.vm.$nextTick();
+    await flushPromises();
 
     return wrapper;
   }
@@ -246,21 +275,46 @@ describe('OnKindle.vue', () => {
       expect(headers.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('sorts by titre ascending by default', async () => {
-      await mountWithData();
+    it('default sort is score descending (highest recommendation first)', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      expect(wrapper.vm.sortKey).toBe('score');
+      expect(wrapper.vm.sortDir).toBe('desc');
 
       const rows = wrapper.findAll('[data-test="onkindle-row"]');
-      // Ascending alphabetical: La Serpe < Le Lambeau < Livre Non MongoDB
+      // Descending score: Le Lambeau (8.75) > La Serpe (7.20) > Livre Non MongoDB (null)
+      expect(rows[0].text()).toContain('Le Lambeau');
+      expect(rows[1].text()).toContain('La Serpe');
+      expect(rows[2].text()).toContain('Livre Non MongoDB');
+    });
+
+    it('when all scores are null, books sort by titre ascending (secondary sort)', async () => {
+      await mountWithData(); // recoResponse=[] → all null scores
+
+      const rows = wrapper.findAll('[data-test="onkindle-row"]');
+      // Secondary sort by titre asc: La Serpe < Le Lambeau < Livre Non MongoDB
       expect(rows[0].text()).toContain('La Serpe');
       expect(rows[2].text()).toContain('Livre Non MongoDB');
     });
 
-    it('clicking titre header sorts descending on second click', async () => {
+    it('clicking titre header sorts by titre ascending', async () => {
       await mountWithData();
 
-      // Default is titre-asc, one click → desc
       const titreHeader = wrapper.find('th[data-test="sort-titre"]');
       await titreHeader.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      const rows = wrapper.findAll('[data-test="onkindle-row"]');
+      // Ascending titre: La Serpe first
+      expect(rows[0].text()).toContain('La Serpe');
+    });
+
+    it('clicking titre header twice sorts descending', async () => {
+      await mountWithData();
+
+      const titreHeader = wrapper.find('th[data-test="sort-titre"]');
+      await titreHeader.trigger('click'); // first click: titre asc
+      await titreHeader.trigger('click'); // second click: titre desc
       await wrapper.vm.$nextTick();
 
       const rows = wrapper.findAll('[data-test="onkindle-row"]');
@@ -312,13 +366,13 @@ describe('OnKindle.vue', () => {
 
     it('reads sort from URL query params on mount', async () => {
       axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+      axios.get.mockResolvedValueOnce({ data: [] }); // recommendations
 
       await router.push({ path: '/onkindle', query: { sort: 'note', dir: 'desc' } });
       await router.isReady();
 
       wrapper = mount(OnKindle, { global: { plugins: [router] } });
-      await wrapper.vm.$nextTick();
-      await wrapper.vm.$nextTick();
+      await flushPromises();
 
       expect(wrapper.vm.sortKey).toBe('note');
       expect(wrapper.vm.sortDir).toBe('desc');
@@ -326,6 +380,7 @@ describe('OnKindle.vue', () => {
 
     it('restores sort state after page reload (URL params persist)', async () => {
       axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+      axios.get.mockResolvedValueOnce({ data: [] }); // recommendations
 
       await router.push({ path: '/onkindle', query: { sort: 'auteur', dir: 'asc' } });
       await router.isReady();
@@ -370,7 +425,9 @@ describe('OnKindle.vue', () => {
       };
       await mountWithData(dataWithAccent);
 
-      // Default is titre-asc: "À prendre" should come BEFORE "Zola"
+      // Sort by titre asc: "À prendre" should come BEFORE "Zola"
+      await wrapper.vm.sortBy('titre');
+      await wrapper.vm.$nextTick();
       const rows = wrapper.findAll('[data-test="onkindle-row"]');
       expect(rows[0].text()).toContain('À prendre ou à laisser');
       expect(rows[1].text()).toContain('Zola');
@@ -414,6 +471,140 @@ describe('OnKindle.vue', () => {
       const rows = wrapper.findAll('[data-test="onkindle-row"]');
       expect(rows[0].text()).toContain('Álvarez');
       expect(rows[1].text()).toContain('Zola');
+    });
+  });
+
+  describe('Recommendation score column (Issue #240)', () => {
+    it('renders a sortable "Reco" column header', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      const headers = wrapper.findAll('th');
+      expect(headers.some((h) => h.text().includes('Reco'))).toBe(true);
+    });
+
+    it('shows score badge when book has a recommendation score', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      const badges = wrapper.findAll('[data-test="reco-badge"]');
+      expect(badges).toHaveLength(2); // Le Lambeau (abc123) and La Serpe (def456)
+    });
+
+    it('shows "-" when book has no recommendation score (no mongo_livre_id)', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      const missing = wrapper.findAll('[data-test="reco-missing"]');
+      expect(missing).toHaveLength(1); // Livre Non MongoDB has mongo_livre_id: null
+    });
+
+    it('displays score value formatted to 2 decimals', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      const badges = wrapper.findAll('[data-test="reco-badge"]');
+      // Le Lambeau has 8.75, La Serpe has 7.20 (default sort: score desc)
+      expect(badges[0].text()).toBe('8.75');
+      expect(badges[1].text()).toBe('7.20');
+    });
+
+    it('calls both /api/calibre/onkindle and /api/recommendations/me', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      expect(axios.get).toHaveBeenCalledWith('/api/calibre/onkindle');
+      expect(axios.get).toHaveBeenCalledWith(
+        '/api/recommendations/me',
+        expect.objectContaining({ params: { top_n: 1000 } })
+      );
+    });
+
+    it('sorts by score descending when clicking Reco header once (from default score-desc)', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      const recoHeader = wrapper.find('th[data-test="sort-score"]');
+      await recoHeader.trigger('click'); // score is already active → toggles to asc
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.sortDir).toBe('asc');
+    });
+
+    it('sorts by score ascending: lowest score first, null last', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      await wrapper.vm.sortBy('score'); // score-desc → score-asc
+      await wrapper.vm.$nextTick();
+      await wrapper.vm.sortBy('score'); // score-asc → back to score-desc... wait, need asc
+      await wrapper.vm.$nextTick();
+
+      // After two sortBy calls: desc → asc → desc. Let me set directly
+      wrapper.vm.sortKey = 'score';
+      wrapper.vm.sortDir = 'asc';
+      await wrapper.vm.$nextTick();
+
+      const rows = wrapper.findAll('[data-test="onkindle-row"]');
+      // Ascending score: La Serpe (7.20) < Le Lambeau (8.75), null last
+      expect(rows[0].text()).toContain('La Serpe');
+      expect(rows[1].text()).toContain('Le Lambeau');
+      expect(rows[2].text()).toContain('Livre Non MongoDB');
+    });
+
+    it('null scores always sort to the bottom regardless of direction', async () => {
+      await mountWithData(mockOnKindleData, mockRecommendationsData);
+
+      // Sort score ascending
+      wrapper.vm.sortKey = 'score';
+      wrapper.vm.sortDir = 'asc';
+      await wrapper.vm.$nextTick();
+
+      const rowsAsc = wrapper.findAll('[data-test="onkindle-row"]');
+      expect(rowsAsc[rowsAsc.length - 1].text()).toContain('Livre Non MongoDB');
+
+      // Sort score descending
+      wrapper.vm.sortDir = 'desc';
+      await wrapper.vm.$nextTick();
+
+      const rowsDesc = wrapper.findAll('[data-test="onkindle-row"]');
+      expect(rowsDesc[rowsDesc.length - 1].text()).toContain('Livre Non MongoDB');
+    });
+
+    it('shows "-" for all books if recommendations API fails', async () => {
+      axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+      axios.get.mockRejectedValueOnce(new Error('SVD error'));
+
+      wrapper = mount(OnKindle, { global: { plugins: [router] } });
+      await router.isReady();
+      await flushPromises();
+
+      const missing = wrapper.findAll('[data-test="reco-missing"]');
+      expect(missing).toHaveLength(3); // All books show "-"
+    });
+
+    it('table loads immediately even while recommendations are loading', async () => {
+      axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+      axios.get.mockImplementationOnce(() => new Promise(() => {})); // reco never resolves
+
+      wrapper = mount(OnKindle, { global: { plugins: [router] } });
+      await router.isReady();
+      // Wait only for onkindle to load (flushPromises would hang due to never-resolving reco)
+      // Just tick enough for onkindle to resolve
+      await new Promise((r) => setTimeout(r, 0));
+      await wrapper.vm.$nextTick();
+      await wrapper.vm.$nextTick();
+
+      // Table should be visible
+      const rows = wrapper.findAll('[data-test="onkindle-row"]');
+      expect(rows).toHaveLength(3);
+    });
+
+    it('reads sort=score from URL query on mount', async () => {
+      axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+      axios.get.mockResolvedValueOnce({ data: mockRecommendationsData });
+
+      await router.push({ path: '/onkindle', query: { sort: 'score', dir: 'asc' } });
+      await router.isReady();
+
+      wrapper = mount(OnKindle, { global: { plugins: [router] } });
+      await flushPromises();
+
+      expect(wrapper.vm.sortKey).toBe('score');
+      expect(wrapper.vm.sortDir).toBe('asc');
     });
   });
 });

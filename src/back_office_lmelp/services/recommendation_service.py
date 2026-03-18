@@ -33,6 +33,7 @@ SVD_PARAMS = {
     "n_epochs": 50,
     "lr_all": 0.01,
     "reg_all": 0.1,
+    "random_state": 42,  # Reproductibilité des scores entre appels successifs
 }
 
 # Identifiant utilisateur injecté dans le dataset SVD
