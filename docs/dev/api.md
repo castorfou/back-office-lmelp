@@ -1544,7 +1544,7 @@ Le calcul est effectué en temps réel (~5–10 secondes) : entraînement SVD su
 2. Charge les avis MongoDB (collection `avis`)
 3. Filtre les critiques avec < 10 avis (trop peu pour être fiables)
 4. Injecte les notes Calibre comme utilisateur `"Moi"` dans le dataset
-5. Entraîne SVD Surprise (n_factors=20, n_epochs=50, lr_all=0.01, reg_all=0.1)
+5. Entraîne SVD Surprise (n_factors=20, n_epochs=50, lr_all=0.01, reg_all=0.1, random_state=42)
 6. Calcule `score = 0.7 × svd_predict + 0.3 × masque_mean` pour les livres non vus
 7. Enrichit avec titres et auteurs MongoDB
 
@@ -1561,10 +1561,12 @@ curl "http://localhost:<PORT>/api/recommendations/me?top_n=5" | jq
 #### Notes techniques
 
 - **Timeout client recommandé** : 60 secondes (calcul SVD ~5–10s)
+- **Reproductibilité** : `random_state=42` fixé dans `SVD_PARAMS` — les scores sont identiques entre deux appels successifs avec les mêmes données. Essentiel pour la cohérence entre la page Recommandations et la page OnKindle.
 - **Types MongoDB** : `avis.critique_oid` = String, `avis.livre_oid` = String, `avis.note` = Number
 - **Calibre rating scale** : valeurs 2, 4, 6, 8, 10 utilisées directement (déjà sur échelle 1–10)
 - **Filtre livres candidats** : notés par ≥ 2 critiques du Masque
 - **Filtre critiques actifs** : ≥ 10 avis dans la base
+- **top_n pour OnKindle** : utiliser `top_n=1000` depuis la page OnKindle pour couvrir tous les livres onkindle (la page Recommandations utilise `top_n=20` par défaut)
 
 ---
 

@@ -312,6 +312,83 @@ class TestGetRecommendations:
 
         assert len(result) <= 3
 
+    def test_min_critiques_per_livre_1_includes_books_with_single_critic(
+        self, mock_calibre_service, mock_mongodb_service
+    ):
+        """min_critiques_per_livre=1 inclut les livres notés par un seul critique.
+
+        Utile pour la page OnKindle où tous les livres doivent être scorés,
+        même ceux peu représentés dans la base de critiques.
+        """
+        from bson import ObjectId
+
+        # IDs valides pour ObjectId
+        livre_solo_oid = "507f1f77bcf86cd799439099"  # pragma: allowlist secret
+
+        # Dataset : livre_vu noté par 2 critiques (déjà lu par user)
+        #           livre_solo noté par 1 seul critique → exclus avec min=2, inclus avec min=1
+        avis_data = [
+            # critique_1 a 10 avis pour passer le filtre MIN_AVIS_PER_CRITIQUE
+            *[
+                {
+                    "critique_oid": "critique_1",
+                    "livre_oid": f"50000000000000000000000{i}",
+                    "note": 7,
+                }
+                for i in range(10)
+            ],
+            # critique_1 note aussi livre_solo
+            {"critique_oid": "critique_1", "livre_oid": livre_solo_oid, "note": 9},
+            # critique_2 a 10 avis aussi
+            *[
+                {
+                    "critique_oid": "critique_2",
+                    "livre_oid": f"50000000000000000000000{i}",
+                    "note": 6,
+                }
+                for i in range(10)
+            ],
+            # critique_2 ne note PAS livre_solo → 1 seul critique pour livre_solo
+        ]
+
+        livres_docs = [
+            {
+                "_id": ObjectId(livre_solo_oid),
+                "titre": "Livre Solo",
+                "auteur_id": ObjectId("507f1f77bcf86cd799430001"),
+            },
+        ]
+        auteurs_docs = [
+            {"_id": ObjectId("507f1f77bcf86cd799430001"), "nom": "Auteur Solo"},
+        ]
+
+        mock_calibre_service._available = True
+        # L'utilisateur a noté un livre (nécessaire pour que calibre_notes ne soit pas vide)
+        mock_calibre_service.get_all_books_with_tags.return_value = [
+            {"id": 99, "title": "livre_vu", "authors": ["A"], "rating": 8, "tags": []},
+        ]
+
+        svc = RecommendationService(mock_calibre_service, mock_mongodb_service)
+
+        # Avec min=2, livre_solo est exclu (1 seul critique)
+        mock_mongodb_service.avis_collection.aggregate.return_value = iter(avis_data)
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result_min2 = svc.get_recommendations(top_n=1000, min_critiques_per_livre=2)
+        livre_solo_in_min2 = any(r["livre_id"] == livre_solo_oid for r in result_min2)
+
+        # Avec min=1, livre_solo est inclus
+        mock_mongodb_service.avis_collection.aggregate.return_value = iter(avis_data)
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result_min1 = svc.get_recommendations(top_n=1000, min_critiques_per_livre=1)
+        livre_solo_in_min1 = any(r["livre_id"] == livre_solo_oid for r in result_min1)
+
+        assert not livre_solo_in_min2, "livre_solo ne doit pas apparaître avec min=2"
+        assert livre_solo_in_min1, "livre_solo doit apparaître avec min=1"
+
     def test_get_recommendations_returns_empty_when_no_calibre_notes(
         self, mock_calibre_service, mock_mongodb_service
     ):
@@ -337,3 +414,47 @@ class TestGetRecommendations:
         result = svc.get_recommendations()
 
         assert result == []
+
+    def test_get_recommendations_are_reproducible(
+        self, service, mock_mongodb_service, mock_calibre_service
+    ):
+        """Les scores sont identiques entre deux appels successifs (random_state=42).
+
+        Garantit que la page OnKindle et la page Recommandations affichent
+        les mêmes scores pour un même livre (Issue #240).
+        """
+        from bson import ObjectId
+
+        livres_docs = [
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439011"),
+                "titre": "Livre Deux",
+                "auteur_id": ObjectId("507f1f77bcf86cd799430001"),
+            },
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439013"),
+                "titre": "Livre Trois",
+                "auteur_id": ObjectId("507f1f77bcf86cd799430001"),
+            },
+        ]
+        auteurs_docs = [
+            {"_id": ObjectId("507f1f77bcf86cd799430001"), "nom": "Auteur Alpha"},
+        ]
+
+        # Premier appel
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result1 = service.get_recommendations(top_n=20)
+
+        # Deuxième appel avec les mêmes données
+        mock_mongodb_service.livres_collection.find.return_value = iter(livres_docs)
+        mock_mongodb_service.auteurs_collection.find.return_value = iter(auteurs_docs)
+        mock_mongodb_service.critiques_collection.find.return_value = iter([])
+        result2 = service.get_recommendations(top_n=20)
+
+        # Les scores doivent être identiques
+        assert len(result1) == len(result2)
+        for r1, r2 in zip(result1, result2):
+            assert r1["livre_id"] == r2["livre_id"]
+            assert r1["score_hybride"] == r2["score_hybride"]

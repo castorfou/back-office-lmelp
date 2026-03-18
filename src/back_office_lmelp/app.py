@@ -2996,7 +2996,9 @@ async def get_palmares(page: int = 1, limit: int = 30) -> dict[str, Any] | JSONR
 
 # Endpoint recommandations par collaborative filtering (Issue #222)
 @app.get("/api/recommendations/me", response_model=list[dict[str, Any]])
-async def get_recommendations(top_n: int = 20) -> list[dict[str, Any]]:
+async def get_recommendations(
+    top_n: int = 20, min_critiques: int = 2
+) -> list[dict[str, Any]]:
     """Recommandations de livres par collaborative filtering SVD.
 
     Combine les avis du Masque & la Plume (matrice critique×livre) avec
@@ -3006,13 +3008,17 @@ async def get_recommendations(top_n: int = 20) -> list[dict[str, Any]]:
 
     Args:
         top_n: Nombre de recommandations à retourner (défaut: 20)
+        min_critiques: Nombre minimum de critiques requis par livre (défaut: 2).
+            Passer 1 pour inclure les livres notés par un seul critique.
 
     Returns:
         Liste de dicts avec rank, livre_id, titre, auteur_id, auteur_nom,
         score_hybride, svd_predict, masque_mean, masque_count.
     """
     try:
-        return recommendation_service.get_recommendations(top_n=top_n)
+        return recommendation_service.get_recommendations(
+            top_n=top_n, min_critiques_per_livre=min_critiques
+        )
     except Exception as e:
         logger.error(f"Error getting recommendations: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

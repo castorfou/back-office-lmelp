@@ -58,6 +58,16 @@
               >
                 Note <span class="sort-icon">{{ sortKey === 'note' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅' }}</span>
               </th>
+              <th
+                class="col-score sort-header"
+                :class="{ 'sort-active': sortKey === 'score' }"
+                data-test="sort-score"
+                @click="sortBy('score')"
+              >
+                Reco
+                <span v-if="recommendationsLoading" data-test="reco-loading" class="sort-icon">…</span>
+                <span v-else class="sort-icon">{{ sortKey === 'score' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅' }}</span>
+              </th>
               <th class="col-babelio">Babelio</th>
             </tr>
           </thead>
@@ -101,6 +111,19 @@
                   {{ book.note_moyenne.toFixed(1) }}
                 </span>
                 <span v-else class="note-missing" data-test="note-missing">-</span>
+              </td>
+
+              <!-- Reco -->
+              <td class="col-score">
+                <span
+                  v-if="book.mongo_livre_id != null && recommendationsByLivreId[book.mongo_livre_id] != null"
+                  class="score-badge"
+                  :class="recoClass(recommendationsByLivreId[book.mongo_livre_id])"
+                  data-test="reco-badge"
+                >
+                  {{ recommendationsByLivreId[book.mongo_livre_id].toFixed(2) }}
+                </span>
+                <span v-else class="note-missing" data-test="reco-missing">-</span>
               </td>
 
               <!-- Babelio -->
@@ -152,14 +175,16 @@ export default {
       error: null,
       calibreUnavailable: false,
       books: [],
-      sortKey: 'titre',
-      sortDir: 'asc',
+      recommendations: [],
+      recommendationsLoading: false,
+      sortKey: 'score',
+      sortDir: 'desc',
     };
   },
 
   created() {
     const { sort, dir } = this.$route.query;
-    if (sort && ['titre', 'auteur', 'note'].includes(sort)) {
+    if (sort && ['titre', 'auteur', 'note', 'score'].includes(sort)) {
       this.sortKey = sort;
     }
     if (dir && ['asc', 'desc'].includes(dir)) {
@@ -168,9 +193,35 @@ export default {
   },
 
   computed: {
+    recommendationsByLivreId() {
+      const map = {};
+      for (const item of this.recommendations) {
+        map[item.livre_id] = item.score_hybride;
+      }
+      return map;
+    },
+
     sortedBooks() {
       const sorted = [...this.books];
       sorted.sort((a, b) => {
+        if (this.sortKey === 'score') {
+          const scoreA = a.mongo_livre_id != null
+            ? (this.recommendationsByLivreId[a.mongo_livre_id] ?? null)
+            : null;
+          const scoreB = b.mongo_livre_id != null
+            ? (this.recommendationsByLivreId[b.mongo_livre_id] ?? null)
+            : null;
+          // Null always last regardless of direction
+          if (scoreA === null && scoreB === null) {
+            // Secondary sort by titre for deterministic order
+            return (a.titre || '').localeCompare(b.titre || '', 'fr', { sensitivity: 'base' });
+          }
+          if (scoreA === null) return 1;
+          if (scoreB === null) return -1;
+          if (scoreA < scoreB) return this.sortDir === 'asc' ? -1 : 1;
+          if (scoreA > scoreB) return this.sortDir === 'asc' ? 1 : -1;
+          return 0;
+        }
         if (this.sortKey === 'note') {
           const valA = a.note_moyenne ?? -Infinity;
           const valB = b.note_moyenne ?? -Infinity;
@@ -193,6 +244,7 @@ export default {
 
   async mounted() {
     await this.loadOnKindleBooks();
+    this.loadRecommendations(); // intentionally not awaited — loads in background
   },
 
   methods: {
@@ -201,7 +253,7 @@ export default {
         this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
       } else {
         this.sortKey = key;
-        this.sortDir = key === 'note' ? 'desc' : 'asc';
+        this.sortDir = (key === 'note' || key === 'score') ? 'desc' : 'asc';
       }
       await this.$router.replace({
         query: { sort: this.sortKey, dir: this.sortDir },
@@ -227,11 +279,33 @@ export default {
       }
     },
 
+    async loadRecommendations() {
+      this.recommendationsLoading = true;
+      try {
+        const response = await axios.get('/api/recommendations/me', {
+          params: { top_n: 1000, min_critiques: 1 },
+          timeout: 60000,
+        });
+        this.recommendations = response.data || [];
+      } catch {
+        // Graceful degradation: show "-" for all reco scores
+        this.recommendations = [];
+      } finally {
+        this.recommendationsLoading = false;
+      }
+    },
+
     noteClass(note) {
       if (note >= 9) return 'note-excellent';
       if (note >= 7) return 'note-good';
       if (note >= 5) return 'note-average';
       return 'note-poor';
+    },
+
+    recoClass(score) {
+      if (score >= 8) return 'score-high';
+      if (score >= 6) return 'score-medium';
+      return 'score-low';
     },
   },
 };
@@ -382,6 +456,11 @@ export default {
   text-align: center;
 }
 
+.col-score {
+  width: 80px;
+  text-align: center;
+}
+
 .col-babelio {
   width: 80px;
   text-align: center;
@@ -436,6 +515,30 @@ export default {
 .note-missing,
 .babelio-missing {
   color: #ccc;
+}
+
+/* Score badges (same as Recommendations.vue) */
+.score-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.score-high {
+  background: #d4edda;
+  color: #155724;
+}
+
+.score-medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.score-low {
+  background: #f8f9fa;
+  color: #666;
 }
 
 /* Babelio icon */
