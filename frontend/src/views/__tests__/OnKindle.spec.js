@@ -511,7 +511,7 @@ describe('OnKindle.vue', () => {
       expect(axios.get).toHaveBeenCalledWith('/api/calibre/onkindle');
       expect(axios.get).toHaveBeenCalledWith(
         '/api/recommendations/me',
-        expect.objectContaining({ params: { top_n: 1000 } })
+        expect.objectContaining({ params: { top_n: 1000, min_critiques: 1 } })
       );
     });
 

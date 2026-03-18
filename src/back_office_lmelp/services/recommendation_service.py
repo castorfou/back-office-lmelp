@@ -63,7 +63,9 @@ class RecommendationService:
     # Méthodes publiques
     # ------------------------------------------------------------------
 
-    def get_recommendations(self, top_n: int = 20) -> list[dict[str, Any]]:
+    def get_recommendations(
+        self, top_n: int = 20, min_critiques_per_livre: int = MIN_CRITIQUES_PER_LIVRE
+    ) -> list[dict[str, Any]]:
         """Calcule les recommandations de livres pour l'utilisateur.
 
         Pipeline temps réel :
@@ -73,6 +75,12 @@ class RecommendationService:
         4. Calculer score hybride pour chaque livre non vu
         5. Enrichir avec titres et auteurs depuis MongoDB
         6. Retourner top-N triés par score décroissant
+
+        Args:
+            top_n: Nombre maximum de recommandations à retourner.
+            min_critiques_per_livre: Nombre minimum de critiques requis par livre.
+                Défaut : MIN_CRITIQUES_PER_LIVRE (2). Passer 1 pour inclure les livres
+                notés par un seul critique (utile pour la page OnKindle).
 
         Returns:
             Liste de dicts avec rank, livre_id, titre, auteur_id, auteur_nom,
@@ -117,12 +125,12 @@ class RecommendationService:
 
         algo = self._train_svd(all_rows)
 
-        # 8. Identifier les livres candidats (non vus, ≥ MIN_CRITIQUES_PER_LIVRE critiques)
+        # 8. Identifier les livres candidats (non vus, ≥ min_critiques_per_livre critiques)
         candidates = {
             livre_oid: stats
             for livre_oid, stats in masque_means.items()
             if livre_oid not in livre_oids_seen
-            and stats["count"] >= MIN_CRITIQUES_PER_LIVRE
+            and stats["count"] >= min_critiques_per_livre
         }
 
         if not candidates:

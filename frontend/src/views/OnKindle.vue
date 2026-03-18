@@ -283,7 +283,7 @@ export default {
       this.recommendationsLoading = true;
       try {
         const response = await axios.get('/api/recommendations/me', {
-          params: { top_n: 1000 },
+          params: { top_n: 1000, min_critiques: 1 },
           timeout: 60000,
         });
         this.recommendations = response.data || [];
