@@ -50,3 +50,42 @@ Nouveau describe `LivreDetail - Couverture du livre (Issue #242)` avec 2 tests :
 - La couverture n'est affichée que si disponible (pas tous les livres ont une couverture Babelio)
 - Le redesign du header supprime le padding global pour coller la couverture au bord gauche
 - Les icônes externes (Babelio, Anna's Archive) ont été réduites (32px) et repositionnées sous le bouton Ré-extraire (colonne flex à droite)
+
+---
+
+## Fix bonus — RadioFrance pagination dichotomique pour épisodes anciens
+
+Commits dans la même branche : `0057e61` (fix) + `fe40af1` (suppression test timeout)
+
+### Problème
+
+Les épisodes anciens (ex : 2017) n'étaient pas trouvés par la recherche RadioFrance :
+1. Le paramètre de recherche était `?search=` au lieu de `?q=` (mauvaise URL)
+2. RadioFrance bloquait les requêtes sans `User-Agent` (filtrage anti-bot)
+3. Le moteur `?q=` n'indexe pas les anciens épisodes → page vide sans erreur
+
+### Solution — `src/back_office_lmelp/services/radiofrance_service.py`
+
+**Corrections directes** :
+- `?search=` → `?q=` dans la construction d'URL de recherche
+- Ajout `User-Agent` Chrome dans `self.http_headers` appliqué à toutes les sessions `aiohttp`
+
+**Fallback dichotomique** (nouvelle méthode `_search_chronological_pages`) :
+- Quand `?q=` ne retourne rien, bascule sur pagination chronologique `?p=N`
+- Recherche binaire : la date médiane d'une page oriente la dichotomie (max ~8 itérations pour 200 pages)
+- Détection des pages "fallback RadioFrance" : pages invalides retournent les mêmes liens récents (signature détectable)
+- Tolérance de date réduite à 3 jours (vs 7 avant) pour éviter les faux positifs
+- Sélection du **meilleur candidat** (diff date minimal) au lieu du premier acceptable
+
+**Méthodes ajoutées** :
+- `_get_page_links_and_median_date(page)` : récupère liens + date médiane d'une page `?p=N`
+- `_get_page_median_date(page)` : wrapper pour la dichotomie
+- `_search_chronological_pages(title, date, min_duration)` : orchestre la recherche dichotomique
+
+### Suppression test timeout — `tests/test_radiofrance_pagination.py`
+
+`test_pagination_should_respect_timeout` supprimé : le timeout de 30s était trop court pour une recherche dichotomique réseau (~60-90s réels). Les vrais garde-fous sont dans le code : max 10 itérations, fenêtre finie → pas de risque de boucle infinie.
+
+### Tests mis à jour — `tests/test_radiofrance_service.py`
+
+Mocks mis à jour : `?search=` → `?q=` dans les URLs mockées.
