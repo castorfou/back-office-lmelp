@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# PyFoundry - Configuration de l'environnement de développement
+# back-office lmelp - Configuration de l'environnement de développement
 # =============================================================================
 set -e
 
@@ -41,6 +41,19 @@ update_system() {
     echo "Système mis à jour"
 }
 
+# outil pour ajouter une ligne dans .zshrc si elle n'existe pas déjà
+ensure_zshrc_line() {
+    local line="$1"
+    local zshrc="$HOME/.zshrc"
+    if [ ! -f "$zshrc" ]; then
+        touch "$zshrc"
+    fi
+    if ! grep -Fxq "$line" "$zshrc" 2>/dev/null; then
+        echo "$line" >> "$zshrc"
+    fi
+}
+
+
 # Vérification et installation d'uv (priorité: devcontainer feature, fallback: installation manuelle)
 ensure_uv() {
     echo "Vérification de uv..."
@@ -58,30 +71,22 @@ ensure_uv() {
 create_python_environment() {
     echo "Configuration de l'environnement Python $PYTHON_VERSION ..."
 
-    echo "Création de l'environnement virtuel..."
-    uv venv .venv --python $PYTHON_VERSION
-
-    source .venv/bin/activate
-    echo "Installation des dépendances..."
-    uv pip install -e .
-
-    if [[ -f "pyproject.toml" ]] && grep -q "\[project.optional-dependencies\]" pyproject.toml; then
-        echo "Installation des dépendances de développement..."
-        uv pip install -e ".[dev]"
+    echo "Création de l'environnement virtuel dans /home/vscode/.venv"
+    VENV_HOME="/home/vscode/.venv"
+    if [ -d "$VENV_HOME" ]; then
+        echo "Un venv existe déjà à $VENV_HOME, je l'utilise."
+    else
+        uv venv "$VENV_HOME" --python $PYTHON_VERSION
     fi
 
-    echo "Génération du fichier de verrouillage..."
-    uv pip freeze > requirements.lock
-
-    echo "Configuration de l'activation automatique..."
-    PROJECT_PATH=$(pwd)
-    for shell_config in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [[ -f "$shell_config" ]] && ! grep -q "source $PROJECT_PATH/.venv/bin/activate" "$shell_config"; then
-            echo "source $PROJECT_PATH/.venv/bin/activate" >> "$shell_config"
-        fi
-    done
+    # Activer l'environnement créé dans $HOME/.venv
+    source "$VENV_HOME/bin/activate"
+    echo "Installation des dépendances..."
+    # Utiliser --active pour cibler l'environnement virtuel activé (hors du dossier projet)
+    uv sync --active --all-extras
 
     echo "Environnement Python configuré"
+
 }
 
 # Installation de Calibre
@@ -138,24 +143,32 @@ EOF
 }
 
 
-# Configuration Git et GitHub
+# Configuration Git
 setup_git() {
     echo "Configuration Git..."
-
-    # Initialisation du dépôt si pas encore fait
     if [ ! -d ".git" ]; then
         echo "Initialisation du dépôt Git..."
-        git init --initial-branch=main
+        git init
+        git branch -M main
 
-        # Création du commit initial
-        echo "Création du commit initial..."
+        # Configuration de l'utilisateur si non défini (pour éviter l'échec du commit)
+        if [ -z "$(git config --global user.email)" ]; then
+            echo "Configuration d'un utilisateur Git par défaut..."
+            git config user.email "default@michelin.com"
+            git config user.name "Default User"
+        fi
+
         git add .
-        git commit -m "Initial commit: PyFoundry project setup
-
-Project: back-office lmelp
-Template: PyFoundry v0.3
-Features: ruff, mypy, pre-commit hooks"
+        git commit -m "Initial commit"
+        echo "✅ Dépôt Git initialisé et premier commit effectué"
+    else
+        echo "Dépôt Git déjà existant"
     fi
+}
+
+
+# Configuration pre-commit
+setup_pre-commit() {
 
     # Configuration pre-commit si disponible
     if [ -f ".pre-commit-config.yaml" ]; then
@@ -188,15 +201,23 @@ Features: ruff, mypy, pre-commit hooks"
             echo "⚠️  pre-commit non installé, ignoré"
         fi
     fi
+}
+
+
+# Configuration GitHub
+setup_github() {
+    echo "Configuration GitHub..."
+
+
 
     # Configuration du remote GitHub si username fourni
-    if [ "castor_fou" != "votre-username" ]; then
+    if [ "castorfou" != "votre-username" ]; then
 
         # choisir le protocole: SSH si possible, sinon HTTPS
         if ssh -o BatchMode=yes -T git@github.com 2>&1 | grep -iq "successfully authenticated"; then
-            remote_url="git@github.com:castor_fou/back-office-lmelp.git"
+            remote_url="git@github.com:castorfou/back-office-lmelp.git"
         else
-            remote_url="https://github.com/castor_fou/back-office-lmelp.git"
+            remote_url="https://github.com/castorfou/back-office-lmelp.git"
         fi
 
         echo "Configuration du remote GitHub : $remote_url"
@@ -239,6 +260,35 @@ Features: ruff, mypy, pre-commit hooks"
     echo "Configuration Git terminée"
 }
 
+# config zsh
+config_zsh() {
+    echo "Configuration de zsh..."
+    # Ajouter des configurations zsh spécifiques si nécessaire
+
+    cd ~
+    rm -rf .oh-my-zsh
+
+    sudo apt install -y fonts-powerline
+
+    # get last version at https://github.com/deluan/zsh-in-docker
+    sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.1/zsh-in-docker.sh)" -- \
+        -p git \
+        -p python \
+        -p history \
+        -p 'history-substring-search' \
+        -p https://github.com/zsh-users/zsh-autosuggestions \
+        -p https://github.com/zsh-users/zsh-completions
+
+    ensure_zshrc_line '[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
+
+    ensure_zshrc_line 'export PATH="$HOME/.local/bin:$PATH"'
+
+    ensure_zshrc_line 'source /home/vscode/.venv/bin/activate'
+
+    echo "✅ zsh configuré"
+}
+
+
 # Exécution des étapes
 update_system
 ensure_uv
@@ -246,6 +296,9 @@ ensure_uv
 create_python_environment
 setup_node
 setup_git
+setup_github
+setup_pre-commit
+config_zsh
 
 echo ""
 echo "=================================================================="

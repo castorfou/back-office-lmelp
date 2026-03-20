@@ -1,5 +1,6 @@
 {
     "name": "back-office lmelp - Dev Environment",
+	"workspaceFolder": "/workspaces/back-office-lmelp",
     "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
     "runArgs": [
         "--network=host",
@@ -16,6 +17,7 @@
         "PYTHONPATH": "/workspaces/back-office-lmelp/src",
         "UV_VENV_CLEAR": "1",
         "UV_LINK_MODE": "copy",
+        "UV_PYTHON": "/home/vscode/.venv/bin/python",
         "TZ": "${localEnv:TZ}"
     },
 
@@ -43,16 +45,17 @@
                 "ms-python.autopep8",
                 "Vue.volar",
                 "anthropic.claude-code",
+                "catppuccin.catppuccin-vsc-icons",
                 "Catppuccin.catppuccin-vsc"
             ],
             "settings": {
                 // Configuration Python
-                "python.defaultInterpreterPath": "/workspaces/back-office-lmelp/.venv/bin/python",
+                "python.defaultInterpreterPath": "/home/vscode/.venv/bin/python",
                 "python.analysis.autoImportCompletions": true,
                 "python.analysis.typeCheckingMode": "basic",
 				"terminal.integrated.env.linux": {
-					"VIRTUAL_ENV": "/workspaces/back-office-lmelp/.venv",
-					"PATH": "/workspaces/back-office-lmelp/.venv/bin:${env:PATH}"
+					"VIRTUAL_ENV": "/home/vscode/.venv",
+					"PATH": "/home/vscode/.venv/bin:${env:PATH}"
 				},
 
                 // Configuration générale
@@ -88,7 +91,8 @@
         },
         "ghcr.io/devcontainers/features/node:1": {
             "nodeGypDependencies": true,
-            "version": "lts"
+            "version": "lts",
+            "installYarnUsingApt": false
         }
     },
 
