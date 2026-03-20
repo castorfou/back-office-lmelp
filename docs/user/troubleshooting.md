@@ -382,6 +382,20 @@ localStorage.debug = '*'
 
 ---
 
+### Logo RadioFrance absent pour les épisodes anciens (avant 2018)
+
+**Symptômes :**
+- Le logo RadioFrance n'apparaît pas pour certains épisodes datant de 2017 ou avant
+- Le champ `episode_page_url` est absent en base
+
+**Cause :** Le moteur de recherche RadioFrance (`?q=`) n'indexe pas les épisodes anciens. Avant la correction, ces épisodes restaient sans URL même si leur page existe sur le site.
+
+**Status :** ✅ Résolu automatiquement — La recherche utilise désormais un fallback par pagination chronologique (dichotomie) pour retrouver les épisodes que le moteur de recherche ne retourne pas. Ce fallback s'active automatiquement : aucune action manuelle requise.
+
+**Si le logo est toujours absent :** Supprimez le champ `episode_page_url` de l'épisode en MongoDB (s'il est vide ou incorrect), puis rechargez la page — le fetch automatique déclenchera le nouveau fallback dichotomique.
+
+---
+
 ### 1. Port 54321 occupé (Issue #1 - RÉSOLU)
 
 **Problème précédent :** Le port 54321 restait occupé après arrêt du serveur FastAPI

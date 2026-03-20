@@ -321,7 +321,9 @@ class TestRadioFranceService:
             mock_session.__aexit__ = AsyncMock(return_value=None)
             return mock_session
 
-        with patch("aiohttp.ClientSession", side_effect=lambda: create_mock_session()):
+        with patch(
+            "aiohttp.ClientSession", side_effect=lambda **kwargs: create_mock_session()
+        ):
             episode_title = "Les nouveaux ouvrages de Joël Dicker, Jean-Philippe Toussaint, Paule Constant, François Truffaut…"
             episode_date = "2022-04-24"
 
@@ -393,7 +395,7 @@ class TestRadioFranceService:
 
         # Session get retourne différents mocks selon l'URL
         def mock_get(url, **kwargs):
-            if "search=" in url:
+            if "?q=" in url:
                 return mock_search_response
             else:
                 return mock_episode_response
@@ -570,7 +572,7 @@ class TestRadioFranceDurationFilter:
         mock_full_episode_response = make_mock_response(full_episode_html)
 
         def mock_get(url, **kwargs):
-            if "search=" in str(url):
+            if "?q=" in str(url):
                 return mock_search_response
             elif "aqua-de-gaspard-koenig" in str(url):
                 return mock_clip_response
@@ -584,7 +586,9 @@ class TestRadioFranceDurationFilter:
             mock_session.__aexit__ = AsyncMock(return_value=None)
             return mock_session
 
-        with patch("aiohttp.ClientSession", side_effect=lambda: create_mock_session()):
+        with patch(
+            "aiohttp.ClientSession", side_effect=lambda **kwargs: create_mock_session()
+        ):
             result = await service.search_episode_page_url(
                 "CRITIQUE l Gaspard Kœnig, Eric Vuillard, Julian Barnes...",
                 "2026-02-13",
@@ -634,7 +638,7 @@ class TestRadioFranceDurationFilter:
             return r
 
         def mock_get(url, **kwargs):
-            if "search=" in str(url):
+            if "?q=" in str(url):
                 return make_mock_response(search_html)
             return make_mock_response(episode_html)
 
@@ -645,7 +649,9 @@ class TestRadioFranceDurationFilter:
             s.__aexit__ = AsyncMock(return_value=None)
             return s
 
-        with patch("aiohttp.ClientSession", side_effect=lambda: create_mock_session()):
+        with patch(
+            "aiohttp.ClientSession", side_effect=lambda **kwargs: create_mock_session()
+        ):
             result = await service.search_episode_page_url(
                 "Test episode",
                 "2026-02-13",

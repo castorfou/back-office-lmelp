@@ -82,12 +82,12 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  [📘] [A]  📖 L'Étranger                                     │
-│  Babelio  Anna's ✍️ Auteur : Albert Camus                  │
-│         🏢 Éditeur : Gallimard                               │
-│         📅 2 émissions  📚 ✓ Lu  8/10                       │
-│         lmelp_240324 lmelp_arnaud_viviant 📋                │
-│         (tags orange = manquants dans Calibre)               │
+│ [couv] │  📖 L'Étranger                  ↺ Ré-extraire      │
+│        │  ✍️ Auteur : Albert Camus         [📘] [A]          │
+│        │  🏢 Éditeur : Gallimard                             │
+│        │  📅 2 émissions  📚 ✓ Lu  8/10                     │
+│        │  lmelp_240324 lmelp_arnaud_viviant 📋               │
+│        │  (tags orange = manquants dans Calibre)             │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -119,10 +119,12 @@ Dans la page **Livres et Auteurs** (`/livres-auteurs`), les auteurs et titres va
 
 ### Informations affichées
 
+- **Couverture** : Affichée à gauche, collée au bord, si disponible (champ `url_cover` récupéré depuis Babelio)
 - **Titre du livre** : Affiché en haut de page
-- **Liens externes** : Icônes 80x80px cliquables vers les services externes
-  - **Babelio** : Fiche du livre sur Babelio.com (si disponible)
-  - **Anna's Archive** : Recherche du livre sur Anna's Archive — **masqué** si le livre est dans Calibre (inutile si déjà possédé)
+- **Bouton Ré-extraire** et **liens externes** : Positionnés à droite, sur la même colonne
+  - **↺ Ré-extraire** : Recharge les métadonnées depuis Babelio
+  - **Babelio** : Icône 32px cliquable vers la fiche du livre sur Babelio.com (si disponible)
+  - **Anna's Archive** : Icône 32px cliquable — **masqué** si le livre est dans Calibre (inutile si déjà possédé)
 - **Auteur** : Nom de l'auteur (clickable)
 - **Éditeur** : Maison d'édition
 - **Nombre d'émissions** : Total des mentions dans les émissions

@@ -19,6 +19,100 @@ const mockRouter = {
   back: vi.fn(),
 };
 
+describe('LivreDetail - Couverture du livre (Issue #242)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function mountComponent() {
+    return mount(LivreDetail, {
+      global: {
+        mocks: {
+          $route: mockRoute,
+          $router: mockRouter,
+        },
+        stubs: {
+          'router-link': {
+            template: '<a><slot /></a>',
+            props: ['to'],
+          },
+          Navigation: { template: '<div />' },
+        },
+      },
+    });
+  }
+
+  it('should display cover image when url_cover is present', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/api/livre/')) {
+        return Promise.resolve({
+          data: {
+            livre_id: '507f1f77bcf86cd799439011',
+            titre: 'Simone Émonet',
+            auteur_id: '507f1f77bcf86cd799439012',
+            auteur_nom: 'Catherine Millet',
+            editeur: 'Flammarion',
+            url_babelio: 'https://www.babelio.com/livres/Millet-Simone-monet/1870367',
+            url_cover: 'https://www.babelio.com/couv/CVT_Simone-monet_42.jpg',
+            note_moyenne: 6.5,
+            nombre_emissions: 1,
+            emissions: [],
+          },
+        });
+      }
+      if (url.includes('/api/avis/by-livre/')) {
+        return Promise.resolve({ data: { avis: [] } });
+      }
+      if (url.includes('/api/config/annas-archive-url')) {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.org' } });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    const wrapper = mountComponent();
+    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const coverImg = wrapper.find('[data-test="livre-cover"]');
+    expect(coverImg.exists()).toBe(true);
+    expect(coverImg.attributes('src')).toBe(
+      'https://www.babelio.com/couv/CVT_Simone-monet_42.jpg'
+    );
+  });
+
+  it('should not display cover image when url_cover is absent', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/api/livre/')) {
+        return Promise.resolve({
+          data: {
+            livre_id: '507f1f77bcf86cd799439011',
+            titre: 'Livre sans couverture',
+            auteur_id: '507f1f77bcf86cd799439012',
+            auteur_nom: 'Auteur Test',
+            editeur: 'Éditeur',
+            note_moyenne: null,
+            nombre_emissions: 0,
+            emissions: [],
+          },
+        });
+      }
+      if (url.includes('/api/avis/by-livre/')) {
+        return Promise.resolve({ data: { avis: [] } });
+      }
+      if (url.includes('/api/config/annas-archive-url')) {
+        return Promise.resolve({ data: { url: 'https://fr.annas-archive.org' } });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    const wrapper = mountComponent();
+    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(wrapper.find('[data-test="livre-cover"]').exists()).toBe(false);
+  });
+});
+
 describe('LivreDetail - Avis des critiques (Issue #201)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
