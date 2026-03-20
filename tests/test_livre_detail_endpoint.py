@@ -188,3 +188,69 @@ class TestGetLivreDetail:
         assert data["livre_id"] == livre_id
         # url_babelio peut être absent ou None
         assert data.get("url_babelio") is None or "url_babelio" not in data
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_livre_returns_url_cover_when_present(
+        self, mock_mongodb_service, client
+    ):
+        """Test que GET /api/livre/{id} retourne url_cover quand disponible (Issue #242)."""
+        # GIVEN: Un livre avec URL de couverture en base
+        livre_id = str(ObjectId())
+        auteur_id = str(ObjectId())
+        mock_mongodb_service.get_livre_with_episodes.return_value = {
+            "livre_id": livre_id,
+            "titre": "Simone Émonet",
+            "auteur_id": auteur_id,
+            "auteur_nom": "Catherine Millet",
+            "editeur": "Flammarion",
+            "url_babelio": "https://www.babelio.com/livres/Millet-Simone-monet/1870367",
+            "url_cover": "https://www.babelio.com/couv/CVT_Simone-monet_42.jpg",
+            "note_moyenne": 6.5,
+            "nombre_emissions": 1,
+            "emissions": [
+                {
+                    "emission_id": str(ObjectId()),
+                    "date": "2025-09-28",
+                    "note_moyenne": 6.5,
+                    "nombre_avis": 4,
+                }
+            ],
+        }
+
+        # WHEN: On appelle GET /api/livre/{id}
+        response = client.get(f"/api/livre/{livre_id}")
+
+        # THEN: On reçoit un 200 avec url_cover
+        assert response.status_code == 200
+        data = response.json()
+        assert data["livre_id"] == livre_id
+        assert (
+            data["url_cover"] == "https://www.babelio.com/couv/CVT_Simone-monet_42.jpg"
+        )
+
+    @patch("back_office_lmelp.app.mongodb_service")
+    def test_get_livre_handles_missing_url_cover(self, mock_mongodb_service, client):
+        """Test que GET /api/livre/{id} gère l'absence de url_cover (Issue #242)."""
+        # GIVEN: Un livre SANS URL de couverture en base
+        livre_id = str(ObjectId())
+        auteur_id = str(ObjectId())
+        mock_mongodb_service.get_livre_with_episodes.return_value = {
+            "livre_id": livre_id,
+            "titre": "Livre sans couverture",
+            "auteur_id": auteur_id,
+            "auteur_nom": "Auteur Test",
+            "editeur": "Editeur Test",
+            "note_moyenne": None,
+            "nombre_emissions": 0,
+            "emissions": [],
+        }
+
+        # WHEN: On appelle GET /api/livre/{id}
+        response = client.get(f"/api/livre/{livre_id}")
+
+        # THEN: On reçoit un 200 sans url_cover (ou avec None/null)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["livre_id"] == livre_id
+        # url_cover peut être absent ou None
+        assert data.get("url_cover") is None or "url_cover" not in data

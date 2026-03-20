@@ -23,41 +23,14 @@
       <!-- En-tête livre -->
       <div class="livre-header">
         <div class="livre-header-container">
-          <!-- Icônes externes à gauche -->
-          <div class="external-links">
-            <!-- Icône Babelio (Issue #124) -->
-            <a
-              v-if="livre.url_babelio"
-              :href="livre.url_babelio"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="external-logo-link"
-              title="Voir sur Babelio"
-            >
-              <img
-                src="@/assets/babelio-symbol-liaison.svg"
-                alt="Icône Babelio"
-                class="external-logo"
-              />
-            </a>
-
-            <!-- Icône Anna's Archive (Issue #165) - masquée si dans Calibre (Issue #214) -->
-            <a
-              v-if="!livre.calibre_in_library"
-              :href="getAnnasArchiveUrl()"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="external-logo-link"
-              title="Rechercher sur Anna's Archive"
-              data-test="annas-archive-link"
-            >
-              <img
-                src="@/assets/annas-archive-icon.svg"
-                alt="Icône Anna's Archive"
-                class="external-logo"
-                data-test="annas-archive-icon"
-              />
-            </a>
+          <!-- Couverture du livre (Issue #242) - complètement à gauche -->
+          <div v-if="livre.url_cover" class="livre-cover">
+            <img
+              :src="livre.url_cover"
+              :alt="`Couverture de ${livre.titre}`"
+              class="cover-image"
+              data-test="livre-cover"
+            />
           </div>
 
           <!-- Informations du livre à droite -->
@@ -72,17 +45,55 @@
               >
                 {{ livre.note_moyenne.toFixed(1) }}
               </span>
-              <!-- Bouton refresh Babelio (Issue #189) -->
-              <button
-                v-if="livre.url_babelio"
-                @click="refreshFromBabelio"
-                class="btn-refresh-babelio"
-                :disabled="refreshLoading"
-                :title="refreshLoading ? 'Chargement...' : 'Ré-extraire depuis Babelio'"
-                data-test="refresh-babelio-btn"
-              >
-                <span :class="{ 'spinning': refreshLoading }">&#x21BB;</span> Ré-extraire
-              </button>
+              <!-- Bouton refresh Babelio + icônes externes (Issue #189, #124, #165) -->
+              <div class="refresh-and-links">
+                <button
+                  v-if="livre.url_babelio"
+                  @click="refreshFromBabelio"
+                  class="btn-refresh-babelio"
+                  :disabled="refreshLoading"
+                  :title="refreshLoading ? 'Chargement...' : 'Ré-extraire depuis Babelio'"
+                  data-test="refresh-babelio-btn"
+                >
+                  <span :class="{ 'spinning': refreshLoading }">&#x21BB;</span> Ré-extraire
+                </button>
+                <!-- Icônes externes sous Ré-extraire (Issues #124, #165) -->
+                <div class="external-links">
+                  <!-- Icône Babelio (Issue #124) -->
+                  <a
+                    v-if="livre.url_babelio"
+                    :href="livre.url_babelio"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="external-logo-link"
+                    title="Voir sur Babelio"
+                  >
+                    <img
+                      src="@/assets/babelio-symbol-liaison.svg"
+                      alt="Icône Babelio"
+                      class="external-logo"
+                    />
+                  </a>
+
+                  <!-- Icône Anna's Archive (Issue #165) - masquée si dans Calibre (Issue #214) -->
+                  <a
+                    v-if="!livre.calibre_in_library"
+                    :href="getAnnasArchiveUrl()"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="external-logo-link"
+                    title="Rechercher sur Anna's Archive"
+                    data-test="annas-archive-link"
+                  >
+                    <img
+                      src="@/assets/annas-archive-icon.svg"
+                      alt="Icône Anna's Archive"
+                      class="external-logo"
+                      data-test="annas-archive-icon"
+                    />
+                  </a>
+                </div>
+              </div>
             </div>
             <div class="livre-meta">
               <div class="livre-author">
@@ -579,22 +590,44 @@ export default {
 .livre-header {
   background: white;
   border-radius: 8px;
-  padding: 2rem;
+  padding: 0;
   margin-bottom: 2rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .livre-header-container {
   display: flex;
-  gap: 1.5rem;
-  align-items: center;
+  gap: 0;
+  align-items: stretch;
 }
 
-/* Icônes externes à gauche (Issues #124, #165) */
-.external-links {
+/* Couverture du livre (Issue #242) - collée à gauche, pleine hauteur */
+.livre-cover {
   flex-shrink: 0;
+}
+
+.cover-image {
+  width: 200px;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Conteneur bouton Ré-extraire + icônes (Issues #189, #124, #165) */
+.refresh-and-links {
+  margin-left: auto;
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Icônes externes sous Ré-extraire (Issues #124, #165) */
+.external-links {
+  display: flex;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -609,10 +642,10 @@ export default {
 }
 
 .external-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   object-fit: contain;
 }
 
@@ -621,6 +654,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding: 2rem;
 }
 
 .livre-title {
@@ -762,11 +796,12 @@ export default {
   border-color: #7b1fa2;
 }
 
-/* Title row with note badge */
+/* Title row with note badge and external links */
 .livre-title-row {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 /* Note badges (Issue #190) */
@@ -1000,7 +1035,6 @@ export default {
 /* Bouton refresh Babelio (Issue #189) */
 .btn-refresh-babelio {
   flex-shrink: 0;
-  margin-left: auto;
   padding: 0.4rem 0.9rem;
   background: #f57c00;
   color: white;

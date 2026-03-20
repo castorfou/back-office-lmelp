@@ -221,7 +221,7 @@ Le système respecte les limitations de Babelio :
 
 ### Objectif
 
-Le système récupère automatiquement les URLs de couvertures des livres depuis Babelio et les stocke dans le champ `url_cover` de la collection `livres`.
+Le système récupère automatiquement les URLs de couvertures des livres depuis Babelio et les stocke dans le champ `url_cover` de la collection `livres`. Une fois récupérée, la couverture est affichée automatiquement dans la fiche détail du livre (`/livre/{id}`).
 
 ### Pré-requis : cookie Babelio
 

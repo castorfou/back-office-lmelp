@@ -1034,6 +1034,7 @@ class MongoDBService:
                         "editeur": 1,
                         "editeur_id": 1,  # Issue #189
                         "url_babelio": 1,  # Issue #124
+                        "url_cover": 1,  # Issue #242
                         "auteur": 1,
                         "episodes_data": 1,
                     }
@@ -1174,6 +1175,7 @@ class MongoDBService:
                 "auteur_nom": auteur_nom,
                 "editeur": editeur_nom,
                 "url_babelio": livre_data.get("url_babelio"),
+                "url_cover": livre_data.get("url_cover"),  # Issue #242
                 "note_moyenne": note_moyenne,
                 "nombre_emissions": len(emissions_list),
                 "emissions": emissions_list,
