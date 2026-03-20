@@ -31,6 +31,9 @@ class RadioFranceService:
         """Initialise le service RadioFrance."""
         self.base_url = "https://www.radiofrance.fr"
         self.podcast_search_base = "/franceinter/podcasts/le-masque-et-la-plume"
+        self.http_headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
 
         # Configuration Azure OpenAI pour extraction de métadonnées par LLM
         self.azure_endpoint = os.getenv("AZURE_ENDPOINT")
@@ -91,15 +94,13 @@ class RadioFranceService:
                 episode_date = episode_date.strftime("%Y-%m-%d")
             # Construire l'URL de recherche
             search_query = quote_plus(episode_title)
-            search_url = (
-                f"{self.base_url}{self.podcast_search_base}?search={search_query}"
-            )
+            search_url = f"{self.base_url}{self.podcast_search_base}?q={search_query}"
 
             logger.info(f"Searching RadioFrance for episode: {episode_title[:50]}...")
 
             # Faire la requête HTTP
             async with (
-                aiohttp.ClientSession() as session,
+                aiohttp.ClientSession(headers=self.http_headers) as session,
                 session.get(
                     search_url, timeout=aiohttp.ClientTimeout(total=10)
                 ) as response,
@@ -137,7 +138,7 @@ class RadioFranceService:
 
                         # Charger la page suivante
                         async with (
-                            aiohttp.ClientSession() as session,
+                            aiohttp.ClientSession(headers=self.http_headers) as session,
                             session.get(
                                 paginated_url, timeout=aiohttp.ClientTimeout(total=10)
                             ) as response,
@@ -216,7 +217,20 @@ class RadioFranceService:
                     page += 1
 
                 logger.warning(
-                    f"❌ No episode page URL found matching date {episode_date} after checking {page - 1} page(s) for: {episode_title[:50]}..."
+                    f"❌ Search (?q=) found nothing for date {episode_date}, trying chronological fallback..."
+                )
+
+                # FALLBACK: Pagination chronologique (?p=N sans filtre de titre)
+                # Utilisé quand le moteur de recherche ne retourne pas l'épisode
+                # (ex: épisodes anciens avec titre générique non indexés par ?q=)
+                result = await self._search_chronological_pages(
+                    episode_title, episode_date, min_duration_seconds
+                )
+                if result:
+                    return result
+
+                logger.warning(
+                    f"❌ No episode page URL found matching date {episode_date} for: {episode_title[:50]}..."
                 )
                 return None
 
@@ -241,6 +255,194 @@ class RadioFranceService:
         except Exception as e:
             logger.error(f"Error searching RadioFrance: {e}")
             return None
+
+    async def _get_page_links_and_median_date(
+        self, page: int
+    ) -> tuple[list[str], datetime | None]:
+        """Retourne la liste des liens et la date médiane d'une page chronologique.
+
+        Retourne ([], None) si la page n'existe pas ou est un fallback RadioFrance.
+        RadioFrance retourne une page de fallback (mêmes liens récents) pour les pages
+        invalides — on détecte ça en comparant le nombre de liens attendus.
+        """
+        url = f"{self.base_url}{self.podcast_search_base}?p={page}"
+        try:
+            async with (
+                aiohttp.ClientSession(headers=self.http_headers) as session,
+                session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response,
+            ):
+                if response.status != 200:
+                    return [], None
+                html = await response.text()
+        except Exception:
+            return [], None
+
+        soup = BeautifulSoup(html, "html.parser")
+        candidate_urls = self._extract_all_candidate_urls(soup)
+
+        if not candidate_urls:
+            return [], None
+
+        mid_url = candidate_urls[len(candidate_urls) // 2]
+        episode_date_str, _ = await self._extract_episode_date_and_duration(mid_url)
+        if not episode_date_str:
+            return candidate_urls, None
+
+        try:
+            return candidate_urls, datetime.strptime(episode_date_str, "%Y-%m-%d")
+        except ValueError:
+            return candidate_urls, None
+
+    async def _get_page_median_date(self, page: int) -> datetime | None:
+        """Retourne la date médiane des épisodes d'une page chronologique.
+
+        Utilisé par la recherche dichotomique pour orienter la recherche.
+        Retourne None si la page est vide ou invalide.
+        """
+        _, date = await self._get_page_links_and_median_date(page)
+        return date
+
+    async def _search_chronological_pages(
+        self,
+        episode_title: str,
+        episode_date: str,
+        min_duration_seconds: int | None = None,
+    ) -> str | None:
+        """Fallback: cherche dans la pagination chronologique (?p=N) via dichotomie.
+
+        Utilisé quand la recherche textuelle (?q=) ne retourne pas l'épisode.
+        Utilise une recherche binaire pour converger rapidement vers la bonne page
+        (max ~8 étapes pour 200 pages), puis vérifie une fenêtre autour du résultat.
+
+        Pages récentes = petits numéros (page 1), pages anciennes = grands numéros.
+        La date médiane d'une page sert de comparateur pour orienter la dichotomie.
+        """
+        target_date = datetime.strptime(episode_date, "%Y-%m-%d")
+
+        logger.warning(
+            f"🔍 Chronological fallback (dichotomy): searching for '{episode_title[:40]}' on {episode_date}"
+        )
+
+        # Phase 0: Récupérer la signature de la page 1 (premiers liens = épisodes récents).
+        # Les pages invalides retournent le même contenu que la page 1 (fallback RadioFrance).
+        page1_links, _ = await self._get_page_links_and_median_date(1)
+        page1_signature = set(page1_links[:3]) if page1_links else set()
+
+        # Phase 1: Dichotomie sur [1, 500]
+        lo, hi = 1, 500
+        best_page = 1
+
+        for _ in range(10):  # max 10 itérations = log2(500) ≈ 9
+            if lo > hi:
+                break
+            mid = (lo + hi) // 2
+            mid_links, mid_date = await self._get_page_links_and_median_date(mid)
+
+            # Détecter fallback : page invalide → même contenu que page 1
+            if page1_signature and set(mid_links[:3]) == page1_signature and mid > 1:
+                logger.warning(
+                    f"🔍 Dichotomy: page {mid} is fallback (same as p=1), hi={mid - 1}"
+                )
+                hi = mid - 1
+                continue
+
+            logger.warning(
+                f"🔍 Dichotomy: [{lo},{hi}] → page {mid}, "
+                f"date={mid_date.strftime('%Y-%m-%d') if mid_date else 'None'}"
+            )
+
+            if mid_date is None:
+                hi = mid - 1
+                continue
+
+            best_page = mid
+            date_diff_days = (mid_date - target_date).days
+
+            if abs(date_diff_days) <= 30:
+                # Assez proche pour la phase 2
+                break
+            if date_diff_days > 0:
+                # mid_date plus récente que cible → cible est plus ancienne → pages élevées
+                lo = mid + 1
+            else:
+                # mid_date plus ancienne que cible → cible est plus récente → pages basses
+                hi = mid - 1
+
+        logger.warning(f"🔍 Dichotomy converged to page {best_page}")
+
+        # Phase 2: Vérifier les pages dans une fenêtre autour de best_page
+        # Chercher le meilleur candidat (diff de date minimale) dans la fenêtre
+        window = 5
+        best_url: str | None = None
+        best_diff = 999
+
+        for page in range(max(1, best_page - window), best_page + window + 1):
+            chrono_url = f"{self.base_url}{self.podcast_search_base}?p={page}"
+
+            try:
+                async with (
+                    aiohttp.ClientSession(headers=self.http_headers) as session,
+                    session.get(
+                        chrono_url, timeout=aiohttp.ClientTimeout(total=10)
+                    ) as response,
+                ):
+                    if response.status != 200:
+                        continue
+                    html_content = await response.text()
+            except Exception:
+                continue
+
+            chrono_soup = BeautifulSoup(html_content, "html.parser")
+            candidate_urls = self._extract_all_candidate_urls(chrono_soup)
+
+            logger.warning(f"🔍 Chrono page {page}: {len(candidate_urls)} candidates")
+
+            if not candidate_urls:
+                continue
+
+            for url in candidate_urls:
+                (
+                    episode_date_from_page,
+                    duration_from_page,
+                ) = await self._extract_episode_date_and_duration(url)
+
+                if not episode_date_from_page:
+                    continue
+
+                try:
+                    page_date = datetime.strptime(episode_date_from_page, "%Y-%m-%d")
+                    diff = abs((page_date - target_date).days)
+                except ValueError:
+                    continue
+
+                # Tolérance de 3 jours (délai de publication RadioFrance)
+                if diff > 3:
+                    continue
+
+                if (
+                    min_duration_seconds
+                    and duration_from_page is not None
+                    and duration_from_page < min_duration_seconds
+                ):
+                    continue
+
+                if diff < best_diff:
+                    best_diff = diff
+                    best_url = url
+                    logger.warning(f"🔍 Candidate page {page}: diff={diff}j → {url}")
+
+                if diff == 0:
+                    # Correspondance exacte, on arrête immédiatement
+                    logger.warning(
+                        f"✅ Found exact match via chronological fallback page {page}: {url}"
+                    )
+                    return url
+
+        if best_url:
+            logger.warning(
+                f"✅ Found best match (diff={best_diff}j) via chronological fallback: {best_url}"
+            )
+        return best_url
 
     def _is_valid_episode_url(self, url: str) -> bool:
         """Vérifie qu'une URL est bien un épisode valide et pas une page statique.
@@ -424,7 +626,7 @@ class RadioFranceService:
         """
         try:
             async with (
-                aiohttp.ClientSession() as session,
+                aiohttp.ClientSession(headers=self.http_headers) as session,
                 session.get(
                     episode_url, timeout=aiohttp.ClientTimeout(total=10)
                 ) as response,
@@ -520,7 +722,7 @@ class RadioFranceService:
         """
         try:
             async with (
-                aiohttp.ClientSession() as session,
+                aiohttp.ClientSession(headers=self.http_headers) as session,
                 session.get(
                     episode_url, timeout=aiohttp.ClientTimeout(total=10)
                 ) as response,
@@ -621,7 +823,7 @@ class RadioFranceService:
             import aiohttp
 
             async with (
-                aiohttp.ClientSession() as session,
+                aiohttp.ClientSession(headers=self.http_headers) as session,
                 session.get(
                     episode_url, timeout=aiohttp.ClientTimeout(total=10)
                 ) as response,
