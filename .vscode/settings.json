@@ -19,6 +19,7 @@
 	"chat.tools.terminal.terminalProfile.linux": {
 		"path": "/usr/bin/zsh"
 	},
+	"terminal.integrated.defaultProfile.linux": "zsh",
 	"terminal.integrated.suggest.enabled": false,
 	"python.terminal.activateEnvironment": false
 }
