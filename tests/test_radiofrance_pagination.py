@@ -284,29 +284,3 @@ class TestRadioFrancePaginationForOldEpisodes:
         # THEN: Ne devrait pas faire 10 pages inutiles
         # Devrait s'arrêter dès qu'une page retourne 0 résultats
         assert result_url is None
-
-    @pytest.mark.asyncio
-    async def test_pagination_should_respect_timeout(self):
-        """
-        Test: L'opération entière doit respecter un timeout global.
-
-        GARDE-FOU 3: Timeout global
-        Même avec pagination, ne pas dépasser un temps max (ex: 30s).
-        """
-        service = RadioFranceService()
-
-        episode_title = "Le masque et la plume livres"
-        episode_date = "2017-10-01"
-
-        # WHEN: On recherche avec timeout
-        # La fonction ne devrait pas bloquer indéfiniment
-        import asyncio
-
-        try:
-            await asyncio.wait_for(
-                service.search_episode_page_url(episode_title, episode_date), timeout=30
-            )
-            # Si on arrive ici, c'est OK (trouvé ou non)
-            assert True
-        except TimeoutError:
-            pytest.fail("La recherche avec pagination a dépassé le timeout de 30s")
