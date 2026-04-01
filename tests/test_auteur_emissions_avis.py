@@ -76,7 +76,7 @@ class TestAuteurWithEmissionsAndAvis:
                     {"note": 9, "emission_oid": "em1", "livre_oid": str(livre1_id)},
                     {"note": 7, "emission_oid": "em1", "livre_oid": str(livre1_id)},
                 ]
-            elif livre_oid == str(livre2_id):
+            if livre_oid == str(livre2_id):
                 return [
                     {"note": 5, "emission_oid": "em2", "livre_oid": str(livre2_id)},
                 ]

@@ -140,7 +140,7 @@ class TestCorrectStatusValues:
             update_fields = update_call[0][1]["$set"]
             assert update_fields["status"] == "mongo"
 
-    def test_statistics_should_NOT_include_couples_verified_pas_en_base(self):
+    def test_statistics_should_NOT_include_couples_verified_pas_en_base(self):  # noqa: N802
         """Test TDD: Les statistiques NE DOIVENT PAS inclure 'couples_verified_pas_en_base' (toujours 0)."""
         with patch(
             "back_office_lmelp.services.livres_auteurs_cache_service.mongodb_service"

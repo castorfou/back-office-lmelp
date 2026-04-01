@@ -375,7 +375,7 @@ class TestSummaryCleanupOnPageLoad:
                     "_id": avis_id,
                     "summary": "| Lamboreau | Pâture |",
                 }
-            elif avis_id == "68a428c7a2bec98cf44a405e":  # pragma: allowlist secret
+            if avis_id == "68a428c7a2bec98cf44a405e":  # pragma: allowlist secret
                 return {
                     "_id": avis_id,
                     "summary": "| Fabcaro | Figurec |",

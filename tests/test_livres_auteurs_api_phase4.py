@@ -108,7 +108,7 @@ class TestLivresAuteursApiPhase4:
 
     # TEST REMOVED: test_api_livres_auteurs_cache_miss_triggers_extraction
     # Reason: API no longer creates cache entries or calls Babelio - workflow moved to frontend
-    def _test_api_livres_auteurs_cache_miss_triggers_extraction_OBSOLETE(self):
+    def _test_api_livres_auteurs_cache_miss_triggers_extraction_OBSOLETE(self):  # noqa: N802
         """Test TDD: API fait l'extraction quand le cache est vide."""
         episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
         avis_critique_id = ObjectId(
@@ -209,7 +209,7 @@ class TestLivresAuteursApiPhase4:
 
     # TEST REMOVED: test_api_livres_auteurs_auto_processing_after_extraction
     # Reason: API no longer does auto-processing - workflow moved to frontend
-    def _test_api_livres_auteurs_auto_processing_after_extraction_OBSOLETE(self):
+    def _test_api_livres_auteurs_auto_processing_after_extraction_OBSOLETE(self):  # noqa: N802
         """Test TDD: API déclenche l'auto-processing des livres verified après extraction."""
         episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
         avis_critique_id = ObjectId(
@@ -364,7 +364,7 @@ class TestLivresAuteursApiPhase4:
 
     # TEST REMOVED: test_api_livres_auteurs_error_handling_cache_fallback
     # Reason: API no longer has complex cache/extraction fallback with Babelio calls
-    def _test_api_livres_auteurs_error_handling_cache_fallback_OBSOLETE(self):
+    def _test_api_livres_auteurs_error_handling_cache_fallback_OBSOLETE(self):  # noqa: N802
         """Test TDD: API utilise le fallback extraction si le cache échoue."""
         episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
 

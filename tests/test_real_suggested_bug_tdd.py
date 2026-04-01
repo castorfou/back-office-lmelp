@@ -16,7 +16,7 @@ class TestRealSuggestedBugTDD:
         """Setup pour chaque test."""
         self.client = TestClient(app)
 
-    def test_laurent_mauvignier_suggested_should_become_mongo_after_validation_RED_PHASE(
+    def test_laurent_mauvignier_suggested_should_become_mongo_after_validation_RED_PHASE(  # noqa: N802
         self,
     ):
         """
@@ -168,7 +168,7 @@ class TestRealSuggestedBugTDD:
             print("✅ Si ce test PASSE, le bug n'est PAS reproduit")
             print("❌ Si ce test ÉCHOUE, on a reproduit le bug réel")
 
-    def test_cache_id_lookup_fix_GREEN_PHASE(self):
+    def test_cache_id_lookup_fix_GREEN_PHASE(self):  # noqa: N802
         """Test GREEN: Vérifier que la logique de cache_id lookup a été implémentée."""
 
         # Ce test vérifie seulement que la logique a été ajoutée dans le code

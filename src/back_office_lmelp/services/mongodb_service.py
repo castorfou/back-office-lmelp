@@ -2078,9 +2078,8 @@ class MongoDBService:
 
             if result.modified_count > 0:
                 return True
-            else:
-                print(f"⚠️ Aucun document modifié pour cache_id={book_id}")
-                return False
+            print(f"⚠️ Aucun document modifié pour cache_id={book_id}")
+            return False
 
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour: {e}")

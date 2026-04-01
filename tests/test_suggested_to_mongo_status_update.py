@@ -15,7 +15,7 @@ class TestSuggestedToMongoStatusUpdate:
         """Setup pour chaque test."""
         self.client = TestClient(app)
 
-    def test_suggested_book_manually_added_should_update_cache_status_to_mongo_RED_PHASE(
+    def test_suggested_book_manually_added_should_update_cache_status_to_mongo_RED_PHASE(  # noqa: N802
         self,
     ):
         """

@@ -212,7 +212,7 @@ def test_get_problematic_cases_should_handle_mixed_cases(
                 "titre": "Romance",
                 "auteur_id": ObjectId(auteur1_id),
             }
-        elif livre_id_query == livre2_id:
+        if livre_id_query == livre2_id:
             return {
                 "_id": ObjectId(livre2_id),
                 "titre": "Autre livre",

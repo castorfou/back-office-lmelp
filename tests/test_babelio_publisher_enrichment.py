@@ -186,7 +186,7 @@ class TestVerifyBookEnrichment:
             )
 
     @pytest.mark.asyncio
-    async def test_verify_book_should_NOT_scrape_publisher_when_confidence_low(
+    async def test_verify_book_should_NOT_scrape_publisher_when_confidence_low(  # noqa: N802
         self, babelio_service
     ):
         """GIVEN: verify_book() retourne confiance < 0.90

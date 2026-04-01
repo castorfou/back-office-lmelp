@@ -202,7 +202,7 @@ def test_get_episodes_with_avis_critiques_success(client, mock_mongodb_service):
                     "episode_oid": episode_oid,
                     "summary": "**Bernard Poiret**: avis critique",
                 }
-            elif episode_oid == "686bf5e18380ee925ae5e319":  # pragma: allowlist secret
+            if episode_oid == "686bf5e18380ee925ae5e319":  # pragma: allowlist secret
                 return {
                     "_id": "avis2",
                     "episode_oid": episode_oid,
@@ -501,7 +501,7 @@ def test_get_critiques_manquants_count(client, mock_mongodb_service):
                 "episode_oid": episode_oid,
                 "summary": "**Bernard Poiret**: avis critique <br> **Patricia Martin**: autre avis",
             }
-        elif episode_oid == str(mock_episode2_id):
+        if episode_oid == str(mock_episode2_id):
             # Épisode 2: tous les critiques existent (Patricia Martin + Arnaud Viviant)
             return {
                 "_id": "avis2",
@@ -590,7 +590,7 @@ def test_get_critiques_manquants_count_filters_masked_episodes(
                 "episode_oid": episode_oid,
                 "summary": "**Bernard Poiret**: avis critique",
             }
-        elif episode_oid == str(mock_episode2_id):
+        if episode_oid == str(mock_episode2_id):
             # Épisode non masqué avec critique "new"
             return {
                 "_id": "avis2",

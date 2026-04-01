@@ -22,7 +22,7 @@ class TestIntegrationSuggestedToMongo:
         """Setup pour chaque test."""
         self.client = TestClient(app)
 
-    def test_suggested_book_manual_validation_updates_cache_status_to_mongo_INTEGRATION(
+    def test_suggested_book_manual_validation_updates_cache_status_to_mongo_INTEGRATION(  # noqa: N802
         self,
     ):
         """
@@ -125,7 +125,7 @@ class TestIntegrationSuggestedToMongo:
                 {"_id": cache_id}
             )
 
-    def test_mark_as_processed_directly_INTEGRATION(self):
+    def test_mark_as_processed_directly_INTEGRATION(self):  # noqa: N802
         """Test direct de mark_as_processed pour vérifier qu'il change bien le statut."""
         # Skip si pas de connexion MongoDB
         try:

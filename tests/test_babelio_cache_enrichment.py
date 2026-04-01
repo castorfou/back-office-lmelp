@@ -196,7 +196,7 @@ class TestBabelioCacheEnrichment:
                     "babelio_publisher": "Gallimard",
                     "error_message": None,
                 }
-            elif author == "Victor Hugo":
+            if author == "Victor Hugo":
                 return {
                     "status": "verified",
                     "original_title": "Les Misérables",
@@ -208,19 +208,19 @@ class TestBabelioCacheEnrichment:
                     "babelio_publisher": "Gallimard",
                     "error_message": None,
                 }
-            else:  # Jean Martin
-                return {
-                    "status": "not_found",
-                    "original_title": "Titre Rare",
-                    "babelio_suggestion_title": None,
-                    "original_author": "Jean Martin",
-                    "babelio_suggestion_author": None,
-                    "confidence_score": 0.40,  # ✅ Clé réelle (confiance trop faible)
-                    "babelio_data": None,
-                    "babelio_url": None,
-                    "babelio_publisher": None,
-                    "error_message": None,
-                }
+            # Jean Martin
+            return {
+                "status": "not_found",
+                "original_title": "Titre Rare",
+                "babelio_suggestion_title": None,
+                "original_author": "Jean Martin",
+                "babelio_suggestion_author": None,
+                "confidence_score": 0.40,  # ✅ Clé réelle (confiance trop faible)
+                "babelio_data": None,
+                "babelio_url": None,
+                "babelio_publisher": None,
+                "error_message": None,
+            }
 
         with patch(
             "back_office_lmelp.services.books_extraction_service.babelio_service"

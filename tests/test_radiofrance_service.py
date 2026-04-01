@@ -308,10 +308,9 @@ class TestRadioFranceService:
         def mock_get(url, **kwargs):
             if "26-octobre-2025" in str(url):
                 return mock_episode_2025_response
-            elif "francois-truffaut-joel-dicker" in str(url):
+            if "francois-truffaut-joel-dicker" in str(url):
                 return mock_episode_2022_response
-            else:
-                return mock_search_response
+            return mock_search_response
 
         # Créer une nouvelle instance de session mock pour chaque appel ClientSession()
         def create_mock_session():
@@ -397,8 +396,7 @@ class TestRadioFranceService:
         def mock_get(url, **kwargs):
             if "?q=" in url:
                 return mock_search_response
-            else:
-                return mock_episode_response
+            return mock_episode_response
 
         mock_session.get = mock_get
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -574,10 +572,9 @@ class TestRadioFranceDurationFilter:
         def mock_get(url, **kwargs):
             if "?q=" in str(url):
                 return mock_search_response
-            elif "aqua-de-gaspard-koenig" in str(url):
+            if "aqua-de-gaspard-koenig" in str(url):
                 return mock_clip_response
-            else:
-                return mock_full_episode_response
+            return mock_full_episode_response
 
         def create_mock_session():
             mock_session = Mock()

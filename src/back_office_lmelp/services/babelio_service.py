@@ -787,9 +787,8 @@ class BabelioService:
                     )  # Split + join pour nettoyer
                     logger.debug(f"Éditeur trouvé pour {babelio_url}: {publisher}")
                     return publisher
-                else:
-                    logger.debug(f"Éditeur non trouvé pour {babelio_url}")
-                    return None
+                logger.debug(f"Éditeur non trouvé pour {babelio_url}")
+                return None
 
         except Exception as e:
             logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
@@ -1019,14 +1018,13 @@ class BabelioService:
 
             if item_type == "author":
                 return await self.verify_author(item.get("name", ""))
-            elif item_type == "book":
+            if item_type == "book":
                 return await self.verify_book(item.get("title", ""), item.get("author"))
-            elif item_type == "publisher":
+            if item_type == "publisher":
                 return await self.verify_publisher(item.get("name", ""))
-            else:
-                return self._create_error_result(
-                    str(item), f"Type non supporté: {item_type}"
-                )
+            return self._create_error_result(
+                str(item), f"Type non supporté: {item_type}"
+            )
 
         # Dispatch all verifications concurrently; each verification still
         # respects the internal rate_limiter in search(). Using gather keeps
@@ -1154,12 +1152,11 @@ class BabelioService:
 
         if prenoms_str and nom_str:
             return f"{prenoms_str} {nom_str}"
-        elif nom_str:
+        if nom_str:
             return nom_str
-        elif prenoms_str:
+        if prenoms_str:
             return prenoms_str
-        else:
-            return ""
+        return ""
 
     def _build_full_url(self, relative_url: str) -> str:
         """Construit une URL complète Babelio."""
@@ -1228,18 +1225,16 @@ class BabelioService:
                                 f"🔍 [DEBUG] fetch_author_url_from_page: URL auteur trouvée '{author_url}'"
                             )
                         return author_url
-                    else:
-                        if self._debug_log_enabled:
-                            logger.info(
-                                "🔍 [DEBUG] fetch_author_url_from_page: Lien auteur sans href valide"
-                            )
-                        return None
-                else:
                     if self._debug_log_enabled:
                         logger.info(
-                            "🔍 [DEBUG] fetch_author_url_from_page: Aucun lien auteur trouvé avec sélecteur 'a[href*=\"/auteur/\"]'"
+                            "🔍 [DEBUG] fetch_author_url_from_page: Lien auteur sans href valide"
                         )
                     return None
+                if self._debug_log_enabled:
+                    logger.info(
+                        "🔍 [DEBUG] fetch_author_url_from_page: Aucun lien auteur trouvé avec sélecteur 'a[href*=\"/auteur/\"]'"
+                    )
+                return None
 
         except Exception as e:
             logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")

@@ -890,14 +890,13 @@ async def process_one_author(author_data: dict, dry_run: bool = False) -> dict:
                 "nom_auteur": nom_auteur,
                 "raison": "URL trouvée et mise à jour",
             }
-        else:
-            logger.error(f"❌ Échec mise à jour auteur '{nom_auteur}'")
-            return {
-                "status": "error",
-                "auteur_updated": False,
-                "nom_auteur": nom_auteur,
-                "raison": "Update failed",
-            }
+        logger.error(f"❌ Échec mise à jour auteur '{nom_auteur}'")
+        return {
+            "status": "error",
+            "auteur_updated": False,
+            "nom_auteur": nom_auteur,
+            "raison": "Update failed",
+        }
 
     # Cas 3: Vérifier si tous les livres sont not_found
     all_not_found = all(livre.get("babelio_not_found") for livre in livres)
@@ -1024,14 +1023,13 @@ async def process_one_book_author(book_data: dict, dry_run: bool = False) -> dic
             "titre": titre,
             "auteur": auteur,
         }
-    else:
-        logger.error(f"❌ Échec mise à jour auteur '{auteur}' (ID: {auteur_id})")
-        return {
-            "status": "error",
-            "auteur_updated": False,
-            "titre": titre,
-            "auteur": auteur,
-        }
+    logger.error(f"❌ Échec mise à jour auteur '{auteur}' (ID: {auteur_id})")
+    return {
+        "status": "error",
+        "auteur_updated": False,
+        "titre": titre,
+        "auteur": auteur,
+    }
 
 
 async def complete_missing_authors(dry_run: bool = False) -> dict | None:

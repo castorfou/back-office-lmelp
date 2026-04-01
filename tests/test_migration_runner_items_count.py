@@ -57,7 +57,7 @@ class TestMigrationRunnerItemsCount:
                         "auteur": "Antoine de Saint-Exupéry",
                         "status": "success",
                     }
-                elif call_count == 2:
+                if call_count == 2:
                     # Deuxième livre + auteur
                     return {
                         "livre_updated": True,
@@ -66,9 +66,8 @@ class TestMigrationRunnerItemsCount:
                         "auteur": "Albert Camus",
                         "status": "success",
                     }
-                else:
-                    # Plus de livres, passer à Phase 2
-                    return None
+                # Plus de livres, passer à Phase 2
+                return None
 
             mock_migrate.side_effect = side_effect_migrate
 
@@ -151,8 +150,7 @@ class TestMigrationRunnerItemsCount:
                         "auteur": "Auteur Existant",
                         "status": "success",
                     }
-                else:
-                    return None
+                return None
 
             mock_migrate.side_effect = side_effect_migrate
 
@@ -208,8 +206,7 @@ class TestMigrationRunnerItemsCount:
                         "auteur": "Auteur Introuvable",
                         "status": "not_found",
                     }
-                else:
-                    return None
+                return None
 
             mock_migrate.side_effect = side_effect_migrate
 

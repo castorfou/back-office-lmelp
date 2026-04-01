@@ -40,9 +40,9 @@ class TestBabelioMigrationAuthorStats:
         def auteurs_count_side_effect(query):
             if query == {}:
                 return 445  # total_authors
-            elif query == {"url_babelio": {"$exists": True, "$ne": None}}:
+            if query == {"url_babelio": {"$exists": True, "$ne": None}}:
                 return 431  # authors_with_url
-            elif query == {"babelio_not_found": True}:
+            if query == {"babelio_not_found": True}:
                 return 0  # authors_not_found
             return 0
 

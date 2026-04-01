@@ -68,10 +68,9 @@ class TestCompleteMissingAuthorsBatch:
             if find_call_count == 1:
                 # Premier appel: aucun cas problématique
                 return []
-            else:
-                # Deuxième appel: livre déjà loggé
-                # CRITICAL: log_problematic_case() convertit en STRING (line 189)
-                return [{"livre_id": str(livre_id)}]
+            # Deuxième appel: livre déjà loggé
+            # CRITICAL: log_problematic_case() convertit en STRING (line 189)
+            return [{"livre_id": str(livre_id)}]
 
         mock_prob_collection.find.side_effect = mock_find_side_effect
 
@@ -89,13 +88,12 @@ class TestCompleteMissingAuthorsBatch:
             if livre_id in nin_filter:
                 # Si on compare ObjectId == ObjectId (CORRECT)
                 return iter([])  # Ne pas retourner le livre
-            elif str(livre_id) in nin_filter:
+            if str(livre_id) in nin_filter:
                 # Si on compare ObjectId avec str (BUG ACTUEL)
                 # MongoDB ne trouve PAS de match → retourne le livre quand même!
                 return iter([livre_result])
-            else:
-                # Pas de filtre → retourner le livre
-                return iter([livre_result])
+            # Pas de filtre → retourner le livre
+            return iter([livre_result])
 
         mock_livres_collection.aggregate.side_effect = mock_aggregate_side_effect
 

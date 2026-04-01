@@ -394,17 +394,16 @@ def get_cors_configuration():
             "allow_methods": ["*"],
             "allow_headers": ["*"],
         }
-    else:
-        # En production, être restrictif
-        return {
-            "allow_origins": [
-                "http://localhost:3000",
-                "http://localhost:5173",
-            ],
-            "allow_credentials": True,
-            "allow_methods": ["*"],
-            "allow_headers": ["*"],
-        }
+    # En production, être restrictif
+    return {
+        "allow_origins": [
+            "http://localhost:3000",
+            "http://localhost:5173",
+        ],
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
 
 
 cors_config = get_cors_configuration()
@@ -3078,11 +3077,10 @@ async def accept_suggestion(request: AcceptSuggestionRequest) -> JSONResponse:
                     "message": f"Suggestion acceptée pour livre {request.livre_id}",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
-            )
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Livre non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3112,11 +3110,10 @@ async def save_cover_url(request: SaveCoverUrlRequest) -> JSONResponse:
                     "message": f"Couverture sauvegardée pour livre {request.livre_id}",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
-            )
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Livre non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3146,11 +3143,10 @@ async def save_cover_mismatch(request: SaveCoverMismatchRequest) -> JSONResponse
                     "message": f"Mismatch sauvegardé pour livre {request.livre_id}",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
-            )
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Livre non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3172,11 +3168,10 @@ async def clear_cover_mismatch(request: SaveCoverMismatchRequest) -> JSONRespons
                     "message": f"Mismatch effacé pour livre {request.livre_id}",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
-            )
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Livre non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3240,12 +3235,11 @@ async def mark_not_found(request: MarkNotFoundRequest) -> JSONResponse:
                     "message": f"{item_label} {request.item_id} marqué comme not found",
                 },
             )
-        else:
-            item_label = "Livre" if request.item_type == "livre" else "Auteur"
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": f"{item_label} non trouvé"},
-            )
+        item_label = "Livre" if request.item_type == "livre" else "Auteur"
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": f"{item_label} non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3272,14 +3266,13 @@ async def update_from_babelio_url(request: UpdateFromBabelioUrlRequest) -> JSONR
                     "data": result["scraped_data"],
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": "error",
-                    "message": result.get("error", "Erreur inconnue"),
-                },
-            )
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": result.get("error", "Erreur inconnue"),
+            },
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
@@ -3303,11 +3296,10 @@ async def correct_title(request: CorrectTitleRequest) -> JSONResponse:
                     "message": f"Titre corrigé: '{request.new_title}'",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Livre non trouvé"},
-            )
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Livre non trouvé"},
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}

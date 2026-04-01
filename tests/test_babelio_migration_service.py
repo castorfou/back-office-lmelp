@@ -192,7 +192,7 @@ class TestBabelioMigrationService:
         def mock_getitem(key):
             if key == "babelio_problematic_cases":
                 return mock_problematic_collection
-            elif key == "livres":
+            if key == "livres":
                 return mock_livres_collection
             return MagicMock()
 
@@ -242,9 +242,9 @@ class TestBabelioMigrationService:
         def count_documents_side_effect(query):
             if query == {}:
                 return 100  # Total
-            elif "url_babelio" in query and "$exists" in query["url_babelio"]:
+            if "url_babelio" in query and "$exists" in query["url_babelio"]:
                 return 70  # Migrés
-            elif "babelio_not_found" in query:
+            if "babelio_not_found" in query:
                 return 20  # Absents
             return 0
 
@@ -254,9 +254,9 @@ class TestBabelioMigrationService:
         def auteurs_count_side_effect(query):
             if query == {}:
                 return 50  # total_authors
-            elif "url_babelio" in query and "$exists" in query["url_babelio"]:
+            if "url_babelio" in query and "$exists" in query["url_babelio"]:
                 return 40  # authors_with_url
-            elif "babelio_not_found" in query:
+            if "babelio_not_found" in query:
                 return 0  # authors_not_found
             return 0
 
@@ -288,7 +288,7 @@ class TestBabelioMigrationService:
         def problematic_count_side_effect(query):
             if query.get("type") == "livre":
                 return 5
-            elif query.get("type") == "auteur":
+            if query.get("type") == "auteur":
                 return 0
             return 0
 
@@ -369,7 +369,7 @@ class TestBabelioMigrationService:
         def mock_getitem(key):
             if key == "livres":
                 return mock_livres_collection
-            elif key == "babelio_problematic_cases":
+            if key == "babelio_problematic_cases":
                 return mock_problematic_collection
             return MagicMock()
 
@@ -435,7 +435,7 @@ class TestBabelioMigrationService:
         def mock_getitem(key):
             if key == "livres":
                 return mock_livres_collection
-            elif key == "babelio_problematic_cases":
+            if key == "babelio_problematic_cases":
                 return mock_problematic_collection
             return MagicMock()
 
@@ -568,9 +568,9 @@ class TestBabelioMigrationService:
         def count_documents_side_effect(query):
             if query == {}:
                 return 1624  # Total livres
-            elif "url_babelio" in query and "$exists" in query["url_babelio"]:
+            if "url_babelio" in query and "$exists" in query["url_babelio"]:
                 return 1607  # Migrés (url_babelio)
-            elif "babelio_not_found" in query:
+            if "babelio_not_found" in query:
                 return 10
             return 0
 

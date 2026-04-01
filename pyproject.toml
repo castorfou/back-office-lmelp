@@ -165,6 +165,7 @@ classmethod-decorators = ["classmethod", "pydantic.validator"]
 # Version Python et compatibilité
 python_version = "3.11"
 platform = "linux"
+plugins = ["pydantic.mypy"]
 
 # Chemins à analyser : exclure src/ car déjà dans sys.path via editable install
 files = ["tests"]
@@ -193,7 +194,7 @@ no_implicit_reexport = true
 ignore_missing_imports = false
 follow_imports = "normal"
 
-# Configuration pour Data Science
+# Configuration pour les dépendances sans stubs mypy
 [[tool.mypy.overrides]]
 module = [
     "matplotlib.*",
@@ -201,6 +202,22 @@ module = [
     "sklearn.*",
     "scipy.*",
     "plotly.*",
+    "aiohttp.*",
+    "bs4.*",
+    "thefuzz.*",
+    "rapidfuzz.*",
+    "surprise.*",
+    "openai.*",
+    "uvicorn.*",
+    "fastapi.*",
+    "pydantic.*",
+    "starlette.*",
+    "bson.*",
+    "pymongo.*",
+    "motor.*",
+    "dotenv.*",
+    "yaml.*",
+    "psutil.*",
 ]
 ignore_missing_imports = true
 

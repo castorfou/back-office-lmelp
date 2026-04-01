@@ -59,7 +59,7 @@ class TestAuthorAlreadyLinked:
         def get_collection_side_effect(name):
             if name == "livres":
                 return mock_livres_collection
-            elif name == "auteurs":
+            if name == "auteurs":
                 return mock_auteurs_collection
             return MagicMock()
 

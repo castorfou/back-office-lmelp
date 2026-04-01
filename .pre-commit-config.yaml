@@ -52,6 +52,12 @@ repos:
           - pandas-stubs              # Types pour pandas
           - types-python-dateutil     # Types pour dateutil
           - types-requests           # Types pour requests
+          - types-PyYAML             # Types pour yaml
+          - types-psutil             # Types pour psutil
+          - pydantic                 # Types inline pour pydantic
+          - fastapi                  # Types inline pour fastapi
+          - starlette                # Types inline pour starlette
+          - types-beautifulsoup4     # Types pour bs4
         args: [--config-file=pyproject.toml]
 
   # Sécurité - Détection de secrets et vulnérabilités
@@ -66,7 +72,8 @@ repos:
               models/.*|
               \.cruft\.json|
               \{\{\ cookiecutter.project_slug\ \}\}/.*|
-              \.devcontainer/devcontainer\.json
+              \.devcontainer/devcontainer\.json|
+              tests/fixtures/.*\.html$
           )$
 
   - repo: https://github.com/psf/black-pre-commit-mirror

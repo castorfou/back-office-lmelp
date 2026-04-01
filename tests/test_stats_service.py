@@ -267,7 +267,7 @@ Total livres traités : 14"""
         assert hasattr(stats_service, "get_human_readable_summary")
         assert hasattr(stats_service, "display_console_stats")
 
-    def test_stats_service_should_NOT_include_couples_verified_pas_en_base(self):
+    def test_stats_service_should_NOT_include_couples_verified_pas_en_base(self):  # noqa: N802
         """Test TDD: Les stats NE DOIVENT PAS inclure 'couples_verified_pas_en_base' (toujours 0)."""
         # Arrange
         mock_cache_stats = {
@@ -334,7 +334,7 @@ Total livres traités : 14"""
             assert result["avis_critiques_analyses"] == 42
             assert isinstance(result["avis_critiques_analyses"], int)
 
-    def test_human_readable_summary_should_NOT_mention_livres_verifies(self):
+    def test_human_readable_summary_should_NOT_mention_livres_verifies(self):  # noqa: N802
         """Test TDD: Le résumé NE DOIT PAS mentionner 'Vérifiés' (section supprimée)."""
         # Arrange
         mock_stats = {

@@ -15,7 +15,7 @@ class TestCacheIdNullBug:
     @patch(
         "back_office_lmelp.services.livres_auteurs_cache_service.livres_auteurs_cache_service"
     )
-    def test_manually_validate_suggestion_with_null_cache_id_should_fail_RED_PHASE(
+    def test_manually_validate_suggestion_with_null_cache_id_should_fail_RED_PHASE(  # noqa: N802
         self, mock_cache_service
     ):
         """

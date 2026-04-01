@@ -61,9 +61,9 @@ class TestBabelioAsyncIssue:
             def mock_find(query_filter):
                 if query_filter.get("biblio_verification_status") == "verified":
                     return mock_verified_books
-                elif query_filter.get("biblio_verification_status") == "suggested":
+                if query_filter.get("biblio_verification_status") == "suggested":
                     return mock_suggested_books
-                elif query_filter.get("biblio_verification_status") == "not_found":
+                if query_filter.get("biblio_verification_status") == "not_found":
                     return mock_not_found_books
                 return []
 

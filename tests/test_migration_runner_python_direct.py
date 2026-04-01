@@ -52,8 +52,7 @@ class TestMigrationRunnerPythonDirect:
                         "auteur": "Antoine de Saint-Exupéry",
                         "status": "success",
                     }
-                else:
-                    return None  # No more books
+                return None  # No more books
 
             mock_migrate.side_effect = side_effect_migrate
 
@@ -111,8 +110,7 @@ class TestMigrationRunnerPythonDirect:
                         "auteur": "Antoine de Saint-Exupéry",
                         "status": "success",
                     }
-                else:
-                    return None
+                return None
 
             mock_migrate.side_effect = side_effect_migrate
 
@@ -204,8 +202,7 @@ class TestMigrationRunnerPythonDirect:
                         "auteur": "Auteur Inconnu",
                         "status": "not_found",
                     }
-                else:
-                    return None
+                return None
 
             mock_migrate.side_effect = side_effect_migrate
 

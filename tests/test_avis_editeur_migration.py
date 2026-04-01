@@ -84,7 +84,7 @@ class TestAvisEditeurMigration:
         def get_collection_side_effect(name):
             if name == "avis":
                 return mock_avis_collection
-            elif name == "livres":
+            if name == "livres":
                 return mock_livres_collection
             return MagicMock()
 
@@ -150,7 +150,7 @@ class TestAvisEditeurMigration:
         def get_collection_side_effect(name):
             if name == "avis":
                 return mock_avis_collection
-            elif name == "livres":
+            if name == "livres":
                 return mock_livres_collection
             return MagicMock()
 
@@ -198,7 +198,7 @@ class TestAvisEditeurMigration:
         def get_collection_side_effect(name):
             if name == "avis":
                 return mock_avis_collection
-            elif name == "livres":
+            if name == "livres":
                 return mock_livres_collection
             return MagicMock()
 

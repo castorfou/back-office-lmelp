@@ -85,9 +85,9 @@ class TestMigrateUrlBabelioReturnValue:
         def get_collection_side_effect(name):
             if name == "livres":
                 return mock_livres_collection
-            elif name == "auteurs":
+            if name == "auteurs":
                 return mock_auteurs_collection
-            elif name == "babelio_problematic_cases":
+            if name == "babelio_problematic_cases":
                 mock_prob = MagicMock()
                 mock_prob.find.return_value = []
                 return mock_prob

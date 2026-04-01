@@ -400,10 +400,9 @@ class BabelioMigrationService:
             case_type = c.get("type", "")
             if case_type == "livre_auteur_groupe":
                 return (0, case_type)
-            elif case_type == "livre":
+            if case_type == "livre":
                 return (1, case_type)
-            else:
-                return (2, case_type)
+            return (2, case_type)
 
         cases.sort(key=sort_key)
 
@@ -763,10 +762,9 @@ class BabelioMigrationService:
                             "auteur_url_babelio": auteur_url,
                         },
                     }
-                else:
-                    return {"success": False, "error": "Échec de la mise à jour"}
+                return {"success": False, "error": "Échec de la mise à jour"}
 
-            elif item_type == "auteur":
+            if item_type == "auteur":
                 # Pour un auteur, mise à jour simple de l'URL
                 auteurs_collection = self.mongodb_service.db["auteurs"]
                 try:
@@ -804,8 +802,7 @@ class BabelioMigrationService:
                     },
                 }
 
-            else:
-                return {"success": False, "error": f"Type invalide: {item_type}"}
+            return {"success": False, "error": f"Type invalide: {item_type}"}
 
         except Exception as e:
             logger.error(f"Erreur update_from_babelio_url pour {item_id}: {e}")

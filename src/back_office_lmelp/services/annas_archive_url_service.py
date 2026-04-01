@@ -76,11 +76,10 @@ class AnnasArchiveUrlService:
                         f"✅ Env var URL accessible: {self.settings.annas_archive_url}"
                     )
                 return self.settings.annas_archive_url
-            else:
-                logger.warning(
-                    f"⚠️ Env var URL non accessible (timeout): {self.settings.annas_archive_url}, "
-                    f"fallback sur Wikipedia"
-                )
+            logger.warning(
+                f"⚠️ Env var URL non accessible (timeout): {self.settings.annas_archive_url}, "
+                f"fallback sur Wikipedia"
+            )
 
         # Priority 2: Wikipedia scraping (with cache) + health check
         cached = self.cache_service.get_cached("wikipedia_url", "annas_archive")
@@ -96,10 +95,9 @@ class AnnasArchiveUrlService:
                     if self._debug_log_enabled:
                         logger.info(f"✅ Cached URL accessible: {cached_url}")
                     return cached_url
-                else:
-                    logger.warning(
-                        f"⚠️ Cached URL non accessible (timeout): {cached_url}, re-scraping Wikipedia"
-                    )
+                logger.warning(
+                    f"⚠️ Cached URL non accessible (timeout): {cached_url}, re-scraping Wikipedia"
+                )
 
         # Scrape Wikipedia (cache expiré ou URL morte)
         scraped_url = await self._scrape_wikipedia_url()
