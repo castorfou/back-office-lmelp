@@ -238,3 +238,7 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 pythonpath = "."
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:websockets.legacy.*",
+    "ignore::DeprecationWarning:uvicorn.protocols.websockets.*",
+]
