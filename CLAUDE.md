@@ -17,7 +17,7 @@ Full-stack application for managing database related to lmelp project:
 **IMPORTANT**: Activate the Python virtual environment once per bash session:
 
 ```bash
-source /workspaces/back-office-lmelp/.venv/bin/activate
+source /home/vscode/.venv/bin/activate
 ```
 
 This enables direct use of tools like `ruff`, `mypy`, `pytest`, `mkdocs` without the `uv run` prefix.
