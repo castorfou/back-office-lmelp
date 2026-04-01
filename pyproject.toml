@@ -97,6 +97,22 @@ dev = [
 
 # Configuration Ruff - Linter et formateur Python moderne
 [tool.ruff]
+# Longueur de ligne (cohérent avec black)
+line-length = 88
+
+# Fichiers à exclure
+extend-exclude = [
+    "data/*",
+    "models/*",
+    "logs/*",
+    ".jupyter/*",
+    "notebooks/*.ipynb",
+]
+
+# Version Python cible
+target-version = "py311"
+
+[tool.ruff.lint]
 # Règles activées
 extend-select = [
     "E",      # pycodestyle errors
@@ -122,20 +138,6 @@ ignore = [
     "PD901",  # Avoid `df` as variable name (commun en DS)
     "RET504", # Assign + return -> return direct (parfois moins lisible)
 ]
-
-# Longueur de ligne (cohérent avec black)
-line-length = 88
-
-# Fichiers à exclure
-extend-exclude = [
-    "data/*",
-    "models/*",
-    "logs/*",
-    ".jupyter/*",
-]
-
-# Version Python cible
-target-version = "py311"
 
 [tool.ruff.format]
 # Style de formatage
