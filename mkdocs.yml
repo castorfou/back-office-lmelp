@@ -6,6 +6,10 @@ site_url: https://castorfou.github.io/back-office-lmelp/
 repo_name: castorfou/back-office-lmelp
 repo_url: https://github.com/castorfou/back-office-lmelp
 
+# Exclude internal directories from documentation
+exclude_docs: |
+  claude/
+
 theme:
   name: material
   language: fr
@@ -32,6 +36,7 @@ theme:
     - toc.follow
     - content.code.annotate
     - content.code.copy
+
 
 markdown_extensions:
   - admonition
@@ -61,13 +66,16 @@ markdown_extensions:
 
 plugins:
   - search
-  - awesome-pages
+  - awesome-nav
+  - include-markdown
   - git-revision-date-localized:
       enable_creation_date: true
       type: timeago
+      fallback_to_build_date: true
 
 extra_javascript:
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - javascripts/toc-collapse.js
 
 extra_css:
   - overrides.css/custom-table-header.css
+  - overrides.css/toc-collapse.css

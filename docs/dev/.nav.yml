@@ -1,6 +1,6 @@
-title: 👨‍💻 Documentation technique
 nav:
-  - Vue d'ensemble: README.md
+  - Contenu: README.md
+  - Héritage PyFoundry: pyfoundry.md
   - Architecture: architecture.md
   - API Reference: api.md
   - Guide Claude AI: claude-ai-guide.md

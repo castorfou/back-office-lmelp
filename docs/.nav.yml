@@ -1,0 +1,7 @@
+nav:
+  - Accueil: index.md
+  - Guides utilisateurs: user/
+  - Guides développeurs: dev/
+  - Guides deploiement: deployment/
+  - Cheatsheets: cheatsheets/
+ignore: "bonnes_pratiques.md"

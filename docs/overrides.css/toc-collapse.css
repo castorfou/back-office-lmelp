@@ -1,0 +1,54 @@
+/* Floating toggle button + TOC hide/show styles */
+body.toc-hidden .md-sidebar--secondary {
+  display: none !important;
+}
+
+body.toc-hidden .md-content {
+  margin-right: 0;
+}
+
+#toc-toggle-button.toc-toggle-fab {
+  position: fixed;
+  top: 6rem;
+  right: 0.75rem;
+  z-index: 2000;
+  background: var(--md-primary-fg-color, #3f51b5);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.65rem;
+  font: 500 0.75rem/1 system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  opacity: 0.85;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+#toc-toggle-button.toc-toggle-fab:hover {
+  opacity: 1;
+}
+
+#toc-toggle-button.toc-toggle-fab:active {
+  transform: translateY(1px);
+}
+
+#toc-toggle-button.toc-toggle-fab:focus {
+  outline: 2px solid #fff3;
+  outline-offset: 2px;
+}
+
+#toc-toggle-button .toc-toggle-label {
+  white-space: nowrap;
+}
+
+body.toc-hidden #toc-toggle-button {
+  background: var(--md-accent-fg-color, #ff9800);
+}
+
+@media (max-width: 59.999em) {
+  #toc-toggle-button.toc-toggle-fab {
+    top: auto;
+    bottom: 1rem;
+    right: 1rem;
+  }
+}

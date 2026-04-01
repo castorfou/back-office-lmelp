@@ -34,19 +34,19 @@
                 "ms-python.python",
                 "github.vscode-github-actions",
                 "mikoz.black-py",
-                "vscode-icons-team.vscode-icons",
                 "mongodb.mongodb-vscode",
                 "yzhang.markdown-all-in-one",
                 "ukoloff.win-ca",
                 "ms-python.vscode-pylance",
                 "GitHub.copilot-chat",
-                "GitHub.copilot",
                 "dbaeumer.vscode-eslint",
                 "ms-python.autopep8",
+                "xelad0m.jupyter-toc",
                 "Vue.volar",
                 "anthropic.claude-code",
                 "catppuccin.catppuccin-vsc-icons",
-                "Catppuccin.catppuccin-vsc"
+                "Catppuccin.catppuccin-vsc",
+                "pomdtr.excalidraw-editor"
             ],
             "settings": {
                 // Configuration Python

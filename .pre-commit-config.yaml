@@ -1,21 +1,28 @@
-# Configuration Pre-commit pour PyFoundry v0.3
+# Configuration Pre-commit pour PyFoundry
 # Hooks de qualité de code exécutés avant chaque commit
 
 repos:
+  - repo: https://github.com/AnswerDotAI/nbdev
+    rev: 3.0.12
+    hooks:
+      - id: nbdev-clean
+
   # Hooks pre-commit standards
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=90000", "--enforce-all"]  # 90MB (limite GitLab à 100 MB), vérifie aussi les fichiers modifiés
       - id: trailing-whitespace        # Supprime les espaces en fin de ligne
       - id: end-of-file-fixer         # S'assure qu'il y a une ligne vide en fin de fichier
       - id: check-yaml                # Vérifie la syntaxe YAML
-        exclude: ^mkdocs\.yml$        # Exclure mkdocs.yml (contient des tags Python personnalisés)
+        args: ["--unsafe"]
+        exclude: ^\{\{ cookiecutter.project_slug \}\}/.*$
       - id: check-toml                # Vérifie la syntaxe TOML
+        exclude: ^\{\{ cookiecutter.project_slug \}\}/.*$
       - id: check-json                # Vérifie la syntaxe JSON
-        exclude: ^\.devcontainer/devcontainer\.json$
+        exclude: ^(\.devcontainer/devcontainer\.json|\{\{ cookiecutter.project_slug \}\}/.*)$
       - id: check-merge-conflict      # Détecte les marqueurs de conflit Git
-      - id: check-added-large-files   # Empêche l'ajout de gros fichiers
-        args: ['--maxkb=51200']
       - id: mixed-line-ending         # Normalise les fins de ligne
       - id: check-case-conflict       # Détecte les conflits de casse
 
@@ -32,7 +39,7 @@ repos:
       # Formatage avec ruff (remplace black)
       - id: ruff-format
         name: ruff (format)
-        types_or: [python, pyi, jupyter]
+        types_or: [python, pyi]
 
   # MyPy - Vérification de types statique
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -45,9 +52,6 @@ repos:
           - pandas-stubs              # Types pour pandas
           - types-python-dateutil     # Types pour dateutil
           - types-requests           # Types pour requests
-          - rapidfuzz                 # Fuzzy string matching
-          - types-beautifulsoup4      # Types pour BeautifulSoup (Issue #85)
-          - pydantic                  # Pydantic models with proper type inference
         args: [--config-file=pyproject.toml]
 
   # Sécurité - Détection de secrets et vulnérabilités
@@ -60,9 +64,18 @@ repos:
           (?x)^(
               data/.*|
               models/.*|
-              tests/fixtures/radiofrance/.*|
-              \.cruft\.json
+              \.cruft\.json|
+              \{\{\ cookiecutter.project_slug\ \}\}/.*|
+              \.devcontainer/devcontainer\.json
           )$
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.3.1
+    hooks:
+    - id: black-jupyter
+      language_version: python3
+      files: \.ipynb$
+      args: [--line-length=140]
 
 # Configuration globale
 default_stages: [pre-commit]
@@ -71,11 +84,12 @@ fail_fast: false                    # Continue même si un hook échoue
 # Fichiers et répertoires exclus
 exclude: |
   (?x)^(
-      data/.*|              # Données
-      models/.*|            # Modèles ML
-      logs/.*|              # Logs
-      \.jupyter/.*|         # Config Jupyter
-      notebooks/.*\.ipynb$  # Notebooks Jupyter (traités par ruff)
+      data/.*|                                    # Données
+      models/.*|                                  # Modèles ML
+      logs/.*|                                    # Logs
+      \.jupyter/.*|                               # Config Jupyter
+      notebooks/.*\.ipynb$|                       # Notebooks Jupyter (traités par ruff)
+      \{\{\ cookiecutter\.project_slug\ \}\}/.*   # Fichiers du template Cookiecutter (syntaxe Jinja)
   )$
 
 # Configuration spécifique CI

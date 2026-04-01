@@ -63,8 +63,10 @@ dev = [
     "click==8.2.1", # https://github.com/mkdocs/mkdocs/issues/4032
     "mkdocstrings[python]",
     "mkdocs-include-markdown-plugin",
-    "mkdocs-awesome-pages-plugin",
-    "pymdown-extensions"
+    "mkdocs-awesome-nav",
+    "pymdown-extensions",
+    "mkdocs-rtd-dropdown",
+    "nbdev>=2.4.6"
 ]
 
 [project.urls]
@@ -88,11 +90,13 @@ where = ["src"]
 
 # Configuration uv pour la reproductibilité
 [dependency-groups]
-dev = ["pytest", "types-pyyaml>=6.0.12.20250915"]
-
+dev = [
+    "pytest",
+    "pytest-cov>=7.0.0",
+]
 
 # Configuration Ruff - Linter et formateur Python moderne
-[tool.ruff.lint]
+[tool.ruff]
 # Règles activées
 extend-select = [
     "E",      # pycodestyle errors
@@ -117,10 +121,7 @@ ignore = [
     "B905",   # zip() sans strict= (Python 3.10+)
     "PD901",  # Avoid `df` as variable name (commun en DS)
     "RET504", # Assign + return -> return direct (parfois moins lisible)
-    "RET505", # Unnecessary elif after return
 ]
-
-[tool.ruff]
 
 # Longueur de ligne (cohérent avec black)
 line-length = 88
@@ -131,7 +132,6 @@ extend-exclude = [
     "models/*",
     "logs/*",
     ".jupyter/*",
-    "notebooks/*.ipynb",
 ]
 
 # Version Python cible
@@ -146,7 +146,7 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 # Configuration isort intégrée
-known-first-party = ["back_office_lmelp"]
+known-first-party = ["docker_lmelp"]
 force-single-line = false
 lines-after-imports = 2
 
@@ -158,13 +158,19 @@ classmethod-decorators = ["classmethod", "pydantic.validator"]
 # Règles spécifiques par type de fichier
 "notebooks/*.py" = ["E402", "F401", "F841"]  # Imports, unused vars OK en notebooks
 "scripts/*.py" = ["T201"]                    # print() OK dans les scripts
-"tests/*.py" = ["S101", "PLR2004", "N802"]  # assert OK, magic values OK, TDD naming conventions OK en tests
+"tests/*.py" = ["S101", "PLR2004"]          # assert OK, magic values OK en tests
 
 # Configuration MyPy - Vérification de types statique
 [tool.mypy]
 # Version Python et compatibilité
 python_version = "3.11"
 platform = "linux"
+
+# Chemins à analyser : exclure src/ car déjà dans sys.path via editable install
+files = ["tests"]
+
+# Ne pas chercher de namespace packages pour éviter la détection en double
+namespace_packages = false
 
 # Niveau de vérification
 warn_return_any = true
@@ -195,20 +201,6 @@ module = [
     "sklearn.*",
     "scipy.*",
     "plotly.*",
-    "fastapi.*",
-    "uvicorn.*",
-    "pymongo.*",
-    "bson.*",
-    "python_dotenv.*",
-    "dotenv",
-    "psutil.*",
-    "openai.*",
-    "aiohttp.*",
-    "pydantic.*",
-    "starlette.*",
-    "pandas.*",
-    "surprise.*",
-    "implicit.*",
 ]
 ignore_missing_imports = true
 
@@ -217,50 +209,15 @@ ignore_missing_imports = true
 module = "notebooks.*"
 ignore_errors = true
 
-# Configuration pour app.py (ignore BaseModel subclassing issue)
-[[tool.mypy.overrides]]
-module = "back_office_lmelp.app"
-disable_error_code = ["misc"]
-
-# Configuration pour middleware (ignore BaseHTTPMiddleware subclassing issue)
-[[tool.mypy.overrides]]
-module = "back_office_lmelp.middleware.*"
-disable_error_code = ["misc"]
-
-# Temporary overrides to ignore missing type stubs for optional third-party modules
-[[tool.mypy.overrides]]
-module = ["yaml", "thefuzz", "pydantic"]
-ignore_missing_imports = true
-
-# Configuration pour calibre_models (ignore Pydantic-related issues)
-[[tool.mypy.overrides]]
-module = "back_office_lmelp.models.calibre_models"
-disable_error_code = ["misc", "call-arg"]
-
-# Configuration pour calibre_service (ignore Pydantic-related issues)
-[[tool.mypy.overrides]]
-module = "back_office_lmelp.services.calibre_service"
-disable_error_code = ["call-arg"]
-
 # Configuration tests
 [[tool.mypy.overrides]]
-module = "tests.*"
+module = [
+    "tests.*",
+    "pytest",
+]
+ignore_missing_imports = true
 disallow_untyped_defs = false
 
-# Configuration pour recommendation_service (ignore pandas/surprise untyped imports)
-[[tool.mypy.overrides]]
-module = "back_office_lmelp.services.recommendation_service"
-disable_error_code = ["import-untyped"]
-
-# Configuration pytest
 [tool.pytest.ini_options]
+pythonpath = "."
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-asyncio_mode = "auto"
-addopts = "-v --cov=src --cov-report=term-missing --cov-report=xml"
-filterwarnings = [
-    "ignore::DeprecationWarning:websockets.legacy.*",
-    "ignore::DeprecationWarning:uvicorn.protocols.websockets.*"
-]

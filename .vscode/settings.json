@@ -9,17 +9,19 @@
 			"matchCommandLine": true
 		}
 	},
-	"files.exclude": {
-		"**/.git": true,
-		"**/.*_cache": true,
-		"**/site": true
-	},
-	"remote.autoForwardPorts": false,
-	"chat.emptyState.history.enabled": true,
-	"chat.tools.terminal.terminalProfile.linux": {
-		"path": "/usr/bin/zsh"
-	},
-	"terminal.integrated.defaultProfile.linux": "zsh",
-	"terminal.integrated.suggest.enabled": false,
-	"python.terminal.activateEnvironment": false
+    "files.exclude": {
+        "**/*.egg-info": true,
+        "**/.*_cache": true,
+        "site": true
+    },
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "python.terminal.activateEnvironment": false,
+    "python.terminal.activateEnvInCurrentTerminal": false,
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.rulers": [
+        100
+    ],
+    "terminal.integrated.shellIntegration.enabled": false,
+    "terminal.integrated.suggest.cdPath": "off"
 }

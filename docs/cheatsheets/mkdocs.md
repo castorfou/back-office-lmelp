@@ -1,4 +1,4 @@
-# Outils de Documentation
+
 
 Cette page détaille la stack technique utilisée pour la documentation du projet, ainsi que les différents packages Python impliqués.
 
@@ -35,8 +35,42 @@ Cette page détaille la stack technique utilisée pour la documentation du proje
 ## MkDocs Include Markdown Plugin
 
 *   **Usage** : Permet d'inclure le contenu d'un fichier Markdown dans un autre. Très utile pour réutiliser le `README.md` racine dans la documentation sans duplication.
-*   **Exemple** : `{% include "../README.md" %}` pour insérer le contenu d'un fichier externe.
+*   **Exemple** : ![Exemple d'include](img/md_include.png) pour insérer le contenu d'un fichier externe (affiché littéralement pour l'exemple).
 *   **Documentation** : [https://github.com/twardoch/mkdocs-include-markdown-plugin](https://github.com/twardoch/mkdocs-include-markdown-plugin)
+
+### ⚠️ Conflit avec Cookiecutter
+
+Si vous utilisez la syntaxe ![Exemple d'include](img/md_include.png) dans vos fichiers Markdown au sein du template, elle entre en conflit avec le moteur de template **Cookiecutter** (qui utilise la même syntaxe Jinja2).
+
+Pour éviter que Cookiecutter n'essaie d'interpréter ces inclusions lors de la génération/mise à jour du projet, vous devez les échapper avec ![raw](img/raw.png) :
+
+![Exemple d'échappement raw](img/raw_escape_example.png)
+
+
+
+## Annotations de Code
+
+*   **Usage** : Fonctionnalité du thème Material permettant d'ajouter des annotations interactives (tooltips) directement dans les blocs de code ou les listes.
+*   **Syntaxe** : Ajoutez un commentaire ` # (1)` à la fin d'une ligne de code, puis définissez l'annotation dans une liste numérotée en dessous du bloc.
+*   **Documentation** : [https://squidfunk.github.io/mkdocs-material/reference/annotations/](https://squidfunk.github.io/mkdocs-material/reference/annotations/)
+
+
+**Exemple :**
+
+Le code:
+
+![code](img/annotations.png)
+
+Le rendu:
+
+```python
+def my_function():
+    print("Hello")  # (1)
+    return True
+```
+
+1.  Ceci est une annotation qui s'affichera au survol ou au clic sur le `(1)` dans le code.
+
 
 ## MkDocs Awesome Nav
 
@@ -49,6 +83,7 @@ Cette page détaille la stack technique utilisée pour la documentation du proje
 *   **Usage** : Ensemble d'extensions pour le parseur Python-Markdown, ajoutant des fonctionnalités riches à la syntaxe Markdown standard (admonitions, onglets, touches clavier, etc.).
 *   **Exemple** : Utilisation de `!!! note` pour créer des encadrés d'information colorés.
 *   **Documentation** : [https://facelessuser.github.io/pymdown-extensions/](https://facelessuser.github.io/pymdown-extensions/)
+*   **adminition documentation** : [Supported types (note, warning, ...)](https://squidfunk.github.io/mkdocs-material/reference/admonitions/#supported-types)
 
 ## Extensions Markdown Configurées
 
@@ -68,3 +103,58 @@ Voici le détail des extensions activées dans `mkdocs.yml` :
 *   **pymdownx.arithmatex** : Support pour le rendu de formules mathématiques (LaTeX). Configuré avec `generic: true` pour une compatibilité large.
 *   **pymdownx.emoji** : Permet d'utiliser des emojis via des codes courts (ex: `:smile:`).
 *   **pymdownx.magiclink** : Convertit automatiquement les URL et liens bruts en liens cliquables.
+
+## Doc et CICD
+
+On a 3 activités automatisés en CICD:
+
+- build --strict: à chaque commit on fait un `mkdocs build --strict`, permet de capter les erreurs de strcture au plus tôt
+- deploy automatisé vers pages: à chaque commit sur branch main
+- deploy manuel vers pages: à chaque commit sur branch, on peut déclencher manuellement la publication de la doc depuis le pipeline gitlab
+
+## Liens relatifs
+
+Il est possible de faire des liens vers d'autres pages de la doc.
+
+Il faut faire des liens relatifs.
+
+Par exemple si je pars de la page `/docs/dev/documentation_tools.md`
+
+Je peux pointer vers la page `/docs/user/README.md`, section "Contenu suggéré" avec
+
+```markdown
+[lien vers user README.md section Contenu suggéré](../user/README.md#contenu-suggéré)
+```
+
+
+
+## lancement sur un autre port
+
+```bash
+mkdocs serve -a localhost:8010
+```
+
+## markdown
+
+### annotations
+
+![alt text](img/annotations.png)
+
+donne
+
+```bash
+uv add --active pandas # (1)
+```
+
+1.  le `--active` est essentiel pour utiliser l'env actif, sinon creation d'un nouveau venv
+
+
+### mermaid
+
+```mermaid
+  graph TD;
+      A-->B;
+      A-->C;
+      B-->D;
+      C-->D;
+```
