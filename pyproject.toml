@@ -204,6 +204,7 @@ module = [
     "sklearn.*",
     "scipy.*",
     "plotly.*",
+    "pandas.*",
     "aiohttp.*",
     "bs4.*",
     "thefuzz.*",

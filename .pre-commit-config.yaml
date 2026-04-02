@@ -49,7 +49,6 @@ repos:
         name: mypy (type check)
         files: ^src/.*\.py$           # Seulement le code source, pas les notebooks
         additional_dependencies:
-          - pandas-stubs              # Types pour pandas
           - types-python-dateutil     # Types pour dateutil
           - types-requests           # Types pour requests
           - types-PyYAML             # Types pour yaml
