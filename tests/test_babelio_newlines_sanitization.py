@@ -9,7 +9,7 @@ Ce test vérifie que:
 3. verify_book() ne retourne jamais de \n dans les champs
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -52,10 +52,9 @@ class TestBabelioNewlinesSanitization:
             async def __aexit__(self, exc_type, exc, tb):
                 pass
 
-        mock_session = AsyncMock()
-        mock_session.get = Mock(return_value=MockResponse(html_with_newlines))
-
-        with patch.object(service, "_get_session", return_value=mock_session):
+        with patch.object(
+            service, "_fetch_page", new=AsyncMock(return_value=html_with_newlines)
+        ):
             # WHEN: On scrappe l'éditeur
             publisher = await service.fetch_publisher_from_url(
                 "https://www.babelio.com/livres/test/123"
@@ -156,16 +155,15 @@ class TestBabelioNewlinesSanitization:
             async def __aexit__(self, exc_type, exc, tb):
                 pass
 
-        mock_session = AsyncMock()
-        mock_session.get = Mock(return_value=MockResponse(html_with_newline))
-
         # Mock search() pour retourner la réponse avec newlines
         async def mock_search(query):
             return mock_search_response
 
         with (
             patch.object(service, "search", side_effect=mock_search),
-            patch.object(service, "_get_session", return_value=mock_session),
+            patch.object(
+                service, "_fetch_page", new=AsyncMock(return_value=html_with_newline)
+            ),
         ):
             # WHEN: On vérifie le livre
             result = await service.verify_book(

@@ -4,7 +4,7 @@ Ce module teste que verify_book() retourne maintenant babelio_author_url
 en plus de babelio_url, permettant de créer des auteurs avec leur URL Babelio.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -36,17 +36,9 @@ class TestBabelioAuthorUrlExtraction:
         </html>
         """
 
-        # Mock de la session HTTP
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=mock_html)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        with patch.object(
+            babelio_service, "_fetch_page", new=AsyncMock(return_value=mock_html)
+        ):
             url = await babelio_service.fetch_author_url_from_page(
                 "https://www.babelio.com/livres/Garreta-Sphinx/149981"
             )
@@ -83,19 +75,11 @@ class TestBabelioAuthorUrlExtraction:
         </html>
         """
 
-        # Mock de la session HTTP
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=mock_html)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-
         with (
             patch.object(babelio_service, "search", return_value=mock_search_results),
-            patch.object(babelio_service, "_get_session", return_value=mock_session),
+            patch.object(
+                babelio_service, "_fetch_page", new=AsyncMock(return_value=mock_html)
+            ),
         ):
             result = await babelio_service.verify_book(
                 "Simone Émonet", "Catherine Millet"
@@ -128,17 +112,9 @@ class TestBabelioAuthorUrlExtraction:
         </html>
         """
 
-        # Mock de la session HTTP
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=mock_html)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        with patch.object(
+            babelio_service, "_fetch_page", new=AsyncMock(return_value=mock_html)
+        ):
             url = await babelio_service.fetch_author_url_from_page(
                 "https://www.babelio.com/livres/Anonyme-Livre/1234"
             )

@@ -667,11 +667,18 @@ class BabelioMigrationService:
         logger.info(f"📊 Résultat retry: status={result.get('status')}")
         return result
 
-    async def extract_from_babelio_url(self, babelio_url: str) -> dict[str, Any]:
+    async def extract_from_babelio_url(
+        self,
+        babelio_url: str,
+        babelio_cookies: str | None = None,
+    ) -> dict[str, Any]:
         """Extrait les données depuis une URL Babelio sans mise à jour (Issue #159).
 
         Args:
             babelio_url: URL Babelio complète
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio
+                (Issue #245).
 
         Returns:
             Dict avec les données extraites (titre, auteur, editeur, url_livre, url_auteur)
@@ -685,15 +692,21 @@ class BabelioMigrationService:
             raise ValueError("URL invalide: doit être une URL Babelio")
 
         # Scraper les données de la page livre (toutes les méthodes sont async)
-        titre = await self.babelio_service.fetch_full_title_from_url(babelio_url)
-        auteur_url = await self.babelio_service.fetch_author_url_from_page(babelio_url)
-        editeur = await self.babelio_service.fetch_publisher_from_url(babelio_url)
+        titre = await self.babelio_service.fetch_full_title_from_url(
+            babelio_url, babelio_cookies=babelio_cookies
+        )
+        auteur_url = await self.babelio_service.fetch_author_url_from_page(
+            babelio_url, babelio_cookies=babelio_cookies
+        )
+        editeur = await self.babelio_service.fetch_publisher_from_url(
+            babelio_url, babelio_cookies=babelio_cookies
+        )
 
         # Extraire le nom de l'auteur depuis son URL
         auteur = None
         if auteur_url:
             auteur = await self.babelio_service._scrape_author_from_book_page(
-                babelio_url
+                babelio_url, babelio_cookies=babelio_cookies
             )
 
         return {

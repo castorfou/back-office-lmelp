@@ -62,7 +62,12 @@ class BabelioService:
         self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
         self.last_request_time = 0  # Timestamp de la dernière requête
-        self.min_interval = 5.0  # Délai minimum de 5.0 secondes entre requêtes (Issue #124: éviter rate limiting)
+        # Délai minimum entre requêtes (Issue #124 + #245).
+        # S'applique maintenant à TOUTES les requêtes HTTP vers Babelio (gateway unifié).
+        # Configurable via BABELIO_MIN_INTERVAL (défaut: 2.0s).
+        # Note: 2.0s car le rate limiting couvre désormais le scraping de pages en plus de
+        # l'API AJAX — espacer 4 GETs consécutifs de 2s chacun = ~8s par extract_from_url.
+        self.min_interval = float(os.getenv("BABELIO_MIN_INTERVAL", "2.0"))
         self._cache = {}  # Cache simple terme -> résultats (limité en taille)
         # Optional disk-backed cache service injected at app startup
         self.cache_service: Any | None = None
@@ -104,7 +109,7 @@ class BabelioService:
         """Récupère ou crée la session HTTP avec configuration appropriée."""
         if self.session is None or self.session.closed:
             # Timeout configuration respectueuse
-            timeout = aiohttp.ClientTimeout(total=10, connect=5)
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
 
             self.session = aiohttp.ClientSession(
                 timeout=timeout,
@@ -141,6 +146,82 @@ class BabelioService:
             "g_state": '{"i_l":0}',  # État Google (JSON string)
             "bbacml": "0",  # Cookie marketing
         }
+
+    def _get_page_headers(self, babelio_cookies: str | None = None) -> dict[str, str]:
+        """Retourne les headers navigateur pour le scraping de pages Babelio (Issue #245).
+
+        Ces headers imitent un vrai navigateur Firefox pour éviter les blocages
+        par le système anti-bot de Babelio (captcha, 403, etc.).
+
+        Args:
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Si None, aucun cookie n'est ajouté.
+
+        Returns:
+            Dict de headers HTTP à utiliser dans aiohttp.ClientSession.
+        """
+        headers: dict[str, str] = {
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "fr,en-US;q=0.7,en;q=0.3",
+            "Referer": "https://www.babelio.com/",
+            "DNT": "1",
+            "Sec-GPC": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+        }
+        if babelio_cookies:
+            headers["Cookie"] = babelio_cookies
+        return headers
+
+    async def _fetch_page(
+        self, url: str, babelio_cookies: str | None = None
+    ) -> str | None:
+        """Gateway unifié pour tous les GETs de pages Babelio (Issue #245).
+
+        Centralise le rate limiting pour TOUTES les requêtes de scraping de pages.
+        Précédemment, seul search() était protégé — les 4 méthodes de scraping
+        pouvaient envoyer un burst de requêtes simultanées, déclenchant le captcha.
+
+        Args:
+            url: URL complète de la page Babelio à scraper.
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur. Permet de contourner le captcha Babelio.
+
+        Returns:
+            HTML de la page (décodé cp1252) ou None si erreur HTTP.
+        """
+        import time
+
+        async with self.rate_limiter:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.min_interval:
+                wait_time = self.min_interval - time_since_last
+                logger.debug(f"Rate limiting (page): attente de {wait_time:.1f}s")
+                await asyncio.sleep(wait_time)
+            self.last_request_time = time.time()
+
+            page_headers = self._get_page_headers(babelio_cookies)
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
+            async with (
+                aiohttp.ClientSession(
+                    headers=page_headers, timeout=timeout
+                ) as tmp_session,
+                tmp_session.get(url) as response,
+            ):
+                if response.status != 200:
+                    logger.warning(
+                        f"Babelio HTTP {response.status} pour scraping page: {url}"
+                    )
+                    return None
+                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                return str(await response.text(encoding="cp1252"))
 
     async def search(self, term: str) -> list[dict[str, Any]]:
         """Effectue une recherche sur Babelio.
@@ -667,11 +748,17 @@ class BabelioService:
             return False
         return title.strip().endswith("...")
 
-    async def fetch_full_title_from_url(self, babelio_url: str) -> str | None:
+    async def fetch_full_title_from_url(
+        self,
+        babelio_url: str,
+        babelio_cookies: str | None = None,
+    ) -> str | None:
         """Scrape le titre complet depuis une page Babelio.
 
         Args:
             babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Titre complet ou None si non trouvé
@@ -684,64 +771,60 @@ class BabelioService:
 
         Note:
             Utilise BeautifulSoup4 avec les sélecteurs:
-            1. <meta property="og:title"> (prioritaire, nettoie le suffixe " - Babelio")
-            2. <h1> (fallback)
+            1. <h1> (prioritaire, contient juste le titre sans nom d'auteur)
+            2. <meta property="og:title"> (fallback, nettoie le suffixe " - Babelio")
         """
         if not babelio_url or not babelio_url.strip():
             return None
 
         try:
-            session = await self._get_session()
+            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            if html is None:
+                return None
 
-            async with session.get(babelio_url) as response:
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping titre: {babelio_url}"
-                    )
-                    return None
+            soup = BeautifulSoup(html, "lxml")
 
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
+            # Priorité 1: h1 (contient juste le titre, sans nom d'auteur)
+            h1_tag = soup.find("h1")
+            if h1_tag:
+                title_raw = str(h1_tag.get_text())
+                title_final = " ".join(title_raw.split())
+                logger.debug(
+                    f"Titre complet trouvé (h1) pour {babelio_url}: {title_final}"
+                )
+                return title_final
 
-                # Priorité 1: h1 (contient juste le titre, sans nom d'auteur)
-                h1_tag = soup.find("h1")
-                if h1_tag:
-                    title_raw = str(h1_tag.get_text())
-                    # Nettoyer les sauts de ligne et espaces multiples
-                    title_final = " ".join(title_raw.split())
+            # Priorité 2: og:title (fallback, peut contenir "Titre - Auteur - Babelio")
+            og_title_tag = soup.find("meta", property="og:title")
+            if og_title_tag and hasattr(og_title_tag, "get"):
+                content = og_title_tag.get("content")
+                if content:
+                    title_raw = str(content)
+                    title_clean = title_raw.replace(" - Babelio", "").strip()
+                    title_final = " ".join(title_clean.split())
                     logger.debug(
-                        f"Titre complet trouvé (h1) pour {babelio_url}: {title_final}"
+                        f"Titre complet trouvé (og:title) pour {babelio_url}: {title_final}"
                     )
                     return title_final
 
-                # Priorité 2: og:title (fallback, peut contenir "Titre - Auteur - Babelio")
-                og_title_tag = soup.find("meta", property="og:title")
-                if og_title_tag and hasattr(og_title_tag, "get"):
-                    content = og_title_tag.get("content")
-                    if content:
-                        title_raw = str(content)
-                        # Nettoyer le suffixe " - Babelio" et les espaces multiples
-                        title_clean = title_raw.replace(" - Babelio", "").strip()
-                        title_final = " ".join(title_clean.split())
-                        logger.debug(
-                            f"Titre complet trouvé (og:title) pour {babelio_url}: {title_final}"
-                        )
-                        return title_final
-
-                logger.debug(f"Titre complet non trouvé pour {babelio_url}")
-                return None
+            logger.debug(f"Titre complet non trouvé pour {babelio_url}")
+            return None
 
         except Exception as e:
             logger.error(f"Erreur scraping titre pour {babelio_url}: {e}")
             return None
 
-    async def fetch_publisher_from_url(self, babelio_url: str) -> str | None:
+    async def fetch_publisher_from_url(
+        self,
+        babelio_url: str,
+        babelio_cookies: str | None = None,
+    ) -> str | None:
         """Scrape l'éditeur depuis une page Babelio.
 
         Args:
             babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Nom de l'éditeur ou None si non trouvé
@@ -760,35 +843,23 @@ class BabelioService:
             return None
 
         try:
-            session = await self._get_session()
-
-            async with session.get(babelio_url) as response:
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping éditeur: {babelio_url}"
-                    )
-                    return None
-
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
-
-                # Sélecteur CSS pour l'éditeur: lien avec classe tiny_links dark
-                # pointant vers /editeur/
-                editeur_link = soup.select_one('a.tiny_links.dark[href*="/editeur/"]')
-
-                if editeur_link:
-                    # Nettoyer les sauts de ligne et espaces multiples
-                    # (le HTML peut contenir des <br> ou des retours à la ligne)
-                    publisher_raw: str = str(editeur_link.text)
-                    publisher = " ".join(
-                        publisher_raw.split()
-                    )  # Split + join pour nettoyer
-                    logger.debug(f"Éditeur trouvé pour {babelio_url}: {publisher}")
-                    return publisher
-                logger.debug(f"Éditeur non trouvé pour {babelio_url}")
+            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            if html is None:
                 return None
+
+            soup = BeautifulSoup(html, "lxml")
+
+            # Sélecteur CSS pour l'éditeur: lien avec classe tiny_links dark
+            # pointant vers /editeur/
+            editeur_link = soup.select_one('a.tiny_links.dark[href*="/editeur/"]')
+
+            if editeur_link:
+                publisher_raw: str = str(editeur_link.text)
+                publisher = " ".join(publisher_raw.split())
+                logger.debug(f"Éditeur trouvé pour {babelio_url}: {publisher}")
+                return publisher
+            logger.debug(f"Éditeur non trouvé pour {babelio_url}")
+            return None
 
         except Exception as e:
             logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
@@ -829,101 +900,72 @@ class BabelioService:
             return None
 
         try:
-            # Headers identiques à un vrai navigateur Firefox (Sec-Fetch-* requis par Babelio)
-            page_headers = {
-                "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "fr,en-US;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate",
-                "Referer": "https://www.babelio.com/",
-                "DNT": "1",
-                "Sec-GPC": "1",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "same-origin",
-                "Sec-Fetch-User": "?1",
-            }
-            if babelio_cookies:
-                page_headers["Cookie"] = babelio_cookies
-
-            timeout = aiohttp.ClientTimeout(total=10, connect=5)
-            async with (
-                aiohttp.ClientSession(
-                    headers=page_headers, timeout=timeout
-                ) as tmp_session,
-                tmp_session.get(babelio_url) as response,
-            ):
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping couverture: {babelio_url}"
-                    )
-                    return None
-
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
-
-                # Validation du titre : vérifier que la page correspond au livre demandé
-                # (Babelio redirige parfois vers un autre livre via des URLs obsolètes)
-                if expected_title:
-                    h1 = soup.find("h1")
-                    if h1:
-                        page_title = normalize_for_cover_title_matching(h1.get_text())
-                        norm_expected = normalize_for_cover_title_matching(
-                            expected_title
-                        )
-                        if (
-                            norm_expected not in page_title
-                            and page_title not in norm_expected
-                        ):
-                            page_title_raw = h1.get_text().strip()
-                            logger.warning(
-                                f"Titre Babelio ne correspond pas pour {babelio_url}: "
-                                f"attendu='{expected_title}', page='{page_title_raw}'"
-                            )
-                            # Extraire quand même l'URL cover pour proposer à l'utilisateur
-                            cover_url_found = ""
-                            og_image = soup.find("meta", property="og:image")
-                            if og_image and hasattr(og_image, "get"):
-                                content = og_image.get("content")
-                                if content and str(content).startswith("http"):
-                                    cover_url_found = str(content)
-                            return f"TITLE_MISMATCH:{page_title_raw}|{cover_url_found}"
-
-                # Priorité 1: og:image (peut pointer vers babelio.com ou un CDN comme Amazon)
-                og_image = soup.find("meta", property="og:image")
-                if og_image and hasattr(og_image, "get"):
-                    content = og_image.get("content")
-                    if content and str(content).startswith("http"):
-                        cover_url = str(content)
-                        logger.debug(
-                            f"Couverture trouvée (og:image) pour {babelio_url}: {cover_url}"
-                        )
-                        return cover_url
-
-                # Priorité 2: img avec src contenant /couv/CVT_
-                cover_img = soup.select_one('img[src*="/couv/CVT_"]')
-                if cover_img and hasattr(cover_img, "get"):
-                    src = cover_img.get("src")
-                    if src:
-                        src_str = str(src)
-                        if src_str.startswith("http"):
-                            logger.debug(
-                                f"Couverture trouvée (img CVT_) pour {babelio_url}: {src_str}"
-                            )
-                            return src_str
-                        # URL relative → construire URL absolue
-                        cover_url = "https://www.babelio.com" + src_str
-                        logger.debug(
-                            f"Couverture trouvée (img CVT_ relative) pour {babelio_url}: {cover_url}"
-                        )
-                        return cover_url
-
-                logger.debug(f"Couverture non trouvée pour {babelio_url}")
+            # Utiliser le gateway unifié _fetch_page (rate limiting + headers navigateur)
+            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            if html is None:
+                logger.warning(
+                    f"Babelio: impossible de scraper couverture pour: {babelio_url}"
+                )
                 return None
+
+            soup = BeautifulSoup(html, "lxml")
+
+            # Validation du titre : vérifier que la page correspond au livre demandé
+            # (Babelio redirige parfois vers un autre livre via des URLs obsolètes)
+            if expected_title:
+                h1 = soup.find("h1")
+                if h1:
+                    page_title = normalize_for_cover_title_matching(h1.get_text())
+                    norm_expected = normalize_for_cover_title_matching(expected_title)
+                    if (
+                        norm_expected not in page_title
+                        and page_title not in norm_expected
+                    ):
+                        page_title_raw = h1.get_text().strip()
+                        logger.warning(
+                            f"Titre Babelio ne correspond pas pour {babelio_url}: "
+                            f"attendu='{expected_title}', page='{page_title_raw}'"
+                        )
+                        # Extraire quand même l'URL cover pour proposer à l'utilisateur
+                        cover_url_found = ""
+                        og_image = soup.find("meta", property="og:image")
+                        if og_image and hasattr(og_image, "get"):
+                            content = og_image.get("content")
+                            if content and str(content).startswith("http"):
+                                cover_url_found = str(content)
+                        return f"TITLE_MISMATCH:{page_title_raw}|{cover_url_found}"
+
+            # Priorité 1: og:image (peut pointer vers babelio.com ou un CDN comme Amazon)
+            og_image = soup.find("meta", property="og:image")
+            if og_image and hasattr(og_image, "get"):
+                content = og_image.get("content")
+                if content and str(content).startswith("http"):
+                    cover_url = str(content)
+                    logger.debug(
+                        f"Couverture trouvée (og:image) pour {babelio_url}: {cover_url}"
+                    )
+                    return cover_url
+
+            # Priorité 2: img avec src contenant /couv/CVT_
+            cover_img = soup.select_one('img[src*="/couv/CVT_"]')
+            if cover_img and hasattr(cover_img, "get"):
+                src = cover_img.get("src")
+                if src:
+                    src_str = str(src)
+                    if src_str.startswith("http"):
+                        logger.debug(
+                            f"Couverture trouvée (img CVT_) pour {babelio_url}: {src_str}"
+                        )
+                        return src_str
+                    # URL relative → construire URL absolue
+                    cover_url = "https://www.babelio.com" + src_str
+                    logger.debug(
+                        f"Couverture trouvée (img CVT_ relative) pour {babelio_url}: {cover_url}"
+                    )
+                    return cover_url
+
+            logger.debug(f"Couverture non trouvée pour {babelio_url}")
+            return None
 
         except Exception as e:
             logger.error(f"Erreur scraping couverture pour {babelio_url}: {e}")
@@ -1166,11 +1208,17 @@ class BabelioService:
             return relative_url
         return f"{self.base_url}{relative_url}"
 
-    async def fetch_author_url_from_page(self, babelio_url: str) -> str | None:
+    async def fetch_author_url_from_page(
+        self,
+        babelio_url: str,
+        babelio_cookies: str | None = None,
+    ) -> str | None:
         """Scrape l'URL auteur depuis une page livre Babelio (Issue #124).
 
         Args:
             babelio_url: URL complète Babelio du livre
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             URL complète de l'auteur ou None si non trouvée
@@ -1189,52 +1237,43 @@ class BabelioService:
             return None
 
         try:
-            session = await self._get_session()
-
             if self._debug_log_enabled:
                 logger.info(
                     f"🔍 [DEBUG] fetch_author_url_from_page: Fetching {babelio_url}"
                 )
 
-            async with session.get(babelio_url) as response:
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
-                    )
-                    if self._debug_log_enabled:
-                        logger.info(
-                            f"🔍 [DEBUG] fetch_author_url_from_page: HTTP error {response.status}"
-                        )
-                    return None
-
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
-
-                # Sélecteur CSS pour l'auteur: premier lien pointant vers /auteur/
-                auteur_link = soup.select_one('a[href*="/auteur/"]')
-
-                if auteur_link and hasattr(auteur_link, "get"):
-                    href = auteur_link.get("href")
-                    if href and isinstance(href, str):
-                        # Construire l'URL complète
-                        author_url = self._build_full_url(href)
-                        if self._debug_log_enabled:
-                            logger.info(
-                                f"🔍 [DEBUG] fetch_author_url_from_page: URL auteur trouvée '{author_url}'"
-                            )
-                        return author_url
-                    if self._debug_log_enabled:
-                        logger.info(
-                            "🔍 [DEBUG] fetch_author_url_from_page: Lien auteur sans href valide"
-                        )
-                    return None
+            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            if html is None:
                 if self._debug_log_enabled:
                     logger.info(
-                        "🔍 [DEBUG] fetch_author_url_from_page: Aucun lien auteur trouvé avec sélecteur 'a[href*=\"/auteur/\"]'"
+                        "🔍 [DEBUG] fetch_author_url_from_page: HTTP error (None returned)"
                     )
                 return None
+
+            soup = BeautifulSoup(html, "lxml")
+
+            # Sélecteur CSS pour l'auteur: premier lien pointant vers /auteur/
+            auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+            if auteur_link and hasattr(auteur_link, "get"):
+                href = auteur_link.get("href")
+                if href and isinstance(href, str):
+                    author_url = self._build_full_url(href)
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] fetch_author_url_from_page: URL auteur trouvée '{author_url}'"
+                        )
+                    return author_url
+                if self._debug_log_enabled:
+                    logger.info(
+                        "🔍 [DEBUG] fetch_author_url_from_page: Lien auteur sans href valide"
+                    )
+                return None
+            if self._debug_log_enabled:
+                logger.info(
+                    "🔍 [DEBUG] fetch_author_url_from_page: Aucun lien auteur trouvé avec sélecteur 'a[href*=\"/auteur/\"]'"
+                )
+            return None
 
         except Exception as e:
             logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")
@@ -1273,11 +1312,17 @@ class BabelioService:
             "error_message": error_message,
         }
 
-    async def _scrape_author_from_book_page(self, babelio_url: str) -> str | None:
+    async def _scrape_author_from_book_page(
+        self,
+        babelio_url: str,
+        babelio_cookies: str | None = None,
+    ) -> str | None:
         """Scrape le nom de l'auteur depuis une page livre Babelio.
 
         Args:
             babelio_url: URL complète Babelio du livre
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Nom de l'auteur ou None si non trouvé
@@ -1290,48 +1335,40 @@ class BabelioService:
             return None
 
         try:
-            session = await self._get_session()
-
             if self._debug_log_enabled:
                 logger.info(
                     f"🔍 [DEBUG] _scrape_author_from_book_page: Fetching {babelio_url}"
                 )
 
-            async with session.get(babelio_url) as response:
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
-                    )
-                    return None
-
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
-
-                # Stratégie 1: Chercher un lien avec classe 'livre_auteur'
-                auteur_link = soup.select_one("a.livre_auteur")
-
-                # Stratégie 2: Si non trouvé, chercher le premier lien vers /auteur/
-                if not auteur_link:
-                    auteur_link = soup.select_one('a[href*="/auteur/"]')
-
-                if auteur_link:
-                    # Utiliser separator=' ' pour forcer un espace entre les éléments HTML
-                    # Cela évite les noms collés comme "DarioFranceschini" (Issue #159)
-                    author_name = auteur_link.get_text(separator=" ", strip=True)
-                    if author_name:
-                        if self._debug_log_enabled:
-                            logger.info(
-                                f"🔍 [DEBUG] _scrape_author_from_book_page: Found author '{author_name}'"
-                            )
-                        return author_name
-
-                if self._debug_log_enabled:
-                    logger.info(
-                        f"🔍 [DEBUG] _scrape_author_from_book_page: No author found on {babelio_url}"
-                    )
+            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            if html is None:
                 return None
+
+            soup = BeautifulSoup(html, "lxml")
+
+            # Stratégie 1: Chercher un lien avec classe 'livre_auteur'
+            auteur_link = soup.select_one("a.livre_auteur")
+
+            # Stratégie 2: Si non trouvé, chercher le premier lien vers /auteur/
+            if not auteur_link:
+                auteur_link = soup.select_one('a[href*="/auteur/"]')
+
+            if auteur_link:
+                # Utiliser separator=' ' pour forcer un espace entre les éléments HTML
+                # Cela évite les noms collés comme "DarioFranceschini" (Issue #159)
+                author_name = auteur_link.get_text(separator=" ", strip=True)
+                if author_name:
+                    if self._debug_log_enabled:
+                        logger.info(
+                            f"🔍 [DEBUG] _scrape_author_from_book_page: Found author '{author_name}'"
+                        )
+                    return author_name
+
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [DEBUG] _scrape_author_from_book_page: No author found on {babelio_url}"
+                )
+            return None
 
         except Exception as e:
             logger.error(
