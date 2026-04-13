@@ -27,6 +27,29 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | `AZURE_OPENAI_API_VERSION` | Version API Azure OpenAI | `2024-02-01` | `2024-02-15-preview` |
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | Nom du déploiement | `gpt-4` | `gpt-35-turbo` |
 
+## Configuration Babelio
+
+| Variable | Description | Valeur par défaut | Exemple |
+|----------|-------------|------------------|---------|
+| `BABELIO_MIN_INTERVAL` | Délai minimum (en secondes) entre deux requêtes HTTP vers babelio.com. S'applique à **toutes** les requêtes (scraping titre, éditeur, auteur, couverture). | `2.0` | `5.0` |
+
+### Usage `BABELIO_MIN_INTERVAL`
+
+Contrôle le rate limiting du gateway Babelio unifié. Toutes les requêtes HTTP vers babelio.com passent par `_fetch_page()` qui respecte cet intervalle minimal.
+
+```bash
+# Valeur par défaut (2 secondes entre requêtes)
+python -m back_office_lmelp.app
+
+# Ralentir pour réduire le risque de captcha
+BABELIO_MIN_INTERVAL=5.0 python -m back_office_lmelp.app
+
+# Mode agressif (déconseillé, risque de blocage)
+BABELIO_MIN_INTERVAL=0.5 python -m back_office_lmelp.app
+```
+
+**Note** : Une valeur trop basse peut déclencher le système anti-bot de Babelio (captcha). En cas de timeouts ou de réponses `null`, augmenter cette valeur et fournir les cookies de session depuis le navigateur.
+
 ## Variables de debug
 
 | Variable | Description | Valeur par défaut | Exemple |

@@ -15,7 +15,7 @@ Architecture :
 - Rate limiting: Respecte les 0.8s existants (pas de requête supplémentaire en parallèle)
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import aiohttp
 import pytest
@@ -52,16 +52,9 @@ class TestPublisherScraping:
         </html>
         """
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=mock_html)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_response)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        with patch.object(
+            babelio_service, "_fetch_page", new=AsyncMock(return_value=mock_html)
+        ):
             publisher = await babelio_service.fetch_publisher_from_url(url)
 
             assert publisher == "Herscher"
@@ -79,16 +72,9 @@ class TestPublisherScraping:
         # Mock HTTP response sans éditeur
         mock_html = "<html><body>Pas d'éditeur ici</body></html>"
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=mock_html)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_response)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        with patch.object(
+            babelio_service, "_fetch_page", new=AsyncMock(return_value=mock_html)
+        ):
             publisher = await babelio_service.fetch_publisher_from_url(url)
 
             assert publisher is None
@@ -103,15 +89,10 @@ class TestPublisherScraping:
         """
         url = "https://www.babelio.com/livres/NotFound/404"
 
-        mock_response = Mock()
-        mock_response.status = 404
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_response)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        # _fetch_page returns None on non-200 status
+        with patch.object(
+            babelio_service, "_fetch_page", new=AsyncMock(return_value=None)
+        ):
             publisher = await babelio_service.fetch_publisher_from_url(url)
 
             assert publisher is None
@@ -126,10 +107,12 @@ class TestPublisherScraping:
         """
         url = "https://www.babelio.com/livres/Timeout/999"
 
-        mock_session = Mock()
-        mock_session.get = Mock(side_effect=aiohttp.ClientError("Timeout"))
-
-        with patch.object(babelio_service, "_get_session", return_value=mock_session):
+        # _fetch_page raises aiohttp.ClientError on network failure
+        with patch.object(
+            babelio_service,
+            "_fetch_page",
+            new=AsyncMock(side_effect=aiohttp.ClientError("Timeout")),
+        ):
             publisher = await babelio_service.fetch_publisher_from_url(url)
 
             assert publisher is None

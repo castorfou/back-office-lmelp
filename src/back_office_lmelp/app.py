@@ -239,6 +239,9 @@ class ExtractFromBabelioUrlRequest(BaseModel):
     """Modèle pour extraire les données depuis une URL Babelio (Issue #159)."""
 
     babelio_url: str
+    babelio_cookies: str | None = (
+        None  # Cookie header copié depuis DevTools (Issue #245)
+    )
 
 
 class SaveCoverUrlRequest(BaseModel):
@@ -2373,8 +2376,17 @@ class ApplyRefreshRequest(BaseModel):
     auteur_url_babelio: str | None = None
 
 
+class RefreshBabelioRequest(BaseModel):
+    """Paramètres optionnels pour le refresh Babelio (Issue #245)."""
+
+    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
+
+
 @app.post("/api/livres/{livre_id}/refresh-babelio", response_model=dict[str, Any])
-async def refresh_livre_from_babelio(livre_id: str) -> dict[str, Any]:
+async def refresh_livre_from_babelio(
+    livre_id: str,
+    request: RefreshBabelioRequest | None = None,
+) -> dict[str, Any]:
     """Scrape Babelio et retourne une comparaison current vs babelio (Issue #189).
 
     Args:
@@ -2437,15 +2449,20 @@ async def refresh_livre_from_babelio(livre_id: str) -> dict[str, Any]:
         "auteur_url_babelio": auteur.get("url_babelio") if auteur else None,
     }
 
-    # Scraper Babelio
+    # Scraper Babelio (cookies transmis pour contourner le captcha - Issue #245)
+    babelio_cookies = request.babelio_cookies if request is not None else None
     try:
-        babelio_titre = await babelio_service.fetch_full_title_from_url(url_babelio)
-        babelio_editeur = await babelio_service.fetch_publisher_from_url(url_babelio)
+        babelio_titre = await babelio_service.fetch_full_title_from_url(
+            url_babelio, babelio_cookies=babelio_cookies
+        )
+        babelio_editeur = await babelio_service.fetch_publisher_from_url(
+            url_babelio, babelio_cookies=babelio_cookies
+        )
         babelio_auteur_url = await babelio_service.fetch_author_url_from_page(
-            url_babelio
+            url_babelio, babelio_cookies=babelio_cookies
         )
         babelio_auteur_nom = await babelio_service._scrape_author_from_book_page(
-            url_babelio
+            url_babelio, babelio_cookies=babelio_cookies
         )
     except Exception as e:
         raise HTTPException(
@@ -3322,9 +3339,10 @@ async def extract_from_babelio_url(
 ) -> JSONResponse:
     """Extrait les données depuis une URL Babelio sans mise à jour (Issue #159)."""
     try:
-        # Scraper les données depuis l'URL Babelio
+        # Scraper les données depuis l'URL Babelio (cookies transmis pour contourner captcha)
         scraped_data = await babelio_migration_service.extract_from_babelio_url(
-            request.babelio_url
+            request.babelio_url,
+            babelio_cookies=request.babelio_cookies,
         )
 
         return JSONResponse(

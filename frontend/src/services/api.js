@@ -316,7 +316,7 @@ export const babelioService = {
     const response = await api.post('/verify-babelio', {
       type: 'author',
       name: name
-    });
+    }, { timeout: EXTENDED_TIMEOUT });
     return response.data;
   },
 
@@ -331,7 +331,7 @@ export const babelioService = {
       type: 'book',
       title: title,
       author: author
-    });
+    }, { timeout: EXTENDED_TIMEOUT });
     return response.data;
   },
 
@@ -344,7 +344,7 @@ export const babelioService = {
     const response = await api.post('/verify-babelio', {
       type: 'publisher',
       name: name
-    });
+    }, { timeout: EXTENDED_TIMEOUT });
     return response.data;
   },
 };

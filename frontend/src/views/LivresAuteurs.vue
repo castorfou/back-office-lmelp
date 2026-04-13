@@ -1444,8 +1444,10 @@ export default {
 
       try {
         // Appeler l'API backend pour extraire les données (Issue #159)
+        // Les cookies Babelio sont transmis pour contourner le captcha (Issue #245)
         const response = await axios.post('/api/babelio/extract-from-url', {
           babelio_url: url.trim(),
+          babelio_cookies: sessionStorage.getItem('babelio_cookies') || null,
         });
 
         if (response.data.status === 'success' && response.data.data) {

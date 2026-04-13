@@ -129,7 +129,7 @@ Lors du rafraîchissement, l'éditeur extrait est référencé dans la collectio
 
 ## Limitations connues
 
-- **Rate limiting** : 1 requête/seconde vers Babelio (validation peut prendre quelques secondes)
+- **Rate limiting** : 2 secondes entre requêtes vers Babelio (validation peut prendre 30-40 secondes par livre)
 - **Cas difficiles** : Inversions de nom, segmentation incorrecte nécessitent intervention manuelle
 - **Dépendance externe** : Nécessite connexion internet pour interroger Babelio
 
@@ -213,7 +213,7 @@ Le système normalise automatiquement les textes pour améliorer la correspondan
 
 Le système respecte les limitations de Babelio :
 
-- **Délai entre requêtes** : 5 secondes
+- **Délai entre requêtes** : 2 secondes (configurable via `BABELIO_MIN_INTERVAL`)
 - **Gestion gracieuse** : Arrêt automatique si Babelio indisponible
 - **Reprise possible** : La migration peut être relancée à tout moment
 
@@ -225,7 +225,7 @@ Le système récupère automatiquement les URLs de couvertures des livres depuis
 
 ### Pré-requis : cookie Babelio
 
-Le scraping de couvertures nécessite un cookie Babelio valide pour passer la protection anti-bot. Ce cookie est fourni par le navigateur, pas le serveur.
+Le scraping de couvertures (et plus généralement toutes les extractions depuis les pages Babelio) peut nécessiter un cookie de session valide si Babelio active sa protection anti-bot. Ce cookie est fourni par le navigateur, pas le serveur.
 
 **Obtenir le cookie Babelio :**
 1. Ouvrez [babelio.com](https://www.babelio.com) dans votre navigateur
@@ -272,7 +272,7 @@ Babelio redirige parfois une URL obsolète vers un livre différent. Lorsque cel
 
 1. **Erreur de connexion** : Vérifiez votre connexion internet, puis cliquez sur Retry
 2. **Résultats incorrects** : Signalez via GitHub Issues avec exemple précis (auteur + titre)
-3. **Performance lente** : Normal avec beaucoup de livres (rate limiting Babelio 5 sec/requête)
+3. **Performance lente** : Normal avec beaucoup de livres (rate limiting Babelio 2 sec/requête)
 4. **Migration bloquée** : Consultez les logs de progression pour identifier le problème
 5. **Babelio indisponible** : La migration s'arrête automatiquement, relancez plus tard
 

@@ -7,7 +7,7 @@ Issue découverte: og:title contient "Titre - Auteur - Babelio"
 Solution: Prioriser h1 qui contient juste "Titre"
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -40,18 +40,10 @@ async def test_fetch_full_title_should_return_clean_title_without_author_name(
     </html>
     """
 
-    # Mock de la session aiohttp
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=html_content)
-
-    mock_session = MagicMock()
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    # Mock _get_session
-    with patch.object(babelio_service, "_get_session", return_value=mock_session):
+    # Mock _fetch_page (gateway unifié)
+    with patch.object(
+        babelio_service, "_fetch_page", new=AsyncMock(return_value=html_content)
+    ):
         # WHEN: On scrape le titre
         result = await babelio_service.fetch_full_title_from_url(url)
 
@@ -82,17 +74,10 @@ async def test_fetch_full_title_should_handle_og_title_fallback_when_h1_missing(
     </html>
     """
 
-    # Mock de la session
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=html_content)
-
-    mock_session = MagicMock()
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(babelio_service, "_get_session", return_value=mock_session):
+    # Mock _fetch_page (gateway unifié)
+    with patch.object(
+        babelio_service, "_fetch_page", new=AsyncMock(return_value=html_content)
+    ):
         # WHEN: On scrape le titre
         result = await babelio_service.fetch_full_title_from_url(url)
 

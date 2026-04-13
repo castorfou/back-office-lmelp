@@ -132,17 +132,9 @@ async def test_fetch_full_title_from_html_preserves_special_characters():
     """
     service = BabelioService()
 
-    # Mock de la réponse HTTP avec la VRAIE fixture HTML
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
-
-    # Mock de la session
-    mock_session = MagicMock()
-    mock_session.get.return_value.__aenter__.return_value = mock_response
-    mock_session.get.return_value.__aexit__.return_value = None
-
-    with patch.object(service, "_get_session", return_value=mock_session):
+    with patch.object(
+        service, "_fetch_page", new=AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
+    ):
         title = await service.fetch_full_title_from_url(
             "https://www.babelio.com/livres/Slimani-Regardez-nous-danser--Le-Pays-des-autres-2/1853023"
         )
@@ -163,17 +155,9 @@ async def test_fetch_publisher_from_html_preserves_special_characters():
     """
     service = BabelioService()
 
-    # Mock de la réponse HTTP avec la VRAIE fixture HTML
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
-
-    # Mock de la session
-    mock_session = MagicMock()
-    mock_session.get.return_value.__aenter__.return_value = mock_response
-    mock_session.get.return_value.__aexit__.return_value = None
-
-    with patch.object(service, "_get_session", return_value=mock_session):
+    with patch.object(
+        service, "_fetch_page", new=AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
+    ):
         publisher = await service.fetch_publisher_from_url(
             "https://www.babelio.com/livres/Slimani-Regardez-nous-danser--Le-Pays-des-autres-2/1853023"
         )
@@ -192,17 +176,9 @@ async def test_fetch_author_url_from_html_preserves_special_characters():
     """
     service = BabelioService()
 
-    # Mock de la réponse HTTP avec la VRAIE fixture HTML
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
-
-    # Mock de la session
-    mock_session = MagicMock()
-    mock_session.get.return_value.__aenter__.return_value = mock_response
-    mock_session.get.return_value.__aexit__.return_value = None
-
-    with patch.object(service, "_get_session", return_value=mock_session):
+    with patch.object(
+        service, "_fetch_page", new=AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
+    ):
         author_url = await service.fetch_author_url_from_page(
             "https://www.babelio.com/livres/Slimani-Regardez-nous-danser--Le-Pays-des-autres-2/1853023"
         )
@@ -221,17 +197,9 @@ async def test_scrape_author_name_from_html_preserves_special_characters():
     """
     service = BabelioService()
 
-    # Mock de la réponse HTTP avec la VRAIE fixture HTML
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
-
-    # Mock de la session
-    mock_session = MagicMock()
-    mock_session.get.return_value.__aenter__.return_value = mock_response
-    mock_session.get.return_value.__aexit__.return_value = None
-
-    with patch.object(service, "_get_session", return_value=mock_session):
+    with patch.object(
+        service, "_fetch_page", new=AsyncMock(return_value=BABELIO_HTML_PAGE_REAL)
+    ):
         author_name = await service._scrape_author_from_book_page(
             "https://www.babelio.com/livres/Slimani-Regardez-nous-danser--Le-Pays-des-autres-2/1853023"
         )
