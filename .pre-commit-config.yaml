@@ -3,7 +3,7 @@
 
 repos:
   - repo: https://github.com/AnswerDotAI/nbdev
-    rev: 3.0.12
+    rev: 3.0.14
     hooks:
       - id: nbdev-clean
 
