@@ -41,6 +41,7 @@ dependencies = [
     "scikit-learn>=1.8.0",
     "ipykernel>=7.2.0",
     "numpy<2",
+    "brotli>=1.2.0",
 ]
 
 [project.optional-dependencies]

@@ -418,3 +418,219 @@ def test_refresh_babelio_endpoint_passes_cookies(client, mock_babelio_service):
         url_babelio,
         babelio_cookies=cookies,
     )
+
+
+# ============================================================
+# 6. Tests pour search() avec babelio_cookies (Issue #247)
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_search_accepts_babelio_cookies_parameter(service):
+    """search() doit accepter un paramètre babelio_cookies (Issue #247)."""
+    import inspect
+
+    sig = inspect.signature(service.search)
+    assert "babelio_cookies" in sig.parameters, (
+        "search() doit avoir un paramètre babelio_cookies pour propager le jstsToken"
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_injects_cookies_into_session_headers(service):
+    """search() avec babelio_cookies doit injecter Cookie dans les headers (Issue #247)."""
+    captured_headers: dict = {}
+
+    class FakeResponse:
+        status = 200
+
+        async def text(self, encoding=None):
+            return "[]"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    class FakeSession:
+        def post(self, url, **kwargs):
+            captured_headers.update(dict(kwargs.get("headers", {})))
+            return FakeResponse()
+
+        async def close(self):
+            pass
+
+        @property
+        def closed(self):
+            return False
+
+    with patch.object(
+        service, "_get_session", new=AsyncMock(return_value=FakeSession())
+    ):
+        cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+        await service.search("Murmuration", babelio_cookies=cookies)
+
+    assert "Cookie" in captured_headers, (
+        "search() doit injecter le Cookie header quand babelio_cookies est fourni"
+    )
+    assert captured_headers["Cookie"] == cookies
+
+
+@pytest.mark.asyncio
+async def test_search_no_cookie_header_when_none(service):
+    """search() sans babelio_cookies ne doit pas envoyer un Cookie header vide (Issue #247)."""
+    captured_headers: dict = {}
+
+    class FakeResponse:
+        status = 200
+
+        async def text(self, encoding=None):
+            return "[]"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    class FakeSession:
+        def post(self, url, **kwargs):
+            captured_headers.update(dict(kwargs.get("headers", {})))
+            return FakeResponse()
+
+        async def close(self):
+            pass
+
+        @property
+        def closed(self):
+            return False
+
+    with patch.object(
+        service, "_get_session", new=AsyncMock(return_value=FakeSession())
+    ):
+        await service.search("Murmuration")
+
+    # Cookie header ne doit pas être un string vide ou None
+    cookie_value = captured_headers.get("Cookie")
+    assert cookie_value is None or cookie_value, (
+        "search() sans babelio_cookies ne doit pas injecter un Cookie header vide"
+    )
+
+
+# ============================================================
+# 7. Tests pour verify_book() / verify_author() avec babelio_cookies (Issue #247)
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_verify_book_propagates_cookies_to_search(service):
+    """verify_book() doit propager babelio_cookies à tous les appels search() (Issue #247)."""
+    cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+    with patch.object(service, "search", new=AsyncMock(return_value=[])) as mock_search:
+        await service.verify_book("Murmuration", "Léa Silhol", babelio_cookies=cookies)
+
+    # Tous les appels à search() doivent transmettre les cookies
+    for call in mock_search.call_args_list:
+        assert call.kwargs.get("babelio_cookies") == cookies, (
+            f"search() appelé sans babelio_cookies: {call}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_verify_author_propagates_cookies_to_search(service):
+    """verify_author() doit propager babelio_cookies à search() (Issue #247)."""
+    cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+    with patch.object(service, "search", new=AsyncMock(return_value=[])) as mock_search:
+        await service.verify_author("Léa Silhol", babelio_cookies=cookies)
+
+    mock_search.assert_called_once_with("Léa Silhol", babelio_cookies=cookies)
+
+
+@pytest.mark.asyncio
+async def test_verify_book_propagates_cookies_to_fetch_page_calls(service):
+    """verify_book() doit propager babelio_cookies aux appels _fetch_page (Issue #247)."""
+    cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+    book_result = {
+        "type": "livres",
+        "titre": "Murmuration",
+        "nom": "Silhol",
+        "prenoms": "Léa",
+        "url": "/livres/Silhol-Murmuration/12345",
+        "ca_copies": "10",
+        "ca_note": "4.0",
+    }
+
+    with (
+        patch.object(service, "search", new=AsyncMock(return_value=[book_result])),
+        patch.object(
+            service, "fetch_publisher_from_url", new=AsyncMock(return_value="Mnémos")
+        ) as mock_pub,
+        patch.object(
+            service, "fetch_full_title_from_url", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            service, "fetch_author_url_from_page", new=AsyncMock(return_value=None)
+        ) as mock_author_url,
+    ):
+        await service.verify_book("Murmuration", "Léa Silhol", babelio_cookies=cookies)
+
+    # Les méthodes de scraping doivent recevoir les cookies
+    mock_pub.assert_called_once_with(
+        "https://www.babelio.com/livres/Silhol-Murmuration/12345",
+        babelio_cookies=cookies,
+    )
+    mock_author_url.assert_called_once_with(
+        "https://www.babelio.com/livres/Silhol-Murmuration/12345",
+        babelio_cookies=cookies,
+    )
+
+
+# ============================================================
+# 8. Tests pour /verify-babelio endpoint avec babelio_cookies (Issue #247)
+# ============================================================
+
+
+def test_verify_babelio_endpoint_accepts_babelio_cookies(client):
+    """POST /verify-babelio doit accepter babelio_cookies dans le body (Issue #247)."""
+    cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+    with patch("back_office_lmelp.app.babelio_service") as mock_babelio_service:
+        mock_babelio_service.verify_author = AsyncMock(
+            return_value={"status": "verified", "original": "Houellebecq"}
+        )
+        response = client.post(
+            "/api/verify-babelio",
+            json={"type": "author", "name": "Houellebecq", "babelio_cookies": cookies},
+        )
+
+    assert response.status_code == 200
+    mock_babelio_service.verify_author.assert_called_once_with(
+        "Houellebecq", babelio_cookies=cookies
+    )
+
+
+def test_verify_babelio_book_endpoint_passes_cookies(client):
+    """POST /verify-babelio pour un livre doit transmettre babelio_cookies (Issue #247)."""
+    cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+    with patch("back_office_lmelp.app.babelio_service") as mock_babelio_service:
+        mock_babelio_service.verify_book = AsyncMock(
+            return_value={"status": "verified", "original_title": "Murmuration"}
+        )
+        response = client.post(
+            "/api/verify-babelio",
+            json={
+                "type": "book",
+                "title": "Murmuration",
+                "author": "Léa Silhol",
+                "babelio_cookies": cookies,
+            },
+        )
+
+    assert response.status_code == 200
+    mock_babelio_service.verify_book.assert_called_once_with(
+        "Murmuration", "Léa Silhol", babelio_cookies=cookies
+    )

@@ -63,6 +63,38 @@
           </div>
         </div>
 
+      <!-- Cookie Babelio (jstsToken) — nécessaire pour les requêtes AJAX Issue #247 -->
+      <section v-if="selectedEpisodeId" class="babelio-cookie-section">
+        <details>
+          <summary class="babelio-cookie-summary">
+            🔑 Cookie Babelio
+            <span v-if="babelioCookieStored" class="cookie-status cookie-ok">✓ configuré</span>
+            <span v-else class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
+          </summary>
+          <div class="babelio-cookie-form">
+            <p class="cookie-help">
+              Copiez la valeur du header <code>Cookie</code> depuis Firefox DevTools
+              (DevTools → Réseau → une requête babelio.com → onglet En-têtes → Cookie) et collez-la ici.
+              Nécessaire pour éviter les erreurs 403 lors de la validation Babelio.
+            </p>
+            <textarea
+              v-model="babelioCookieInput"
+              class="cookie-input"
+              placeholder="jstsToken=...; p=FR; disclaimer=1; ..."
+              rows="2"
+            ></textarea>
+            <div class="cookie-actions">
+              <button @click="saveBabelioCookie" class="btn-save-cookie" :disabled="!babelioCookieInput.trim()">
+                Enregistrer
+              </button>
+              <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
+                Effacer
+              </button>
+            </div>
+          </div>
+        </details>
+      </section>
+
       <!-- Légende des statuts -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="legend-section">
         <div class="legend-box">
@@ -671,6 +703,10 @@ export default {
   isRefreshing: false,
   // Issue #160: Global lock to prevent race conditions during episode changes
   changeEpisodeLock: false,
+
+  // Issue #247: Cookie Babelio (jstsToken) pour éviter les 403
+  babelioCookieInput: sessionStorage.getItem('babelio_cookies') || '',
+  babelioCookieStored: !!sessionStorage.getItem('babelio_cookies'),
 
     };
   },
@@ -1544,6 +1580,20 @@ export default {
     /**
      * Auto-validation des livres et envoi des résultats au backend
      */
+    saveBabelioCookie() {
+      const val = this.babelioCookieInput.trim();
+      if (val) {
+        sessionStorage.setItem('babelio_cookies', val);
+        this.babelioCookieStored = true;
+      }
+    },
+
+    clearBabelioCookie() {
+      sessionStorage.removeItem('babelio_cookies');
+      this.babelioCookieInput = '';
+      this.babelioCookieStored = false;
+    },
+
     async autoValidateAndSendResults() {
       if (!this.books || this.books.length === 0) return;
 
@@ -2937,5 +2987,93 @@ export default {
 .badge.bg-danger {
   background-color: #dc3545;
   color: white;
+}
+
+/* Issue #247: Cookie Babelio section */
+.babelio-cookie-section {
+  margin: 0.5rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.babelio-cookie-summary {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  font-size: 0.85rem;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cookie-status {
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.cookie-ok {
+  background: #d4edda;
+  color: #155724;
+}
+
+.cookie-missing {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.babelio-cookie-form {
+  padding: 0.75rem 1rem;
+  background: white;
+}
+
+.cookie-help {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.cookie-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 0.4rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.cookie-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-save-cookie {
+  padding: 4px 12px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-save-cookie:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-clear-cookie {
+  padding: 4px 12px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
 }
 </style>

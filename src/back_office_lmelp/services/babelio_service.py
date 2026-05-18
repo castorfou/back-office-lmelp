@@ -223,7 +223,9 @@ class BabelioService:
                 # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
                 return str(await response.text(encoding="cp1252"))
 
-    async def search(self, term: str) -> list[dict[str, Any]]:
+    async def search(
+        self, term: str, babelio_cookies: str | None = None
+    ) -> list[dict[str, Any]]:
         """Effectue une recherche sur Babelio.
 
         Args:
@@ -341,12 +343,20 @@ class BabelioService:
             # Format JSON exact découvert via DevTools
             payload = {"term": term.strip(), "isMobile": False}
 
+            # Injecter les cookies de session navigateur si fournis (Issue #247)
+            # Le jstsToken Babelio est nécessaire pour éviter le blocage anti-bot.
+            extra_headers: dict[str, str] = {}
+            if babelio_cookies:
+                extra_headers["Cookie"] = babelio_cookies
+
             try:
                 logger.debug(f"Recherche Babelio pour: {term}")
                 if self._debug_log_enabled:
                     logger.info(f"🔍 [DEBUG] search: POST {url} payload={payload}")
 
-                async with session.post(url, json=payload) as response:
+                async with session.post(
+                    url, json=payload, headers=extra_headers or None
+                ) as response:
                     if self._debug_log_enabled:
                         logger.info(
                             f"🔍 [DEBUG] search: Response status={response.status}"
@@ -433,7 +443,9 @@ class BabelioService:
                 # Pour les autres erreurs, on retourne [] pour compatibilité
                 return []
 
-    async def verify_author(self, author_name: str) -> dict[str, Any]:
+    async def verify_author(
+        self, author_name: str, babelio_cookies: str | None = None
+    ) -> dict[str, Any]:
         """Vérifie et corrige l'orthographe d'un nom d'auteur.
 
         Args:
@@ -455,7 +467,7 @@ class BabelioService:
             return self._create_error_result(author_name, "Nom d'auteur vide")
 
         try:
-            results = await self.search(author_name)
+            results = await self.search(author_name, babelio_cookies=babelio_cookies)
 
             # Chercher le meilleur match auteur
             best_author = self._find_best_author_match(results, author_name)
@@ -501,7 +513,7 @@ class BabelioService:
             return self._create_error_result(author_name, str(e))
 
     async def verify_book(
-        self, title: str, author: str | None = None
+        self, title: str, author: str | None = None, babelio_cookies: str | None = None
     ) -> dict[str, Any]:
         """Vérifie et corrige l'orthographe d'un titre de livre.
 
@@ -537,7 +549,7 @@ class BabelioService:
                     f"(author filter: '{author or 'None'}')"
                 )
 
-            results = await self.search(search_term)
+            results = await self.search(search_term, babelio_cookies=babelio_cookies)
 
             if self._debug_log_enabled:
                 books_count = len([r for r in results if r.get("type") == "livres"])
@@ -569,7 +581,9 @@ class BabelioService:
                         )
 
                     # Recherche avec titre seul
-                    title_only_results = await self.search(title)
+                    title_only_results = await self.search(
+                        title, babelio_cookies=babelio_cookies
+                    )
 
                     if self._debug_log_enabled:
                         books_count = len(
@@ -677,7 +691,9 @@ class BabelioService:
             babelio_publisher = None
             if confidence >= 0.90 and babelio_url:
                 try:
-                    babelio_publisher = await self.fetch_publisher_from_url(babelio_url)
+                    babelio_publisher = await self.fetch_publisher_from_url(
+                        babelio_url, babelio_cookies=babelio_cookies
+                    )
                 except Exception as e:
                     # Erreur de scraping non fatale, on continue sans éditeur
                     logger.debug(
@@ -687,7 +703,9 @@ class BabelioService:
             # Enrichissement titre: scraper si titre tronqué détecté (Issue #88)
             if self._is_title_truncated(suggested_title) and babelio_url:
                 try:
-                    full_title = await self.fetch_full_title_from_url(babelio_url)
+                    full_title = await self.fetch_full_title_from_url(
+                        babelio_url, babelio_cookies=babelio_cookies
+                    )
                     if full_title:
                         suggested_title = full_title
                         # Mettre à jour aussi babelio_data pour le frontend (Issue #88)
@@ -705,7 +723,7 @@ class BabelioService:
             if babelio_url:
                 try:
                     babelio_author_url = await self.fetch_author_url_from_page(
-                        babelio_url
+                        babelio_url, babelio_cookies=babelio_cookies
                     )
                 except Exception as e:
                     # Erreur de scraping non fatale, on continue sans URL auteur

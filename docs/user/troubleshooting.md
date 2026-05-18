@@ -350,6 +350,30 @@ localStorage.debug = '*'
 
 ## Problèmes connus et workarounds
 
+### Validation Babelio bloquée (erreurs 403)
+
+**Symptômes :**
+- Les validations livres/auteurs échouent toutes
+- Statut ⚠️ Erreur sur tous les livres d'un épisode
+- Logs backend : `WARNING - Babelio HTTP 403 pour: {titre}`
+
+**Cause :** Babelio a détecté un accès automatique depuis l'IP du serveur et a activé une protection anti-bot.
+
+**Solution :**
+
+1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox (même machine que le serveur)
+2. Si un captcha s'affiche, résolvez-le
+3. Appuyez sur **F12** → onglet **Réseau** → rechargez la page (F5)
+4. Cliquez sur la première requête vers `babelio.com`
+5. Dans **En-têtes de la requête**, copiez la valeur complète du champ **Cookie**
+6. Dans la page **Livres et Auteurs**, sélectionnez un épisode puis cliquez sur **🔑 Cookie Babelio**
+7. Collez la valeur et cliquez **Enregistrer**
+8. Relancez les validations
+
+**Durée de validité :** Le cookie expire après ~5 minutes. Si le blocage revient, répétez la procédure.
+
+---
+
 ### Lien RadioFrance incorrect (pointe vers un clip de livre au lieu de l'émission complète)
 
 **Symptômes :**

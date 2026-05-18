@@ -92,6 +92,9 @@ class BabelioVerificationRequest(BaseModel):
     name: str | None = None  # Pour author ou publisher
     title: str | None = None  # Pour book
     author: str | None = None  # Auteur du livre (optionnel pour book)
+    babelio_cookies: str | None = (
+        None  # Cookie header (jstsToken) copié depuis DevTools (Issue #247)
+    )
 
 
 class FuzzySearchRequest(BaseModel):
@@ -1619,14 +1622,18 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
                 raise HTTPException(
                     status_code=400, detail="Le nom de l'auteur est requis"
                 )
-            result = await babelio_service.verify_author(request.name)
+            result = await babelio_service.verify_author(
+                request.name, babelio_cookies=request.babelio_cookies
+            )
 
         elif request.type == "book":
             if not request.title:
                 raise HTTPException(
                     status_code=400, detail="Le titre du livre est requis"
                 )
-            result = await babelio_service.verify_book(request.title, request.author)
+            result = await babelio_service.verify_book(
+                request.title, request.author, babelio_cookies=request.babelio_cookies
+            )
 
         elif request.type == "publisher":
             if not request.name:

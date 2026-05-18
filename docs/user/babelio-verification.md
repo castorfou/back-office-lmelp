@@ -127,11 +127,35 @@ Lors du rafraîchissement, l'éditeur extrait est référencé dans la collectio
 1. Utilisez les suggestions validées pour mettre à jour la base de données
 2. Récupérez les liens Babelio pour métadonnées supplémentaires (couverture, notes)
 
+## Cookie Babelio (anti-bot)
+
+Babelio active parfois un système anti-bot qui bloque les requêtes automatiques avec une erreur 403. Pour contourner ce blocage, la page **Livres et Auteurs** propose une section **🔑 Cookie Babelio** permettant de fournir un cookie de session valide.
+
+### Obtenir le cookie
+
+1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox
+2. Si un captcha s'affiche, résolvez-le
+3. Appuyez sur **F12** → onglet **Réseau** (Network)
+4. Rechargez la page (F5) et cliquez sur la première requête vers `babelio.com`
+5. Dans **En-têtes de la requête**, copiez la valeur complète du champ **Cookie**
+
+### Configurer le cookie dans l'interface
+
+1. Sur la page **Livres et Auteurs**, sélectionnez un épisode
+2. Cliquez sur la section **🔑 Cookie Babelio** (collapsible, au-dessus de la légende)
+3. Collez la valeur du cookie dans le champ de texte
+4. Cliquez sur **Enregistrer**
+
+Le statut passe de ⚠ non configuré à ✓ configuré. Le cookie est stocké en `sessionStorage` (effacé à la fermeture de l'onglet) et transmis automatiquement à toutes les requêtes Babelio suivantes.
+
+**Durée de validité** : Le cookie `jstsToken` expire après 5 minutes. Si les erreurs 403 reviennent, répétez la procédure.
+
 ## Limitations connues
 
 - **Rate limiting** : 2 secondes entre requêtes vers Babelio (validation peut prendre 30-40 secondes par livre)
 - **Cas difficiles** : Inversions de nom, segmentation incorrecte nécessitent intervention manuelle
 - **Dépendance externe** : Nécessite connexion internet pour interroger Babelio
+- **Anti-bot Babelio** : Erreurs 403 possibles si l'IP est bloquée — fournir un cookie via la section 🔑 Cookie Babelio
 
 ## Migration automatique des URLs Babelio
 
