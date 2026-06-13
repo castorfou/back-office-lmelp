@@ -231,6 +231,7 @@ La page **OnKindle** (`/onkindle`) affiche tous les livres Calibre portant le ta
 - **Enrichissement MongoDB** : Les livres Calibre matchés avec MongoDB affichent leur note LMELP et leur lien Babelio.
 - **Score Reco** : Calculé par l'algorithme de collaborative filtering SVD (voir page Recommandations). Le score se charge en arrière-plan (~10 secondes) ; la table s'affiche immédiatement avec `-` dans la colonne Reco pendant le calcul.
 - **Dégradation gracieuse** : Si Calibre n'est pas disponible, un message explicite est affiché. Si l'API de recommandations échoue, `-` est affiché pour tous les scores sans bloquer la page.
+- **Mise en cache 5 min** : Les données Calibre sont mises en cache pendant 5 minutes. Si vous venez de modifier un tag `onkindle` dans Calibre, cliquez sur **"Actualiser"** pour invalider le cache et voir immédiatement les changements.
 
 **Correspondance Calibre-MongoDB** :
 
