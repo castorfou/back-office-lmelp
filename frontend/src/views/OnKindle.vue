@@ -27,6 +27,13 @@
       <div class="onkindle-header">
         <h1>Livres OnKindle</h1>
         <span class="total-count">{{ books.length }} livre{{ books.length > 1 ? 's' : '' }}</span>
+        <span class="cache-info">Mise en cache 5 min</span>
+        <button
+          class="refresh-btn"
+          data-test="refresh-button"
+          :disabled="refreshing"
+          @click="refreshData"
+        >{{ refreshing ? 'Actualisation…' : 'Actualiser' }}</button>
       </div>
 
       <!-- Tableau -->
@@ -179,6 +186,7 @@ export default {
       recommendationsLoading: false,
       sortKey: 'score',
       sortDir: 'desc',
+      refreshing: false,
     };
   },
 
@@ -258,6 +266,19 @@ export default {
       await this.$router.replace({
         query: { sort: this.sortKey, dir: this.sortDir },
       });
+    },
+
+    async refreshData() {
+      this.refreshing = true;
+      this.error = null;
+      try {
+        await axios.post('/api/calibre/cache/invalidate');
+        await this.loadOnKindleBooks();
+      } catch (err) {
+        this.error = err.message || 'Erreur lors de l\'actualisation';
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     async loadOnKindleBooks() {
@@ -376,6 +397,33 @@ export default {
   border-radius: 20px;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.cache-info {
+  font-size: 0.8rem;
+  color: #999;
+  font-style: italic;
+  margin-left: auto;
+}
+
+.refresh-btn {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  background: #f0f2ff;
+  color: #667eea;
+  border: 1px solid #c5cdf5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #e0e4ff;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Sort headers */

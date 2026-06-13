@@ -607,4 +607,59 @@ describe('OnKindle.vue', () => {
       expect(wrapper.vm.sortDir).toBe('asc');
     });
   });
+
+  describe('Cache refresh (Issue #249)', () => {
+    it('shows a cache info message mentioning 5-minute caching', async () => {
+      await mountWithData();
+
+      expect(wrapper.text()).toMatch(/5.min/i);
+    });
+
+    it('shows a refresh button', async () => {
+      await mountWithData();
+
+      const refreshBtn = wrapper.find('[data-test="refresh-button"]');
+      expect(refreshBtn.exists()).toBe(true);
+    });
+
+    it('clicking refresh button calls cache invalidate then reloads onkindle data', async () => {
+      await mountWithData();
+
+      // Setup: invalidate returns 200, then new onkindle call
+      axios.post.mockResolvedValueOnce({ data: { message: 'Cache invalidated' } });
+      axios.get.mockResolvedValueOnce({ data: mockOnKindleData });
+
+      const refreshBtn = wrapper.find('[data-test="refresh-button"]');
+      await refreshBtn.trigger('click');
+      await flushPromises();
+
+      expect(axios.post).toHaveBeenCalledWith('/api/calibre/cache/invalidate');
+      expect(axios.get).toHaveBeenCalledWith('/api/calibre/onkindle');
+    });
+
+    it('refresh button is disabled while refreshing', async () => {
+      await mountWithData();
+
+      // Never resolve the post to keep it in "refreshing" state
+      axios.post.mockImplementation(() => new Promise(() => {}));
+
+      const refreshBtn = wrapper.find('[data-test="refresh-button"]');
+      await refreshBtn.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      expect(refreshBtn.attributes('disabled')).toBeDefined();
+    });
+
+    it('shows error if cache invalidation fails', async () => {
+      await mountWithData();
+
+      axios.post.mockRejectedValueOnce(new Error('Cache error'));
+
+      const refreshBtn = wrapper.find('[data-test="refresh-button"]');
+      await refreshBtn.trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-test="error"]').exists()).toBe(true);
+    });
+  });
 });
