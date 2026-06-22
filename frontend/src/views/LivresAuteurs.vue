@@ -63,13 +63,20 @@
           </div>
         </div>
 
+      <!-- Alerte blocage Babelio 403 (Issue #251) -->
+      <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
+        ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
+        <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
+      </div>
+
       <!-- Cookie Babelio (jstsToken) — nécessaire pour les requêtes AJAX Issue #247 -->
       <section v-if="selectedEpisodeId" class="babelio-cookie-section">
         <details>
           <summary class="babelio-cookie-summary">
             🔑 Cookie Babelio
-            <span v-if="babelioCookieStored" class="cookie-status cookie-ok">✓ configuré</span>
-            <span v-else class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
+            <span v-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
+            <span v-else-if="babelioCookieLikelyExpired" class="cookie-status cookie-expired" data-test="cookie-expired-badge">⏰ probablement expiré — actualisez-le</span>
+            <span v-else class="cookie-status cookie-ok">✓ configuré</span>
           </summary>
           <div class="babelio-cookie-form">
             <p class="cookie-help">
@@ -90,6 +97,7 @@
               <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
                 Effacer
               </button>
+              <span v-if="babelioCookieJustSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
             </div>
           </div>
         </details>
@@ -707,11 +715,20 @@ export default {
   // Issue #247: Cookie Babelio (jstsToken) pour éviter les 403
   babelioCookieInput: sessionStorage.getItem('babelio_cookies') || '',
   babelioCookieStored: !!sessionStorage.getItem('babelio_cookies'),
+  // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
+  babelioBlocked: false,
+  babelioCookieSavedAt: null,
+  babelioCookieJustSaved: false,
+  babelioCookieSavedConfirmationTimeout: null,
 
     };
   },
 
   computed: {
+    babelioCookieLikelyExpired() {
+      if (!this.babelioCookieSavedAt) return false;
+      return (Date.now() - this.babelioCookieSavedAt) > 5 * 60 * 1000;
+    },
     selectedEpisode() {
       if (!this.selectedEpisodeId) return null;
       return this.episodesWithReviews.find(ep => String(ep.id) === String(this.selectedEpisodeId));
@@ -883,6 +900,10 @@ export default {
 
   beforeUnmount() {
     if (this._onKeydown) window.removeEventListener('keydown', this._onKeydown, true);
+    if (this.babelioCookieSavedConfirmationTimeout) {
+      clearTimeout(this.babelioCookieSavedConfirmationTimeout);
+      this.babelioCookieSavedConfirmationTimeout = null;
+    }
   },
 
   methods: {
@@ -1585,6 +1606,16 @@ export default {
       if (val) {
         sessionStorage.setItem('babelio_cookies', val);
         this.babelioCookieStored = true;
+        this.babelioCookieSavedAt = Date.now();
+        this.babelioBlocked = false;
+
+        this.babelioCookieJustSaved = true;
+        if (this.babelioCookieSavedConfirmationTimeout) {
+          clearTimeout(this.babelioCookieSavedConfirmationTimeout);
+        }
+        this.babelioCookieSavedConfirmationTimeout = setTimeout(() => {
+          this.babelioCookieJustSaved = false;
+        }, 3000);
       }
     },
 
@@ -1609,6 +1640,12 @@ export default {
               book.editeur || '',
               this.selectedEpisodeId
             );
+
+            // Issue #251: Babelio a bloqué la requête (403) — signaler à l'utilisateur
+            // qu'il doit rafraîchir son cookie, distinct d'un "not_found" légitime
+            if (validationResult.status === 'blocked_403') {
+              this.babelioBlocked = true;
+            }
 
             // Convertir le résultat de validation au format backend
             let status = validationResult.status;
@@ -3075,5 +3112,40 @@ export default {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.8rem;
+}
+
+.cookie-expired {
+  background: #ffe5b4;
+  color: #8a5a00;
+}
+
+.cookie-saved-confirmation {
+  font-size: 0.8rem;
+  color: #155724;
+  align-self: center;
+}
+
+/* Issue #251: Bannière de blocage Babelio 403 */
+.babelio-blocked-banner {
+  margin: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c2c7;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.babelio-blocked-banner-close {
+  background: none;
+  border: none;
+  color: #721c24;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
 }
 </style>

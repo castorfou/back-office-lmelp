@@ -353,9 +353,10 @@ localStorage.debug = '*'
 ### Validation Babelio bloquée (erreurs 403)
 
 **Symptômes :**
-- Les validations livres/auteurs échouent toutes
-- Statut ⚠️ Erreur sur tous les livres d'un épisode
-- Logs backend : `WARNING - Babelio HTTP 403 pour: {titre}`
+- Une bannière rouge ⚠️ "Babelio a bloqué les requêtes (403)" apparaît en haut de la page
+  **Livres et Auteurs**
+- Sur la page **Liaison Babelio des livres**, le message d'erreur affiché contient "403"
+- Logs backend : `WARNING - Babelio HTTP 403 pour: {titre} - cookie requis`
 
 **Cause :** Babelio a détecté un accès automatique depuis l'IP du serveur et a activé une protection anti-bot.
 
@@ -366,11 +367,18 @@ localStorage.debug = '*'
 3. Appuyez sur **F12** → onglet **Réseau** → rechargez la page (F5)
 4. Cliquez sur la première requête vers `babelio.com`
 5. Dans **En-têtes de la requête**, copiez la valeur complète du champ **Cookie**
-6. Dans la page **Livres et Auteurs**, sélectionnez un épisode puis cliquez sur **🔑 Cookie Babelio**
-7. Collez la valeur et cliquez **Enregistrer**
+6. Dans la page **Livres et Auteurs** (ou **Liaison Babelio des livres**), collez la valeur dans
+   le champ **🍪 Cookie Babelio** et cliquez **Enregistrer**
+7. Une confirmation "✓ Cookie enregistré" s'affiche ; la bannière de blocage disparaît
 8. Relancez les validations
 
-**Durée de validité :** Le cookie expire après ~5 minutes. Si le blocage revient, répétez la procédure.
+**Durée de validité :** Le cookie expire après ~5 minutes. Passé ce délai, un badge "⏰
+probablement expiré" apparaît à côté du champ cookie. Si le blocage revient (nouvelle bannière
+rouge ou nouveau message contenant "403"), répétez la procédure.
+
+**Note :** Avant cette détection, un blocage 403 apparaissait silencieusement comme "Non trouvé"
+sur Babelio — sans bannière ni message distinct. Si vous voyez beaucoup de livres "Non trouvé"
+d'un coup sur un épisode entier, vérifiez d'abord que le cookie n'est pas expiré.
 
 ---
 

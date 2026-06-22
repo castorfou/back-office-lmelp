@@ -718,7 +718,11 @@ class BabelioMigrationService:
         }
 
     async def update_from_babelio_url(
-        self, item_id: str, babelio_url: str, item_type: str = "livre"
+        self,
+        item_id: str,
+        babelio_url: str,
+        item_type: str = "livre",
+        babelio_cookies: str | None = None,
     ) -> dict[str, Any]:
         """Met à jour un livre/auteur depuis une URL Babelio manuelle.
 
@@ -728,6 +732,9 @@ class BabelioMigrationService:
             item_id: ID du livre ou auteur MongoDB
             babelio_url: URL Babelio complète
             item_type: Type d'item ('livre' ou 'auteur')
+            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
+                navigateur sur babelio.com. Permet de contourner le captcha Babelio
+                (Issue #251).
 
         Returns:
             Dict avec success, scraped_data, ou error
@@ -746,10 +753,10 @@ class BabelioMigrationService:
             if item_type == "livre":
                 # Scraper les données de la page livre
                 titre = await self.babelio_service.fetch_full_title_from_url(
-                    babelio_url
+                    babelio_url, babelio_cookies=babelio_cookies
                 )
                 auteur_url = await self.babelio_service.fetch_author_url_from_page(
-                    babelio_url
+                    babelio_url, babelio_cookies=babelio_cookies
                 )
 
                 if not titre:

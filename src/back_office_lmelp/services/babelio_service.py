@@ -37,6 +37,14 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
+class BabelioBlockedError(Exception):
+    """Levée quand Babelio renvoie HTTP 403 (blocage anti-bot).
+
+    Distingue un blocage anti-bot d'un "vraiment pas trouvé sur Babelio" (Issue #251).
+    Le cookie jstsToken (TTL ~5 min) est probablement manquant ou expiré.
+    """
+
+
 class BabelioService:
     """Service de vérification orthographique via l'API AJAX de Babelio.
 
@@ -126,7 +134,7 @@ class BabelioService:
         return {
             "Content-Type": "application/json",
             "Accept": "application/json, text/javascript, */*; q=0.01",
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": "https://www.babelio.com/recherche.php",
             "Origin": "https://www.babelio.com",
@@ -161,7 +169,7 @@ class BabelioService:
             Dict de headers HTTP à utiliser dans aiohttp.ClientSession.
         """
         headers: dict[str, str] = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "fr,en-US;q=0.7,en;q=0.3",
             "Referer": "https://www.babelio.com/",
@@ -214,6 +222,11 @@ class BabelioService:
                 ) as tmp_session,
                 tmp_session.get(url) as response,
             ):
+                if response.status == 403:
+                    logger.warning(
+                        f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
+                    )
+                    raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
                 if response.status != 200:
                     logger.warning(
                         f"Babelio HTTP {response.status} pour scraping page: {url}"
@@ -417,6 +430,9 @@ class BabelioService:
                             logger.error(f"Content-Type: {content_type}")
                             logger.error(f"Début: {text_content[:200]}...")
                             return []
+                    elif response.status == 403:
+                        logger.warning(f"Babelio HTTP 403 pour: {term} - cookie requis")
+                        raise BabelioBlockedError(f"Babelio 403: {term}")
                     elif response.status == 503:
                         logger.warning(
                             f"Babelio HTTP 503 (Service Unavailable) pour: {term} - rate limited"
@@ -426,6 +442,9 @@ class BabelioService:
                         logger.warning(f"Babelio HTTP {response.status} pour: {term}")
                         return []
 
+            except BabelioBlockedError:
+                # Propager pour que verify_author/verify_book signalent le blocage
+                raise
             except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
                 # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
@@ -504,6 +523,19 @@ class BabelioService:
                 "error_message": None,
             }
 
+        except BabelioBlockedError:
+            return {
+                "status": "blocked_403",
+                "original": author_name,
+                "babelio_suggestion": None,
+                "confidence_score": 0.0,
+                "babelio_data": None,
+                "babelio_url": None,
+                "error_message": (
+                    "Babelio a bloqué la requête (403). Le cookie jstsToken est "
+                    "probablement expiré — collez un cookie frais."
+                ),
+            }
         except (TimeoutError, aiohttp.ClientError):
             # Propager les erreurs réseau/timeout pour que le script de migration
             # puisse les détecter et arrêter le traitement
@@ -694,6 +726,8 @@ class BabelioService:
                     babelio_publisher = await self.fetch_publisher_from_url(
                         babelio_url, babelio_cookies=babelio_cookies
                     )
+                except BabelioBlockedError:
+                    raise
                 except Exception as e:
                     # Erreur de scraping non fatale, on continue sans éditeur
                     logger.debug(
@@ -710,6 +744,8 @@ class BabelioService:
                         suggested_title = full_title
                         # Mettre à jour aussi babelio_data pour le frontend (Issue #88)
                         babelio_data_clean["titre"] = full_title
+                except BabelioBlockedError:
+                    raise
                 except Exception as e:
                     # Erreur de scraping non fatale, on continue avec titre tronqué
                     logger.debug(
@@ -725,6 +761,8 @@ class BabelioService:
                     babelio_author_url = await self.fetch_author_url_from_page(
                         babelio_url, babelio_cookies=babelio_cookies
                     )
+                except BabelioBlockedError:
+                    raise
                 except Exception as e:
                     # Erreur de scraping non fatale, on continue sans URL auteur
                     logger.debug(
@@ -745,6 +783,22 @@ class BabelioService:
                 "error_message": None,
             }
 
+        except BabelioBlockedError:
+            return {
+                "status": "blocked_403",
+                "original_title": title,
+                "babelio_suggestion_title": None,
+                "original_author": author,
+                "babelio_suggestion_author": None,
+                "confidence_score": 0.0,
+                "babelio_data": None,
+                "babelio_url": None,
+                "babelio_author_url": None,
+                "error_message": (
+                    "Babelio a bloqué la requête (403). Le cookie jstsToken est "
+                    "probablement expiré — collez un cookie frais."
+                ),
+            }
         except (TimeoutError, aiohttp.ClientError):
             # Propager les erreurs réseau/timeout pour que le script de migration
             # puisse les détecter et arrêter le traitement
@@ -828,6 +882,8 @@ class BabelioService:
             logger.debug(f"Titre complet non trouvé pour {babelio_url}")
             return None
 
+        except BabelioBlockedError:
+            raise
         except Exception as e:
             logger.error(f"Erreur scraping titre pour {babelio_url}: {e}")
             return None
@@ -879,6 +935,8 @@ class BabelioService:
             logger.debug(f"Éditeur non trouvé pour {babelio_url}")
             return None
 
+        except BabelioBlockedError:
+            raise
         except Exception as e:
             logger.error(f"Erreur scraping éditeur pour {babelio_url}: {e}")
             return None
@@ -1293,6 +1351,8 @@ class BabelioService:
                 )
             return None
 
+        except BabelioBlockedError:
+            raise
         except Exception as e:
             logger.error(f"Erreur scraping URL auteur pour {babelio_url}: {e}")
             if self._debug_log_enabled:
@@ -1388,6 +1448,8 @@ class BabelioService:
                 )
             return None
 
+        except BabelioBlockedError:
+            raise
         except Exception as e:
             logger.error(
                 f"Erreur scraping auteur pour {babelio_url}: {e}", exc_info=True

@@ -67,10 +67,10 @@ class TestUpdateFromBabelioUrl:
 
         # Vérifier l'appel au scraping
         mock_babelio_service.fetch_full_title_from_url.assert_called_once_with(
-            "https://www.babelio.com/livres/auteur/titre/123456"
+            "https://www.babelio.com/livres/auteur/titre/123456", babelio_cookies=None
         )
         mock_babelio_service.fetch_author_url_from_page.assert_called_once_with(
-            "https://www.babelio.com/livres/auteur/titre/123456"
+            "https://www.babelio.com/livres/auteur/titre/123456", babelio_cookies=None
         )
 
         # Vérifier la réutilisation de accept_suggestion
@@ -203,6 +203,49 @@ class TestUpdateFromBabelioUrl:
         # Assert
         assert result["success"] is False
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_should_propagate_babelio_cookies_to_scraping_calls(self):
+        """Test TDD (Issue #251): update_from_babelio_url doit propager
+        babelio_cookies aux appels de scraping, sinon Babelio renvoie 403
+        même quand l'utilisateur a fourni un cookie valide dans l'UI.
+        """
+        from back_office_lmelp.services.babelio_migration_service import (
+            BabelioMigrationService,
+        )
+
+        mock_mongodb_service = MagicMock()
+        mock_babelio_service = MagicMock()
+        mock_mongodb_service.db = MagicMock()
+
+        mock_babelio_service.fetch_full_title_from_url = AsyncMock(
+            return_value="Le Titre Correct"
+        )
+        mock_babelio_service.fetch_author_url_from_page = AsyncMock(
+            return_value="https://www.babelio.com/auteur/Nom-Auteur/12345"
+        )
+
+        service = BabelioMigrationService(mock_mongodb_service, mock_babelio_service)
+        service.accept_suggestion = MagicMock(return_value=True)
+
+        livre_id = str(ObjectId())
+        cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+        await service.update_from_babelio_url(
+            item_id=livre_id,
+            babelio_url="https://www.babelio.com/livres/auteur/titre/123456",
+            item_type="livre",
+            babelio_cookies=cookies,
+        )
+
+        mock_babelio_service.fetch_full_title_from_url.assert_called_once_with(
+            "https://www.babelio.com/livres/auteur/titre/123456",
+            babelio_cookies=cookies,
+        )
+        mock_babelio_service.fetch_author_url_from_page.assert_called_once_with(
+            "https://www.babelio.com/livres/auteur/titre/123456",
+            babelio_cookies=cookies,
+        )
 
     @pytest.mark.asyncio
     async def test_should_return_error_if_item_not_found(self):

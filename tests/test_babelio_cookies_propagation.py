@@ -77,9 +77,11 @@ async def test_fetch_page_returns_html_on_success(service):
 
 @pytest.mark.asyncio
 async def test_fetch_page_returns_none_on_non_200(service):
-    """_fetch_page doit retourner None si le statut HTTP n'est pas 200."""
+    """_fetch_page doit retourner None si le statut HTTP n'est pas 200 (hors 403,
+    qui a son propre comportement dédié — voir test_babelio_403_detection.py).
+    """
     mock_response = MagicMock()
-    mock_response.status = 403
+    mock_response.status = 503
 
     mock_session = MagicMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
