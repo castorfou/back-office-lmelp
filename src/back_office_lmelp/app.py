@@ -236,6 +236,7 @@ class UpdateFromBabelioUrlRequest(BaseModel):
     item_id: str
     babelio_url: str
     item_type: str = "livre"  # "livre" ou "auteur"
+    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
 
 
 class ExtractFromBabelioUrlRequest(BaseModel):
@@ -3278,6 +3279,7 @@ async def update_from_babelio_url(request: UpdateFromBabelioUrlRequest) -> JSONR
             item_id=request.item_id,
             babelio_url=request.babelio_url,
             item_type=request.item_type,
+            babelio_cookies=request.babelio_cookies,
         )
 
         if result["success"]:

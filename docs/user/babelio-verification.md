@@ -129,7 +129,7 @@ Lors du rafraîchissement, l'éditeur extrait est référencé dans la collectio
 
 ## Cookie Babelio (anti-bot)
 
-Babelio active parfois un système anti-bot qui bloque les requêtes automatiques avec une erreur 403. Pour contourner ce blocage, la page **Livres et Auteurs** propose une section **🔑 Cookie Babelio** permettant de fournir un cookie de session valide.
+Babelio active parfois un système anti-bot qui bloque les requêtes automatiques avec une erreur 403. Pour contourner ce blocage, les pages **Livres et Auteurs** et **Liaison Babelio des livres** proposent chacune une section **🔑 Cookie Babelio** (🍪 sur la page migration) permettant de fournir un cookie de session valide.
 
 ### Obtenir le cookie
 
@@ -141,14 +141,19 @@ Babelio active parfois un système anti-bot qui bloque les requêtes automatique
 
 ### Configurer le cookie dans l'interface
 
-1. Sur la page **Livres et Auteurs**, sélectionnez un épisode
-2. Cliquez sur la section **🔑 Cookie Babelio** (collapsible, au-dessus de la légende)
-3. Collez la valeur du cookie dans le champ de texte
-4. Cliquez sur **Enregistrer**
+1. Sur la page **Livres et Auteurs**, sélectionnez un épisode (ou ouvrez **Liaison Babelio des livres**, où le bloc cookie est affiché en haut de page)
+2. Collez la valeur du cookie dans le champ de texte
+3. Cliquez sur **Enregistrer**
 
-Le statut passe de ⚠ non configuré à ✓ configuré. Le cookie est stocké en `sessionStorage` (effacé à la fermeture de l'onglet) et transmis automatiquement à toutes les requêtes Babelio suivantes.
+Une confirmation "✓ Cookie enregistré" s'affiche brièvement, et le statut passe de ⚠ non configuré à ✓ configuré. Le cookie est stocké en `sessionStorage` (effacé à la fermeture de l'onglet) et transmis automatiquement à toutes les requêtes Babelio suivantes (validation, scraping de pages, migration manuelle par URL).
 
-**Durée de validité** : Le cookie `jstsToken` expire après 5 minutes. Si les erreurs 403 reviennent, répétez la procédure.
+**Durée de validité** : Le cookie `jstsToken` expire après 5 minutes. Passé ce délai, un badge **⏰ probablement expiré** remplace le ✓ configuré — pensez à rafraîchir le cookie avant de relancer un traitement long.
+
+**Détection automatique des blocages** : Si Babelio renvoie malgré tout une erreur 403 (cookie expiré en cours de traitement, par exemple), le système le détecte désormais explicitement :
+- Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page
+- Sur **Liaison Babelio des livres** : le message d'erreur du popup contient "403"
+
+Dans les deux cas, la solution est la même : rafraîchir le cookie et relancer.
 
 ## Limitations connues
 
@@ -249,23 +254,17 @@ Le système récupère automatiquement les URLs de couvertures des livres depuis
 
 ### Pré-requis : cookie Babelio
 
-Le scraping de couvertures (et plus généralement toutes les extractions depuis les pages Babelio) peut nécessiter un cookie de session valide si Babelio active sa protection anti-bot. Ce cookie est fourni par le navigateur, pas le serveur.
+Le scraping de couvertures (et plus généralement toutes les extractions depuis les pages Babelio, y compris la mise à jour manuelle par URL) peut nécessiter un cookie de session valide si Babelio active sa protection anti-bot. Ce cookie est fourni par le navigateur, pas le serveur.
 
-**Obtenir le cookie Babelio :**
-1. Ouvrez [babelio.com](https://www.babelio.com) dans votre navigateur
-2. Appuyez sur **F12** → onglet **Réseau** (Network)
-3. Rechargez la page (F5)
-4. Cliquez sur la première requête vers `babelio.com`
-5. Dans l'onglet **En-têtes** → **En-têtes de la requête** → copiez la valeur du champ **Cookie**
-6. Collez cette valeur dans la zone de texte de la section Couvertures
+Le bloc **🍪 Cookie Babelio** est affiché en haut de la page `/babelio-migration` (juste sous le titre), avant les statistiques — il est partagé par toutes les sections de la page (liaison automatique, couvertures, URL manuelle).
 
-Le cookie est stocké temporairement dans le `sessionStorage` du navigateur et effacé à la fermeture de l'onglet.
+**Obtenir le cookie Babelio :** voir la procédure détaillée dans [Cookie Babelio (anti-bot)](#cookie-babelio-anti-bot) plus haut dans ce document.
 
 ### Lancer la migration des couvertures
 
 Dans `/babelio-migration`, section **Couvertures** :
 
-1. Collez votre cookie Babelio dans la zone prévue
+1. Vérifiez que le cookie Babelio est configuré (✓ configuré en haut de page)
 2. Cliquez sur **Lancer la liaison des couvertures**
 3. Le système traite les livres un par un, avec un délai de 5 secondes entre chaque requête
 4. Les résultats s'affichent en temps réel :

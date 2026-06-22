@@ -71,6 +71,7 @@ class TestUpdateFromUrlEndpoint:
                 item_id=livre_id,
                 babelio_url="https://www.babelio.com/livres/auteur/titre/123456",
                 item_type="livre",
+                babelio_cookies=None,
             )
 
     def test_should_update_auteur_from_url_via_api(self, client):
@@ -177,6 +178,46 @@ class TestUpdateFromUrlEndpoint:
                 item_id=livre_id,
                 babelio_url="https://www.babelio.com/livres/auteur/titre/123",
                 item_type="livre",  # Valeur par défaut
+                babelio_cookies=None,
+            )
+
+    def test_should_pass_babelio_cookies_to_service(self, client):
+        """Test TDD (Issue #251): l'endpoint doit transmettre babelio_cookies
+        au service, sinon Babelio bloque les requêtes en 403 malgré le cookie
+        fourni par l'utilisateur dans l'UI.
+        """
+        livre_id = str(ObjectId())
+        cookies = "jstsToken=abc123; p=FR; disclaimer=1"
+
+        with patch(
+            "back_office_lmelp.app.babelio_migration_service"
+        ) as mock_migration_service:
+            mock_migration_service.update_from_babelio_url = AsyncMock(
+                return_value={
+                    "success": True,
+                    "scraped_data": {
+                        "titre": "Titre",
+                        "url_babelio": "https://www.babelio.com/livres/auteur/titre/123",
+                    },
+                }
+            )
+
+            response = client.post(
+                "/api/babelio-migration/update-from-url",
+                json={
+                    "item_id": livre_id,
+                    "babelio_url": "https://www.babelio.com/livres/auteur/titre/123",
+                    "item_type": "livre",
+                    "babelio_cookies": cookies,
+                },
+            )
+
+            assert response.status_code == 200
+            mock_migration_service.update_from_babelio_url.assert_called_once_with(
+                item_id=livre_id,
+                babelio_url="https://www.babelio.com/livres/auteur/titre/123",
+                item_type="livre",
+                babelio_cookies=cookies,
             )
 
     def test_should_return_400_on_scraping_failure(self, client):
