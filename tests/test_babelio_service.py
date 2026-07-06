@@ -1297,20 +1297,32 @@ class TestBabelioCircuitBreaker:
         svc.set_cookie("jstsToken=newcookie")
         assert svc._circuit_open is False
 
-        # La prochaine requête doit passer (pas lever BabelioBlockedError immédiatement)
-        mock_response = Mock()
+        # La prochaine requête doit passer (pas lever BabelioBlockedError immédiatement).
+        # search() avec cookie crée une session temporaire aiohttp.ClientSession directement
+        # (pas via svc.session) → on doit patcher aiohttp.ClientSession dans le module.
+        mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.text = AsyncMock(
-            return_value='[{"id":"1","prenoms":"Victor","nom":"Hugo","type":"auteurs"}]'
+        mock_response.json = AsyncMock(
+            return_value=[
+                {"id": "1", "prenoms": "Victor", "nom": "Hugo", "type": "auteurs"}
+            ]
         )
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
 
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_response)
-        mock_session.closed = False
-        svc.session = mock_session
+        mock_post_ctx = AsyncMock()
+        mock_post_ctx.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_post_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        # Ne doit pas lever BabelioBlockedError
-        result = await svc.search("victor hugo")
+        mock_session_obj = AsyncMock()
+        mock_session_obj.post = Mock(return_value=mock_post_ctx)
+
+        mock_session_ctx = AsyncMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session_obj)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
+            return_value=mock_session_ctx,
+        ):
+            # Ne doit pas lever BabelioBlockedError
+            result = await svc.search("victor hugo")
         assert isinstance(result, list)
