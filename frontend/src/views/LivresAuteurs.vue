@@ -74,16 +74,26 @@
         <details>
           <summary class="babelio-cookie-summary">
             🔑 Cookie Babelio
-            <span v-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
+            <span v-if="serverCookieActive" class="cookie-status cookie-ok">✓ Actif côté serveur</span>
+            <span v-else-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
             <span v-else-if="babelioCookieLikelyExpired" class="cookie-status cookie-expired" data-test="cookie-expired-badge">⏰ probablement expiré — actualisez-le</span>
-            <span v-else class="cookie-status cookie-ok">✓ configuré</span>
+            <span v-else class="cookie-status cookie-ok">✓ Configuré</span>
           </summary>
           <div class="babelio-cookie-form">
             <p class="cookie-help">
-              Copiez la valeur du header <code>Cookie</code> depuis Firefox DevTools
-              (DevTools → Réseau → une requête babelio.com → onglet En-têtes → Cookie) et collez-la ici.
-              Nécessaire pour éviter les erreurs 403 lors de la validation Babelio.
+              Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
+              Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
             </p>
+            <details class="cookie-instructions">
+              <summary>Comment obtenir le cookie ?</summary>
+              <ol>
+                <li>Ouvre <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a> et connecte-toi</li>
+                <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
+                <li>Recharge la page, clique sur une requête babelio.com</li>
+                <li>Dans <strong>En-têtes de requête</strong>, copie la valeur du champ <strong>Cookie</strong></li>
+                <li>Colle-la ci-dessous et clique Enregistrer</li>
+              </ol>
+            </details>
             <textarea
               v-model="babelioCookieInput"
               class="cookie-input"
@@ -713,8 +723,9 @@ export default {
   changeEpisodeLock: false,
 
   // Issue #247: Cookie Babelio (jstsToken) pour éviter les 403
-  babelioCookieInput: sessionStorage.getItem('babelio_cookies') || '',
-  babelioCookieStored: !!sessionStorage.getItem('babelio_cookies'),
+  babelioCookieInput: localStorage.getItem('babelio_cookies') || '',
+  babelioCookieStored: !!localStorage.getItem('babelio_cookies'),
+  serverCookieActive: false,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
   babelioBlocked: false,
   babelioCookieSavedAt: null,
@@ -857,6 +868,14 @@ export default {
   },
 
   async mounted() {
+    // Synchroniser le cookie localStorage vers le serveur (survit aux redémarrages backend)
+    const storedCookie = localStorage.getItem('babelio_cookies');
+    if (storedCookie) {
+      axios.post('/api/babelio/cookie', { cookie: storedCookie })
+        .then(() => { this.serverCookieActive = true; })
+        .catch(() => {});
+    }
+
     await this.loadEpisodesWithReviews();
 
     // Issue #96: Support pour lien direct vers un épisode via ?episode=<id>
@@ -1504,7 +1523,7 @@ export default {
         // Les cookies Babelio sont transmis pour contourner le captcha (Issue #245)
         const response = await axios.post('/api/babelio/extract-from-url', {
           babelio_url: url.trim(),
-          babelio_cookies: sessionStorage.getItem('babelio_cookies') || null,
+          babelio_cookies: localStorage.getItem('babelio_cookies') || null,
         });
 
         if (response.data.status === 'success' && response.data.data) {
@@ -1604,10 +1623,15 @@ export default {
     saveBabelioCookie() {
       const val = this.babelioCookieInput.trim();
       if (val) {
-        sessionStorage.setItem('babelio_cookies', val);
+        localStorage.setItem('babelio_cookies', val);
         this.babelioCookieStored = true;
         this.babelioCookieSavedAt = Date.now();
         this.babelioBlocked = false;
+
+        // Synchroniser côté serveur (service centralisé)
+        axios.post('/api/babelio/cookie', { cookie: val })
+          .then(() => { this.serverCookieActive = true; })
+          .catch(() => {});
 
         this.babelioCookieJustSaved = true;
         if (this.babelioCookieSavedConfirmationTimeout) {
@@ -1620,9 +1644,12 @@ export default {
     },
 
     clearBabelioCookie() {
-      sessionStorage.removeItem('babelio_cookies');
+      localStorage.removeItem('babelio_cookies');
       this.babelioCookieInput = '';
       this.babelioCookieStored = false;
+      this.serverCookieActive = false;
+      // Synchroniser côté serveur
+      axios.delete('/api/babelio/cookie').catch(() => {});
     },
 
     async autoValidateAndSendResults() {
@@ -3071,6 +3098,10 @@ export default {
   color: #6c757d;
   margin-bottom: 0.5rem;
 }
+
+.cookie-instructions { margin-bottom: 1rem; font-size: 0.9rem; }
+.cookie-instructions ol { margin: 0.5rem 0 0 1.5rem; padding-left: 0; }
+.cookie-instructions li { margin-bottom: 0.25rem; }
 
 .cookie-input {
   width: 100%;

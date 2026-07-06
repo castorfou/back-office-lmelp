@@ -324,14 +324,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
 
             if cache_enabled:
-                cache_dir = os.environ.get(
-                    "BABELIO_CACHE_DIR",
-                    os.path.join(os.getcwd(), "data", "processed", "babelio_cache"),
-                )
+                from .settings import settings as app_settings
+
+                cache_dir = app_settings.babelio_cache_dir
+                ttl_days = app_settings.babelio_cache_day
                 babelio_service.cache_service = BabelioCacheService(
-                    cache_dir=cache_dir, ttl_hours=24
+                    cache_dir=cache_dir, ttl_hours=ttl_days * 24
                 )
-                print(f"Babelio disk cache attached at {cache_dir}")
+                print(f"Babelio disk cache attached at {cache_dir} (TTL={ttl_days}d)")
             else:
                 print("Babelio disk cache disabled via BABELIO_CACHE_ENABLED")
         except Exception as e:
@@ -1730,12 +1730,58 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                         "titre": validated_title,
                         "auteur_id": author_id,
                         "editeur": editeur_value,
+                        "url_babelio": book_result.babelio_url or None,
                         "episodes": [request.episode_oid],
                         "avis_critiques": [request.avis_critique_id],
                     }
                     book_id = mongodb_service.create_book_if_not_exists(
                         book_data_for_mongo
                     )
+
+                    # Mettre à jour url_babelio et titre sur le livre (même s'il existait déjà)
+                    update_fields: dict[str, Any] = {}
+                    if book_result.babelio_url:
+                        update_fields["url_babelio"] = book_result.babelio_url
+                    if (
+                        book_result.suggested_title
+                        and book_result.suggested_title != book_result.titre
+                    ):
+                        update_fields["titre"] = validated_title
+                    if update_fields:
+                        mongodb_service.update_livre_from_refresh(
+                            str(book_id), update_fields
+                        )
+
+                    # Télécharger la couverture si url_babelio disponible et pas encore de couverture
+                    if book_result.babelio_url and book_id:
+                        existing_livre = mongodb_service.get_livre_with_episodes(
+                            str(book_id)
+                        )
+                        if existing_livre and not existing_livre.get("url_cover"):
+                            cover_url = (
+                                await babelio_service.fetch_cover_url_from_babelio_page(
+                                    book_result.babelio_url,
+                                    expected_title=validated_title,
+                                )
+                            )
+                            if cover_url and not cover_url.startswith("TITLE_MISMATCH"):
+                                mongodb_service.update_livre_from_refresh(
+                                    str(book_id), {"url_cover": cover_url}
+                                )
+                                logger.info(
+                                    f"🖼️ Couverture téléchargée pour {validated_title}: {cover_url}"
+                                )
+
+                    # Récupérer l'URL auteur depuis la page livre (cache hit — page déjà scrapée)
+                    if book_result.babelio_url and author_id:
+                        author_url = await babelio_service.fetch_author_url_from_page(
+                            book_result.babelio_url
+                        )
+                        if author_url:
+                            mongodb_service.update_auteur_name_and_url(
+                                str(author_id), url_babelio=author_url
+                            )
+                            logger.info(f"👤 URL auteur mise à jour: {author_url}")
 
                     # Issue #85: Passer babelio_publisher en metadata pour écraser editeur dans le cache
                     # C'est la source la plus fiable (enrichissement Babelio)
@@ -3239,6 +3285,111 @@ async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
         return JSONResponse(
             status_code=500, content={"status": "error", "message": str(e)}
         )
+
+
+# ── Babelio control endpoints (Issue #254) ───────────────────────────────────
+
+
+@app.get("/api/babelio/status")
+async def get_babelio_status() -> dict[str, Any]:
+    """Retourne l'état du service Babelio: cache, requêtes récentes, dernier statut."""
+    recent = babelio_service.get_recent_requests()
+    cache_entries = 0
+    cache_service = getattr(babelio_service, "cache_service", None)
+    if cache_service is not None:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            cache_entries = len(cache_service.list_entries())
+
+    # Determine overall status from most recent non-cache request
+    overall = "unknown"
+    last_real = next((r for r in recent if not r.get("cache_hit")), None)
+    if last_real is None:
+        overall = "ok"
+    elif last_real["status_code"] == 403:
+        overall = "blocked_403"
+    elif last_real["status_code"] == 200:
+        # Check if captcha (status 200 but we detected a captcha challenge)
+        overall = "captcha" if last_real.get("captcha") else "ok"
+    else:
+        overall = "degraded"
+
+    cache_ttl_hours = getattr(cache_service, "ttl_hours", None)
+
+    return {
+        "overall": overall,
+        "cookie_active": bool(babelio_service.get_cookie()),
+        "circuit_open": bool(getattr(babelio_service, "_circuit_open", False)),
+        "cache_entries": cache_entries,
+        "recent_requests_count": len(recent),
+        "min_interval_sec": getattr(babelio_service, "min_interval", 2.0),
+        "cache_ttl_hours": cache_ttl_hours,
+    }
+
+
+@app.post("/api/babelio/cookie")
+async def set_babelio_cookie(request: Request) -> dict[str, Any]:
+    """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
+    body = await request.json()
+    cookie = body.get("cookie") or None
+    babelio_service.set_cookie(cookie)
+    return {"ok": True, "cookie_active": bool(cookie)}
+
+
+@app.delete("/api/babelio/cookie")
+async def clear_babelio_cookie() -> dict[str, Any]:
+    """Efface le cookie Babelio stocké côté serveur."""
+    babelio_service.set_cookie(None)
+    return {"ok": True, "cookie_active": False}
+
+
+@app.get("/api/babelio/cache/entries")
+async def get_babelio_cache_entries() -> list[dict[str, Any]]:
+    """Retourne la liste des entrées du cache Babelio (triées par date, la plus récente d'abord)."""
+    cache_service = getattr(babelio_service, "cache_service", None)
+    if cache_service is None:
+        return []
+    try:
+        return list(cache_service.list_entries())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/babelio/cache/{entry_id}")
+async def delete_babelio_cache_entry(entry_id: str) -> dict[str, Any]:
+    """Invalide une entrée spécifique du cache Babelio par son identifiant."""
+    cache_service = getattr(babelio_service, "cache_service", None)
+    if cache_service is None:
+        raise HTTPException(status_code=503, detail="Cache service non disponible")
+    deleted = cache_service.invalidate(entry_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=404, detail=f"Entrée cache '{entry_id}' non trouvée"
+        )
+    return {"deleted": True, "entry_id": entry_id}
+
+
+@app.delete("/api/babelio/cache")
+async def delete_all_babelio_cache() -> dict[str, Any]:
+    """Invalide toutes les entrées du cache Babelio."""
+    cache_service = getattr(babelio_service, "cache_service", None)
+    if cache_service is None:
+        raise HTTPException(status_code=503, detail="Cache service non disponible")
+    try:
+        count = cache_service.invalidate_all()
+        return {"deleted_count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/babelio/requests/recent")
+async def get_babelio_recent_requests() -> list[dict[str, Any]]:
+    """Retourne les dernières requêtes Babelio (max 50, les plus récentes en premier)."""
+    return babelio_service.get_recent_requests()
+
+
+# ── End of Babelio control endpoints ──────────────────────────────────────────
 
 
 @app.post("/api/babelio-migration/mark-not-found")

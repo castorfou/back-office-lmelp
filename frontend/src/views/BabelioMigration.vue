@@ -15,40 +15,46 @@
 
       <!-- Cookie Babelio -->
       <div class="cookie-section">
-        <div class="cookie-header">
-          <label>🍪 Cookie Babelio
-            <span class="cookie-status" v-if="babelioCookieStored">✅ configuré</span>
-            <span class="cookie-status missing" v-else>⚠️ non configuré (couvertures limitées)</span>
-          </label>
-          <button class="btn-link" @click="showCookieHelp = !showCookieHelp">
-            {{ showCookieHelp ? 'Masquer' : 'Comment faire ?' }}
-          </button>
-        </div>
-        <div v-if="showCookieHelp" class="cookie-help">
-          <ol>
-            <li>Ouvre <a href="https://www.babelio.com" target="_blank">babelio.com</a> et connecte-toi</li>
-            <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
-            <li>Recharge la page babelio.com, clique sur la 1ère requête</li>
-            <li>Dans <strong>Network > Headers > Request Headers</strong>, copie la valeur du champ <strong>Cookie</strong> (bouton droit, Copy Value)</li>
-            <li>Colle-la ci-dessous</li>
-            <li>💡 Si le captcha revient pendant la migration, répète ces étapes</li>
-          </ol>
-        </div>
-        <textarea
-          v-model="babelioCookieInput"
-          placeholder="Colle ici la valeur du header Cookie copié depuis les DevTools de babelio.com..."
-          class="cookie-input"
-          rows="2"
-        ></textarea>
-        <div class="cookie-actions">
-          <button @click="saveBabelioCookie" class="btn-save-cookie" :disabled="!babelioCookieInput.trim()">
-            Enregistrer
-          </button>
-          <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
-            Effacer
-          </button>
-          <span v-if="babelioCookieJustSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
-        </div>
+        <details>
+          <summary class="babelio-cookie-summary">
+            🔑 Cookie Babelio
+            <span v-if="serverCookieActive" class="cookie-status cookie-ok">✓ Actif côté serveur</span>
+            <span v-else-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
+            <span v-else-if="babelioCookieLikelyExpired" class="cookie-status cookie-expired">⏰ probablement expiré — actualisez-le</span>
+            <span v-else class="cookie-status cookie-ok">✓ Configuré</span>
+          </summary>
+          <div class="babelio-cookie-form">
+            <p class="cookie-help">
+              Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
+              Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
+            </p>
+            <details class="cookie-instructions">
+              <summary>Comment obtenir le cookie ?</summary>
+              <ol>
+                <li>Ouvre <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a> et connecte-toi</li>
+                <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
+                <li>Recharge la page, clique sur une requête babelio.com</li>
+                <li>Dans <strong>En-têtes de requête</strong>, copie la valeur du champ <strong>Cookie</strong></li>
+                <li>Colle-la ci-dessous et clique Enregistrer</li>
+              </ol>
+            </details>
+            <textarea
+              v-model="babelioCookieInput"
+              class="cookie-input"
+              placeholder="jstsToken=...; p=FR; disclaimer=1; ..."
+              rows="2"
+            ></textarea>
+            <div class="cookie-actions">
+              <button @click="saveBabelioCookie" class="btn-save-cookie" :disabled="!babelioCookieInput.trim()">
+                Enregistrer
+              </button>
+              <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
+                Effacer
+              </button>
+              <span v-if="babelioCookieJustSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
+            </div>
+          </div>
+        </details>
       </div>
 
       <!-- Statistiques Livres -->
@@ -600,10 +606,12 @@ export default {
       stopCoverMigration_flag: false,
       coverMismatchCases: [],
       coverUrlInputs: {}, // { [livre_id]: url_string }
-      babelioCookies: sessionStorage.getItem('babelio_cookies') || '',
-      babelioCookieInput: sessionStorage.getItem('babelio_cookies') || '',
-      babelioCookieStored: !!sessionStorage.getItem('babelio_cookies'),
+      babelioCookies: localStorage.getItem('babelio_cookies') || '',
+      babelioCookieInput: localStorage.getItem('babelio_cookies') || '',
+      babelioCookieStored: !!localStorage.getItem('babelio_cookies'),
       babelioCookieJustSaved: false,
+      babelioCookieSavedAt: null,
+      serverCookieActive: false,
       babelioCookieSavedConfirmationTimeout: null,
       showCookieHelp: false,
       // Popup pour entrer URL Babelio
@@ -615,6 +623,13 @@ export default {
     };
   },
   mounted() {
+    // Synchroniser le cookie localStorage vers le serveur (survit aux redémarrages backend)
+    const storedCookie = localStorage.getItem('babelio_cookies');
+    if (storedCookie) {
+      axios.post('/api/babelio/cookie', { cookie: storedCookie })
+        .then(() => { this.serverCookieActive = true; })
+        .catch(() => {});
+    }
     this.loadData();
     this.checkMigrationProgress();
   },
@@ -631,6 +646,10 @@ export default {
     }
   },
   computed: {
+    babelioCookieLikelyExpired() {
+      if (!this.babelioCookieStored || !this.babelioCookieSavedAt) return false;
+      return (Date.now() - this.babelioCookieSavedAt) > 5 * 60 * 1000;
+    },
     totalItemsToProcess() {
       if (!this.status) return 0;
       return (this.status.pending_count || 0) + (this.status.authors_without_url_babelio || 0);
@@ -1101,9 +1120,15 @@ export default {
     saveBabelioCookie() {
       const val = this.babelioCookieInput.trim();
       if (val) {
-        sessionStorage.setItem('babelio_cookies', val);
+        localStorage.setItem('babelio_cookies', val);
         this.babelioCookies = val;
         this.babelioCookieStored = true;
+        this.babelioCookieSavedAt = Date.now();
+
+        // Synchroniser côté serveur (service centralisé)
+        axios.post('/api/babelio/cookie', { cookie: val })
+          .then(() => { this.serverCookieActive = true; })
+          .catch(() => {});
 
         this.babelioCookieJustSaved = true;
         if (this.babelioCookieSavedConfirmationTimeout) {
@@ -1116,10 +1141,13 @@ export default {
     },
 
     clearBabelioCookie() {
-      sessionStorage.removeItem('babelio_cookies');
+      localStorage.removeItem('babelio_cookies');
       this.babelioCookies = '';
       this.babelioCookieInput = '';
       this.babelioCookieStored = false;
+      this.serverCookieActive = false;
+      // Synchroniser côté serveur
+      axios.delete('/api/babelio/cookie').catch(() => {});
     },
 
     async _extractCoverUrlFromBabelioPage(babelioUrl, expectedTitle = null) {
@@ -1417,21 +1445,18 @@ h2 {
 }
 
 .cookie-help {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 6px;
-  padding: 10px 14px;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
 }
 
-.cookie-help ol {
-  margin: 0;
-  padding-left: 20px;
-}
+.cookie-instructions { margin-bottom: 1rem; font-size: 0.9rem; }
+.cookie-instructions ol { margin: 0.5rem 0 0 1.5rem; padding-left: 0; }
+.cookie-instructions li { margin-bottom: 0.25rem; }
 
-.cookie-help li {
-  margin: 4px 0;
+.babelio-cookie-form {
+  padding: 0.75rem 1rem;
+  background: white;
 }
 
 .cookie-input {

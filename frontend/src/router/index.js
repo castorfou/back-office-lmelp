@@ -20,6 +20,7 @@ import Palmares from '../views/Palmares.vue';
 import CalibreCorrections from '../views/CalibreCorrections.vue';
 import OnKindle from '../views/OnKindle.vue';
 import Recommendations from '../views/Recommendations.vue';
+import BabelioControl from '../views/BabelioControl.vue';
 
 const routes = [
   {
@@ -188,6 +189,14 @@ const routes = [
     component: () => import('../views/Emissions.vue'),
     meta: {
       title: 'Émissions - Back-office LMELP'
+    }
+  },
+  {
+    path: '/babelio-control',
+    name: 'BabelioControl',
+    component: BabelioControl,
+    meta: {
+      title: 'Contrôle Babelio - Back-office LMELP'
     }
   },
   {

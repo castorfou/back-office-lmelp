@@ -27,6 +27,8 @@ import asyncio
 import json
 import logging
 import os
+import time
+from collections import deque
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -42,6 +44,15 @@ class BabelioBlockedError(Exception):
 
     Distingue un blocage anti-bot d'un "vraiment pas trouvé sur Babelio" (Issue #251).
     Le cookie jstsToken (TTL ~5 min) est probablement manquant ou expiré.
+    """
+
+
+class BabelioCaptchaError(Exception):
+    """Levée quand Babelio affiche une page captcha (anti-bot challenge).
+
+    Distinct de BabelioBlockedError (HTTP 403): ici le serveur retourne HTTP 200
+    mais le contenu HTML contient un captcha. L'utilisateur doit résoudre le captcha
+    manuellement dans son navigateur pour obtenir un cookie frais.
     """
 
 
@@ -69,16 +80,23 @@ class BabelioService:
         self.search_endpoint = "/aj_recherche.php"
         self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
-        self.last_request_time = 0  # Timestamp de la dernière requête
+        self.last_request_time = 0.0  # Timestamp de la dernière requête
         # Délai minimum entre requêtes (Issue #124 + #245).
-        # S'applique maintenant à TOUTES les requêtes HTTP vers Babelio (gateway unifié).
-        # Configurable via BABELIO_MIN_INTERVAL (défaut: 2.0s).
-        # Note: 2.0s car le rate limiting couvre désormais le scraping de pages en plus de
-        # l'API AJAX — espacer 4 GETs consécutifs de 2s chacun = ~8s par extract_from_url.
-        self.min_interval = float(os.getenv("BABELIO_MIN_INTERVAL", "2.0"))
-        self._cache = {}  # Cache simple terme -> résultats (limité en taille)
+        # BABELIO_FAIR_SEC prend la priorité sur BABELIO_MIN_INTERVAL (legacy).
+        # S'applique à TOUTES les requêtes HTTP vers Babelio (gateway unifié).
+        fair_sec = os.getenv("BABELIO_FAIR_SEC")
+        if fair_sec is not None:
+            self.min_interval = float(fair_sec)
+        else:
+            self.min_interval = float(os.getenv("BABELIO_MIN_INTERVAL", "2.0"))
         # Optional disk-backed cache service injected at app startup
         self.cache_service: Any | None = None
+        # Circular buffer of recent requests (max 50), newest-first on read
+        self._recent_requests: deque[dict[str, Any]] = deque(maxlen=50)
+        # Cookie stocké côté serveur (jstsToken) — posé via set_cookie(), utilisé partout
+        self._stored_cookie: str | None = None
+        # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
+        self._circuit_open: bool = False
         # Contrôle des logs temporaires pour le cache disque (utile en dev)
         # Si la variable d'environnement BABELIO_CACHE_LOG est '1' ou 'true',
         # on exposera des logs plus verbeux (info) pour hit/miss et écriture.
@@ -112,6 +130,49 @@ class BabelioService:
             except Exception:
                 # Don't fail startup if logging setup has issues
                 pass
+
+    # ── recent-requests buffer ─────────────────────────────────────────────
+
+    def _log_request(
+        self,
+        req_type: str,
+        term_or_url: str,
+        status_code: int,
+        cache_hit: bool,
+        duration_ms: float,
+    ) -> None:
+        """Append an entry to the recent-requests circular buffer (maxlen=50)."""
+        self._recent_requests.append(
+            {
+                "type": req_type,
+                "term_or_url": term_or_url,
+                "status_code": status_code,
+                "cache_hit": cache_hit,
+                "duration_ms": round(duration_ms, 1),
+                "timestamp": time.time(),
+            }
+        )
+
+    def get_recent_requests(self) -> list[dict[str, Any]]:
+        """Return up to 50 recent Babelio requests, newest first."""
+        return list(reversed(self._recent_requests))
+
+    # ── Cookie management ─────────────────────────────────────────────────
+
+    def set_cookie(self, cookie: str | None) -> None:
+        """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
+        self._stored_cookie = cookie.strip() if cookie else None
+        if self._stored_cookie:
+            self._circuit_open = False
+            logger.info("🔑 Cookie Babelio mis à jour — circuit breaker réinitialisé")
+        else:
+            logger.info("🔑 Cookie Babelio effacé")
+
+    def get_cookie(self) -> str | None:
+        """Retourne le cookie stocké côté serveur."""
+        return self._stored_cookie
+
+    # ── HTTP session helpers ───────────────────────────────────────────────
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Récupère ou crée la session HTTP avec configuration appropriée."""
@@ -186,6 +247,17 @@ class BabelioService:
             headers["Cookie"] = babelio_cookies
         return headers
 
+    def _is_captcha_page(self, html: str) -> bool:
+        """Return True if the HTML page is a captcha challenge (anti-bot detection)."""
+        lower = html.lower()
+        captcha_markers = (
+            "captcha",
+            "recaptcha",
+            "i am not a robot",
+            "je ne suis pas un robot",
+        )
+        return any(marker in lower for marker in captcha_markers)
+
     async def _fetch_page(
         self, url: str, babelio_cookies: str | None = None
     ) -> str | None:
@@ -203,7 +275,20 @@ class BabelioService:
         Returns:
             HTML de la page (décodé cp1252) ou None si erreur HTTP.
         """
-        import time
+        t0 = time.time()
+
+        if self._circuit_open:
+            raise BabelioBlockedError(
+                "Circuit breaker ouvert (403 précédent) — configurez un cookie"
+            )
+
+        # Cache hit: bypass rate limiter and HTTP request entirely
+        if self.cache_service is not None:
+            cached = self.cache_service.get_cached(url, search_type="page")
+            if cached is not None:
+                html_cached: str = cached.get("data", "")
+                self._log_request("page", url, 200, True, (time.time() - t0) * 1000)
+                return html_cached
 
         async with self.rate_limiter:
             current_time = time.time()
@@ -214,7 +299,8 @@ class BabelioService:
                 await asyncio.sleep(wait_time)
             self.last_request_time = time.time()
 
-            page_headers = self._get_page_headers(babelio_cookies)
+            effective_cookie = self._stored_cookie or babelio_cookies
+            page_headers = self._get_page_headers(effective_cookie)
             timeout = aiohttp.ClientTimeout(total=30, connect=10)
             async with (
                 aiohttp.ClientSession(
@@ -226,15 +312,103 @@ class BabelioService:
                     logger.warning(
                         f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
                     )
+                    self._circuit_open = True
+                    self._log_request(
+                        "page", url, 403, False, (time.time() - t0) * 1000
+                    )
                     raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
                 if response.status != 200:
                     logger.warning(
                         f"Babelio HTTP {response.status} pour scraping page: {url}"
                     )
+                    self._log_request(
+                        "page", url, response.status, False, (time.time() - t0) * 1000
+                    )
                     return None
                 # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
                 # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                return str(await response.text(encoding="cp1252"))
+                html = str(await response.text(encoding="cp1252"))
+                # Detect captcha page (HTTP 200 but challenge content)
+                if self._is_captcha_page(html):
+                    logger.warning(f"Babelio captcha détecté pour: {url}")
+                    self._log_request(
+                        "page", url, 200, False, (time.time() - t0) * 1000
+                    )
+                    raise BabelioCaptchaError(f"Babelio captcha: {url}")
+                if self.cache_service is not None:
+                    self.cache_service.set_cached(url, html, search_type="page")
+                self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
+                return html
+
+    async def _handle_search_response(
+        self,
+        response: Any,
+        term: str,
+        cache_key: str,
+        t0: float,
+    ) -> list[dict[str, Any]]:
+        """Traite la réponse HTTP d'une recherche Babelio (factorisé pour les deux chemins session)."""
+        if self._debug_log_enabled:
+            logger.info(f"🔍 [DEBUG] search: Response status={response.status}")
+
+        if response.status == 200:
+            try:
+                text_content = await response.text(encoding="cp1252")
+                results: list[dict[str, Any]] = json.loads(text_content)
+
+                if self._debug_log_enabled:
+                    logger.info(f"🔍 [DEBUG] search: Parsed {len(results)} result(s)")
+                logger.debug(f"Babelio retourne {len(results)} résultats")
+
+                cache_service = getattr(self, "cache_service", None)
+                if cache_service is not None:
+                    try:
+                        await asyncio.to_thread(
+                            cache_service.set_cached, term, results, "search"
+                        )
+                        await asyncio.to_thread(
+                            cache_service.set_cached, cache_key, results, "search"
+                        )
+                        log_fn = (
+                            logger.info
+                            if getattr(self, "_cache_log_enabled", False)
+                            else logger.debug
+                        )
+                        log_fn(
+                            f"[BabelioCache] WROTE keys=(orig='{term}', norm='{cache_key}') items={len(results)}"
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Impossible d'écrire dans le cache disque (ignored)"
+                        )
+
+                self._log_request("search", term, 200, False, (time.time() - t0) * 1000)
+                return results
+            except json.JSONDecodeError:
+                content_type = response.headers.get("content-type", "unknown")
+                logger.error(f"Babelio réponse non-JSON pour {term}")
+                logger.error(f"Content-Type: {content_type}")
+                self._log_request(
+                    "search", term, response.status, False, (time.time() - t0) * 1000
+                )
+                return []
+        elif response.status == 403:
+            logger.warning(f"Babelio HTTP 403 pour: {term} - cookie requis")
+            self._circuit_open = True
+            self._log_request("search", term, 403, False, (time.time() - t0) * 1000)
+            raise BabelioBlockedError(f"Babelio 403: {term}")
+        elif response.status == 503:
+            logger.warning(
+                f"Babelio HTTP 503 (Service Unavailable) pour: {term} - rate limited"
+            )
+            self._log_request("search", term, 503, False, (time.time() - t0) * 1000)
+            return []
+        else:
+            logger.warning(f"Babelio HTTP {response.status} pour: {term}")
+            self._log_request(
+                "search", term, response.status, False, (time.time() - t0) * 1000
+            )
+            return []
 
     async def search(
         self, term: str, babelio_cookies: str | None = None
@@ -272,6 +446,11 @@ class BabelioService:
         if not term or not term.strip():
             return []
 
+        if self._circuit_open:
+            raise BabelioBlockedError(
+                "Circuit breaker ouvert (403 précédent) — configurez un cookie"
+            )
+
         # Vérifier le cache disque/in-memory d'abord
         cache_key = term.strip().lower()
 
@@ -280,7 +459,9 @@ class BabelioService:
         if cache_service is not None:
             try:
                 # disk IO can block; run in threadpool to avoid blocking event loop
-                wrapper = await asyncio.to_thread(cache_service.get_cached, term)
+                wrapper = await asyncio.to_thread(
+                    cache_service.get_cached, term, "search"
+                )
                 # choose log function based on env control
                 log_fn = (
                     logger.info
@@ -300,13 +481,16 @@ class BabelioService:
                         logger.info(
                             f"🔍 [DEBUG] search: CACHE HIT (orig) - returning {items} cached result(s)"
                         )
+                    self._log_request("search", term, 200, True, 0)
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
                     return list(wrapper or [])
 
                 # try lowercased key too for compatibility
-                wrapper = await asyncio.to_thread(cache_service.get_cached, cache_key)
+                wrapper = await asyncio.to_thread(
+                    cache_service.get_cached, cache_key, "search"
+                )
                 if wrapper is not None:
                     items = None
                     if isinstance(wrapper, dict):
@@ -318,6 +502,7 @@ class BabelioService:
                         logger.info(
                             f"🔍 [DEBUG] search: CACHE HIT (norm) - returning {items} cached result(s)"
                         )
+                    self._log_request("search", term, 200, True, 0)
                     # Ensure we always return a list (function annotated -> list[dict])
                     if isinstance(wrapper, dict):
                         return list(wrapper.get("data") or [])
@@ -331,16 +516,9 @@ class BabelioService:
                     "Erreur lors de l'accès au cache disque; fallback réseau"
                 )
 
-        # Backwards-compatible in-memory cache
-        if cache_key in self._cache:
-            logger.debug(f"Cache mémoire hit pour: {term}")
-            return self._cache[cache_key]  # type: ignore[no-any-return]
-
         # Respect du rate limiting avec délai obligatoire
         async with self.rate_limiter:
             # Calculer le temps d'attente nécessaire
-            import time
-
             current_time = time.time()
             time_since_last = current_time - self.last_request_time
 
@@ -356,110 +534,58 @@ class BabelioService:
             # Format JSON exact découvert via DevTools
             payload = {"term": term.strip(), "isMobile": False}
 
-            # Injecter les cookies de session navigateur si fournis (Issue #247)
-            # Le jstsToken Babelio est nécessaire pour éviter le blocage anti-bot.
-            extra_headers: dict[str, str] = {}
-            if babelio_cookies:
-                extra_headers["Cookie"] = babelio_cookies
+            # Utiliser le cookie stocké côté serveur en priorité (Issue #254),
+            # sinon le cookie transmis par le frontend (rétro-compat).
+            effective_cookie = self._stored_cookie or babelio_cookies
+            t0 = time.time()
 
             try:
                 logger.debug(f"Recherche Babelio pour: {term}")
                 if self._debug_log_enabled:
                     logger.info(f"🔍 [DEBUG] search: POST {url} payload={payload}")
 
-                async with session.post(
-                    url, json=payload, headers=extra_headers or None
-                ) as response:
-                    if self._debug_log_enabled:
-                        logger.info(
-                            f"🔍 [DEBUG] search: Response status={response.status}"
+                # Quand un cookie est disponible, créer une session temporaire sans
+                # cookie jar interne — aiohttp ignore le header Cookie manuel si la
+                # session a déjà des cookies configurés dans son jar.
+                if effective_cookie:
+                    search_headers = {
+                        **self._get_default_headers(),
+                        "Cookie": effective_cookie,
+                    }
+                    req_timeout = aiohttp.ClientTimeout(total=30, connect=10)
+                    async with (
+                        aiohttp.ClientSession(
+                            headers=search_headers, timeout=req_timeout
+                        ) as tmp_session,
+                        tmp_session.post(url, json=payload) as response,
+                    ):
+                        return await self._handle_search_response(
+                            response, term, cache_key, t0
                         )
-
-                    if response.status == 200:
-                        try:
-                            # Babelio retourne du JSON valide mais avec le mauvais Content-Type
-                            # On récupère le texte brut puis on parse le JSON manuellement
-                            # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                            # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                            text_content = await response.text(encoding="cp1252")
-                            results: list[dict[str, Any]] = json.loads(text_content)
-
-                            if self._debug_log_enabled:
-                                logger.info(
-                                    f"🔍 [DEBUG] search: Parsed {len(results)} result(s)"
-                                )
-                            logger.debug(f"Babelio retourne {len(results)} résultats")
-
-                            # Mettre en cache mémoire (limiter la taille du cache)
-                            if len(self._cache) < 100:  # Limite à 100 entrées
-                                self._cache[cache_key] = results
-
-                            # Écrire dans le cache disque si disponible
-                            cache_service = getattr(self, "cache_service", None)
-                            if cache_service is not None:
-                                try:
-                                    # store both original term and normalized key for robustness
-                                    # write cache in threadpool to avoid blocking event loop
-                                    await asyncio.to_thread(
-                                        cache_service.set_cached, term, results
-                                    )
-                                    await asyncio.to_thread(
-                                        cache_service.set_cached, cache_key, results
-                                    )
-                                    # log write with same verbosity control
-                                    log_fn = (
-                                        logger.info
-                                        if getattr(self, "_cache_log_enabled", False)
-                                        else logger.debug
-                                    )
-                                    log_fn(
-                                        f"[BabelioCache] WROTE keys=(orig='{term}', norm='{cache_key}') items={len(results)}"
-                                    )
-                                except Exception:
-                                    logger.exception(
-                                        "Impossible d'écrire dans le cache disque (ignored)"
-                                    )
-
-                            return results
-                        except json.JSONDecodeError:
-                            # Si ce n'est vraiment pas du JSON, log pour debugging
-                            content_type = response.headers.get(
-                                "content-type", "unknown"
-                            )
-                            logger.error(f"Babelio réponse non-JSON pour {term}")
-                            logger.error(f"Content-Type: {content_type}")
-                            logger.error(f"Début: {text_content[:200]}...")
-                            return []
-                    elif response.status == 403:
-                        logger.warning(f"Babelio HTTP 403 pour: {term} - cookie requis")
-                        raise BabelioBlockedError(f"Babelio 403: {term}")
-                    elif response.status == 503:
-                        logger.warning(
-                            f"Babelio HTTP 503 (Service Unavailable) pour: {term} - rate limited"
+                else:
+                    async with session.post(url, json=payload) as response:
+                        return await self._handle_search_response(
+                            response, term, cache_key, t0
                         )
-                        return []
-                    else:
-                        logger.warning(f"Babelio HTTP {response.status} pour: {term}")
-                        return []
 
             except BabelioBlockedError:
                 # Propager pour que verify_author/verify_book signalent le blocage
                 raise
             except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
-                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 raise TimeoutError(
                     f"Timeout lors de la recherche Babelio: {term}"
                 ) from e
             except aiohttp.ClientError as e:
                 logger.error(f"Erreur réseau Babelio pour {term}: {e}")
-                # Propager l'erreur pour que l'appelant sache qu'il y a eu un problème réseau
+                self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 raise aiohttp.ClientError(
                     f"Erreur réseau lors de la recherche Babelio: {term}"
                 ) from e
             except Exception as e:
                 logger.error(f"Erreur inattendue Babelio pour {term}: {e}")
-                # Pour les autres erreurs, on retourne [] pour compatibilité
+                self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 return []
 
     async def verify_author(

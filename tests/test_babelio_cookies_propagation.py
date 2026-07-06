@@ -439,6 +439,10 @@ async def test_search_accepts_babelio_cookies_parameter(service):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(
+    reason="Obsolète: search() utilise désormais une session temporaire aiohttp.ClientSession "
+    "directement (pas via _get_session) quand un cookie est fourni — voir TestBabelioServerSideCookie"
+)
 async def test_search_injects_cookies_into_session_headers(service):
     """search() avec babelio_cookies doit injecter Cookie dans les headers (Issue #247)."""
     captured_headers: dict = {}
