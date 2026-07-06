@@ -16,8 +16,8 @@ def test_babelio_service_uses_disk_cache(tmp_path):
 
     cache = BabelioCacheService(cache_dir=tmp_path, ttl_hours=24)
     # write cache for both raw term and lowercased key to be resilient
-    cache.set_cached(term, expected)
-    cache.set_cached(term.strip().lower(), expected)
+    cache.set_cached(term, expected, search_type="search")
+    cache.set_cached(term.strip().lower(), expected, search_type="search")
 
     service = BabelioService()
 

@@ -48,6 +48,36 @@ class Settings:
         """
         return os.environ.get("CALIBRE_VIRTUAL_LIBRARY_TAG") or None
 
+    # Babelio (Issue #254)
+    @property
+    def babelio_fair_sec(self) -> float:
+        """Délai minimum entre requêtes Babelio (BABELIO_FAIR_SEC, défaut 2.0s).
+
+        Prend la priorité sur BABELIO_MIN_INTERVAL (legacy).
+        Configurable pour respecter le fair-use de Babelio.
+        """
+        fair_sec = os.environ.get("BABELIO_FAIR_SEC")
+        if fair_sec is not None:
+            return float(fair_sec)
+        return float(os.environ.get("BABELIO_MIN_INTERVAL", "2.0"))
+
+    @property
+    def babelio_cache_day(self) -> float:
+        """Durée de validité du cache Babelio en jours (BABELIO_CACHE_DAY, défaut 1.0)."""
+        return float(os.environ.get("BABELIO_CACHE_DAY", "1.0"))
+
+    @property
+    def babelio_cache_dir(self) -> str:
+        """Répertoire du cache Babelio (BABELIO_CACHE_DIR).
+
+        Par défaut: /cache/babelio (répertoire externe monté dans Docker).
+        Fallback: data/processed/babelio_cache (dev local).
+        """
+        return os.environ.get(
+            "BABELIO_CACHE_DIR",
+            os.path.join(os.getcwd(), "data", "processed", "babelio_cache"),
+        )
+
     # Anna's Archive (Issue #188)
     @property
     def annas_archive_url(self) -> str | None:

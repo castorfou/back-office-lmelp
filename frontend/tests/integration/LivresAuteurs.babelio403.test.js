@@ -183,7 +183,7 @@ describe('LivresAuteurs - Détection blocage Babelio 403 (Issue #251)', () => {
     });
 
     it('ne marque pas un cookie pré-existant (session précédente) comme expiré sans date connue', async () => {
-      sessionStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
+      localStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
       await mountPage();
 
       // Pas de babelioCookieSavedAt connu pour ce cookie restauré depuis une session précédente

@@ -35,12 +35,21 @@ services:
       # Si CALIBRE_HOST_PATH est défini dans .env, Calibre sera disponible à /calibre
       CALIBRE_VIRTUAL_LIBRARY_TAG: ${CALIBRE_VIRTUAL_LIBRARY_TAG:-}
 
+      # Babelio cache (Issue #254)
+      # Répertoire externe pour persister le cache Babelio entre les redémarrages
+      BABELIO_CACHE_DIR: /cache/babelio
+      BABELIO_FAIR_SEC: ${BABELIO_FAIR_SEC:-2.0}
+      BABELIO_CACHE_DAY: ${BABELIO_CACHE_DAY:-1.0}
+
     # Volumes
     # Monter la bibliothèque Calibre si CALIBRE_HOST_PATH est défini
     # Format : <chemin-hôte>:<chemin-conteneur>:ro
     # Exemple : /volume1/books/Calibre Library:/calibre:ro
     volumes:
       - ${CALIBRE_HOST_PATH:-/dev/null}:/calibre:ro
+      # Cache Babelio persistant (Issue #254)
+      # Exemple .env: BABELIO_CACHE_HOST_PATH=/volume1/data/lmelp/cache
+      - ${BABELIO_CACHE_HOST_PATH:-/tmp/lmelp-cache}:/cache
 
     # Note: Pas de depends_on car MongoDB est externe
     # Note: Pas de network personnalisé si MongoDB est sur bridge par défaut

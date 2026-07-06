@@ -24,19 +24,21 @@ describe('BabelioMigration - Boutons Enregistrer/Effacer cookie (Issue #251)', (
 
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   afterEach(() => {
     if (wrapper) {
       wrapper.unmount();
     }
-    sessionStorage.clear();
+    localStorage.clear();
     vi.useRealTimers();
   });
 
   function mountComponent() {
     axios.get.mockResolvedValue({ data: {} });
+    axios.post.mockResolvedValue({ data: {} });
+    axios.delete.mockResolvedValue({ data: {} });
     return mount(BabelioMigration, {
       global: {
         stubs: { 'router-link': RouterLinkStub },
@@ -52,11 +54,11 @@ describe('BabelioMigration - Boutons Enregistrer/Effacer cookie (Issue #251)', (
     wrapper.vm.babelioCookieInput = 'jstsToken=abc123; p=FR; disclaimer=1';
     await wrapper.vm.$nextTick();
 
-    expect(sessionStorage.getItem('babelio_cookies')).toBeNull();
+    expect(localStorage.getItem('babelio_cookies')).toBeNull();
     expect(wrapper.vm.babelioCookies).toBe('');
   });
 
-  it('enregistre le cookie dans sessionStorage et babelioCookies au clic sur Enregistrer', async () => {
+  it('enregistre le cookie dans localStorage et babelioCookies au clic sur Enregistrer', async () => {
     wrapper = mountComponent();
     await wrapper.vm.$nextTick();
 
@@ -64,7 +66,7 @@ describe('BabelioMigration - Boutons Enregistrer/Effacer cookie (Issue #251)', (
     wrapper.vm.saveBabelioCookie();
     await wrapper.vm.$nextTick();
 
-    expect(sessionStorage.getItem('babelio_cookies')).toBe('jstsToken=abc123; p=FR; disclaimer=1');
+    expect(localStorage.getItem('babelio_cookies')).toBe('jstsToken=abc123; p=FR; disclaimer=1');
     expect(wrapper.vm.babelioCookies).toBe('jstsToken=abc123; p=FR; disclaimer=1');
     expect(wrapper.vm.babelioCookieStored).toBe(true);
   });
@@ -88,7 +90,7 @@ describe('BabelioMigration - Boutons Enregistrer/Effacer cookie (Issue #251)', (
   });
 
   it('efface le cookie au clic sur Effacer', async () => {
-    sessionStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
+    localStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
     wrapper = mountComponent();
     await wrapper.vm.$nextTick();
 
@@ -97,7 +99,7 @@ describe('BabelioMigration - Boutons Enregistrer/Effacer cookie (Issue #251)', (
     wrapper.vm.clearBabelioCookie();
     await wrapper.vm.$nextTick();
 
-    expect(sessionStorage.getItem('babelio_cookies')).toBeNull();
+    expect(localStorage.getItem('babelio_cookies')).toBeNull();
     expect(wrapper.vm.babelioCookies).toBe('');
     expect(wrapper.vm.babelioCookieStored).toBe(false);
   });

@@ -345,6 +345,25 @@
           </div>
         </div>
       </section>
+
+      <!-- Section Contrôle Babelio -->
+      <section class="functions-section">
+        <h2>Contrôle Babelio</h2>
+        <div class="functions-grid">
+          <div
+            class="function-card clickable"
+            data-testid="function-babelio-control"
+            @click="navigateToBabelioControl"
+          >
+            <div class="function-icon">
+              <img :src="babelioIcon" alt="Babelio" class="function-icon-img" />
+            </div>
+            <h3>Contrôle Babelio</h3>
+            <p>Statut du service, gestion du cookie, cache et journal des requêtes</p>
+            <div class="function-arrow">→</div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer version (Issue #205) -->
@@ -636,6 +655,10 @@ export default {
 
     navigateToBabelioMigration() {
       this.$router.push('/babelio-migration');
+    },
+
+    navigateToBabelioControl() {
+      this.$router.push('/babelio-control');
     },
 
     navigateToBabelioCovers() {
