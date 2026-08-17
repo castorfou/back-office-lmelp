@@ -61,6 +61,53 @@ class TestGetAvisByEmission:
         assert data["avis"][0]["note"] == 9
         assert data["avis"][0]["livre_titre_extrait"] == "Mon Livre"
 
+    def test_get_avis_resolves_critique_via_variante_when_oid_missing(self):
+        """Test qu'un critique_oid absent est retrouvé à la volée via variante.
+
+        Issue #256: si un avis a critique_oid=None mais que critique_nom_extrait
+        correspond à une variante d'un critique existant (ajoutée après la
+        sauvegarde de l'avis), la réponse doit enrichir critique_oid/critique_nom
+        avec le match dynamique, comme le fait déjà la page Identification.
+        """
+        emission_id = str(ObjectId())
+        avis_id = ObjectId()
+        critique_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": avis_id,
+                "emission_oid": emission_id,
+                "livre_oid": None,
+                "critique_oid": None,
+                "commentaire": "Toujours beaucoup aimé",
+                "note": 7,
+                "section": "programme",
+                "livre_titre_extrait": "Mon Livre",
+                "auteur_nom_extrait": "Auteur Test",
+                "editeur_extrait": "Editeur Test",
+                "critique_nom_extrait": "Philippe Tretiak",
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        ]
+        self.mock_mongodb.livres_collection = None
+        self.mock_mongodb.critiques_collection = MagicMock()
+        self.mock_mongodb.critiques_collection.find.return_value = [
+            {
+                "_id": critique_id,
+                "nom": "Philippe Trétiack",
+                "variantes": ["Philippe Tretiak"],
+            }
+        ]
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["avis"][0]["critique_oid"] == str(critique_id)
+        assert data["avis"][0]["critique_nom"] == "Philippe Trétiack"
+
     def test_get_avis_empty_list(self):
         """Test que GET retourne liste vide si pas d'avis."""
         self.mock_mongodb.avis_collection = MagicMock()
@@ -539,6 +586,48 @@ class TestGetAvisByLivre:
         assert len(data["avis"]) == 1
         assert data["avis"][0]["note"] == 10
         assert data["avis"][0]["section"] == "coup_de_coeur"
+
+    def test_get_avis_by_livre_resolves_critique_via_variante_when_oid_missing(self):
+        """Test qu'un critique_oid absent est retrouvé à la volée via variante.
+
+        Issue #256: même correctif que pour GET /api/avis/by-emission.
+        """
+        livre_id = str(ObjectId())
+        emission_id = ObjectId()
+        critique_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = MagicMock()
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.critiques_collection.find.return_value = [
+            {
+                "_id": critique_id,
+                "nom": "Philippe Trétiack",
+                "variantes": ["Philippe Tretiak"],
+            }
+        ]
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": emission_id,
+            "date": "2025-01-01T00:00:00.000Z",
+        }
+        self.mock_mongodb.get_avis_by_livre.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": str(emission_id),
+                "critique_oid": None,
+                "critique_nom_extrait": "Philippe Tretiak",
+                "commentaire": "Toujours beaucoup aimé",
+                "note": 7,
+                "section": "programme",
+            }
+        ]
+
+        response = self.client.get(f"/api/avis/by-livre/{livre_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["avis"][0]["critique_oid"] == str(critique_id)
+        assert data["avis"][0]["critique_nom"] == "Philippe Trétiack"
 
 
 class TestExtractAvisUsesCache:

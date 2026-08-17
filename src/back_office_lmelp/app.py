@@ -4643,6 +4643,29 @@ async def create_emission(request: Request) -> JSONResponse:
 # =============================================================================
 
 
+def _resolve_critique_enrichment(
+    avis: dict[str, Any], existing_critiques: list[dict[str, Any]] | None
+) -> tuple[str | None, str | None]:
+    """Résout critique_oid/critique_nom pour un avis, avec fallback variante.
+
+    Si critique_oid est déjà présent, il est utilisé tel quel (le nom est
+    résolu séparément via critiques_collection.find_one par l'appelant).
+    Sinon, si critique_nom_extrait est renseigné et que la liste des
+    critiques existants est disponible, retente le matching à la volée
+    (Issue #256: reflète les variantes ajoutées après la sauvegarde de l'avis).
+    """
+    critique_oid = avis.get("critique_oid")
+    if critique_oid or not avis.get("critique_nom_extrait") or not existing_critiques:
+        return critique_oid, None
+
+    match = critiques_extraction_service.find_matching_critique(
+        avis["critique_nom_extrait"], existing_critiques
+    )
+    if match:
+        return match["id"], match["nom"]
+    return critique_oid, None
+
+
 @app.get("/api/avis/by-emission/{emission_id}")
 async def get_avis_by_emission(emission_id: str) -> JSONResponse:
     """
@@ -4661,6 +4684,12 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
             )
 
         avis_list = mongodb_service.get_avis_by_emission(emission_id)
+
+        existing_critiques = (
+            list(mongodb_service.critiques_collection.find({}))
+            if mongodb_service.critiques_collection is not None
+            else None
+        )
 
         # Enrichir avec les noms des entités liées
         enriched_avis = []
@@ -4720,6 +4749,13 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 )
                 if critique:
                     enriched["critique_nom"] = critique.get("nom", "")
+            elif not critique_oid:
+                resolved_oid, resolved_nom = _resolve_critique_enrichment(
+                    avis, existing_critiques
+                )
+                if resolved_oid:
+                    enriched["critique_oid"] = resolved_oid
+                    enriched["critique_nom"] = resolved_nom
 
             enriched_avis.append(enriched)
 
@@ -5001,6 +5037,12 @@ async def get_avis_by_livre(livre_id: str) -> JSONResponse:
 
         avis_list = mongodb_service.get_avis_by_livre(livre_id)
 
+        existing_critiques = (
+            list(mongodb_service.critiques_collection.find({}))
+            if mongodb_service.critiques_collection is not None
+            else None
+        )
+
         result = []
         for avis in avis_list:
             enriched: dict[str, str | int | None] = {
@@ -5021,6 +5063,13 @@ async def get_avis_by_livre(livre_id: str) -> JSONResponse:
                 )
                 if critique:
                     enriched["critique_nom"] = critique.get("nom", "")
+            elif not critique_oid:
+                resolved_oid, resolved_nom = _resolve_critique_enrichment(
+                    avis, existing_critiques
+                )
+                if resolved_oid:
+                    enriched["critique_oid"] = resolved_oid
+                    enriched["critique_nom"] = resolved_nom
 
             # Enrich with emission date
             emission_oid = avis.get("emission_oid")
