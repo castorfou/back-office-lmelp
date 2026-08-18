@@ -28,7 +28,7 @@ repos:
 
   # Ruff - Linter et formateur Python moderne
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.8
+    rev: v0.15.9
     hooks:
       # Linting avec ruff (remplace flake8, isort, etc.)
       - id: ruff
@@ -39,7 +39,7 @@ repos:
       # Formatage avec ruff (remplace black)
       - id: ruff-format
         name: ruff (format)
-        types_or: [python, pyi]
+        types_or: [python, pyi, jupyter]
 
   # MyPy - Vérification de types statique
   - repo: https://github.com/pre-commit/mirrors-mypy
