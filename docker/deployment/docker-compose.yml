@@ -41,6 +41,14 @@ services:
       BABELIO_FAIR_SEC: ${BABELIO_FAIR_SEC:-2.0}
       BABELIO_CACHE_DAY: ${BABELIO_CACHE_DAY:-1.0}
 
+      # Propriétaire des fichiers écrits sur le volume de cache (Issue #258)
+      # IMPORTANT : mettre l'UID/GID de VOTRE utilisateur sur l'hôte
+      # (trouvez les vôtres avec `id -u` / `id -g`), pour éviter des
+      # fichiers root:root sur le volume bind-monté. Défaut : 1000
+      # (premier utilisateur non-root sur la plupart des distros Linux).
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+
     # Volumes
     # Monter la bibliothèque Calibre si CALIBRE_HOST_PATH est défini
     # Format : <chemin-hôte>:<chemin-conteneur>:ro

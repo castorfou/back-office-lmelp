@@ -113,6 +113,8 @@ docker pull ghcr.io/castorfou/lmelp-frontend:latest
 | `ENVIRONMENT` | `production` | Environnement d'exécution |
 | `API_HOST` | `0.0.0.0` | Interface réseau à écouter |
 | `API_PORT` | `8000` | Port interne du conteneur |
+| `PUID` | UID de l'utilisateur hôte (défaut `1000`) | Utilisateur non-root utilisé pour les fichiers écrits sur `/cache` |
+| `PGID` | GID de l'utilisateur hôte (défaut `1000`) | Groupe non-root utilisé pour les fichiers écrits sur `/cache` |
 
 ### Frontend
 
@@ -164,6 +166,22 @@ healthcheck:
 
 - **Frontend**: 8080:80 (accès depuis Application Portal)
 - **Backend**: Pas de port exposé (accessible uniquement depuis frontend via réseau interne)
+
+## Utilisateur non-root (backend)
+
+Le conteneur backend démarre en root pour pouvoir remapper dynamiquement un
+utilisateur non-root (`appuser`) vers l'UID/GID de l'hôte (`PUID`/`PGID`),
+puis chowner le volume `/cache` bind-monté, avant de dropper les privilèges
+via `gosu` et lancer l'application. Aucune directive `USER` statique dans le
+`Dockerfile` : le remap se fait entièrement dans
+`docker/build/backend/entrypoint.sh`.
+
+Ce mécanisme permet de réutiliser la même image (publiée une fois sur
+`ghcr.io`) sur des machines ayant des UID différents (ex: `1000` sur un PC
+Linux, `1027` sur un NAS Synology), sans laisser de fichiers `root:root` sur
+le volume de cache. Un simple redémarrage du conteneur corrige
+automatiquement la propriété des fichiers déjà `root:root` d'un déploiement
+antérieur au fix.
 
 ## Sécurité
 
