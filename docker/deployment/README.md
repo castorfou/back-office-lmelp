@@ -60,6 +60,12 @@ MONGODB_URL=mongodb://192.168.1.100:27017/masque_et_la_plume
 FRONTEND_PORT=8080
 ```
 
+**Propriétaire des fichiers sur le volume de cache** (évite des fichiers `root:root`) :
+```env
+PUID=1000  # ← Remplacer par votre UID (ex: 1027 sur NAS) - trouvez le vôtre avec `id -u`
+PGID=1000  # ← Remplacer par votre GID - trouvez le vôtre avec `id -g`
+```
+
 **Vérifier que MongoDB est accessible :**
 ```bash
 # Test de connexion
@@ -236,6 +242,26 @@ docker exec lmelp-backend curl http://mongo:27017
 
 # 4. Vérifier MONGODB_URL
 docker inspect lmelp-backend | grep MONGODB_URL
+```
+
+### Fichiers root:root sur le volume de cache Babelio
+
+Depuis [#258](https://github.com/castorfou/back-office-lmelp/issues/258), le
+conteneur backend tourne sous un utilisateur non-root dont l'UID/GID sont
+configurables via `PUID`/`PGID` dans votre `.env` (défaut : `1000`/`1000` si
+non défini).
+
+**Si vous avez déjà des fichiers `root:root` sur votre volume de cache**
+(créés avant ce fix, ou avec un `PUID`/`PGID` mal configuré) : un simple
+redémarrage du conteneur suffit à corriger leur propriété — le conteneur
+ajuste automatiquement les permissions vers `PUID`/`PGID` à chaque démarrage.
+
+```bash
+# 1. Vérifiez/ajustez PUID et PGID dans votre .env (id -u / id -g)
+# 2. Redémarrez le conteneur
+docker restart lmelp-backend
+# 3. Vérifiez côté hôte que les fichiers appartiennent bien à votre utilisateur
+ls -la /chemin/vers/votre/cache/babelio/
 ```
 
 ### Frontend affiche 502 Bad Gateway
