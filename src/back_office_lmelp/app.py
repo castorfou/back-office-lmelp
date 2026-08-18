@@ -3,7 +3,7 @@
 # CRITIQUE (Issue #171): Charger .env AVANT tous les imports de services
 # Les singletons lisent os.getenv() dans __init__() au moment de l'import
 # Si load_dotenv() n'est pas appelé avant, toutes les variables sont vides
-from dotenv import load_dotenv  # noqa: E402, I001
+from dotenv import load_dotenv  # noqa: I001
 
 load_dotenv()
 
@@ -496,7 +496,7 @@ async def get_episodes() -> list[dict[str, Any]]:
         episodes = [Episode(data).to_summary_dict() for data in episodes_data]
         return episodes
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/episodes/all", response_model=list[dict[str, Any]])
@@ -517,7 +517,7 @@ async def get_all_episodes_including_masked() -> list[dict[str, Any]]:
         episodes = [Episode(data).to_summary_dict() for data in episodes_data]
         return episodes
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/episodes/{episode_id}", response_model=dict[str, Any])
@@ -540,7 +540,7 @@ async def get_episode(episode_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.delete("/api/episodes/{episode_id}", response_model=dict[str, Any])
@@ -574,7 +574,7 @@ async def delete_episode(episode_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.put("/api/episodes/{episode_id}")
@@ -609,7 +609,7 @@ async def update_episode_description(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.put("/api/episodes/{episode_id}/title")
@@ -640,7 +640,7 @@ async def update_episode_title(episode_id: str, request: Request) -> dict[str, s
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/episodes/{episode_id}/fetch-page-url")
@@ -733,7 +733,7 @@ async def fetch_episode_page_url(episode_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.patch("/api/episodes/{episode_id}/masked")
@@ -782,7 +782,7 @@ async def update_episode_masked(episode_id: str, request: Request) -> dict[str, 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/statistics", response_model=dict[str, Any])
@@ -810,7 +810,7 @@ async def get_statistics() -> dict[str, Any]:
             "lastUpdateDate": stats_data["last_update_date"],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # ========== ENDPOINTS CALIBRE ==========
@@ -823,7 +823,7 @@ async def get_calibre_status() -> dict[str, Any]:
         status = calibre_service.get_status()
         return status.model_dump()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/calibre/books")
@@ -842,7 +842,7 @@ async def get_calibre_books(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/calibre/matching", response_model=None)
@@ -914,7 +914,7 @@ async def get_calibre_book(book_id: int) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/calibre/authors")
@@ -926,7 +926,7 @@ async def get_calibre_authors(
         authors = calibre_service.get_authors(limit=limit, offset=offset)
         return [author.model_dump() for author in authors]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/calibre/statistics")
@@ -936,7 +936,7 @@ async def get_calibre_statistics() -> dict[str, Any]:
         stats = calibre_service.get_statistics()
         return stats.model_dump()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/calibre/onkindle", response_model=None)
@@ -959,7 +959,7 @@ async def get_onkindle_books() -> dict[str, Any] | JSONResponse:
         books = calibre_matching_service.get_onkindle_books()
         return {"books": books, "total": len(books)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
@@ -1045,7 +1045,7 @@ async def get_livres_auteurs(
         return formatted_books
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 async def get_livres_from_collections(episode_oid: str) -> list[dict[str, Any]]:
@@ -1214,7 +1214,7 @@ async def get_episodes_with_reviews() -> list[dict[str, Any]]:
         return episodes_with_reviews
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # ========== EMISSIONS ENDPOINTS (Issue #154) ==========
@@ -1431,7 +1431,7 @@ async def auto_convert_episodes_to_emissions() -> dict[str, Any]:
                 created_count += 1
 
             except Exception as e:
-                errors.append(f"Erreur pour avis {avis.get('_id')}: {str(e)}")
+                errors.append(f"Erreur pour avis {avis.get('_id')}: {e!s}")
 
         return {
             "success": True,
@@ -1654,7 +1654,7 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/set-validation-results", response_model=dict[str, Any])
@@ -1848,7 +1848,7 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 def extract_ngrams(text: str, n: int) -> list[str]:
@@ -2033,7 +2033,7 @@ async def fuzzy_search_episode(request: FuzzySearchRequest) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/search", response_model=dict[str, Any])
@@ -2122,7 +2122,7 @@ async def search_text(q: str, limit: int = 10) -> dict[str, Any]:
         return response
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/advanced-search", response_model=dict[str, Any])
@@ -2278,7 +2278,7 @@ async def advanced_search(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/update-fixtures", response_model=dict[str, Any])
@@ -2304,7 +2304,7 @@ async def update_fixtures(request: FixtureUpdateRequest) -> dict[str, Any]:
             "updated_cases": result.updated_cases,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # Nouveaux endpoints pour l'Issue #96 - Pages de visualisation Auteur et Livre
@@ -2353,7 +2353,7 @@ async def get_auteur_detail(auteur_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/livre/{livre_id}", response_model=dict[str, Any])
@@ -2415,7 +2415,7 @@ async def get_livre_detail(livre_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # --- Refresh Babelio endpoints (Issue #189) ---
@@ -2521,7 +2521,7 @@ async def refresh_livre_from_babelio(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur lors du scraping Babelio: {str(e)}",
+            detail=f"Erreur lors du scraping Babelio: {e!s}",
         ) from e
 
     babelio = {
@@ -2740,7 +2740,7 @@ async def get_critique_detail(critique_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # Nouveaux endpoints pour l'Issue #66 - Gestion des collections auteurs/livres
@@ -2761,7 +2761,7 @@ async def get_livres_auteurs_statistics() -> dict[str, Any]:
         stats = stats_service.get_cache_statistics()
         return stats
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/livres-auteurs/auto-process-verified", response_model=dict[str, Any])
@@ -2778,7 +2778,7 @@ async def auto_process_verified_books() -> dict[str, Any]:
         result = collections_management_service.auto_process_verified_books()
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/livres-auteurs/books/{status}", response_model=list[dict[str, Any]])
@@ -2795,7 +2795,7 @@ async def get_books_by_validation_status(status: str) -> list[dict[str, Any]]:
         books = collections_management_service.get_books_by_validation_status(status)
         return books
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/livres-auteurs/validate-suggestion", response_model=dict[str, Any])
@@ -2814,7 +2814,7 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.delete(
@@ -2828,7 +2828,7 @@ async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
         )
         return {"deleted_count": deleted_count, "episode_oid": episode_oid}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # Note: add_manual_book endpoint removed - functionality unified with validate_suggestion
@@ -2848,7 +2848,7 @@ async def get_all_authors() -> list[dict[str, Any]]:
         authors = collections_management_service.get_all_authors()
         return authors
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/books", response_model=list[dict[str, Any]])
@@ -2865,7 +2865,7 @@ async def get_all_books() -> list[dict[str, Any]]:
         books = collections_management_service.get_all_books()
         return books
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/books/duplicates/statistics", response_model=dict[str, Any])
@@ -2876,7 +2876,7 @@ async def get_duplicate_books_statistics() -> dict[str, Any]:
         return stats
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des stats doublons: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/books/duplicates/groups", response_model=list[dict[str, Any]])
@@ -2887,7 +2887,7 @@ async def get_duplicate_books_groups() -> list[dict[str, Any]]:
         return groups
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des groupes doublons: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/books/duplicates/merge", response_model=dict[str, Any])
@@ -2913,7 +2913,7 @@ async def merge_duplicate_books_group(
         raise
     except Exception as e:
         logger.error(f"Erreur lors de la fusion du groupe: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/books/duplicates/merge/batch")
@@ -2938,7 +2938,7 @@ async def merge_duplicate_books_batch(request: MergeBatchRequest) -> Response:
         )
     except Exception as e:
         logger.error(f"Erreur lors du batch merge: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # ========== DUPLICATE AUTHORS ENDPOINTS (Issue #178) ==========
@@ -2952,7 +2952,7 @@ async def get_duplicate_authors_statistics() -> dict[str, Any]:
         return stats
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des stats doublons auteurs: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/authors/duplicates/groups", response_model=list[dict[str, Any]])
@@ -2965,7 +2965,7 @@ async def get_duplicate_authors_groups() -> list[dict[str, Any]]:
         logger.error(
             f"Erreur lors de la récupération des groupes doublons auteurs: {e}"
         )
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.post("/api/authors/duplicates/merge", response_model=dict[str, Any])
@@ -2991,7 +2991,7 @@ async def merge_duplicate_authors_group(
         raise
     except Exception as e:
         logger.error(f"Erreur lors de la fusion du groupe d'auteurs: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.get("/api/stats", response_model=dict[str, Any])
