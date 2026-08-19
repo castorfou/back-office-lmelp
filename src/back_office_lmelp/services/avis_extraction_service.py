@@ -6,6 +6,8 @@ import re
 from difflib import SequenceMatcher
 from typing import Any
 
+from ..utils.text_utils import normalize_for_matching
+
 
 logger = logging.getLogger(__name__)
 
@@ -966,18 +968,22 @@ class AvisExtractionService:
         if not nom_extrait:
             return None
 
-        normalized_nom = self._normalize_for_matching(nom_extrait)
+        # Utilise normalize_for_matching (retire accents/ligatures) plutôt que
+        # self._normalize_for_matching (casse/espaces uniquement) car les noms
+        # extraits par l'IA depuis la transcription peuvent perdre les accents
+        # (Issue #263: "Philippe Tretiak" vs variante stockée "Philippe Trétiak").
+        normalized_nom = normalize_for_matching(nom_extrait)
 
         for critique in critiques:
             # Match sur le nom principal
             critique_nom = critique.get("nom", "")
-            if self._normalize_for_matching(critique_nom) == normalized_nom:
+            if normalize_for_matching(critique_nom) == normalized_nom:
                 return str(critique.get("_id", ""))
 
             # Match sur les variantes
             variantes = critique.get("variantes", [])
             for variante in variantes:
-                if self._normalize_for_matching(variante) == normalized_nom:
+                if normalize_for_matching(variante) == normalized_nom:
                     return str(critique.get("_id", ""))
 
         return None
