@@ -481,6 +481,34 @@ class TestResolveEntities:
 
         assert resolved[0]["critique_oid"] == "critique_av"
 
+    def test_resolve_matches_critique_ignoring_accents(self):
+        """Test que le critique est matché même si l'extrait n'a pas d'accent (Issue #263)."""
+        extracted_avis = [
+            {
+                "emission_oid": "em123",
+                "livre_titre_extrait": "Mon livre",
+                "auteur_nom_extrait": "Auteur",
+                "editeur_extrait": "Editeur",
+                "critique_nom_extrait": "Philippe Tretiak",  # Sans accent (extrait IA)
+                "commentaire": "Super",
+                "note": 8,
+                "section": "programme",
+            }
+        ]
+
+        livres = [{"_id": "livre_1", "titre": "Mon livre", "auteur_id": "a1"}]
+        critiques = [
+            {
+                "_id": "critique_pt",
+                "nom": "Philippe Trétiack",
+                "variantes": ["Philippe Trétiac", "Philippe Trétiak"],
+            }
+        ]
+
+        resolved = self.service.resolve_entities(extracted_avis, livres, critiques)
+
+        assert resolved[0]["critique_oid"] == "critique_pt"
+
     def test_resolve_keeps_null_when_not_found(self):
         """Test que les IDs restent null si entité non trouvée."""
         extracted_avis = [
