@@ -130,9 +130,10 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 
 ## Configuration frontend
 
-| Variable | Description | Valeur par défaut | Exemple |
-|----------|-------------|------------------|---------|
-| `VITE_API_BASE_URL` | URL de base de l'API pour le frontend | Auto-détection | `http://localhost:8000` |
+Le frontend n'utilise aucune variable d'environnement pour sa configuration réseau :
+
+- L'URL de l'API backend est toujours **relative** (`/api/...`) : en dev le proxy Vite (`frontend/vite.config.js`) la redirige vers le backend, en production nginx (`docker/build/frontend/nginx.conf`) fait de même.
+- L'URL du front-office lmelp (tuile "Dernière mise à jour" du Dashboard) est dérivée dynamiquement, côté client, à partir de `window.location.hostname` — voir `frontend/src/utils/lmelpFrontOfficeUrl.js`.
 
 ## Exemple de fichier `.env`
 
