@@ -382,6 +382,7 @@ import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
 import babelioSymbolLiaison from '../assets/babelio-symbol-liaison.svg';
 import calibreIcon from '../assets/calibre_logo.png';
+import { getLmelpFrontOfficeUrl } from '../utils/lmelpFrontOfficeUrl.js';
 
 export default {
   name: 'Dashboard',
@@ -468,13 +469,13 @@ export default {
     },
 
     lmelpFrontOfficeUrl() {
-      // Issue #128: URL vers le front-office lmelp (port 8501)
-      return 'http://localhost:8501/';
+      // Issue #265: URL dérivée dynamiquement du hostname d'accès au back-office
+      return getLmelpFrontOfficeUrl(window.location.hostname);
     },
 
     lmelpAvisCritiquesUrl() {
-      // Issue #128: URL vers la page avis critiques du front-office
-      return 'http://localhost:8501/avis_critiques';
+      // Issue #265: URL dérivée dynamiquement du hostname d'accès au back-office
+      return getLmelpFrontOfficeUrl(window.location.hostname, 'avis_critiques');
     },
 
     babelioCompletionPercentage() {
