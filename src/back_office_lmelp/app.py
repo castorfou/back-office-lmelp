@@ -76,6 +76,7 @@ from .services.stats_service import stats_service
 from .utils.build_info import get_build_info, get_changelog
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
+from .utils.text_utils import normalize_for_matching
 
 
 # Build info cached au démarrage (Issue #205)
@@ -2881,9 +2882,14 @@ async def get_duplicate_books_statistics() -> dict[str, Any]:
 
 @app.get("/api/books/duplicates/groups", response_model=list[dict[str, Any]])
 async def get_duplicate_books_groups() -> list[dict[str, Any]]:
-    """Récupère tous les groupes de doublons de livres (Issue #178)."""
+    """Récupère tous les groupes de doublons de livres (Issue #178).
+
+    Utilise la détection insensible à la casse (Issue #267) : elle couvre
+    aussi les doublons à casse identique (cas particulier), donc c'est la
+    seule source nécessaire pour cette page.
+    """
     try:
-        groups = await duplicate_books_service.find_duplicate_groups_by_url()
+        groups = await duplicate_books_service.find_duplicate_groups_by_url_case_insensitive()
         return groups
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des groupes doublons: {e}")
@@ -4768,8 +4774,10 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 # Utiliser match_phase sauvegardé dans l'avis
                 unique_titles[titre] = avis.get("match_phase")
 
-        # Compter les livres Mongo liés à l'émission
+        # Compter les livres Mongo liés à l'émission, et identifier ceux qui ne
+        # sont cités par aucun avis extrait (Issue #267)
         livres_mongo_count = 0
+        livres_mongo_non_cites: list[dict[str, str]] = []
         emission = None
         if mongodb_service.emissions_collection is not None:
             emission = mongodb_service.emissions_collection.find_one(
@@ -4782,9 +4790,63 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                     {"episodes": str(episode_id)}
                 )
 
+                cited_livre_oids = {
+                    avis.get("livre_oid") for avis in avis_list if avis.get("livre_oid")
+                }
+
+                livres_episode = list(
+                    mongodb_service.livres_collection.find(
+                        {"episodes": str(episode_id)}
+                    )
+                )
+
+                # Index des livres cités par (titre normalisé, auteur_id) pour
+                # détecter les doublons probables (Issue #267)
+                cited_by_normalized_key = {
+                    (
+                        normalize_for_matching(livre.get("titre", "")),
+                        str(livre.get("auteur_id", "")),
+                    ): str(livre["_id"])
+                    for livre in livres_episode
+                    if str(livre["_id"]) in cited_livre_oids
+                }
+
+                for livre in livres_episode:
+                    livre_oid = str(livre["_id"])
+                    if livre_oid in cited_livre_oids:
+                        continue
+
+                    auteur_nom = ""
+                    auteur_id = livre.get("auteur_id")
+                    if auteur_id and mongodb_service.auteurs_collection is not None:
+                        auteur = mongodb_service.auteurs_collection.find_one(
+                            {"_id": auteur_id}
+                        )
+                        if auteur:
+                            auteur_nom = auteur.get("nom", "")
+
+                    key = (
+                        normalize_for_matching(livre.get("titre", "")),
+                        str(auteur_id or ""),
+                    )
+                    doublon_probable_de = cited_by_normalized_key.get(key)
+
+                    non_cite_entry: dict[str, str] = {
+                        "livre_oid": livre_oid,
+                        "titre": livre.get("titre", ""),
+                        "auteur": auteur_nom,
+                    }
+                    if doublon_probable_de:
+                        non_cite_entry["doublon_probable_de"] = doublon_probable_de
+                        if livre.get("url_babelio"):
+                            non_cite_entry["url_babelio"] = livre["url_babelio"]
+
+                    livres_mongo_non_cites.append(non_cite_entry)
+
         matching_stats = {
             "livres_summary": len(unique_titles),
             "livres_mongo": livres_mongo_count,
+            "livres_mongo_non_cites": livres_mongo_non_cites,
             "match_phase1": sum(1 for p in unique_titles.values() if p == 1),
             "match_phase2": sum(1 for p in unique_titles.values() if p == 2),
             "match_phase3": sum(1 for p in unique_titles.values() if p == 3),

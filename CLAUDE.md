@@ -682,8 +682,10 @@ await asyncio.sleep(5)  # 5 seconds between Babelio requests
 
 **Quand utiliser chacune** :
 - `create_accent_insensitive_regex()` : recherches textuelles MongoDB, filtrage utilisateur
-- `normalize_for_matching()` : matching titre/auteur, construction de tags Calibre, index de lookup
+- `normalize_for_matching()` : matching titre/auteur, construction de tags Calibre, index de lookup, déduplication de livres à la création (`create_book_if_not_exists`)
 - `normalize_for_cover_title_matching()` : validation titre page Babelio vs titre attendu (cover scraping)
+
+**Piège déduplication MongoDB** : ne jamais dédupliquer par égalité stricte (`find_one({"titre": ..., "auteur_id": ...})`) sur un champ texte scrapé. Un re-scraping Babelio peut renvoyer un titre à la casse légèrement différente (`L'affaire` vs `L'Affaire`), ce qui crée un doublon non détecté — et son URL Babelio hérite de la même casse différente, empêchant aussi la détection ultérieure des doublons par égalité stricte sur `url_babelio`. Toujours comparer via `normalize_for_matching()` après récupération des candidats (`find()`, pas `find_one()`), et grouper les agrégations MongoDB de détection de doublons avec `{"$toLower": "$champ"}` plutôt qu'une égalité brute (Issue #267).
 
 **Normalisations automatiques** (les deux fonctions) :
 - **Accents**: é ↔ e, à ↔ a, ô ↔ o, etc.

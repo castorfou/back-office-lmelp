@@ -1934,10 +1934,23 @@ class MongoDBService:
             if editeur_name and editeur_name.strip():
                 editeur_oid, _ = self.get_or_create_editeur(editeur_name)
 
-            # Vérifier si le livre existe déjà (même titre + même auteur)
-            existing_book = self.livres_collection.find_one(
-                {"titre": book_data["titre"], "auteur_id": book_data["auteur_id"]}
-            )
+            # Vérifier si le livre existe déjà (même titre + même auteur).
+            # Comparaison insensible casse/accents/apostrophes (Issue #267) :
+            # un re-scraping Babelio peut renvoyer un titre à la casse
+            # légèrement différente, ce qui créerait un doublon avec une
+            # égalité stricte.
+            from ..utils.text_utils import normalize_for_matching
+
+            normalized_titre = normalize_for_matching(book_data["titre"])
+            existing_book = None
+            for candidate in self.livres_collection.find(
+                {"auteur_id": book_data["auteur_id"]}
+            ):
+                if normalize_for_matching(candidate.get("titre", "")) == (
+                    normalized_titre
+                ):
+                    existing_book = candidate
+                    break
             if existing_book:
                 book_id = ObjectId(existing_book["_id"])
 

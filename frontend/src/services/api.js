@@ -623,6 +623,20 @@ export const avisService = {
     const response = await api.get('/stats/avis');
     return response.data;
   },
+
+  /**
+   * Fusionne deux livres identifiés comme doublons probables
+   * @param {string} urlBabelio - URL Babelio du groupe (données officielles)
+   * @param {string[]} bookIds - IDs des livres à fusionner
+   * @returns {Promise<Object>} Résultat de la fusion
+   */
+  async mergeDuplicateBooks(urlBabelio, bookIds) {
+    const response = await api.post('/books/duplicates/merge', {
+      url_babelio: urlBabelio,
+      book_ids: bookIds,
+    });
+    return response.data;
+  },
 };
 
 export default api;

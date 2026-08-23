@@ -419,6 +419,65 @@ class TestFindDuplicateGroups:
         # Vérifier que l'aggregation a été appelée
         mock_mongodb_service.livres_collection.aggregate.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_should_find_duplicate_groups_with_case_insensitive_url(
+        self, duplicate_books_service, mock_mongodb_service
+    ):
+        """
+        TDD (Issue #267): Deux livres avec la même url_babelio à la casse
+        près (ex: "Laffaire" vs "LAffaire") doivent être détectés comme
+        doublons, même si find_duplicate_groups_by_url (égalité stricte)
+        ne les détecte pas.
+
+        Cas réel: un re-scraping Babelio a renvoyé une URL légèrement
+        différente en casse pour le même livre, créant un doublon non
+        détecté par le groupement strict.
+        """
+        mock_aggregate_result = [
+            {
+                "_id": "https://www.babelio.com/livres/dicker-laffaire-alaska-sanders/1380950",
+                "count": 2,
+                "book_ids": [
+                    ObjectId("111111111111111111111111"),
+                    ObjectId("222222222222222222222222"),
+                ],
+                "titres": ["L'affaire Alaska Sanders", "L'Affaire Alaska Sanders"],
+                "auteur_ids": [
+                    ObjectId("aaaaaaaaaaaaaaaaaaaaaaaa"),
+                    ObjectId("aaaaaaaaaaaaaaaaaaaaaaaa"),
+                ],
+                "urls": [
+                    "https://www.babelio.com/livres/Dicker-Laffaire-Alaska-Sanders/1380950",
+                    "https://www.babelio.com/livres/Dicker-LAffaire-Alaska-Sanders/1380950",
+                ],
+            },
+        ]
+
+        mock_mongodb_service.livres_collection.aggregate.return_value = (
+            mock_aggregate_result
+        )
+
+        result = await duplicate_books_service.find_duplicate_groups_by_url_case_insensitive()
+
+        assert len(result) == 1
+        assert result[0]["count"] == 2
+        assert len(result[0]["book_ids"]) == 2
+        assert set(result[0]["urls"]) == {
+            "https://www.babelio.com/livres/Dicker-Laffaire-Alaska-Sanders/1380950",
+            "https://www.babelio.com/livres/Dicker-LAffaire-Alaska-Sanders/1380950",
+        }
+        # url_babelio doit être une URL RÉELLE (casse originale), pas la
+        # version normalisée en minuscules (qui peut ne pas exister sur
+        # Babelio et casserait le re-scraping lors de la fusion)
+        assert result[0]["url_babelio"] in result[0]["urls"]
+        assert result[0]["url_babelio"] != mock_aggregate_result[0]["_id"]
+
+        mock_mongodb_service.livres_collection.aggregate.assert_called_once()
+        pipeline = mock_mongodb_service.livres_collection.aggregate.call_args[0][0]
+        # Le pipeline doit grouper sur une version normalisée (toLower) de l'URL
+        group_stage = next(stage for stage in pipeline if "$group" in stage)
+        assert "$toLower" in str(group_stage["$group"]["_id"])
+
 
 class TestGetDuplicateStatistics:
     """
@@ -458,6 +517,28 @@ class TestGetDuplicateStatistics:
             "Should have 3 duplicate books "
             "(2-1=1 from first group + 3-1=2 from second group)"
         )
+
+    @pytest.mark.asyncio
+    async def test_statistics_should_use_case_insensitive_grouping(
+        self, duplicate_books_service, mock_mongodb_service
+    ):
+        """
+        TDD (Issue #267): Les statistiques doivent utiliser le même
+        groupement insensible à la casse que find_duplicate_groups_by_url_case_insensitive,
+        pour rester cohérentes avec la liste de groupes affichée sur la page
+        /duplicate-books (sinon la page affiche "0 groupe" alors que des
+        doublons casse-différente existent).
+        """
+        mock_mongodb_service.livres_collection.aggregate.return_value = [
+            {"_id": "url1", "count": 2},
+        ]
+
+        await duplicate_books_service.get_duplicate_statistics()
+
+        mock_mongodb_service.livres_collection.aggregate.assert_called_once()
+        pipeline = mock_mongodb_service.livres_collection.aggregate.call_args[0][0]
+        group_stage = next(stage for stage in pipeline if "$group" in stage)
+        assert "$toLower" in str(group_stage["$group"]["_id"])
 
 
 class TestMergeShouldUpdateCache:

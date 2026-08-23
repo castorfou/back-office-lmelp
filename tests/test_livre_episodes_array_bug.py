@@ -36,13 +36,15 @@ class TestLivreEpisodesArrayBug:
         new_episode_id = "68ffdb9387a20121a7e1775b"  # Nouvel épisode
 
         # Mock: Le livre existe déjà avec le premier épisode
-        mongodb_service.livres_collection.find_one.return_value = {
-            "_id": existing_livre_id,
-            "titre": "La Collision",
-            "auteur_id": existing_author_id,
-            "editeur": "Gallimard",
-            "episodes": [existing_episode_id],  # Un seul épisode
-        }
+        mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": existing_livre_id,
+                "titre": "La Collision",
+                "auteur_id": existing_author_id,
+                "editeur": "Gallimard",
+                "episodes": [existing_episode_id],  # Un seul épisode
+            }
+        ]
 
         # Mock: Les update réussissent
         mongodb_service.livres_collection.update_one.return_value = MagicMock(
@@ -120,13 +122,15 @@ class TestLivreEpisodesArrayBug:
         episode2_id = "68ffdb9387a20121a7e1775b"
 
         # Mock: Le livre existe déjà avec 2 épisodes
-        mongodb_service.livres_collection.find_one.return_value = {
-            "_id": existing_livre_id,
-            "titre": "La Collision",
-            "auteur_id": existing_author_id,
-            "editeur": "Gallimard",
-            "episodes": [episode1_id, episode2_id],  # 2 épisodes
-        }
+        mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": existing_livre_id,
+                "titre": "La Collision",
+                "auteur_id": existing_author_id,
+                "editeur": "Gallimard",
+                "episodes": [episode1_id, episode2_id],  # 2 épisodes
+            }
+        ]
 
         # Mock: Les update réussissent
         mongodb_service.livres_collection.update_one.return_value = MagicMock(
