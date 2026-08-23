@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-La fonctionnalité de gestion des doublons permet de détecter et fusionner les livres et auteurs en doublon dans la base de données. Un doublon est détecté lorsque plusieurs entrées partagent la même URL Babelio.
+La fonctionnalité de gestion des doublons permet de détecter et fusionner les livres et auteurs en doublon dans la base de données. Un doublon est détecté lorsque plusieurs entrées partagent la même URL Babelio, **en ignorant la casse** (ex: `Dicker-Laffaire-Alaska-Sanders` et `Dicker-LAffaire-Alaska-Sanders` sont considérées comme la même URL). Cette insensibilité à la casse couvre le cas où un re-scraping Babelio renvoie une URL identique mais orthographiée différemment.
 
 ## Accès à la fonctionnalité
 
@@ -13,6 +13,10 @@ Sur la page d'accueil (Dashboard), une carte "Doublons" affiche le nombre total 
 **Affichage :** Somme des doublons de livres + doublons d'auteurs
 
 **Navigation :** Cliquer sur la carte "Doublons" pour accéder à la page de gestion des doublons.
+
+### Depuis l'écran Émissions
+
+Sur l'écran Émissions, quand le nombre de livres cités dans l'avis critique diffère du nombre de livres liés à l'épisode en base, la liste des livres en écart s'affiche. Si un de ces livres correspond (titre et auteur, insensible à la casse et aux accents) à un livre déjà cité par l'avis critique, un badge **"Doublon probable"** apparaît avec un bouton **"🔗 Fusionner"** qui déclenche directement la fusion pour ce livre, sans passer par la page dédiée. Les avis de l'émission sont automatiquement rechargés après la fusion.
 
 ## Page de Gestion des Doublons
 

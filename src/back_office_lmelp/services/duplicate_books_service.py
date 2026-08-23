@@ -97,6 +97,68 @@ class DuplicateBooksService:
 
         return formatted_results
 
+    async def find_duplicate_groups_by_url_case_insensitive(
+        self,
+    ) -> list[dict[str, Any]]:
+        """
+        Trouve les groupes de doublons par url_babelio, en ignorant la casse.
+
+        Complète find_duplicate_groups_by_url (égalité stricte) : un
+        re-scraping Babelio peut renvoyer une URL identique à la casse près
+        (ex: "Laffaire" vs "LAffaire"), ce qui crée un doublon non détecté
+        par un groupement strict.
+
+        Returns:
+            Liste de groupes de doublons avec détails complets:
+            [{
+                "url_babelio": str (version normalisée, en minuscules),
+                "count": int,
+                "book_ids": list[str],
+                "titres": list[str],
+                "auteur_ids": list[str],
+                "urls": list[str] (URLs originales, casse préservée),
+            }]
+        """
+        assert self.mongodb_service.livres_collection is not None, (
+            "livres_collection must be initialized"
+        )
+
+        pipeline: list[dict[str, Any]] = [
+            {"$match": {"url_babelio": {"$ne": None, "$exists": True}}},
+            {
+                "$group": {
+                    "_id": {"$toLower": "$url_babelio"},
+                    "count": {"$sum": 1},
+                    "book_ids": {"$push": "$_id"},
+                    "titres": {"$push": "$titre"},
+                    "auteur_ids": {"$push": "$auteur_id"},
+                    "urls": {"$push": "$url_babelio"},
+                }
+            },
+            {"$match": {"count": {"$gt": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+
+        results = list(self.mongodb_service.livres_collection.aggregate(pipeline))
+
+        formatted_results = []
+        for group in results:
+            formatted_results.append(
+                {
+                    # Une URL réelle (casse préservée), pas la version
+                    # normalisée en minuscules qui peut ne pas exister sur
+                    # Babelio et casserait le re-scraping lors de la fusion.
+                    "url_babelio": group["urls"][0],
+                    "count": group["count"],
+                    "book_ids": [str(book_id) for book_id in group["book_ids"]],
+                    "titres": group["titres"],
+                    "auteur_ids": [str(auteur_id) for auteur_id in group["auteur_ids"]],
+                    "urls": group["urls"],
+                }
+            )
+
+        return formatted_results
+
     async def validate_duplicate_group(
         self, url_babelio: str, book_ids: list[str]
     ) -> dict[str, Any]:
@@ -319,10 +381,11 @@ class DuplicateBooksService:
             "livres_collection must be initialized"
         )
 
-        # Compter les groupes de doublons
+        # Compter les groupes de doublons (Issue #267: groupement insensible
+        # à la casse, cohérent avec find_duplicate_groups_by_url_case_insensitive)
         pipeline: list[dict[str, Any]] = [
             {"$match": {"url_babelio": {"$ne": None, "$exists": True}}},
-            {"$group": {"_id": "$url_babelio", "count": {"$sum": 1}}},
+            {"$group": {"_id": {"$toLower": "$url_babelio"}, "count": {"$sum": 1}}},
             {"$match": {"count": {"$gt": 1}}},
         ]
 

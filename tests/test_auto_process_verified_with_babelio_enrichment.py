@@ -81,8 +81,8 @@ def test_auto_process_enriched_books_updates_editeur():
     mongodb_service.auteurs_collection = mock_auteurs_collection
     mongodb_service.editeurs_collection = mock_editeurs_collection
 
-    # Mock find_one pour retourner le livre existant
-    mock_livres_collection.find_one.return_value = livres_doc
+    # Mock find pour retourner le livre existant (comparaison normalisée titre)
+    mock_livres_collection.find.return_value = [livres_doc]
 
     # Mock update_one pour mettre à jour le doc in-memory (simulation MongoDB)
     def update_livres_doc(_filter_dict, update_dict):
@@ -181,7 +181,7 @@ def test_auto_process_no_update_when_editeur_same():
     mongodb_service.auteurs_collection = mock_auteurs_collection
     mongodb_service.editeurs_collection = mock_editeurs_collection
 
-    mock_livres_collection.find_one.return_value = livres_doc
+    mock_livres_collection.find.return_value = [livres_doc]
     mock_livres_collection.update_one = Mock()
     mock_auteurs_collection.update_one = Mock()
 

@@ -535,14 +535,16 @@ class TestCreateBookUsesEditeurId:
 
         # Mock livres_collection - livre existe déjà avec editeur string
         mock_livres = MagicMock()
-        mock_livres.find_one.return_value = {
-            "_id": livre_oid,
-            "titre": "Les Particules élémentaires",
-            "auteur_id": auteur_oid,
-            "editeur": "Gallimard",  # Ancien format string
-            "episodes": [],
-            "avis_critiques": [],
-        }
+        mock_livres.find.return_value = [
+            {
+                "_id": livre_oid,
+                "titre": "Les Particules élémentaires",
+                "auteur_id": auteur_oid,
+                "editeur": "Gallimard",  # Ancien format string
+                "episodes": [],
+                "avis_critiques": [],
+            }
+        ]
         service.livres_collection = mock_livres
 
         # Mock editeurs_collection

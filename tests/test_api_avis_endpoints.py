@@ -1067,6 +1067,167 @@ class TestMatchingStatsLivresMongo:
 
         # Vérifier que count_documents a été appelé avec le bon episode_id
         self.mock_mongodb.livres_collection.count_documents.assert_called_once()
+
+    def test_matching_stats_exposes_livres_mongo_non_cites(self):
+        """
+        TDD (Issue #267): Quand livres_summary != livres_mongo, l'API doit exposer
+        la liste des livres MongoDB liés à l'épisode mais non cités par un avis
+        (aucun avis.livre_oid ne pointe vers eux), pour aider l'utilisateur à
+        comprendre concrètement l'écart au lieu de deux compteurs opaques.
+
+        Scénario : 3 livres en base pour l'épisode, 1 seul avis matché (livre A).
+        Les livres B et C doivent apparaître dans livres_mongo_non_cites.
+        """
+        emission_id = str(ObjectId())
+        episode_id = "678cceb8a414f2298877812f"
+        livre_a_id = str(ObjectId())
+        livre_b_id = ObjectId()
+        livre_c_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.livres_collection = MagicMock()
+        self.mock_mongodb.auteurs_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": episode_id,
+        }
+
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": livre_a_id,
+                "critique_oid": None,
+                "commentaire": "Excellent",
+                "note": 9,
+                "section": "programme",
+                "livre_titre_extrait": "Livre A",
+                "auteur_nom_extrait": "Auteur A",
+                "editeur_extrait": "Editeur A",
+                "critique_nom_extrait": "Critique A",
+                "match_phase": 1,
+            },
+        ]
+
+        self.mock_mongodb.livres_collection.count_documents.return_value = 3
+
+        # find_one pour l'enrichissement du livre_a (déjà résolu)
+        self.mock_mongodb.livres_collection.find_one.return_value = {
+            "_id": ObjectId(livre_a_id),
+            "titre": "Livre A",
+            "editeur": "Editeur A",
+            "auteur_id": None,
+        }
+
+        # find() pour lister tous les livres MongoDB de l'épisode (nouveau)
+        self.mock_mongodb.livres_collection.find.return_value = [
+            {"_id": ObjectId(livre_a_id), "titre": "Livre A", "auteur_id": None},
+            {"_id": livre_b_id, "titre": "Livre B", "auteur_id": None},
+            {"_id": livre_c_id, "titre": "Livre C", "auteur_id": None},
+        ]
+        self.mock_mongodb.auteurs_collection.find_one.return_value = None
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "livres_mongo_non_cites" in data["matching_stats"]
+        non_cites = data["matching_stats"]["livres_mongo_non_cites"]
+
+        non_cites_ids = {item["livre_oid"] for item in non_cites}
+        assert non_cites_ids == {str(livre_b_id), str(livre_c_id)}
+        assert str(livre_a_id) not in non_cites_ids
+
+        titres = {item["titre"] for item in non_cites}
+        assert titres == {"Livre B", "Livre C"}
         call_args = self.mock_mongodb.livres_collection.count_documents.call_args[0][0]
         assert "episodes" in call_args
         assert call_args["episodes"] == episode_id
+
+    def test_matching_stats_flags_probable_duplicate_via_normalized_title(self):
+        """
+        TDD (Issue #267): Un livre MongoDB non cité par un avis, mais dont le
+        titre+auteur normalisés (insensible casse/accents) correspondent à un
+        livre déjà cité, doit être signalé comme doublon probable via le
+        champ "doublon_probable_de" (pointant vers le livre_oid cité).
+
+        Cas réel: "L'affaire Alaska Sanders" (cité, matché) et
+        "L'Affaire Alaska Sanders" (non cité, casse différente) sont le même
+        livre en doublon.
+        """
+        emission_id = str(ObjectId())
+        episode_id = "678cceb8a414f2298877812f"
+        auteur_id = ObjectId()
+        livre_cite_id = str(ObjectId())
+        livre_doublon_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.livres_collection = MagicMock()
+        self.mock_mongodb.auteurs_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": episode_id,
+        }
+
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": livre_cite_id,
+                "critique_oid": None,
+                "commentaire": "Excellent",
+                "note": 9,
+                "section": "programme",
+                "livre_titre_extrait": "L'affaire Alaska Sanders",
+                "auteur_nom_extrait": "Joël Dicker",
+                "editeur_extrait": "Rosie & Wolfe",
+                "critique_nom_extrait": "Critique A",
+                "match_phase": 1,
+            },
+        ]
+
+        self.mock_mongodb.livres_collection.count_documents.return_value = 2
+        self.mock_mongodb.livres_collection.find_one.return_value = {
+            "_id": ObjectId(livre_cite_id),
+            "titre": "L'affaire Alaska Sanders",
+            "editeur": "Rosie & Wolfe",
+            "auteur_id": auteur_id,
+        }
+        self.mock_mongodb.livres_collection.find.return_value = [
+            {
+                "_id": ObjectId(livre_cite_id),
+                "titre": "L'affaire Alaska Sanders",
+                "auteur_id": auteur_id,
+            },
+            {
+                "_id": livre_doublon_id,
+                "titre": "L'Affaire Alaska Sanders",  # casse différente
+                "auteur_id": auteur_id,
+                "url_babelio": "https://www.babelio.com/livres/Dicker-LAffaire-Alaska-Sanders/1380950",
+            },
+        ]
+        self.mock_mongodb.auteurs_collection.find_one.return_value = {
+            "_id": auteur_id,
+            "nom": "Joël Dicker",
+        }
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        non_cites = data["matching_stats"]["livres_mongo_non_cites"]
+        assert len(non_cites) == 1
+        assert non_cites[0]["livre_oid"] == str(livre_doublon_id)
+        assert non_cites[0]["doublon_probable_de"] == livre_cite_id
+        assert (
+            non_cites[0]["url_babelio"]
+            == "https://www.babelio.com/livres/Dicker-LAffaire-Alaska-Sanders/1380950"
+        )

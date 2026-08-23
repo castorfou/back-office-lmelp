@@ -26,7 +26,7 @@
               Choisir une émission ({{ emissions.length }} disponibles:
               <span
                 class="badge-counters-tooltip"
-                :title="`🟢 ${emissionsPerfectCount}: Avis extraits, tous matchés, comptes égaux, toutes notes présentes\n🔴 ${emissionsCountMismatchCount}: Avis extraits mais # livres summary ≠ # livres mongo OU au moins une note manquante\n🟡 ${emissionsUnmatchedCount}: Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché\n⚪ ${emissionsNoAvisCount}: Avis pas encore extraits`"
+                :title="`🟢 ${emissionsPerfectCount}: Avis extraits, tous matchés, comptes égaux, toutes notes présentes\n🔴 ${emissionsCountMismatchCount}: Avis extraits mais # livres cités dans l'avis ≠ # livres liés en base OU au moins une note manquante\n🟡 ${emissionsUnmatchedCount}: Avis extraits, comptes égaux, toutes notes présentes mais ≥1 livre non matché\n⚪ ${emissionsNoAvisCount}: Avis pas encore extraits`"
               >
                 🟢 {{ emissionsPerfectCount }} / 🔴 {{ emissionsCountMismatchCount }} / 🟡 {{ emissionsUnmatchedCount }} / ⚪ {{ emissionsNoAvisCount }}
               </span>)
@@ -157,7 +157,7 @@
           <div v-if="!avisLoading && avisMatchingStats && !isSelectedEmissionPerfect" class="matching-stats">
             <div class="stats-header">
               <span class="stats-warning" v-if="avisMatchingStats.livres_summary !== avisMatchingStats.livres_mongo">
-                ⚠️ Livres summary ({{ avisMatchingStats.livres_summary }}) ≠ Livres Mongo ({{ avisMatchingStats.livres_mongo }})
+                ⚠️ Livres cités dans l'avis critique ({{ avisMatchingStats.livres_summary }}) ≠ Livres liés à cet épisode en base ({{ avisMatchingStats.livres_mongo }})
               </span>
             </div>
             <div class="stats-details">
@@ -169,6 +169,35 @@
                 ⚠ Sans match: {{ avisMatchingStats.unmatched }}
               </span>
             </div>
+            <ul
+              v-if="avisMatchingStats.livres_mongo_non_cites?.length > 0"
+              class="livres-non-cites-list"
+            >
+              <li>Livres en base mais absents de l'avis critique ({{ avisMatchingStats.livres_mongo_non_cites.length }}) :</li>
+              <li v-for="livre in avisMatchingStats.livres_mongo_non_cites" :key="livre.livre_oid">
+                <router-link :to="`/livre/${livre.livre_oid}`" class="book-link">
+                  {{ livre.auteur }} - <strong>{{ livre.titre }}</strong>
+                </router-link>
+                <template v-if="livre.doublon_probable_de">
+                  <span class="duplicate-badge">Doublon probable</span>
+                  <button
+                    v-if="mergeResult[livre.livre_oid]?.status !== 'success'"
+                    class="btn-merge-duplicate"
+                    :data-testid="`merge-duplicate-${livre.livre_oid}`"
+                    :disabled="mergingLivreOid === livre.livre_oid"
+                    @click="mergeDuplicate(livre)"
+                  >
+                    {{ mergingLivreOid === livre.livre_oid ? 'Fusion...' : '🔗 Fusionner' }}
+                  </button>
+                  <span v-if="mergeResult[livre.livre_oid]?.status === 'success'" class="merge-success">
+                    ✅ Fusionné
+                  </span>
+                  <span v-else-if="mergeResult[livre.livre_oid]?.status === 'error'" class="merge-error">
+                    ❌ {{ mergeResult[livre.livre_oid].message }}
+                  </span>
+                </template>
+              </li>
+            </ul>
           </div>
 
           <!-- Liste des livres (repliable avec mémoire) -->
@@ -319,6 +348,38 @@ export default {
     const avisError = ref(null);
     const avisExtracting = ref(false);
     const avisMatchingStats = ref(null);
+
+    // Fusion de doublons probables (Issue #267)
+    const mergingLivreOid = ref(null);
+    const mergeResult = ref({});
+
+    const mergeDuplicate = async (livre) => {
+      mergingLivreOid.value = livre.livre_oid;
+      try {
+        await avisService.mergeDuplicateBooks(livre.url_babelio, [
+          livre.livre_oid,
+          livre.doublon_probable_de,
+        ]);
+        mergeResult.value = {
+          ...mergeResult.value,
+          [livre.livre_oid]: { status: 'success' },
+        };
+        // Recharger les avis pour rafraîchir les stats après fusion
+        if (selectedEmissionId.value) {
+          await loadAvisForEmission(selectedEmissionId.value);
+        }
+      } catch (error) {
+        mergeResult.value = {
+          ...mergeResult.value,
+          [livre.livre_oid]: {
+            status: 'error',
+            message: error.response?.data?.detail || error.message,
+          },
+        };
+      } finally {
+        mergingLivreOid.value = null;
+      }
+    };
 
     /**
      * Charge les avis pour une émission (extraction auto si nécessaire)
@@ -789,6 +850,10 @@ export default {
       avisExtracting,
       avisMatchingStats,
       reextractAvis,
+      // Fusion de doublons probables
+      mergingLivreOid,
+      mergeResult,
+      mergeDuplicate,
     };
   }
 };
@@ -1345,6 +1410,58 @@ main {
 .stat-unmatched {
   background: #f8d7da;
   color: #721c24;
+}
+
+.livres-non-cites-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+.livres-non-cites-list li:first-child {
+  list-style: none;
+  margin-left: -1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.duplicate-badge {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: #f8d7da;
+  color: #721c24;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.btn-merge-duplicate {
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #0B5FFF;
+  border-radius: 3px;
+  background: white;
+  color: #0B5FFF;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-merge-duplicate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.merge-success {
+  margin-left: 0.5rem;
+  color: #155724;
+  font-size: 0.85rem;
+}
+
+.merge-error {
+  margin-left: 0.5rem;
+  color: #721c24;
+  font-size: 0.85rem;
 }
 
 /* Sections repliables (livres, critiques) */
