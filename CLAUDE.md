@@ -395,6 +395,21 @@ bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh
 bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh --url); curl "$BACKEND_URL/openapi.json" 2>/dev/null | jq ".paths | keys[]"'
 ```
 
+## Playwright MCP — Vérification visuelle
+
+**Pour toute modification graphique/UI (CSS, layout, composants Vue)**, utiliser systématiquement Playwright MCP (`mcp__playwright__*`) pour vérifier visuellement le résultat avant de considérer la tâche terminée — ne pas se contenter de lire le code ou les tests unitaires (jsdom ne calcule pas de vrai layout CSS).
+
+**Détails complets** : [Playwright MCP](docs/dev/playwright-mcp.md) (configuration, mode headless, installation).
+
+**Règles d'usage** :
+
+1. **Le frontend doit tourner** avant de naviguer (`./scripts/start-dev.sh`, ou vérifier via `.claude/get-frontend-info.sh --url`).
+2. **Toujours attendre le chargement complet des données** avant une capture d'écran ou une lecture DOM — une capture prise trop tôt (juste après `browser_navigate`) peut figer un état transitoire de chargement (ex: valeurs `...`/`null` avant qu'un appel API asynchrone n'ait répondu), qui n'est pas représentatif du rendu final. Préférer `browser_snapshot` ou relire le DOM via `browser_evaluate` pour confirmer que les données attendues sont présentes avant `browser_take_screenshot`.
+3. **Nettoyer les captures d'écran temporaires** après vérification (`rm` du fichier produit dans le repo, et du dossier `.playwright-mcp/`) — sauf si l'utilisateur demande explicitement à consulter le fichier, auquel cas le laisser en place jusqu'à confirmation de lecture.
+4. **Comparer avant/après** pour un fix visuel : capture avant modification, capture après, pour documenter le changement (utile en commentaire de PR ou d'issue).
+5. **Préférer les mesures DOM (`getBoundingClientRect`, `getComputedStyle`) aux captures d'écran** quand la vérification porte sur une valeur précise (largeur, alignement) — plus fiable et sans dépendre du rendu visuel des polices/icônes.
+6. Le navigateur tourne en **mode headless** dans ce devcontainer (pas de serveur X) : aucune fenêtre visible côté utilisateur pendant la navigation de Claude Code.
+
 ## MongoDB Operations
 
 ### MCP MongoDB Tools

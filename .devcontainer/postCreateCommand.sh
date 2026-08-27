@@ -106,6 +106,26 @@ install_calibre() {
     echo "Installation de Calibre terminée"
 }
 
+# Installation du navigateur Chrome pour Playwright MCP
+install_playwright_browsers() {
+    echo "Installation du navigateur Chrome pour Playwright MCP..."
+
+    if npx -y playwright install --with-deps chrome; then
+        echo "✅ Chrome installé pour Playwright"
+    else
+        echo "⚠️  Échec de l'installation de Chrome pour Playwright, ignoré"
+    fi
+
+    echo "Installation des polices d'émojis (rendu correct des icônes dans les captures d'écran)..."
+    if sudo apt-get install -y -qq fonts-noto-color-emoji; then
+        echo "✅ Polices d'émojis installées"
+    else
+        echo "⚠️  Échec de l'installation des polices d'émojis, ignoré"
+    fi
+
+    echo "Installation de Playwright terminée"
+}
+
 # Configuration Node.js et npm
 setup_node() {
     echo "Configuration Node.js..."
@@ -317,6 +337,7 @@ ensure_uv
 # install_calibre
 create_python_environment
 setup_node
+install_playwright_browsers
 setup_git
 setup_github
 setup_pre-commit
