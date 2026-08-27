@@ -33,7 +33,15 @@ Il n'existe pas, dans `@playwright/mcp`, d'option native pour que l'utilisateur 
 - spécifique à la machine et à la session graphique de chaque contributeur (non reproductible pour un autre poste ou en CI),
 - non garanti si l'hôte n'a pas de serveur X actif (ex: Wayland, connexion sans forwarding X).
 
-Ce point n'est pas traité par cette configuration ; le mode headless est retenu comme solution fiable et portable. Une éventuelle solution de partage visuel (VNC, extension navigateur connectée à une instance headed) resterait à investiguer séparément si le besoin se confirme.
+Ce point n'est pas traité par cette configuration ; le mode headless est retenu comme solution fiable et portable.
+
+**Pourquoi pas de VNC/noVNC ici** : ce pattern existe (ex: projets exposant une app desktop comme AnyLogic via `Xvfb` + `x11vnc` + `noVNC`, où Claude Code et l'utilisateur ouvrent chacun un navigateur sur la même URL `http://localhost:6080/vnc.html` pour regarder le même flux vidéo d'un écran virtuel distant). Il est écarté pour ce projet car :
+
+- **Notre frontend est déjà une page web nativement accessible** (`http://localhost:5173`) — le détour VNC ne sert qu'à rendre "web-visible" une application qui ne l'est pas nativement (cas AnyLogic, app desktop). Ici, il ajouterait une couche sans en retirer un vrai bénéfice.
+- **Perte des capacités DOM** : piloter un navigateur affiché dans un canvas VNC (pixels bruts, pas de DOM) empêche `browser_snapshot` (arbre d'accessibilité), `browser_evaluate` (`getBoundingClientRect`, `getComputedStyle`) et les clics par sélecteur/`data-testid` — remplacés par du pilotage en coordonnées x/y, plus lent et fragile. Ce sont justement les capacités utilisées pour vérifier précisément largeur/alignement lors du fix de la tuile Contrôle Babelio (issue #269).
+- **Latence ajoutée** par le flux VNC (rendu différé de l'ordre de 100–500 ms par action).
+
+**Partage effectif aujourd'hui** : chaque navigateur (celui de Claude Code en headless, celui de l'utilisateur) est une session indépendante — pas de synchronisation d'état visuel en direct (scroll, focus). Ce qui est réellement partagé, c'est ce qui transite par le serveur : les données MongoDB modifiées via l'API, et le code source rechargé par le HMR de Vite. Pour comparer un rendu, l'utilisateur ouvre `http://localhost:5173` de son côté ; Claude Code partage captures d'écran et mesures DOM dans la conversation.
 
 ## Prérequis
 
