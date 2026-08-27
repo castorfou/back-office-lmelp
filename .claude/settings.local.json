@@ -51,6 +51,7 @@
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "MongoDB"
+    "MongoDB",
+    "playwright"
   ]
 }

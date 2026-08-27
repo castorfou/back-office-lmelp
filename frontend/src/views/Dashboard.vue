@@ -349,7 +349,7 @@
       <!-- Section Contrôle Babelio -->
       <section class="functions-section">
         <h2>Contrôle Babelio</h2>
-        <div class="functions-grid">
+        <div class="functions-grid functions-grid--single">
           <div
             class="function-card clickable"
             data-testid="function-babelio-control"
@@ -820,6 +820,11 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
+}
+
+.functions-grid--single {
+  grid-template-columns: minmax(280px, 320px);
+  justify-content: start;
 }
 
 .function-card {

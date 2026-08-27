@@ -17,5 +17,6 @@ nav:
   - Calibre: calibre-integration.md
   - Calibre db schema: calibre-db-schema.md
   - Développement: development.md
+  - Playwright MCP: playwright-mcp.md
   - Déploiement: deployment.md
   - Sécurité: security.md
