@@ -141,6 +141,23 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(episodeFunction.element.tagName.toLowerCase()).toMatch(/^(a|button|div)$/);
   });
 
+  it('limite la largeur de la grille Contrôle Babelio car elle ne contient qu\'une seule tuile (Issue #269)', async () => {
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const babelioCard = wrapper.find('[data-testid="function-babelio-control"]');
+    const babelioGrid = babelioCard.element.closest('.functions-grid');
+
+    expect(babelioGrid.classList.contains('functions-grid--single')).toBe(true);
+  });
+
   it('navigue vers la page d\'épisodes lors du clic sur la fonction', async () => {
     statisticsService.getStatistics.mockResolvedValue(mockStatistics);
 
