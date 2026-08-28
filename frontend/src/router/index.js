@@ -16,6 +16,7 @@ import CalibreLibrary from '../views/CalibreLibrary.vue';
 import IdentificationCritiques from '../views/IdentificationCritiques.vue';
 import GenerationAvisCritiques from '../views/GenerationAvisCritiques.vue';
 import DuplicateBooks from '../views/DuplicateBooks.vue';
+import OrphanedAvis from '../views/OrphanedAvis.vue';
 import Palmares from '../views/Palmares.vue';
 import CalibreCorrections from '../views/CalibreCorrections.vue';
 import OnKindle from '../views/OnKindle.vue';
@@ -141,6 +142,14 @@ const routes = [
     component: DuplicateBooks,
     meta: {
       title: 'Gestion des Doublons - Back-office LMELP'
+    }
+  },
+  {
+    path: '/avis-orphelins',
+    name: 'OrphanedAvis',
+    component: OrphanedAvis,
+    meta: {
+      title: 'Avis Orphelins - Back-office LMELP'
     }
   },
   {

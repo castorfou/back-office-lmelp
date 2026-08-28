@@ -236,7 +236,8 @@ class DuplicateBooksService:
         5. Mettre à jour livre primaire
         6. Supprimer doublons
         7. Cascading updates (auteurs, cache)
-        8. Logger dans merge_history
+        8. Repointer les avis référençant les doublons (Issue #271)
+        9. Logger dans merge_history
 
         Args:
             url_babelio: URL Babelio du groupe
@@ -250,6 +251,8 @@ class DuplicateBooksService:
                 "merged_data": {"titre": str, "editeur": str},
                 "episodes_merged": int,
                 "avis_critiques_merged": int,
+                "cache_entries_updated": int,
+                "avis_entries_updated": int,
                 "logs": list[str],
                 "error": str | None
             }
@@ -350,6 +353,25 @@ class DuplicateBooksService:
                         f"mises à jour (book_id → {primary_book['_id']})"
                     )
 
+        # Étape 9: Mise à jour de la collection avis (Issue #271)
+        # avis.livre_oid est stocké en String (pas ObjectId) — repointer les avis
+        # existants d'AUTRES émissions qui référencent encore le livre doublon
+        # supprimé, vers le livre primaire conservé.
+        avis_entries_updated = 0
+        if duplicate_ids_str:
+            avis_collection = self.mongodb_service.avis_collection
+            if avis_collection is not None:
+                avis_result = avis_collection.update_many(
+                    {"livre_oid": {"$in": duplicate_ids_str}},
+                    {"$set": {"livre_oid": str(primary_book["_id"])}},
+                )
+                avis_entries_updated = avis_result.modified_count
+                if avis_entries_updated > 0:
+                    logger.info(
+                        f"📝 Collection avis: {avis_entries_updated} avis "
+                        f"repointés (livre_oid → {primary_book['_id']})"
+                    )
+
         return {
             "success": True,
             "primary_book_id": str(primary_book["_id"]),
@@ -358,11 +380,13 @@ class DuplicateBooksService:
             "episodes_merged": len(unique_episodes),
             "avis_critiques_merged": len(unique_avis),
             "cache_entries_updated": cache_entries_updated,
+            "avis_entries_updated": avis_entries_updated,
             "logs": [
                 f"Primary book: {primary_book['_id']}",
                 f"Deleted: {len(duplicate_ids)} duplicates",
                 f"Merged: {len(unique_episodes)} episodes, {len(unique_avis)} avis",
                 f"Cache entries updated: {cache_entries_updated}",
+                f"Avis entries updated: {avis_entries_updated}",
             ],
             "error": None,
         }

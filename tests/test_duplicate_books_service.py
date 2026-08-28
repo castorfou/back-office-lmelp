@@ -130,6 +130,11 @@ class TestMergeDuplicateGroup:
         mock_cache_collection.update_many.return_value = Mock(modified_count=0)
         mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
 
+        # Mock avis collection (Issue #271)
+        mock_avis_collection = Mock()
+        mock_avis_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
         # Mock history collection
         mock_history_collection = Mock()
         mock_history_collection.insert_one.return_value = Mock()
@@ -638,6 +643,11 @@ class TestMergeShouldUpdateCache:
         mock_cache_collection.update_many.return_value = Mock(modified_count=1)
         mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
 
+        # Mock avis collection (Issue #271)
+        mock_avis_collection = Mock()
+        mock_avis_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
         # Execute: Fusionner les 2 livres
         result = await duplicate_books_service.merge_duplicate_group(
             url_babelio="https://www.babelio.com/livres/Courtes--pied-doeuvre/1517905",
@@ -728,6 +738,11 @@ class TestMergeShouldUpdateCache:
         mock_cache_collection.update_many.return_value = Mock(modified_count=3)
         mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
 
+        # Mock avis collection (Issue #271)
+        mock_avis_collection = Mock()
+        mock_avis_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
         # Execute
         result = await duplicate_books_service.merge_duplicate_group(
             url_babelio="https://example.com/book",
@@ -741,3 +756,217 @@ class TestMergeShouldUpdateCache:
         assert result["cache_entries_updated"] == 3, (
             "Should report 3 cache entries updated"
         )
+
+
+class TestMergeDuplicateGroupAvisCascade:
+    """
+    Tests pour la mise à jour de la collection avis lors de la fusion.
+
+    Issue #271: Après fusion de doublons, des avis (avis individuels par
+    livre/critique) référençant l'ancien livre_oid restent orphelins.
+
+    Business Problem:
+        Lors de la fusion de doublons:
+        1. Le livre dupliqué est supprimé de `livres`
+        2. auteurs et livresauteurs_cache sont mis à jour en cascade
+        3. MAIS la collection `avis` n'est jamais mise à jour
+        4. Résultat: avis.livre_oid pointe vers un livre supprimé → avis orphelin
+           (bloque l'export lmelp-mobile avec une FOREIGN KEY constraint failed)
+
+    Solution:
+        Repointer tous les avis dont livre_oid (String) est dans les IDs
+        supprimés, vers le livre_oid (String) du livre primaire conservé.
+    """
+
+    @pytest.mark.asyncio
+    async def test_merge_should_update_avis_livre_oid(
+        self, duplicate_books_service, mock_mongodb_service, mock_babelio_service
+    ):
+        """
+        Test TDD RED: La fusion doit repointer avis.livre_oid vers le livre primaire.
+
+        Scénario réel (Issue #271):
+            - avis.livre_oid (String) référence le book_id du doublon supprimé
+            - Après fusion: avis.livre_oid DOIT pointer vers str(primary_book["_id"])
+
+        Note technique: avis.livre_oid est stocké en String (pas ObjectId),
+        contrairement à livresauteurs_cache.book_id qui est un vrai ObjectId.
+        """
+        primary_book_id = ObjectId("68e84308066cb40c25d5d2a7")
+        duplicate_book_id = ObjectId("691bb21428beec9e2b115429")
+        auteur_id = ObjectId("68e84308066cb40c25d5d2a6")
+
+        mock_mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": primary_book_id,
+                "titre": "À pied d'oeuvre",
+                "auteur_id": auteur_id,
+                "editeur": "Gallimard",
+                "url_babelio": "https://www.babelio.com/livres/x/1",
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 10, 10, tzinfo=UTC),
+                "updated_at": datetime(2025, 10, 10, tzinfo=UTC),
+            },
+            {
+                "_id": duplicate_book_id,
+                "titre": "À pied d'œuvre",
+                "auteur_id": auteur_id,
+                "editeur": "Gallimard",
+                "url_babelio": "https://www.babelio.com/livres/x/1",
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 11, 17, tzinfo=UTC),
+                "updated_at": datetime(2025, 11, 17, tzinfo=UTC),
+            },
+        ]
+        mock_babelio_service.fetch_full_title_from_url.return_value = "À pied d'œuvre"
+        mock_babelio_service.fetch_publisher_from_url.return_value = "Gallimard"
+        mock_mongodb_service.livres_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+        mock_mongodb_service.livres_collection.delete_many.return_value = Mock(
+            deleted_count=1
+        )
+        mock_mongodb_service.auteurs_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
+        mock_avis_collection = Mock()
+        mock_avis_collection.update_many.return_value = Mock(modified_count=2)
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio="https://www.babelio.com/livres/x/1",
+            book_ids=[str(primary_book_id), str(duplicate_book_id)],
+        )
+
+        assert result["success"] is True, (
+            f"Merge should succeed. Error: {result.get('error')}"
+        )
+
+        mock_avis_collection.update_many.assert_called_once()
+        filter_arg, update_arg = mock_avis_collection.update_many.call_args[0]
+
+        # CRITIQUE: livre_oid est une String en base, pas un ObjectId
+        assert filter_arg["livre_oid"]["$in"] == [str(duplicate_book_id)], (
+            "Filter should target String duplicate book_id"
+        )
+        assert update_arg["$set"]["livre_oid"] == str(primary_book_id), (
+            "Update should set livre_oid to String primary book ID"
+        )
+
+    @pytest.mark.asyncio
+    async def test_merge_should_report_avis_updates_in_result(
+        self, duplicate_books_service, mock_mongodb_service, mock_babelio_service
+    ):
+        """
+        Test TDD RED: Le résultat de fusion doit indiquer avis_entries_updated.
+        """
+        primary_book_id = ObjectId("68e84308066cb40c25d5d2a7")
+        duplicate_book_id = ObjectId("691bb21428beec9e2b115429")
+        auteur_id = ObjectId("68e84308066cb40c25d5d2a6")
+
+        mock_mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": primary_book_id,
+                "titre": "Livre 1",
+                "auteur_id": auteur_id,
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 1, 1, tzinfo=UTC),
+                "updated_at": datetime(2025, 1, 1, tzinfo=UTC),
+            },
+            {
+                "_id": duplicate_book_id,
+                "titre": "Livre 2",
+                "auteur_id": auteur_id,
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 1, 2, tzinfo=UTC),
+                "updated_at": datetime(2025, 1, 2, tzinfo=UTC),
+            },
+        ]
+        mock_babelio_service.fetch_full_title_from_url.return_value = "Livre"
+        mock_babelio_service.fetch_publisher_from_url.return_value = "Editeur"
+        mock_mongodb_service.livres_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+        mock_mongodb_service.livres_collection.delete_many.return_value = Mock(
+            deleted_count=1
+        )
+        mock_mongodb_service.auteurs_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+
+        mock_cache_collection = Mock()
+        mock_cache_collection.update_many.return_value = Mock(modified_count=0)
+        mock_mongodb_service.livresauteurs_cache_collection = mock_cache_collection
+
+        mock_avis_collection = Mock()
+        mock_avis_collection.update_many.return_value = Mock(modified_count=3)
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio="https://example.com/book",
+            book_ids=[str(primary_book_id), str(duplicate_book_id)],
+        )
+
+        assert "avis_entries_updated" in result, (
+            "Result should include avis_entries_updated count"
+        )
+        assert result["avis_entries_updated"] == 3, (
+            "Should report 3 avis entries updated"
+        )
+        assert "Avis entries updated: 3" in "\n".join(result["logs"]), (
+            "Logs should mention avis entries updated"
+        )
+
+    @pytest.mark.asyncio
+    async def test_merge_should_not_call_avis_update_when_no_duplicates_deleted(
+        self, duplicate_books_service, mock_mongodb_service, mock_babelio_service
+    ):
+        """
+        Test de garde: si aucun doublon n'est supprimé, avis_collection.update_many
+        ne doit jamais être appelé (protège contre un bug de régression).
+        """
+        primary_book_id = ObjectId("68e84308066cb40c25d5d2a7")
+        auteur_id = ObjectId("68e84308066cb40c25d5d2a6")
+
+        mock_mongodb_service.livres_collection.find.return_value = [
+            {
+                "_id": primary_book_id,
+                "titre": "Livre unique",
+                "auteur_id": auteur_id,
+                "episodes": [],
+                "avis_critiques": [],
+                "created_at": datetime(2025, 1, 1, tzinfo=UTC),
+                "updated_at": datetime(2025, 1, 1, tzinfo=UTC),
+            },
+        ]
+        mock_babelio_service.fetch_full_title_from_url.return_value = "Livre"
+        mock_babelio_service.fetch_publisher_from_url.return_value = "Editeur"
+        mock_mongodb_service.livres_collection.update_one.return_value = Mock(
+            matched_count=1
+        )
+        mock_mongodb_service.livres_collection.delete_many.return_value = Mock(
+            deleted_count=0
+        )
+
+        mock_avis_collection = Mock()
+        mock_mongodb_service.avis_collection = mock_avis_collection
+
+        result = await duplicate_books_service.merge_duplicate_group(
+            url_babelio="https://example.com/book",
+            book_ids=[str(primary_book_id)],
+        )
+
+        assert result["success"] is True, (
+            f"Merge should succeed. Error: {result.get('error')}"
+        )
+        assert result["avis_entries_updated"] == 0
+        mock_avis_collection.update_many.assert_not_called()

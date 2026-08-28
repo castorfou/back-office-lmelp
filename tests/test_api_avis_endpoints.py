@@ -1,7 +1,7 @@
 """Tests pour les endpoints API de la collection avis."""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from bson import ObjectId
 from fastapi.testclient import TestClient
@@ -446,6 +446,110 @@ class TestDeleteAvis:
         response = self.client.delete(f"/api/avis/{str(ObjectId())}")
 
         assert response.status_code == 404
+
+
+class TestGetOrphanedAvisStatistics:
+    """Tests pour GET /api/avis/orphaned/statistics (Issue #271)."""
+
+    def setup_method(self):
+        """Setup pour chaque test."""
+        self.mock_service = MagicMock()
+        self.patcher = patch(
+            "back_office_lmelp.app.orphaned_avis_service", self.mock_service
+        )
+        self.patcher.start()
+
+        from back_office_lmelp.app import app
+
+        self.client = TestClient(app)
+
+    def teardown_method(self):
+        """Teardown après chaque test."""
+        self.patcher.stop()
+
+    def test_get_orphaned_avis_statistics_returns_count(self):
+        """Test que GET retourne le nombre d'avis orphelins."""
+        self.mock_service.get_orphaned_statistics = AsyncMock(
+            return_value={"orphaned_count": 5}
+        )
+
+        response = self.client.get("/api/avis/orphaned/statistics")
+
+        assert response.status_code == 200
+        assert response.json() == {"orphaned_count": 5}
+
+    def test_get_orphaned_avis_statistics_handles_error(self):
+        """Test que GET retourne 500 en cas d'erreur service."""
+        self.mock_service.get_orphaned_statistics = AsyncMock(
+            side_effect=Exception("boom")
+        )
+
+        response = self.client.get("/api/avis/orphaned/statistics")
+
+        assert response.status_code == 500
+
+
+class TestGetOrphanedAvis:
+    """Tests pour GET /api/avis/orphaned (Issue #271)."""
+
+    def setup_method(self):
+        """Setup pour chaque test."""
+        self.mock_service = MagicMock()
+        self.patcher = patch(
+            "back_office_lmelp.app.orphaned_avis_service", self.mock_service
+        )
+        self.patcher.start()
+
+        from back_office_lmelp.app import app
+
+        self.client = TestClient(app)
+
+    def teardown_method(self):
+        """Teardown après chaque test."""
+        self.patcher.stop()
+
+    def test_get_orphaned_avis_returns_list(self):
+        """Test que GET retourne la liste des avis orphelins."""
+        avis_id = str(ObjectId())
+        self.mock_service.list_orphaned_avis = AsyncMock(
+            return_value=[
+                {
+                    "id": avis_id,
+                    "livre_oid": "6a8b17df16a04bd8be0446af",  # pragma: allowlist secret
+                    "livre_titre_extrait": "L'Affaire Alaska Sanders",
+                    "auteur_nom_extrait": "Joël Dicker",
+                    "critique_nom_extrait": "Elisabeth Philippe",
+                    "emission_oid": str(ObjectId()),
+                    "commentaire": "Un thriller efficace",
+                    "note": 8,
+                }
+            ]
+        )
+
+        response = self.client.get("/api/avis/orphaned")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == avis_id
+        assert data[0]["livre_titre_extrait"] == "L'Affaire Alaska Sanders"
+
+    def test_get_orphaned_avis_returns_empty_list(self):
+        """Test que GET retourne une liste vide si aucun orphelin."""
+        self.mock_service.list_orphaned_avis = AsyncMock(return_value=[])
+
+        response = self.client.get("/api/avis/orphaned")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_orphaned_avis_handles_error(self):
+        """Test que GET retourne 500 en cas d'erreur service."""
+        self.mock_service.list_orphaned_avis = AsyncMock(side_effect=Exception("boom"))
+
+        response = self.client.get("/api/avis/orphaned")
+
+        assert response.status_code == 500
 
 
 class TestGetAvisStats:
