@@ -637,6 +637,24 @@ export const avisService = {
     });
     return response.data;
   },
+
+  /**
+   * Récupère les avis orphelins (livre_oid sans livre correspondant)
+   * @returns {Promise<Array>} Liste des avis orphelins
+   */
+  async getOrphanedAvis() {
+    const response = await api.get('/avis/orphaned');
+    return response.data;
+  },
+
+  /**
+   * Récupère les statistiques des avis orphelins
+   * @returns {Promise<Object>} { orphaned_count: number }
+   */
+  async getOrphanedAvisStatistics() {
+    const response = await api.get('/avis/orphaned/statistics');
+    return response.data;
+  },
 };
 
 export default api;

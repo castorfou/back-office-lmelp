@@ -7,6 +7,7 @@ import { mount } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import Dashboard from '../../src/views/Dashboard.vue';
 import { episodeService, statisticsService, livresAuteursService } from '../../src/services/api.js';
+import axios from 'axios';
 
 // Mock du service API
 vi.mock('../../src/services/api.js', () => ({
@@ -23,6 +24,9 @@ vi.mock('../../src/services/api.js', () => ({
     getCollectionsStatistics: vi.fn(),
   }
 }));
+
+// Mock axios (utilisé directement par Dashboard.vue pour certaines stats)
+vi.mock('axios');
 
 // Mock des utilitaires
 vi.mock('../../src/utils/memoryGuard.js', () => ({
@@ -601,5 +605,132 @@ describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
 
     const tile = wrapper.find('.clickable-stat');
     expect(tile.attributes('href')).toBe('https://lmelp.ascot63.synology.me/');
+  });
+});
+
+describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
+  let wrapper;
+  let router;
+
+  const mockStatistics = {
+    totalEpisodes: 142,
+    maskedEpisodes: 5,
+    episodesWithCorrectedTitles: 37,
+    episodesWithCorrectedDescriptions: 45,
+    criticalReviews: 28,
+    lastUpdateDate: '2025-09-06T10:30:00Z'
+  };
+
+  const mockCollectionsStatistics = {
+    episodes_non_traites: 5,
+    couples_en_base: 42,
+    couples_suggested_pas_en_base: 0,
+    couples_not_found_pas_en_base: 0,
+    episodes_without_avis_critiques: 0,
+    avis_critiques_without_analysis: 0,
+    last_episode_date: '2024-12-10T20:00:00',
+    books_without_url_babelio: 0,
+    authors_without_url_babelio: 0,
+    emissions_sans_avis: 0,
+    emissions_with_problems: 0
+  };
+
+  function mockAxiosGet(orphanedCount) {
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/avis/orphaned/statistics') {
+        return Promise.resolve({ data: { orphaned_count: orphanedCount } });
+      }
+      if (url === '/api/books/duplicates/statistics' || url === '/api/authors/duplicates/statistics') {
+        return Promise.resolve({ data: { total_duplicates: 0 } });
+      }
+      if (url === '/api/stats/critiques-manquants') {
+        return Promise.resolve({ data: { count: 0 } });
+      }
+      if (url === '/api/version') {
+        return Promise.resolve({ data: {} });
+      }
+      return Promise.reject(new Error(`URL non mockée: ${url}`));
+    });
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    statisticsService.getStatistics.mockResolvedValue(mockStatistics);
+    livresAuteursService.getCollectionsStatistics.mockResolvedValue(mockCollectionsStatistics);
+
+    router = createRouter({
+      history: createWebHistory(),
+      routes: [
+        { path: '/', component: Dashboard },
+        { path: '/avis-orphelins', component: { template: '<div>Avis Orphelins Page</div>' } }
+      ]
+    });
+
+    await router.push('/');
+  });
+
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+    }
+  });
+
+  it("affiche la tuile 'Avis orphelins' avec le compte quand il est non nul", async () => {
+    mockAxiosGet(5);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const statCards = wrapper.findAll('.stat-card');
+    const cardLabels = statCards.map(card => card.text());
+
+    expect(cardLabels.some(t => t.includes('Avis orphelins') && t.includes('5'))).toBe(true);
+  });
+
+  it("masque la tuile 'Avis orphelins' quand le compte est 0 (pattern Issue #212)", async () => {
+    mockAxiosGet(0);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const statCards = wrapper.findAll('.stat-card');
+    const cardLabels = statCards.map(card => card.text());
+
+    expect(cardLabels.some(t => t.includes('Avis orphelins'))).toBe(false);
+  });
+
+  it("navigue vers /avis-orphelins au clic sur la tuile", async () => {
+    mockAxiosGet(3);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const statCards = wrapper.findAll('.stat-card');
+    const orphanedCard = statCards.find(card => card.text().includes('Avis orphelins'));
+    expect(orphanedCard).toBeTruthy();
+
+    const pushSpy = vi.spyOn(wrapper.vm.$router, 'push');
+    await orphanedCard.trigger('click');
+
+    expect(pushSpy).toHaveBeenCalledWith('/avis-orphelins');
   });
 });

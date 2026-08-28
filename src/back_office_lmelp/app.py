@@ -55,6 +55,7 @@ from .services.duplicate_books_service import DuplicateBooksService
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.mongodb_service import mongodb_service
+from .services.orphaned_avis_service import OrphanedAvisService
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
 from .settings import settings
@@ -370,6 +371,9 @@ duplicate_books_service = DuplicateBooksService(
     mongodb_service=mongodb_service,
     babelio_service=babelio_service,
 )
+
+# Initialize orphaned avis service (Issue #271)
+orphaned_avis_service = OrphanedAvisService(mongodb_service=mongodb_service)
 
 # Initialize Anna's Archive URL service (Issue #188)
 annas_archive_url_service = AnnasArchiveUrlService(
@@ -5152,6 +5156,26 @@ async def get_avis_by_livre(livre_id: str) -> JSONResponse:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/avis/orphaned/statistics", response_model=dict[str, Any])
+async def get_orphaned_avis_statistics() -> dict[str, Any]:
+    """Récupère le nombre d'avis orphelins (Issue #271)."""
+    try:
+        return await orphaned_avis_service.get_orphaned_statistics()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des stats avis orphelins: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/avis/orphaned", response_model=list[dict[str, Any]])
+async def get_orphaned_avis() -> list[dict[str, Any]]:
+    """Liste les avis orphelins pour la page de nettoyage (Issue #271)."""
+    try:
+        return await orphaned_avis_service.list_orphaned_avis()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des avis orphelins: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 @app.put("/api/avis/{avis_id}")

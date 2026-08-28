@@ -89,6 +89,7 @@ Chaque groupe affiche :
 6. **Mises à jour en cascade** :
    - Retrait des références aux doublons dans `auteurs.livres`
    - Mise à jour de `livresauteurs_cache` (remplacement des `book_id` doublons par le primaire)
+   - Repointage des avis individuels (`avis.livre_oid`) référençant un livre supprimé vers le livre primaire, pour éviter les avis orphelins (voir [Nettoyage des Avis Orphelins](avis-orphelins.md))
 
 7. **Historique** : Enregistrement dans la collection `duplicate_books_merge_history`
 
@@ -116,6 +117,7 @@ Un encadré vert s'affiche avec les détails :
 - Livres/Auteurs supprimés : [IDs]
 - Épisodes fusionnés : [nombre]
 - Avis critiques fusionnés : [nombre]
+- Avis repointés : [nombre]
 ```
 
 #### ❌ Erreur
@@ -263,7 +265,9 @@ Fusionne un groupe de doublons de livres.
     "primary_book_id": "id1",
     "deleted_book_ids": ["id2", "id3"],
     "episodes_merged": 5,
-    "avis_critiques_merged": 3
+    "avis_critiques_merged": 3,
+    "cache_entries_updated": 2,
+    "avis_entries_updated": 4
   }
 }
 ```

@@ -136,6 +136,15 @@
             <div class="stat-value">{{ totalDuplicatesCount !== null ? totalDuplicatesCount : '...' }}</div>
             <div class="stat-label">Doublons</div>
           </div>
+          <div
+            v-if="orphanedAvisCount !== 0"
+            class="stat-card clickable-stat"
+            @click="navigateToOrphanedAvis"
+            :title="tooltips.avisOrphelins"
+          >
+            <div class="stat-value">{{ orphanedAvisCount !== null ? orphanedAvisCount : '...' }}</div>
+            <div class="stat-label">Avis orphelins</div>
+          </div>
         </div>
       </section>
 
@@ -426,7 +435,8 @@ export default {
         livresSansCouverture: `Livres avec URL Babelio mais sans couverture enregistrée\nCollection: livres\nFiltres: url_babelio IS NOT NULL AND url_cover IS NULL`,
         critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
         episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`,
-        doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`
+        doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`,
+        avisOrphelins: `Avis dont le livre associé a été supprimé (fusion de doublons)\nCollection: avis\nRequête: avis dont livre_oid ne correspond à aucun livres._id`
       },
       babelioIcon: babelioSymbol,
       babelioIconLiaison: babelioSymbolLiaison,
@@ -435,6 +445,7 @@ export default {
       episodesSansEmissionCount: null,
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
+      orphanedAvisCount: null,
       versionInfo: null,
       loading: true,
       error: null
@@ -551,6 +562,7 @@ export default {
       this.loadCollectionsStatistics(),
       this.loadCritiquesManquants(),
       this.loadDuplicateStatistics(),
+      this.loadOrphanedAvisStatistics(),
       this.loadVersionInfo()
     ]);
   },
@@ -622,6 +634,16 @@ export default {
         console.error('Erreur lors du chargement des stats doublons:', error);
         this.duplicateBooksCount = null;
         this.duplicateAuthorsCount = null;
+      }
+    },
+
+    async loadOrphanedAvisStatistics() {
+      try {
+        const response = await axios.get('/api/avis/orphaned/statistics');
+        this.orphanedAvisCount = response.data.orphaned_count;
+      } catch (error) {
+        console.error('Erreur lors du chargement des stats avis orphelins:', error);
+        this.orphanedAvisCount = null;
       }
     },
 
@@ -700,6 +722,10 @@ export default {
 
     navigateToDuplicates() {
       this.$router.push('/duplicates');
+    },
+
+    navigateToOrphanedAvis() {
+      this.$router.push('/avis-orphelins');
     },
 
     navigateToCritiques() {
