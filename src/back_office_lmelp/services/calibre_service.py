@@ -583,6 +583,56 @@ class CalibreService:
                 read_row = cursor.fetchone()
                 read = bool(read_row["value"]) if read_row else None
 
+            # Get KOReader progress (custom column simple: id, book, value)
+            ko_progress = None
+            ko_progfloat_col_id = self._custom_columns_map.get("ko_progfloat")
+            if ko_progfloat_col_id:
+                cursor.execute(
+                    f"SELECT value FROM custom_column_{ko_progfloat_col_id} "
+                    "WHERE book = ?",
+                    (book_id,),
+                )
+                progress_row = cursor.fetchone()
+                ko_progress = progress_row["value"] if progress_row else None
+
+            # Get KOReader status (enum column with link table, like tags)
+            ko_status = None
+            ko_status_col_id = self._custom_columns_map.get("ko_status")
+            if ko_status_col_id:
+                cursor.execute(
+                    f"""SELECT ccv.value
+                        FROM books_custom_column_{ko_status_col_id}_link ccl
+                        JOIN custom_column_{ko_status_col_id} ccv
+                            ON ccl.value = ccv.id
+                        WHERE ccl.book = ?""",
+                    (book_id,),
+                )
+                status_row = cursor.fetchone()
+                ko_status = status_row["value"] if status_row else None
+
+            # Get KOReader start date
+            ko_date_started = None
+            ko_start_col_id = self._custom_columns_map.get("ko_start")
+            if ko_start_col_id:
+                cursor.execute(
+                    f"SELECT value FROM custom_column_{ko_start_col_id} WHERE book = ?",
+                    (book_id,),
+                )
+                start_row = cursor.fetchone()
+                ko_date_started = start_row["value"] if start_row else None
+
+            # Get KOReader finish date
+            ko_date_finished = None
+            ko_finish_col_id = self._custom_columns_map.get("ko_finish")
+            if ko_finish_col_id:
+                cursor.execute(
+                    f"SELECT value FROM custom_column_{ko_finish_col_id} "
+                    "WHERE book = ?",
+                    (book_id,),
+                )
+                finish_row = cursor.fetchone()
+                ko_date_finished = finish_row["value"] if finish_row else None
+
             result.append(
                 {
                     "id": book_id,
@@ -591,6 +641,10 @@ class CalibreService:
                     "tags": tags,
                     "read": read,
                     "rating": rating,
+                    "ko_progress": ko_progress,
+                    "ko_status": ko_status,
+                    "ko_date_started": ko_date_started,
+                    "ko_date_finished": ko_date_finished,
                 }
             )
 

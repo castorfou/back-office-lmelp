@@ -305,14 +305,42 @@ SELECT id, label, name, datatype FROM custom_columns;
 
 Résultat (bibliothèque actuelle) :
 ```
-id | label | name        | datatype
----+-------+-------------+----------
-1  | paper | paper       | bool
-2  | read  | Read        | bool
-3  | text  | Commentaire | comments
+id | label          | name                        | datatype
+---+----------------+-----------------------------+----------
+1  | paper          | paper                       | bool
+2  | read           | Read                        | bool
+3  | text           | Commentaire                 | comments
+4  | ko_progfloat   | KOReader Precise Progress   | float
+5  | ko_status      | KOReader Book Status        | text
+6  | ko_loc         | KOReader Last Location      | text
+7  | ko_start       | Date KOReader Started       | datetime
+8  | ko_finish      | Date KOReader Finished      | datetime
+9  | ko_md5         | KOReader MD5                | text
+10 | ko_device_name | KOReader Device Name        | text
+11 | ko_device_id   | KOReader Device ID          | text
+12 | ko_lastsync    | Date KOReader Synced        | datetime
+13 | ko_lastmod     | Date KOReader Modified      | datetime
+14 | ko_sidecar     | KOReader Raw Sidecar        | comments
 ```
 
-Note : Les labels sont stockés **sans** le préfixe `#`.
+Note : Les labels sont stockés **sans** le préfixe `#`. Les colonnes `ko_*` sont créées par le plugin KOReader-Calibre lors de la synchronisation d'une liseuse — elles n'existent que si cette synchronisation a été configurée.
+
+### Colonne enum à liaison (`ko_status`)
+
+Contrairement aux colonnes personnalisées simples (`read`, `paper`, `ko_progfloat`, `ko_start`, `ko_finish` — structure `custom_column_N(id, book, value)`), `ko_status` est une colonne **enum à liaison**, structurée comme `tags` : une table de liaison `books_custom_column_N_link(book, value)` où `value` référence l'id dans `custom_column_N(id, value, link)`.
+
+```sql
+-- ❌ WRONG — ko_status n'a pas de colonne "book" directe
+SELECT value FROM custom_column_5 WHERE book = ?
+
+-- ✅ CORRECT — jointure via la table de liaison
+SELECT ccv.value
+FROM books_custom_column_5_link ccl
+JOIN custom_column_5 ccv ON ccl.value = ccv.id
+WHERE ccl.book = ?
+```
+
+Valeurs observées : `complete`, `reading` (une valeur type `on_hold` est possible côté plugin KOReader mais non garantie — traiter toute valeur non-`complete` comme "en cours" plutôt que de lister les valeurs explicitement, pour rester robuste à une valeur imprévue).
 
 ### custom_column_N
 

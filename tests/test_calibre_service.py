@@ -849,3 +849,197 @@ class TestCalibreServiceGetStatistics:
         assert stats.total_authors == 450
         assert stats.total_tags == 100
         assert stats.books_read == 299
+
+
+class TestCalibreServiceGetAllBooksWithTags:
+    """Tests pour get_all_books_with_tags() — enrichissement KOReader (Issue #273)."""
+
+    def _setup_available_service(self, mock_path_class, mock_settings):
+        mock_settings.calibre_library_path = "/calibre"
+        mock_settings.calibre_virtual_library_tag = None
+
+        mock_library_path = MagicMock(spec=Path)
+        mock_library_path.exists.return_value = True
+        mock_library_path.is_dir.return_value = True
+
+        mock_db_path = MagicMock(spec=Path)
+        mock_db_path.exists.return_value = True
+        mock_db_path.__str__ = lambda self: "/calibre/metadata.db"
+
+        mock_library_path.__truediv__ = lambda self, other: mock_db_path
+        mock_path_class.return_value = mock_library_path
+
+    def _make_service_with_book(
+        self, mock_connect, mock_path_class, mock_settings, custom_columns, book_row
+    ):
+        """Configure un service avec un seul livre et des colonnes personnalisées données.
+
+        Args:
+            custom_columns: liste de dicts {"id": int, "label": str} pour custom_columns
+            book_row: dict simulant les valeurs de custom_column_N par label,
+                ex: {"ko_progfloat": 0.5, "ko_status": "reading", ...}
+        """
+        self._setup_available_service(mock_path_class, mock_settings)
+
+        # Connexion init (test connexion + comptage)
+        mock_conn_init = MagicMock()
+        mock_cursor_init = MagicMock()
+        mock_cursor_init.fetchone.return_value = [1]
+        mock_conn_init.cursor.return_value = mock_cursor_init
+
+        # Connexion pour _load_custom_columns_map
+        mock_conn_custom_map = MagicMock()
+        mock_cursor_custom_map = MagicMock()
+        mock_cursor_custom_map.fetchall.return_value = custom_columns
+        mock_conn_custom_map.cursor.return_value = mock_cursor_custom_map
+
+        # Connexion pour get_all_books_with_tags
+        mock_conn_get = MagicMock()
+        mock_cursor_get = MagicMock()
+
+        label_by_col_id = {c["id"]: c["label"] for c in custom_columns}
+
+        def execute_side_effect(query, params=None):
+            if "FROM books b" in query and "ORDER BY b.title" in query:
+                mock_cursor_get.fetchall.return_value = [{"id": 1, "title": "Livre"}]
+            elif "FROM authors a" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "Auteur X"}]
+            elif "FROM tags t" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "onkindle"}]
+            elif "FROM ratings r" in query:
+                mock_cursor_get.fetchone.return_value = None
+            elif "books_custom_column_" in query and "_link" in query:
+                # ko_status (colonne enum à liaison)
+                col_id = int(query.split("books_custom_column_")[1].split("_link")[0])
+                label = label_by_col_id.get(col_id)
+                value = book_row.get(label)
+                mock_cursor_get.fetchone.return_value = (
+                    {"value": value} if value is not None else None
+                )
+            elif "custom_column_" in query:
+                col_id = int(query.split("custom_column_")[1].split(" ")[0])
+                label = label_by_col_id.get(col_id)
+                value = book_row.get(label)
+                mock_cursor_get.fetchone.return_value = (
+                    {"value": value} if value is not None else None
+                )
+            else:
+                mock_cursor_get.fetchall.return_value = []
+                mock_cursor_get.fetchone.return_value = None
+
+        mock_cursor_get.execute = Mock(side_effect=execute_side_effect)
+        mock_conn_get.cursor.return_value = mock_cursor_get
+
+        mock_connect.side_effect = [
+            mock_conn_init,
+            mock_conn_custom_map,
+            mock_conn_get,
+        ]
+
+        return CalibreService()
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_includes_ko_progress_from_custom_column(
+        self, mock_connect, mock_path_class, mock_settings
+    ):
+        """Expose ko_progress depuis la colonne personnalisée ko_progfloat."""
+        custom_columns = [{"id": 4, "label": "ko_progfloat"}]
+        service = self._make_service_with_book(
+            mock_connect,
+            mock_path_class,
+            mock_settings,
+            custom_columns,
+            {"ko_progfloat": 0.5062},
+        )
+
+        result = service.get_all_books_with_tags()
+
+        assert len(result) == 1
+        assert result[0]["ko_progress"] == 0.5062
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_includes_ko_status_via_link_table_join(
+        self, mock_connect, mock_path_class, mock_settings
+    ):
+        """Expose ko_status via la jointure books_custom_column_N_link."""
+        custom_columns = [{"id": 5, "label": "ko_status"}]
+        service = self._make_service_with_book(
+            mock_connect,
+            mock_path_class,
+            mock_settings,
+            custom_columns,
+            {"ko_status": "reading"},
+        )
+
+        result = service.get_all_books_with_tags()
+
+        assert result[0]["ko_status"] == "reading"
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_ko_status_handles_unexpected_value_without_crashing(
+        self, mock_connect, mock_path_class, mock_settings
+    ):
+        """Une valeur ko_status imprévue est retournée telle quelle, sans exception."""
+        custom_columns = [{"id": 5, "label": "ko_status"}]
+        service = self._make_service_with_book(
+            mock_connect,
+            mock_path_class,
+            mock_settings,
+            custom_columns,
+            {"ko_status": "on_hold_variant_xyz"},
+        )
+
+        result = service.get_all_books_with_tags()
+
+        assert result[0]["ko_status"] == "on_hold_variant_xyz"
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_ko_fields_are_none_when_custom_column_missing(
+        self, mock_connect, mock_path_class, mock_settings
+    ):
+        """Bibliothèque sans colonnes KOReader configurées : champs à None."""
+        service = self._make_service_with_book(
+            mock_connect, mock_path_class, mock_settings, [], {}
+        )
+
+        result = service.get_all_books_with_tags()
+
+        assert result[0]["ko_progress"] is None
+        assert result[0]["ko_status"] is None
+        assert result[0]["ko_date_started"] is None
+        assert result[0]["ko_date_finished"] is None
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_includes_ko_date_started_and_finished(
+        self, mock_connect, mock_path_class, mock_settings
+    ):
+        """Expose ko_date_started et ko_date_finished depuis les colonnes datetime."""
+        custom_columns = [
+            {"id": 7, "label": "ko_start"},
+            {"id": 8, "label": "ko_finish"},
+        ]
+        service = self._make_service_with_book(
+            mock_connect,
+            mock_path_class,
+            mock_settings,
+            custom_columns,
+            {
+                "ko_start": "2026-08-16 22:00:00+00:00",
+                "ko_finish": "2026-08-23 16:24:31.014000+00:00",
+            },
+        )
+
+        result = service.get_all_books_with_tags()
+
+        assert result[0]["ko_date_started"] == "2026-08-16 22:00:00+00:00"
+        assert result[0]["ko_date_finished"] == "2026-08-23 16:24:31.014000+00:00"
