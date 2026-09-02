@@ -75,6 +75,7 @@
                 <span v-if="recommendationsLoading" data-test="reco-loading" class="sort-icon">…</span>
                 <span v-else class="sort-icon">{{ sortKey === 'score' ? (sortDir === 'asc' ? '▲' : '▼') : '⇅' }}</span>
               </th>
+              <th class="col-lecture">Lecture</th>
               <th class="col-babelio">Babelio</th>
             </tr>
           </thead>
@@ -131,6 +132,35 @@
                   {{ recommendationsByLivreId[book.mongo_livre_id].toFixed(2) }}
                 </span>
                 <span v-else class="note-missing" data-test="reco-missing">-</span>
+              </td>
+
+              <!-- Lecture (KOReader) -->
+              <td class="col-lecture">
+                <span
+                  v-if="lectureDisplay(book).type === 'complete'"
+                  class="lecture-tooltip-wrapper"
+                  data-test="lecture-badge"
+                  data-test-status="complete"
+                >
+                  <span class="lecture-icon-complete">✅</span>
+                  <span class="lecture-tooltip-content">
+                    Début : {{ formatDate(book.ko_date_started) }}<br>
+                    Fin : {{ formatDate(book.ko_date_finished) }}
+                  </span>
+                </span>
+                <span
+                  v-else-if="lectureDisplay(book).type === 'progress'"
+                  class="lecture-tooltip-wrapper"
+                  data-test="lecture-badge"
+                  data-test-status="progress"
+                >
+                  <span class="lecture-percent">{{ lectureDisplay(book).percent }}%</span>
+                  <span class="lecture-tooltip-content">
+                    Début : {{ formatDate(book.ko_date_started) }}<br>
+                    Fin : -
+                  </span>
+                </span>
+                <span v-else data-test="lecture-missing"></span>
               </td>
 
               <!-- Babelio -->
@@ -328,6 +358,23 @@ export default {
       if (score >= 6) return 'score-medium';
       return 'score-low';
     },
+
+    lectureDisplay(book) {
+      if (book.ko_status === 'complete') {
+        return { type: 'complete' };
+      }
+      if (book.ko_status != null && book.ko_progress != null) {
+        return { type: 'progress', percent: Math.round(book.ko_progress * 100) };
+      }
+      return { type: 'none' };
+    },
+
+    formatDate(isoString) {
+      if (!isoString) return '-';
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString('fr-FR');
+    },
   },
 };
 </script>
@@ -514,6 +561,11 @@ export default {
   text-align: center;
 }
 
+.col-lecture {
+  width: 90px;
+  text-align: center;
+}
+
 /* Links — style Emissions */
 .author-link,
 .book-link {
@@ -607,6 +659,60 @@ export default {
   width: 24px;
   height: 24px;
   border-radius: 4px;
+}
+
+/* Lecture (KOReader) */
+.lecture-icon-complete {
+  font-size: 1.1rem;
+}
+
+.lecture-percent {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: #e7f0ff;
+  color: #3366cc;
+}
+
+.lecture-tooltip-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: default;
+}
+
+.lecture-tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 10;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.lecture-tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #333;
+}
+
+.lecture-tooltip-wrapper:hover .lecture-tooltip-content {
+  visibility: visible;
+  opacity: 1;
 }
 
 .no-books {

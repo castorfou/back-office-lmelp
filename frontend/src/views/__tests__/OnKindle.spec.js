@@ -27,6 +27,10 @@ const mockOnKindleData = {
       auteur_id: 'aut1',
       note_moyenne: 9.5,
       url_babelio: 'https://www.babelio.com/livres/Lancon-Le-Lambeau/1036944',
+      ko_progress: 1.0,
+      ko_status: 'complete',
+      ko_date_started: '2026-08-16T22:00:00Z',
+      ko_date_finished: '2026-08-23T16:24:31Z',
     },
     {
       calibre_id: 2,
@@ -38,6 +42,10 @@ const mockOnKindleData = {
       auteur_id: 'aut2',
       note_moyenne: 8.0,
       url_babelio: 'https://www.babelio.com/livres/Jaenada-La-Serpe/1357073',
+      ko_progress: 0.5062,
+      ko_status: 'reading',
+      ko_date_started: '2026-08-23T18:55:06Z',
+      ko_date_finished: null,
     },
     {
       calibre_id: 3,
@@ -49,6 +57,10 @@ const mockOnKindleData = {
       auteur_id: null,
       note_moyenne: null,
       url_babelio: null,
+      ko_progress: null,
+      ko_status: null,
+      ko_date_started: null,
+      ko_date_finished: null,
     },
   ],
 };
@@ -605,6 +617,85 @@ describe('OnKindle.vue', () => {
 
       expect(wrapper.vm.sortKey).toBe('score');
       expect(wrapper.vm.sortDir).toBe('asc');
+    });
+  });
+
+  describe('Lecture column (KOReader progress, Issue #273)', () => {
+    it('renders a "Lecture" column header', async () => {
+      await mountWithData();
+
+      const headers = wrapper.findAll('th');
+      expect(headers.some((h) => h.text().includes('Lecture'))).toBe(true);
+    });
+
+    it('shows a check icon when book is complete', async () => {
+      await mountWithData();
+
+      const badges = wrapper.findAll('[data-test="lecture-badge"][data-test-status="complete"]');
+      expect(badges).toHaveLength(1);
+      expect(badges[0].text()).toContain('✅');
+    });
+
+    it('shows percentage when book is in progress (reading)', async () => {
+      await mountWithData();
+
+      const badges = wrapper.findAll('[data-test="lecture-badge"][data-test-status="progress"]');
+      expect(badges).toHaveLength(1);
+      expect(badges[0].text()).toContain('51%');
+    });
+
+    it('shows nothing when book was never synced with KOReader', async () => {
+      await mountWithData();
+
+      const missing = wrapper.findAll('[data-test="lecture-missing"]');
+      expect(missing).toHaveLength(1);
+      expect(missing[0].text()).toBe('');
+    });
+
+    it('shows tooltip content with start and end dates on complete book', async () => {
+      await mountWithData();
+
+      const tooltip = wrapper.find(
+        '[data-test="lecture-badge"][data-test-status="complete"] .lecture-tooltip-content'
+      );
+      expect(tooltip.text()).toContain('23/08/2026');
+    });
+
+    it('shows tooltip with "-" for end date when book is still reading', async () => {
+      await mountWithData();
+
+      const tooltip = wrapper.find(
+        '[data-test="lecture-badge"][data-test-status="progress"] .lecture-tooltip-content'
+      );
+      expect(tooltip.text()).toContain('Fin : -');
+    });
+
+    it('treats on_hold status like reading (shows frozen percentage)', async () => {
+      const dataWithOnHold = {
+        total: 1,
+        books: [
+          {
+            calibre_id: 30,
+            titre: 'Livre en pause',
+            auteurs: ['Auteur Z'],
+            calibre_rating: null,
+            calibre_read: null,
+            mongo_livre_id: null,
+            auteur_id: null,
+            note_moyenne: null,
+            url_babelio: null,
+            ko_progress: 0.3,
+            ko_status: 'on_hold',
+            ko_date_started: '2026-07-01T10:00:00Z',
+            ko_date_finished: null,
+          },
+        ],
+      };
+      await mountWithData(dataWithOnHold);
+
+      const badges = wrapper.findAll('[data-test="lecture-badge"][data-test-status="progress"]');
+      expect(badges).toHaveLength(1);
+      expect(badges[0].text()).toContain('30%');
     });
   });
 

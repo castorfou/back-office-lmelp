@@ -480,6 +480,10 @@ class CalibreMatchingService:
                     "auteur_id": auteur_id,
                     "url_babelio": url_babelio,
                     "note_moyenne": None,  # Will be filled below
+                    "ko_progress": book.get("ko_progress"),
+                    "ko_status": book.get("ko_status"),
+                    "ko_date_started": book.get("ko_date_started"),
+                    "ko_date_finished": book.get("ko_date_finished"),
                 }
             )
 

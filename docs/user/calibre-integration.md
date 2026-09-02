@@ -221,6 +221,7 @@ La page **OnKindle** (`/onkindle`) affiche tous les livres Calibre portant le ta
 | **Titre** | Lien vers la fiche livre si trouvé dans MongoDB, texte sinon |
 | **Note** | Note moyenne des critiques LMELP (badge coloré), si disponible |
 | **Reco** | Score de recommandation personnalisé (algorithme SVD, badge coloré), si disponible |
+| **Lecture** | Statut de lecture KOReader (icône ✅ ou pourcentage d'avancement), si le livre a été synchronisé |
 | **Babelio** | Icône cliquable vers la fiche Babelio, si disponible |
 
 **Fonctionnalités** :
@@ -230,6 +231,11 @@ La page **OnKindle** (`/onkindle`) affiche tous les livres Calibre portant le ta
 - **Persistance du tri** : Le tri choisi est mémorisé dans l'URL (`?sort=score&dir=desc`) et restauré au rechargement de la page.
 - **Enrichissement MongoDB** : Les livres Calibre matchés avec MongoDB affichent leur note LMELP et leur lien Babelio.
 - **Score Reco** : Calculé par l'algorithme de collaborative filtering SVD (voir page Recommandations). Le score se charge en arrière-plan (~10 secondes) ; la table s'affiche immédiatement avec `-` dans la colonne Reco pendant le calcul.
+- **Colonne Lecture** : Reflète la progression de lecture synchronisée depuis une liseuse via le plugin KOReader-Calibre.
+  - Livre terminé : icône ✅ seule.
+  - Livre en cours (ou en pause) : pourcentage d'avancement (ex: "51%").
+  - Livre jamais synchronisé avec KOReader : cellule vide.
+  - Survolez l'icône ou le pourcentage pour afficher les dates de début et fin de lecture dans une infobulle.
 - **Dégradation gracieuse** : Si Calibre n'est pas disponible, un message explicite est affiché. Si l'API de recommandations échoue, `-` est affiché pour tous les scores sans bloquer la page.
 - **Mise en cache 5 min** : Les données Calibre sont mises en cache pendant 5 minutes. Si vous venez de modifier un tag `onkindle` dans Calibre, cliquez sur **"Actualiser"** pour invalider le cache et voir immédiatement les changements.
 

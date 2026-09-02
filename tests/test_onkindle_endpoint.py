@@ -247,6 +247,84 @@ class TestGetOnkindleBooks:
         assert book["url_babelio"] is None
         assert book["note_moyenne"] is None
 
+    def test_exposes_koreader_reading_progress_fields(self):
+        """Expose les champs de progression KOReader (Issue #273)."""
+        from unittest.mock import MagicMock
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        mock_calibre = MagicMock()
+        mock_calibre._available = True
+        mock_mongodb = MagicMock()
+
+        service = CalibreMatchingService(mock_calibre, mock_mongodb)
+
+        mock_calibre.get_all_books_with_tags.return_value = [
+            {
+                "id": 1,
+                "title": "L'Inconnue du quai de Javel",
+                "authors": ["Auteur X"],
+                "tags": ["onkindle"],
+                "rating": None,
+                "read": False,
+                "ko_progress": 0.5062,
+                "ko_status": "reading",
+                "ko_date_started": "2026-08-23 18:55:06.101000+00:00",
+                "ko_date_finished": None,
+            }
+        ]
+        mock_mongodb.get_all_books.return_value = []
+        mock_mongodb.get_all_authors.return_value = []
+        mock_mongodb.get_notes_for_livres.return_value = {}
+
+        result = service.get_onkindle_books()
+
+        assert len(result) == 1
+        book = result[0]
+        assert book["ko_progress"] == 0.5062
+        assert book["ko_status"] == "reading"
+        assert book["ko_date_started"] == "2026-08-23 18:55:06.101000+00:00"
+        assert book["ko_date_finished"] is None
+
+    def test_koreader_fields_are_none_when_never_synced(self):
+        """Livres jamais synchronisés KOReader : champs à None (pas de crash)."""
+        from unittest.mock import MagicMock
+
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        mock_calibre = MagicMock()
+        mock_calibre._available = True
+        mock_mongodb = MagicMock()
+
+        service = CalibreMatchingService(mock_calibre, mock_mongodb)
+
+        mock_calibre.get_all_books_with_tags.return_value = [
+            {
+                "id": 2,
+                "title": "Autre Livre",
+                "authors": ["Y"],
+                "tags": ["onkindle"],
+                "rating": None,
+                "read": None,
+            }
+        ]
+        mock_mongodb.get_all_books.return_value = []
+        mock_mongodb.get_all_authors.return_value = []
+        mock_mongodb.get_notes_for_livres.return_value = {}
+
+        result = service.get_onkindle_books()
+
+        assert len(result) == 1
+        book = result[0]
+        assert book["ko_progress"] is None
+        assert book["ko_status"] is None
+        assert book["ko_date_started"] is None
+        assert book["ko_date_finished"] is None
+
     def test_returns_empty_list_when_calibre_unavailable(self):
         """Retourne une liste vide si Calibre n'est pas disponible."""
         from unittest.mock import MagicMock
