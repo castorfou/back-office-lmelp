@@ -64,6 +64,13 @@
       <section class="sort-section">
         <label>Trier par :</label>
         <button
+          data-testid="sort-recent-reads"
+          :class="['sort-btn', { active: sortBy === 'recent-reads' }]"
+          @click="setSortBy('recent-reads')"
+        >
+          Dernières lectures
+        </button>
+        <button
           data-testid="sort-date-added"
           :class="['sort-btn', { active: sortBy === 'date-added' }]"
           @click="setSortBy('date-added')"
@@ -183,7 +190,7 @@ export default {
       allBooks: [],  // All books loaded at once
       searchText: '',
       readFilter: null,
-      sortBy: 'date-added' // Default sort
+      sortBy: 'recent-reads' // Default sort (Issue #274)
     };
   },
 
@@ -327,6 +334,35 @@ export default {
             if (!b.timestamp) return -1;
             return new Date(b.timestamp) - new Date(a.timestamp);
           });
+
+        case 'recent-reads': {
+          // Three groups (Issue #274):
+          // 1. In progress (has ko_date_started, no ko_date_finished) — most recently started first
+          // 2. Finished (has ko_date_finished) — most recently finished first
+          // 3. Never synced with KOReader — by date added, like "Derniers ajoutés"
+          const isInProgress = (book) => !!book.ko_date_started && !book.ko_date_finished;
+          const isFinished = (book) => !!book.ko_date_finished;
+
+          const inProgress = sorted.filter(isInProgress);
+          const finished = sorted.filter(isFinished);
+          const rest = sorted.filter((book) => !isInProgress(book) && !isFinished(book));
+
+          inProgress.sort(
+            (a, b) => new Date(b.ko_date_started) - new Date(a.ko_date_started)
+          );
+
+          finished.sort(
+            (a, b) => new Date(b.ko_date_finished) - new Date(a.ko_date_finished)
+          );
+
+          rest.sort((a, b) => {
+            if (!a.timestamp) return 1;
+            if (!b.timestamp) return -1;
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          });
+
+          return [...inProgress, ...finished, ...rest];
+        }
 
         default:
           return sorted;

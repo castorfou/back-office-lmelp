@@ -44,7 +44,7 @@ Calibre est traité comme une **seconde source de données** indépendante :
 - Visualisation de vos notes et appréciations
 - Recherche temps réel avec highlighting en jaune
 - Filtres par statut de lecture (Tous / Lus / Non lus)
-- Tri flexible (date d'ajout, titre, auteur)
+- Tri flexible (dernières lectures, date d'ajout, titre, auteur)
 - Support bibliothèques virtuelles (filtre par tag Calibre)
 
 **Avantages** :
@@ -143,7 +143,8 @@ Nouvelle page accessible depuis l'accueil :
   - Insensible aux accents (ex: "celine" trouve "Céline")
 - **Filtres de statut** : Tous / Lus / Non lus
 - **Tri dynamique** :
-  - Derniers ajoutés (défaut)
+  - **Dernières lectures (défaut)** : met en tête les lectures en cours (triées par date de début la plus récente), puis les lectures terminées (triées par date de fin la plus récente), puis le reste de la bibliothèque par date d'ajout — basé sur les colonnes personnalisées KOReader (`#ko_start`, `#ko_finish`) si synchronisées
+  - Derniers ajoutés
   - Titre A→Z / Z→A
   - Auteur A→Z / Z→A
 - **Infinite scroll** : Chargement progressif de 50 livres à la fois

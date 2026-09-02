@@ -83,6 +83,18 @@ class CalibreBook(BaseModel):
         description="Commentaires personnels (colonne personnalisée #text)",
         alias="custom_text",
     )
+    ko_progress: float | None = Field(
+        None, description="Progression de lecture KOReader, 0-1 (colonne #ko_progfloat)"
+    )
+    ko_status: str | None = Field(
+        None, description="Statut de lecture KOReader (colonne #ko_status)"
+    )
+    ko_date_started: str | None = Field(
+        None, description="Date de début de lecture KOReader, ISO (colonne #ko_start)"
+    )
+    ko_date_finished: str | None = Field(
+        None, description="Date de fin de lecture KOReader, ISO (colonne #ko_finish)"
+    )
 
     model_config = ConfigDict(
         populate_by_name=True  # Permet d'utiliser les alias ou les noms de champs
