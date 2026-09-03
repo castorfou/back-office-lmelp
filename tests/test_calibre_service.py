@@ -505,6 +505,90 @@ class TestCalibreServiceGetBook:
     @patch("back_office_lmelp.services.calibre_service.settings")
     @patch("back_office_lmelp.services.calibre_service.Path")
     @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
+    def test_get_book_exposes_koreader_fields(
+        self, mock_connect, mock_path_class, mock_settings, mock_book_row
+    ):
+        """Expose les champs KOReader (Issue #274 — tri Dernières lectures)."""
+        mock_settings.calibre_library_path = "/calibre"
+        mock_settings.calibre_virtual_library_tag = None
+
+        mock_library_path = MagicMock(spec=Path)
+        mock_library_path.exists.return_value = True
+        mock_library_path.is_dir.return_value = True
+
+        mock_db_path = MagicMock(spec=Path)
+        mock_db_path.exists.return_value = True
+        mock_db_path.__str__ = lambda self: "/calibre/metadata.db"
+
+        mock_library_path.__truediv__ = lambda self, other: mock_db_path
+        mock_path_class.return_value = mock_library_path
+
+        # Connexion init
+        mock_conn_init = MagicMock()
+        mock_cursor_init = MagicMock()
+        mock_cursor_init.fetchone.return_value = [943]
+        mock_cursor_init.fetchall.return_value = []
+        mock_conn_init.cursor.return_value = mock_cursor_init
+
+        # Connexion get_book
+        mock_conn_get = MagicMock()
+        mock_cursor_get = MagicMock()
+
+        def mock_execute_side_effect(query, params=None):
+            if "WHERE id = ?" in query:
+                mock_cursor_get.fetchone.return_value = mock_book_row
+            elif "authors" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "Vercors"}]
+            elif "tags" in query:
+                mock_cursor_get.fetchall.return_value = [{"name": "guillaume"}]
+            elif "publishers" in query or "series" in query:
+                mock_cursor_get.fetchone.return_value = None
+            elif "ratings" in query:
+                mock_cursor_get.fetchone.return_value = {"rating": 8}
+            elif "identifiers" in query and "isbn" in query:
+                mock_cursor_get.fetchone.return_value = {"val": "978-2-7011-1234-5"}
+            elif "comments" in query:
+                mock_cursor_get.fetchone.return_value = None
+            elif "languages" in query:
+                mock_cursor_get.fetchall.return_value = [{"lang_code": "fra"}]
+            elif "books_custom_column_5_link" in query:
+                mock_cursor_get.fetchone.return_value = {"value": "reading"}
+            elif "custom_column_4" in query:
+                mock_cursor_get.fetchone.return_value = {"value": 0.5062}
+            elif "custom_column_7" in query:
+                mock_cursor_get.fetchone.return_value = {
+                    "value": "2026-08-23 18:55:06.101000+00:00"
+                }
+            elif "custom_column_8" in query or "custom_column" in query:
+                mock_cursor_get.fetchone.return_value = None
+
+        mock_cursor_get.execute = Mock(side_effect=mock_execute_side_effect)
+        mock_conn_get.cursor.return_value = mock_cursor_get
+
+        mock_conn_custom = MagicMock()
+        mock_cursor_custom = MagicMock()
+        mock_cursor_custom.fetchall.return_value = [
+            {"id": 4, "label": "ko_progfloat"},
+            {"id": 5, "label": "ko_status"},
+            {"id": 7, "label": "ko_start"},
+            {"id": 8, "label": "ko_finish"},
+        ]
+        mock_conn_custom.cursor.return_value = mock_cursor_custom
+
+        mock_connect.side_effect = [mock_conn_init, mock_conn_custom, mock_conn_get]
+
+        service = CalibreService()
+        book = service.get_book(3)
+
+        assert book is not None
+        assert book.ko_progress == 0.5062
+        assert book.ko_status == "reading"
+        assert book.ko_date_started == "2026-08-23 18:55:06.101000+00:00"
+        assert book.ko_date_finished is None
+
+    @patch("back_office_lmelp.services.calibre_service.settings")
+    @patch("back_office_lmelp.services.calibre_service.Path")
+    @patch("back_office_lmelp.services.calibre_service.sqlite3.connect")
     def test_get_book_returns_none_when_not_found(
         self, mock_connect, mock_path_class, mock_settings
     ):

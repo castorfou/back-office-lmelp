@@ -519,6 +519,105 @@ describe('CalibreLibrary', () => {
       expect(wrapper.vm.filteredBooks[2].title).toBe('Old Book');
     });
 
+    it('should render a "Dernières lectures" sort button, active by default (Issue #274)', async () => {
+      calibreService.getBooks.mockResolvedValue({ total: 0, books: [] });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      const button = wrapper.find('[data-testid="sort-recent-reads"]');
+      expect(button.exists()).toBe(true);
+      expect(button.text()).toBe('Dernières lectures');
+      expect(button.classes()).toContain('active');
+      expect(wrapper.vm.sortBy).toBe('recent-reads');
+    });
+
+    it('should place in-progress books first, sorted by most recent start date (Issue #274)', async () => {
+      // In-progress = has ko_date_started but no ko_date_finished
+      calibreService.getBooks.mockResolvedValue({
+        total: 3,
+        books: [
+          {
+            id: 1, title: 'Lecture ancienne', authors: ['A'], timestamp: '2024-01-01',
+            ko_date_started: '2026-07-01T00:00:00Z', ko_date_finished: null
+          },
+          {
+            id: 2, title: 'Lecture récente', authors: ['B'], timestamp: '2024-01-01',
+            ko_date_started: '2026-08-20T00:00:00Z', ko_date_finished: null
+          },
+          { id: 3, title: 'Jamais lu', authors: ['C'], timestamp: '2024-06-01' }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      // "recent-reads" is the default sort — no click needed
+      expect(wrapper.vm.filteredBooks[0].title).toBe('Lecture récente');
+      expect(wrapper.vm.filteredBooks[1].title).toBe('Lecture ancienne');
+      expect(wrapper.vm.filteredBooks[2].title).toBe('Jamais lu');
+    });
+
+    it('should place finished books after in-progress ones, sorted by most recent finish date (Issue #274)', async () => {
+      calibreService.getBooks.mockResolvedValue({
+        total: 3,
+        books: [
+          {
+            id: 1, title: 'En cours', authors: ['A'], timestamp: '2020-01-01',
+            ko_date_started: '2026-08-01T00:00:00Z', ko_date_finished: null
+          },
+          {
+            id: 2, title: 'Terminé récemment', authors: ['B'], timestamp: '2020-01-01',
+            ko_date_started: '2026-07-01T00:00:00Z', ko_date_finished: '2026-08-10T00:00:00Z'
+          },
+          {
+            id: 3, title: 'Terminé il y a longtemps', authors: ['C'], timestamp: '2020-01-01',
+            ko_date_started: '2026-01-01T00:00:00Z', ko_date_finished: '2026-02-01T00:00:00Z'
+          }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      expect(wrapper.vm.filteredBooks[0].title).toBe('En cours');
+      expect(wrapper.vm.filteredBooks[1].title).toBe('Terminé récemment');
+      expect(wrapper.vm.filteredBooks[2].title).toBe('Terminé il y a longtemps');
+    });
+
+    it('should sort never-synced books last, by date added (Issue #274)', async () => {
+      calibreService.getBooks.mockResolvedValue({
+        total: 2,
+        books: [
+          { id: 1, title: 'Ajouté récemment', authors: ['A'], timestamp: '2026-06-01' },
+          {
+            id: 2, title: 'Terminé', authors: ['B'], timestamp: '2020-01-01',
+            ko_date_started: '2026-07-01T00:00:00Z', ko_date_finished: '2026-08-10T00:00:00Z'
+          }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      // "Terminé" has a ko_date_finished → comes before never-synced books,
+      // regardless of timestamp
+      expect(wrapper.vm.filteredBooks[0].title).toBe('Terminé');
+      expect(wrapper.vm.filteredBooks[1].title).toBe('Ajouté récemment');
+    });
+
     it('should combine search and read filter', async () => {
       // Arrange
       calibreService.getBooks.mockResolvedValue({
