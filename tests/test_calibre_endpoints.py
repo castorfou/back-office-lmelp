@@ -217,8 +217,38 @@ class TestCalibreBooksEndpoint:
 
         # Assert
         assert response.status_code == 503
+
+    def test_get_books_enriches_with_mongo_livre_id_when_matched(
+        self, client, mock_calibre_service
+    ):
+        """Les livres matchés dans MongoDB exposent leur mongo_livre_id (Issue #277)."""
+        # Arrange
+        mock_books_list = CalibreBookList(
+            total=2,
+            offset=0,
+            limit=50,
+            books=[
+                CalibreBook(id=3, title="Le Silence de la mer", authors=["Vercors"]),
+                CalibreBook(id=42, title="Livre Sans Correspondance", authors=["X"]),
+            ],
+        )
+        mock_calibre_service["get_books"].return_value = mock_books_list
+
+        with patch(
+            "back_office_lmelp.app.calibre_matching_service"
+            ".get_calibre_id_to_mongo_livre_id_map"
+        ) as mock_map:
+            mock_map.return_value = {3: "abc123"}
+
+            # Act
+            response = client.get("/api/calibre/books")
+
+        # Assert
+        assert response.status_code == 200
         data = response.json()
-        assert "detail" in data
+        books_by_id = {b["id"]: b for b in data["books"]}
+        assert books_by_id[3]["mongo_livre_id"] == "abc123"
+        assert books_by_id[42]["mongo_livre_id"] is None
 
 
 class TestCalibreBookDetailEndpoint:

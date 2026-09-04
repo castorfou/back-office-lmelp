@@ -120,11 +120,14 @@
       <!-- Liste des livres -->
       <section v-if="filteredBooks.length > 0" class="books-section">
         <div data-testid="books-list" class="books-grid">
-          <div
+          <component
+            :is="book.mongo_livre_id ? 'router-link' : 'div'"
             v-for="book in filteredBooks"
             :key="book.id"
+            :to="book.mongo_livre_id ? `/livre/${book.mongo_livre_id}` : undefined"
             data-testid="book-card"
             class="book-card"
+            :class="{ clickable: !!book.mongo_livre_id }"
           >
             <div class="book-header">
               <h3 class="book-title" v-html="highlightText(book.title, searchText)"></h3>
@@ -143,7 +146,7 @@
             <div v-if="book.tags && book.tags.length > 0" class="book-tags">
               <span v-for="tag in book.tags" :key="tag" class="tag">{{ tag }}</span>
             </div>
-          </div>
+          </component>
         </div>
       </section>
 
@@ -238,10 +241,26 @@ export default {
     }
   },
 
+  watch: {
+    searchText() {
+      this.syncStateToUrl();
+    }
+  },
+
   async mounted() {
-    // Pre-fill search from query param (e.g., from Palmares page)
-    if (this.$route.query.search) {
-      this.searchText = this.$route.query.search;
+    // Restore page state from query params (e.g., from Palmares page,
+    // or browser back navigation after clicking a book tile — Issue #277)
+    const { search, read, sort } = this.$route.query;
+    if (search) {
+      this.searchText = search;
+    }
+    if (read === 'true') {
+      this.readFilter = true;
+    } else if (read === 'false') {
+      this.readFilter = false;
+    }
+    if (sort) {
+      this.sortBy = sort;
     }
 
     await this.loadCalibreStatus();
@@ -297,10 +316,26 @@ export default {
 
     setReadFilter(value) {
       this.readFilter = value;
+      this.syncStateToUrl();
     },
 
     setSortBy(sortType) {
       this.sortBy = sortType;
+      this.syncStateToUrl();
+    },
+
+    syncStateToUrl() {
+      const query = {};
+      if (this.searchText.trim()) {
+        query.search = this.searchText.trim();
+      }
+      if (this.readFilter !== null) {
+        query.read = String(this.readFilter);
+      }
+      if (this.sortBy) {
+        query.sort = this.sortBy;
+      }
+      this.$router.replace({ query });
     },
 
     sortBooks(books) {
@@ -538,16 +573,23 @@ export default {
 }
 
 .book-card {
+  display: block;
   background: white;
   padding: 1.5rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: inherit;
+  text-decoration: none;
 }
 
 .book-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.book-card.clickable {
+  cursor: pointer;
 }
 
 .book-header {
