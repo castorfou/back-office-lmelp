@@ -17,7 +17,8 @@
       "args": [
         "-y",
         "@playwright/mcp@latest",
-        "--headless"
+        "--headless",
+        "--no-sandbox"
       ]
     }
   }

@@ -10,7 +10,7 @@ Le serveur est déclaré dans `.mcp.json` à la racine du projet :
 "playwright": {
   "type": "stdio",
   "command": "npx",
-  "args": ["-y", "@playwright/mcp@latest", "--headless"]
+  "args": ["-y", "@playwright/mcp@latest", "--headless", "--no-sandbox"]
 }
 ```
 
@@ -42,6 +42,21 @@ Ce point n'est pas traité par cette configuration ; le mode headless est retenu
 - **Latence ajoutée** par le flux VNC (rendu différé de l'ordre de 100–500 ms par action).
 
 **Partage effectif aujourd'hui** : chaque navigateur (celui de Claude Code en headless, celui de l'utilisateur) est une session indépendante — pas de synchronisation d'état visuel en direct (scroll, focus). Ce qui est réellement partagé, c'est ce qui transite par le serveur : les données MongoDB modifiées via l'API, et le code source rechargé par le HMR de Vite. Pour comparer un rendu, l'utilisateur ouvre `http://localhost:5173` de son côté ; Claude Code partage captures d'écran et mesures DOM dans la conversation.
+
+## Sandbox Chrome et sessions restreintes
+
+Selon l'environnement d'exécution de la session Claude Code (devcontainer VS Code local vs. session cloud/CI plus restreinte), le lancement de Chrome par `@playwright/mcp` peut échouer avec :
+
+```
+Failed to move to new namespace: PID namespaces supported, Network namespace supported, but failed: errno = Operation not permitted
+Zygote process exited prematurely with exit code 1
+```
+
+Cette erreur signifie que la session n'a pas la permission de créer un PID namespace, nécessaire au lancement sandboxé natif de Chrome. Elle est indépendante de la configuration du projet : elle peut être diagnostiquée en testant `unshare --pid --fork echo ok` dans la session — si cette commande échoue aussi avec `Operation not permitted`, Chrome échouera au lancement par `@playwright/mcp` pour la même raison.
+
+**Solution** : le flag `--no-sandbox` (ajouté aux `args` du serveur `playwright` dans `.mcp.json`, voir [Configuration](#configuration)) désactive le sandboxing natif de Chrome et permet le lancement dans ces environnements restreints.
+
+**Analyse de risque** : `--no-sandbox` retire une couche de défense en profondeur contre l'évasion de sandbox par du contenu web malveillant. Jugé acceptable ici car le navigateur ne visite que le frontend local du projet (`http://localhost:5173`), pas de navigation web arbitraire non maîtrisée, et la session Claude Code elle-même s'exécute déjà dans un environnement conteneurisé/restreint. C'est une pratique standard pour faire tourner Chrome headless en CI/conteneurs.
 
 ## Prérequis
 
