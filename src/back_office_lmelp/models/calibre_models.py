@@ -96,6 +96,12 @@ class CalibreBook(BaseModel):
         None, description="Date de fin de lecture KOReader, ISO (colonne #ko_finish)"
     )
 
+    # Enrichissement MongoDB (calculé par l'endpoint, pas stocké dans Calibre)
+    mongo_livre_id: str | None = Field(
+        None,
+        description="ID du livre MongoDB correspondant (Masque et la Plume), si matché",
+    )
+
     model_config = ConfigDict(
         populate_by_name=True  # Permet d'utiliser les alias ou les noms de champs
     )

@@ -418,6 +418,47 @@ class CalibreMatchingService:
             },
         }
 
+    def _build_mongo_by_norm_title(
+        self, mongo_livres: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Index les livres MongoDB par titre normalisé (exact match, tier 1)."""
+        mongo_by_norm: dict[str, dict[str, Any]] = {}
+        for livre in mongo_livres:
+            norm = normalize_for_matching(livre.get("titre", ""))
+            if norm:
+                mongo_by_norm[norm] = livre
+        return mongo_by_norm
+
+    def get_calibre_id_to_mongo_livre_id_map(self) -> dict[int, str]:
+        """Associe chaque livre Calibre matché à son mongo_livre_id.
+
+        Matching par titre normalisé exact (tier 1), sur l'ensemble de la
+        bibliothèque Calibre. Utilisé pour rendre les tuiles cliquables
+        vers la fiche livre LMELP correspondante (Issue #277).
+
+        Returns:
+            Dict {calibre_id: mongo_livre_id} uniquement pour les paires matchées.
+        """
+        if not self._calibre_service._available:
+            return {}
+
+        try:
+            calibre_books, mongo_livres, _authors_by_id = self._get_data()
+        except Exception as e:
+            logger.error(f"Erreur récupération données pour mapping calibre-mongo: {e}")
+            return {}
+
+        mongo_by_norm = self._build_mongo_by_norm_title(mongo_livres)
+
+        result: dict[int, str] = {}
+        for book in calibre_books:
+            norm = normalize_for_matching(book["title"])
+            mongo_livre = mongo_by_norm.get(norm)
+            if mongo_livre:
+                result[book["id"]] = str(mongo_livre["_id"])
+
+        return result
+
     def get_onkindle_books(self) -> list[dict[str, Any]]:
         """Retourne les livres Calibre tagués 'onkindle', enrichis avec les données MongoDB.
 
@@ -445,11 +486,7 @@ class CalibreMatchingService:
             return []
 
         # Build MongoDB lookup: norm_title → mongo livre
-        mongo_by_norm: dict[str, dict[str, Any]] = {}
-        for livre in mongo_livres:
-            norm = normalize_for_matching(livre.get("titre", ""))
-            if norm:
-                mongo_by_norm[norm] = livre
+        mongo_by_norm = self._build_mongo_by_norm_title(mongo_livres)
 
         # Build result with MongoDB enrichment
         matched_livre_ids = []

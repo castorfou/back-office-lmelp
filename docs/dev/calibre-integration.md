@@ -157,6 +157,16 @@ def get_notes_for_livres(self, livre_ids: list[str]) -> dict[str, float]:
 
 **Important** : La collection `avis_critiques` contient les résumés LLM (pas de champ `note`). La collection `avis` contient les notes réelles des critiques.
 
+### Enrichissement `/api/calibre/books` avec `mongo_livre_id`
+
+L'endpoint `/api/calibre/books` (page Bibliothèque Calibre, `CalibreLibrary.vue`) enrichit chaque livre retourné avec un champ `mongo_livre_id: str | None`, utilisé côté frontend pour rendre la tuile cliquable vers `/livre/{id}`.
+
+**Méthode** : `CalibreMatchingService.get_calibre_id_to_mongo_livre_id_map()` — construit `{calibre_id: mongo_livre_id}` pour l'ensemble de la bibliothèque (pas seulement un sous-ensemble taggé), en réutilisant le cache 5 min de `_get_data()`. Matching par titre normalisé exact uniquement (tier 1, pas de validation auteur), comme `get_onkindle_books()`. Les deux méthodes partagent l'indexation par titre normalisé via le helper privé `_build_mongo_by_norm_title()`.
+
+L'enrichissement est fait dans `app.py::get_calibre_books()`, pas dans `calibre_service`, car `CalibreService` n'a pas de dépendance vers MongoDB — seul `CalibreMatchingService` connaît les deux sources.
+
+**Volumétrie** : Contrairement à OnKindle (~15 livres taggés), cet endpoint traite l'ensemble de la bibliothèque (~568 livres). Le cache existant de `CalibreMatchingService` évite un recalcul du matching à chaque requête.
+
 ## API Calibre Python
 
 ### Bibliothèque utilisée

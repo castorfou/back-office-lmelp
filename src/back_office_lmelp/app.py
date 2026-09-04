@@ -843,6 +843,11 @@ async def get_calibre_books(
         books_list = calibre_service.get_books(
             limit=limit, offset=offset, read_filter=read_filter, search=search
         )
+        mongo_ids_by_calibre_id = (
+            calibre_matching_service.get_calibre_id_to_mongo_livre_id_map()
+        )
+        for book in books_list.books:
+            book.mongo_livre_id = mongo_ids_by_calibre_id.get(book.id)
         return books_list.model_dump()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e

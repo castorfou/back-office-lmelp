@@ -40,9 +40,12 @@ describe('CalibreLibrary', () => {
     router = createRouter({
       history: createWebHistory(),
       routes: [
-        { path: '/calibre', component: CalibreLibrary }
+        { path: '/', component: { template: '<div />' } },
+        { path: '/calibre', component: CalibreLibrary },
+        { path: '/livre/:id', component: { template: '<div />' } }
       ]
     });
+    await router.push('/calibre');
   });
 
   afterEach(() => {
@@ -818,6 +821,139 @@ describe('CalibreLibrary', () => {
       // Assert - Should find the author with typographic apostrophe
       const bookCards = wrapper.findAll('[data-testid="book-card"]');
       expect(bookCards.length).toBe(1);
+    });
+  });
+
+  describe('Clickable tiles (Issue #277)', () => {
+    beforeEach(() => {
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 516
+      });
+    });
+
+    it('should render a matched book tile as a link to its LMELP book page', async () => {
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          {
+            id: 3,
+            title: 'Le Silence de la mer',
+            authors: ['Vercors'],
+            read: true,
+            mongo_livre_id: 'abc123'
+          }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      const bookCard = wrapper.find('[data-testid="book-card"]');
+      expect(bookCard.element.tagName).toBe('A');
+      expect(bookCard.attributes('href')).toBe('/livre/abc123');
+      expect(bookCard.classes()).toContain('clickable');
+    });
+
+    it('should render an unmatched book tile as a plain non-clickable div', async () => {
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          {
+            id: 42,
+            title: 'Livre Sans Correspondance',
+            authors: ['Auteur Inconnu'],
+            read: false,
+            mongo_livre_id: null
+          }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      const bookCard = wrapper.find('[data-testid="book-card"]');
+      expect(bookCard.element.tagName).toBe('DIV');
+      expect(bookCard.classes()).not.toContain('clickable');
+    });
+  });
+
+  describe('URL state persistence (Issue #277)', () => {
+    beforeEach(() => {
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 516
+      });
+      calibreService.getBooks.mockResolvedValue({
+        total: 0,
+        books: []
+      });
+    });
+
+    it('should restore readFilter and sortBy from query params on mount', async () => {
+      await router.push('/calibre?read=true&sort=title-az');
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      expect(wrapper.vm.readFilter).toBe(true);
+      expect(wrapper.vm.sortBy).toBe('title-az');
+    });
+
+    it('should restore readFilter=false from query params on mount', async () => {
+      await router.push('/calibre?read=false');
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      expect(wrapper.vm.readFilter).toBe(false);
+    });
+
+    it('should write search, read and sort to the URL when changed', async () => {
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      await wrapper.find('[data-testid="filter-read"]').trigger('click');
+      await flushPromises();
+      await wrapper.find('[data-testid="sort-title-az"]').trigger('click');
+      await flushPromises();
+      await wrapper.find('[data-testid="search-input"]').setValue('camus');
+      await flushPromises();
+
+      expect(router.currentRoute.value.query.read).toBe('true');
+      expect(router.currentRoute.value.query.sort).toBe('title-az');
+      expect(router.currentRoute.value.query.search).toBe('camus');
+    });
+
+    it('should restore filters after navigating away and back (browser back)', async () => {
+      await router.push('/calibre?search=camus&read=true&sort=title-az');
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+
+      expect(wrapper.vm.searchText).toBe('camus');
+      expect(wrapper.vm.readFilter).toBe(true);
+      expect(wrapper.vm.sortBy).toBe('title-az');
     });
   });
 

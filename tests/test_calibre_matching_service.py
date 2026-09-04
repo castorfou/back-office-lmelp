@@ -1001,3 +1001,83 @@ class TestCalibreMatchingServiceEnrichPalmares:
         assert item["calibre_in_library"] is True
         assert item["calibre_read"] is False
         assert item["calibre_rating"] is None  # Not shown because not read
+
+
+class TestCalibreMatchingServiceGetCalibreIdToMongoLivreIdMap:
+    """Tests pour get_calibre_id_to_mongo_livre_id_map() (Issue #277)."""
+
+    def test_maps_matched_books_by_exact_title(self):
+        """Associe calibre_id -> mongo_livre_id pour les titres identiques."""
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        mock_calibre = MagicMock()
+        mock_calibre._available = True
+        mock_mongodb = MagicMock()
+
+        service = CalibreMatchingService(mock_calibre, mock_mongodb)
+
+        mock_calibre.get_all_books_with_tags.return_value = [
+            {
+                "id": 1,
+                "title": "Le Lambeau",
+                "authors": ["Lançon, Philippe"],
+                "tags": [],
+            },
+            {
+                "id": 2,
+                "title": "Livre Sans Correspondance",
+                "authors": ["Auteur Inconnu"],
+                "tags": [],
+            },
+        ]
+        mock_mongodb.get_all_books.return_value = [
+            {"_id": "abc123", "titre": "Le Lambeau", "auteur_id": "aut1"}
+        ]
+        mock_mongodb.get_all_authors.return_value = [
+            {"_id": "aut1", "nom": "Philippe Lançon"}
+        ]
+
+        result = service.get_calibre_id_to_mongo_livre_id_map()
+
+        assert result == {1: "abc123"}
+
+    def test_no_match_returns_empty_map(self):
+        """Retourne un dict vide si aucun titre ne correspond."""
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        mock_calibre = MagicMock()
+        mock_calibre._available = True
+        mock_mongodb = MagicMock()
+
+        service = CalibreMatchingService(mock_calibre, mock_mongodb)
+
+        mock_calibre.get_all_books_with_tags.return_value = [
+            {"id": 1, "title": "Livre Inconnu", "authors": ["X"], "tags": []}
+        ]
+        mock_mongodb.get_all_books.return_value = []
+        mock_mongodb.get_all_authors.return_value = []
+
+        result = service.get_calibre_id_to_mongo_livre_id_map()
+
+        assert result == {}
+
+    def test_calibre_unavailable_returns_empty_map(self):
+        """Retourne un dict vide si Calibre n'est pas disponible."""
+        from back_office_lmelp.services.calibre_matching_service import (
+            CalibreMatchingService,
+        )
+
+        mock_calibre = MagicMock()
+        mock_calibre._available = False
+        mock_mongodb = MagicMock()
+
+        service = CalibreMatchingService(mock_calibre, mock_mongodb)
+
+        result = service.get_calibre_id_to_mongo_livre_id_map()
+
+        assert result == {}
+        mock_calibre.get_all_books_with_tags.assert_not_called()
