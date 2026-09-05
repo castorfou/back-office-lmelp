@@ -213,3 +213,5 @@ Ce qui a fait pencher la balance par rapport à une première lecture superficie
 3. Prévoir dès le départ une alerte (log, ou notification) en cas de coupure du tunnel VPN détectée par le healthcheck `gluetun`, pour éviter une panne silencieuse prolongée de tout le backend.
 
 Ce document sert de base de décision — aucune implémentation n'a été réalisée dans le cadre de cette étude, conformément au périmètre de l'issue #286.
+
+**Suivi** : issue #293 créée pour l'implémentation, avec une condition de déclenchement explicite (démarrer si le ban IP en cours (#285) n'est pas résolu sous une semaine).
