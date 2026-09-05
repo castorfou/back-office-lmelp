@@ -11,6 +11,9 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 
+from .dashboard_stats_cache_service import dashboard_stats_cache_service
+from .dashboard_stats_invalidation_listener import DashboardStatsInvalidationListener
+
 
 load_dotenv()
 
@@ -38,7 +41,14 @@ class MongoDBService:
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
         try:
-            self.client = MongoClient(self.mongo_url)
+            self.client = MongoClient(
+                self.mongo_url,
+                event_listeners=[
+                    DashboardStatsInvalidationListener(
+                        dashboard_stats_cache_service.invalidate_cache
+                    )
+                ],
+            )
             # Test de connexion
             self.client.admin.command("ping")
             self.db = self.client.get_default_database()
