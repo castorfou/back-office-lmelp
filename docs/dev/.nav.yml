@@ -17,6 +17,7 @@ nav:
   - Calibre: calibre-integration.md
   - Calibre db schema: calibre-db-schema.md
   - Cache statistiques dashboard: dashboard-stats-cache.md
+  - "Étude VPN + proxy Babelio": vpn-babelio-feasibility-study.md
   - Développement: development.md
   - Playwright MCP: playwright-mcp.md
   - Déploiement: deployment.md
