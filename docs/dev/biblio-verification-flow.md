@@ -1174,6 +1174,8 @@ Le service retourne toujours un objet avec `status` et `data` :
 }
 ```
 
+**Traitement backend (Issue #282)** : `set_validation_results` (`app.py`) ignore ce statut sans créer d'entrée dans `livresauteurs_cache` — le livre reste "non traité" et sera retenté au prochain chargement de la page. Ce statut ne doit **jamais** être confondu avec un `not_found` définitif (livre réellement introuvable sur Babelio après recherche aboutie), car cela figerait un échec technique transitoire (réseau, timeout, blocage Babelio) comme un résultat permanent en base.
+
 ---
 
 ## Cas d'Usage Réels Documentés

@@ -747,7 +747,17 @@ Récupère les statistiques pour la page de gestion des collections.
 
 ### POST /api/livres-auteurs/auto-process-verified
 
-Traite automatiquement tous les livres avec statut "verified" (validés par Babelio).
+Traite automatiquement les livres avec statut "verified" (validés par Babelio).
+
+#### Body (optionnel)
+
+```json
+{
+  "cache_id": "64f1234567890abcdef99999"
+}
+```
+
+- `cache_id` (string, optionnel) : si fourni (Issue #282), ne traite que cette entrée de cache précise (bouton "Traiter" d'un livre donné). Si absent ou body omis, traite tous les livres "verified" en masse (auto-processing en arrière-plan).
 
 #### Réponse
 
@@ -766,6 +776,7 @@ Traite automatiquement tous les livres avec statut "verified" (validés par Babe
 - Crée automatiquement les auteurs et livres validés par Babelio
 - Évite les doublons en vérifiant l'existence avant création
 - Maintient les références croisées entre collections
+- Marque chaque entrée de cache traitée avec `status: "mongo"` (`livres_auteurs_cache_service.mark_as_processed()`)
 
 ---
 

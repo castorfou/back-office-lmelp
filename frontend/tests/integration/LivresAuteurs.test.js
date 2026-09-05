@@ -563,6 +563,7 @@ describe('LivresAuteurs - Tests simplifiés', () => {
 
     const mockBooksWithValidation = [
       {
+        cache_id: '64f1234567890abcdef99999', // pragma: allowlist secret
         episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
         auteur: 'Maria Pourchet',
         titre: 'Feu',
@@ -739,8 +740,11 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       await wrapper.vm.autoProcessVerified(book);
       await wrapper.vm.$nextTick();
 
-      // L'endpoint auto-process ne prend aucun paramètre
-      expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalledWith();
+      // Issue #282: cibler ce livre précis via son cache_id, pas tous les
+      // livres verified en masse
+      expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalledWith(
+        book.cache_id
+      );
     });
   });
 

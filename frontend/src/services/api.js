@@ -97,10 +97,14 @@ export const livresAuteursService = {
 
   /**
    * Lance le traitement automatique des livres verified
+   * @param {string} [cacheId] - Si fourni (Issue #282), cible ce livre précis
+   *   au lieu de traiter tous les livres verified en masse
    * @returns {Promise<Object>} Résultats du traitement automatique
    */
-  async autoProcessVerifiedBooks() {
-    const response = await api.post('/livres-auteurs/auto-process-verified');
+  async autoProcessVerifiedBooks(cacheId) {
+    const response = await api.post('/livres-auteurs/auto-process-verified', {
+      cache_id: cacheId || null
+    });
     return response.data;
   },
 

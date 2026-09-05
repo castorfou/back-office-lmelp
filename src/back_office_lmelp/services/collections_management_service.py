@@ -52,18 +52,34 @@ class CollectionsManagementService:
                     f"Erreur lors de la récupération des statistiques (cache et fallback échoués): {cache_error}, {fallback_error}"
                 ) from fallback_error
 
-    def auto_process_verified_books(self) -> dict[str, Any]:
+    def auto_process_verified_books(
+        self, cache_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Traite automatiquement les livres avec statut 'verified'.
+
+        Args:
+            cache_id: Si fourni, ne traite que cette entrée de cache précise
+                (Issue #282 : cible le livre cliqué au lieu de tout traiter
+                en masse). Si absent, traite tous les livres 'verified'.
 
         Returns:
             Dictionnaire avec les résultats du traitement
         """
         try:
-            # Utiliser le système unifié pour récupérer les livres verified
-            verified_books = self.mongodb_service.get_books_by_validation_status(
-                "verified"
-            )
+            if cache_id:
+                entry = livres_auteurs_cache_service.get_cache_entry_by_id(
+                    ObjectId(cache_id)
+                )
+                verified_books = [entry] if entry else []
+            else:
+                # Issue #282: interroger le champ `status` réel (système simplifié),
+                # pas mongodb_service.get_books_by_validation_status() qui interroge
+                # le champ legacy validation_status/biblio_verification_status jamais
+                # peuplé par le flux d'écriture actif.
+                verified_books = livres_auteurs_cache_service.get_books_by_status(
+                    "verified"
+                )
 
             processed_count = 0
             created_authors = 0
@@ -104,6 +120,16 @@ class CollectionsManagementService:
                 book_id = self.mongodb_service.create_book_if_not_exists(book_data)
                 if book_id:
                     created_books += 1
+
+                # Issue #282: marquer l'entrée de cache comme traitée (status='mongo').
+                # C'était l'étape manquante — le livre était créé en base mais le
+                # cache restait figé en 'verified', d'où le bouton "Traiter" inefficace.
+                cache_metadata = {}
+                if book.get("babelio_publisher"):
+                    cache_metadata["babelio_publisher"] = book["babelio_publisher"]
+                livres_auteurs_cache_service.mark_as_processed(
+                    book["_id"], author_id, book_id, metadata=cache_metadata
+                )
 
                 # Mettre à jour les références
                 # TODO: Ajouter la logique de mise à jour des références entre collections

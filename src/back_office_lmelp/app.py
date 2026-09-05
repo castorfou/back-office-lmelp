@@ -166,6 +166,12 @@ class ValidateSuggestionRequest(BaseModel):
     babelio_url: str | None = None  # Issue #85: URL Babelio du livre
 
 
+class AutoProcessVerifiedRequest(BaseModel):
+    """Modèle pour cibler un livre précis lors de l'auto-processing (Issue #282)."""
+
+    cache_id: str | None = None
+
+
 class AddManualBookRequest(BaseModel):
     """Modèle pour l'ajout manuel d'un livre."""
 
@@ -1684,6 +1690,13 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
         books_processed = 0
 
         for book_result in request.books:
+            # Issue #282: un échec technique (réseau, timeout, Babelio bloqué) ne
+            # doit PAS être persisté comme un "not_found" définitif — le livre
+            # reste simplement non traité et sera retenté au prochain chargement
+            # de la page, au lieu de rester bloqué en cache indéfiniment.
+            if book_result.validation_status == "error":
+                continue
+
             # Convertir le statut de validation frontend vers statut cache unifié
             if book_result.validation_status == "verified":
                 cache_status = "verified"
@@ -2778,8 +2791,15 @@ async def get_livres_auteurs_statistics() -> dict[str, Any]:
 
 
 @app.post("/api/livres-auteurs/auto-process-verified", response_model=dict[str, Any])
-async def auto_process_verified_books() -> dict[str, Any]:
-    """Traite automatiquement les livres avec statut 'verified'."""
+async def auto_process_verified_books(
+    request: AutoProcessVerifiedRequest | None = None,
+) -> dict[str, Any]:
+    """Traite automatiquement les livres avec statut 'verified'.
+
+    Si `cache_id` est fourni (Issue #282), ne traite que ce livre précis
+    (bouton "Traiter" d'un livre donné). Sinon, traite tous les livres
+    'verified' (auto-processing en arrière-plan).
+    """
     # Vérification mémoire
     memory_check = memory_guard.check_memory_limit()
     if memory_check:
@@ -2788,7 +2808,10 @@ async def auto_process_verified_books() -> dict[str, Any]:
         print(f"⚠️ {memory_check}")
 
     try:
-        result = collections_management_service.auto_process_verified_books()
+        cache_id = request.cache_id if request else None
+        result = collections_management_service.auto_process_verified_books(
+            cache_id=cache_id
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e

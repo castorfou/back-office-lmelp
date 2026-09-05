@@ -1036,10 +1036,14 @@ export default {
      */
     async autoProcessVerified(book) {
       try {
-        // L'endpoint auto-process ne prend aucun paramètre (traite tous les livres verified)
-        const result = await livresAuteursService.autoProcessVerifiedBooks();
+        // Issue #282: cibler ce livre précis via son cache_id (au lieu de
+        // traiter tous les livres verified en masse à chaque clic)
+        const result = await livresAuteursService.autoProcessVerifiedBooks(book.cache_id);
 
-        if (result.success) {
+        // Issue #282: le backend retourne processed_count (jamais `success`,
+        // qui était systématiquement undefined) — le rechargement après
+        // traitement ne se déclenchait donc jamais.
+        if (result.processed_count > 0) {
           // Actualiser les données après traitement
           await this.loadBooksForEpisode();
         }
@@ -1691,13 +1695,17 @@ export default {
 
           } catch (validationError) {
             console.warn(`⚠️ Erreur validation ${book.auteur}:`, validationError);
-            // En cas d'erreur, garder comme not_found
+            // Issue #282: un échec technique (réseau, timeout) ne doit PAS être
+            // confondu avec un vrai "not_found" (livre introuvable sur Babelio
+            // après recherche aboutie) — le backend ne persiste pas d'entrée
+            // cache figée pour 'error', le livre sera retenté au prochain
+            // chargement de la page au lieu de rester bloqué indéfiniment.
             validatedBooks.push({
               auteur: book.auteur,
               titre: book.titre,
               editeur: book.editeur || '',
               programme: book.programme || false,
-              validation_status: 'not_found'
+              validation_status: 'error'
             });
           }
         }
