@@ -437,6 +437,27 @@ mcp__MongoDB__aggregate --database "masque_et_la_plume" --collection "livres" --
 
 ## Critical Patterns and Anti-Patterns
 
+### Legacy Field Schema Coexisting with Active One
+
+**CRITICAL**: When a collection's status field was migrated to a new schema, grep for ALL read/write call sites before trusting any of them — a legacy read path can silently query a field nobody writes anymore.
+
+```python
+# ❌ WRONG - queries the legacy field, never populated by the active write path
+def auto_process_verified_books(self):
+    verified_books = self.mongodb_service.get_books_by_validation_status("verified")
+    # get_books_by_validation_status() filters on validation_status/
+    # biblio_verification_status — but create_cache_entry() only ever
+    # writes the unified `status` field. This silently matches 0 documents.
+
+# ✅ CORRECT - query the field the active write path actually populates
+def auto_process_verified_books(self):
+    verified_books = livres_auteurs_cache_service.get_books_by_status("verified")
+```
+
+**Why this is dangerous**: the query returns 0 or wrong results with **no error** — MongoDB doesn't complain about querying a field nobody sets. The bug surfaces as "the button does nothing" rather than a crash (Issue #282: `livresauteurs_cache` had a legacy `validation_status`/`biblio_verification_status` pair coexisting with the unified `status` field; one code path still read the legacy pair while every write went to `status`).
+
+**How to verify**: for a collection with a status/state field, confirm the write side (`create_*`, `update_*`) and every read side (`get_*_by_*status*`) all reference the *same* field name before adding a new consumer.
+
 ### MongoDB Cursor Handling
 
 **CRITICAL**: Never mix sync cursors with async iteration

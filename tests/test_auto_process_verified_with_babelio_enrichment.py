@@ -47,6 +47,7 @@ def test_auto_process_enriched_books_updates_editeur():
 
     # Livre dans le cache avec enrichissement Babelio
     cache_book_enriched = {
+        "_id": ObjectId("68e47439f4ac0655e1de7d70"),  # pragma: allowlist secret
         "episode_oid": episode_oid,
         "auteur": "Emmanuel Carrère",
         "titre": "Kolkhoze",
@@ -101,11 +102,9 @@ def test_auto_process_enriched_books_updates_editeur():
 
     # Mock les dépendances externes
     with (
-        patch.object(
-            mongodb_service,
-            "get_books_by_validation_status",
-            return_value=[cache_book_enriched],
-        ) as mock_get_books,
+        patch(
+            "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+        ) as mock_cache_service,
         patch.object(
             mongodb_service, "create_author_if_not_exists", return_value=author_id
         ),
@@ -115,13 +114,15 @@ def test_auto_process_enriched_books_updates_editeur():
             return_value={"_id": avis_critique_id},
         ),
     ):
+        mock_cache_service.get_books_by_status.return_value = [cache_book_enriched]
+
         # Act
         result = service.auto_process_verified_books()
 
-        # Assert 1: Vérifier que get_books_by_validation_status a été appelé avec "verified"
+        # Assert 1: Vérifier que get_books_by_status a été appelé avec "verified"
         # Note: L'enrichissement Babelio est stocké dans le champ babelio_publisher,
         # pas dans un statut séparé. Les livres enrichis restent "verified".
-        mock_get_books.assert_called_once_with("verified")
+        mock_cache_service.get_books_by_status.assert_called_once_with("verified")
 
         # Assert 2: Vérifier que le livre a été trouvé et traité
         assert result["processed_count"] == 1, "Un livre devrait être traité"
@@ -151,6 +152,7 @@ def test_auto_process_no_update_when_editeur_same():
     episode_oid = "68bd9ed3582cf994fb66f1d6"  # pragma: allowlist secret
 
     cache_book = {
+        "_id": ObjectId("68e47439f4ac0655e1de7d71"),  # pragma: allowlist secret
         "episode_oid": episode_oid,
         "auteur": "Test Author",
         "titre": "Test Book",
@@ -189,9 +191,9 @@ def test_auto_process_no_update_when_editeur_same():
     service.mongodb_service = mongodb_service
 
     with (
-        patch.object(
-            mongodb_service, "get_books_by_validation_status", return_value=[cache_book]
-        ),
+        patch(
+            "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+        ) as mock_cache_service,
         patch.object(
             mongodb_service, "create_author_if_not_exists", return_value=author_id
         ),
@@ -199,6 +201,8 @@ def test_auto_process_no_update_when_editeur_same():
             mongodb_service, "get_critical_review_by_episode_oid", return_value=None
         ),
     ):
+        mock_cache_service.get_books_by_status.return_value = [cache_book]
+
         # Act
         service.auto_process_verified_books()
 

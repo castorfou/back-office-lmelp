@@ -179,6 +179,42 @@ class LivresAuteursCacheService:
         # Convertir en liste et retourner
         return list(cursor)
 
+    def get_books_by_status(self, status: str) -> list[dict[str, Any]]:
+        """
+        Récupère tous les livres en cache pour un statut donné, tous épisodes confondus.
+
+        Interroge le champ `status` (système simplifié réellement écrit par
+        `create_cache_entry`/`update_validation_status`), contrairement à
+        `mongodb_service.get_books_by_validation_status()` qui interroge le
+        champ legacy `validation_status`/`biblio_verification_status`,
+        jamais peuplé par le flux d'écriture actif (Issue #282).
+
+        Args:
+            status: Statut à filtrer ('verified', 'suggested', 'not_found', 'mongo')
+
+        Returns:
+            Liste des documents cache correspondants
+        """
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        return list(cache_collection.find({"status": status}))
+
+    def get_cache_entry_by_id(self, cache_id: ObjectId) -> dict[str, Any] | None:
+        """
+        Récupère une entrée de cache par son `_id`.
+
+        Utilisé pour cibler précisément un livre (Issue #282), au lieu de
+        traiter en masse tous les livres d'un statut donné.
+
+        Args:
+            cache_id: ObjectId de l'entrée de cache
+
+        Returns:
+            Le document trouvé, ou None si aucune entrée ne correspond.
+        """
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        result: dict[str, Any] | None = cache_collection.find_one({"_id": cache_id})
+        return result
+
     def update_validation_status(
         self, cache_id: ObjectId, status: str, metadata: dict[str, Any]
     ) -> bool:

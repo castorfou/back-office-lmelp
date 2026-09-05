@@ -58,6 +58,39 @@ class TestCollectionsAPIEndpoints:
             assert "created_books" in data
             assert data["processed_count"] == 15
             assert data["created_authors"] == 8
+            mock_service.auto_process_verified_books.assert_called_once_with(
+                cache_id=None
+            )
+
+    def test_post_auto_process_verified_books_endpoint_with_cache_id(self):
+        """Test TDD (Issue #282): POST accepte un cache_id pour cibler un livre précis.
+
+        Bug racine: le bouton "Traiter" d'UN livre déclenchait le traitement de
+        TOUS les livres 'verified' (l'endpoint ne prenait aucun paramètre).
+        """
+        with patch(
+            "back_office_lmelp.app.collections_management_service"
+        ) as mock_service:
+            mock_service.auto_process_verified_books.return_value = {
+                "processed_count": 1,
+                "created_authors": 1,
+                "created_books": 1,
+                "updated_references": 1,
+            }
+
+            response = self.client.post(
+                "/api/livres-auteurs/auto-process-verified",
+                json={
+                    "cache_id": "64f1234567890abcdef99999"
+                },  # pragma: allowlist secret
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["processed_count"] == 1
+            mock_service.auto_process_verified_books.assert_called_once_with(
+                cache_id="64f1234567890abcdef99999"  # pragma: allowlist secret
+            )
 
     def test_get_books_by_validation_status_endpoint(self):
         """Test endpoint GET /api/livres-auteurs/books/{status}."""

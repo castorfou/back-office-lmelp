@@ -198,6 +198,94 @@ class TestValidationResultsAPI:
             book_data = cache_call[0][1]
             assert book_data["status"] == "suggested"
 
+    def test_set_validation_results_should_not_persist_error_status_as_not_found(self):
+        """Test TDD (Issue #282): un statut 'error' ne doit PAS créer d'entrée cache figée.
+
+        Bug racine: `else: # not_found` absorbait silencieusement TOUT statut
+        non reconnu (y compris 'error', échec technique/réseau/Babelio bloqué)
+        en `not_found` définitif, masquant un échec retriable comme un vrai
+        "livre introuvable sur Babelio" — le livre restait bloqué en 'not_found'
+        indéfiniment plutôt que d'être retenté au prochain chargement.
+        """
+        episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+        avis_critique_id = ObjectId(
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )
+
+        validation_results = {
+            "episode_oid": episode_oid,
+            "avis_critique_id": str(avis_critique_id),
+            "books": [
+                {
+                    "auteur": "Valérie Manteau",
+                    "titre": "Le Sillon",
+                    "editeur": "Le Tripode",
+                    "programme": True,
+                    "validation_status": "error",  # Échec technique, pas un vrai not_found
+                }
+            ],
+        }
+
+        with (
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+            patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+        ):
+            response = self.client.post(
+                "/api/set-validation-results", json=validation_results
+            )
+
+            assert response.status_code == 200
+
+            # Aucune entrée cache figée ne doit être créée pour un échec technique
+            mock_cache_service.create_cache_entry.assert_not_called()
+            mock_mongodb.create_author_if_not_exists.assert_not_called()
+            mock_mongodb.create_book_if_not_exists.assert_not_called()
+
+    def test_set_validation_results_should_still_persist_real_not_found(self):
+        """Test TDD (Issue #282): un vrai 'not_found' doit continuer à créer une entrée cache.
+
+        Non-régression: seul 'error' change de comportement, 'not_found'
+        (livre réellement introuvable sur Babelio après recherche aboutie)
+        continue de créer une entrée cache comme avant.
+        """
+        episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+        avis_critique_id = ObjectId(
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )
+
+        validation_results = {
+            "episode_oid": episode_oid,
+            "avis_critique_id": str(avis_critique_id),
+            "books": [
+                {
+                    "auteur": "Auteur Inconnu",
+                    "titre": "Titre Introuvable",
+                    "editeur": "",
+                    "programme": True,
+                    "validation_status": "not_found",
+                }
+            ],
+        }
+
+        with patch(
+            "back_office_lmelp.app.livres_auteurs_cache_service"
+        ) as mock_cache_service:
+            cache_entry_id = ObjectId(
+                "68d3eb092f32bb8c43063f91"  # pragma: allowlist secret
+            )
+            mock_cache_service.create_cache_entry.return_value = cache_entry_id
+
+            response = self.client.post(
+                "/api/set-validation-results", json=validation_results
+            )
+
+            assert response.status_code == 200
+            mock_cache_service.create_cache_entry.assert_called_once()
+            book_data = mock_cache_service.create_cache_entry.call_args[0][1]
+            assert book_data["status"] == "not_found"
+
     def test_set_validation_results_should_transmit_babelio_enrichment_to_cache(self):
         """Test TDD (Issue #85): L'endpoint doit transmettre les champs Babelio enrichis au cache."""
         episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret

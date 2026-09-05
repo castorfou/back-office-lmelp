@@ -1,6 +1,6 @@
 """Tests TDD pour le service de gestion des collections auteurs/livres (Issue #66)."""
 
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from bson import ObjectId
 
@@ -69,32 +69,40 @@ class TestCollectionsManagementService:
         """Test traitement automatique des livres 'verified'."""
         service = CollectionsManagementService()
 
-        # Mock des livres verified à traiter
+        # Mock des livres verified à traiter (Issue #282: champ `status`, schéma réel du cache)
         verified_books = [
             {
+                "_id": ObjectId("64f1234567890abcdef33331"),  # pragma: allowlist secret
                 "auteur": "Michel Houellebecq",
                 "titre": "Les Particules élémentaires",
                 "editeur": "Flammarion",
                 "episode_oid": "64f1234567890abcdef12345",  # pragma: allowlist secret
-                "validation_status": "verified",
+                "status": "verified",
             },
             {
+                "_id": ObjectId("64f1234567890abcdef33332"),  # pragma: allowlist secret
                 "auteur": "Emmanuel Carrère",
                 "titre": "Kolkhoze",
                 "editeur": "POL",
                 "episode_oid": "64f1234567890abcdef12346",  # pragma: allowlist secret
-                "validation_status": "verified",
+                "status": "verified",
             },
         ]
 
-        with patch.object(service, "mongodb_service") as mock_mongodb:
-            mock_mongodb.get_books_by_validation_status.return_value = verified_books
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_cache_service.get_books_by_status.return_value = verified_books
             mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
                 "64f1234567890abcdef11111"  # pragma: allowlist secret
             )
             mock_mongodb.create_book_if_not_exists.return_value = ObjectId(
                 "64f1234567890abcdef22222"  # pragma: allowlist secret
             )
+            mock_mongodb.get_critical_review_by_episode_oid.return_value = None
 
             result = service.auto_process_verified_books()
 
@@ -108,6 +116,9 @@ class TestCollectionsManagementService:
             # Vérifier que les méthodes de création ont été appelées
             assert mock_mongodb.create_author_if_not_exists.call_count == 2
             assert mock_mongodb.create_book_if_not_exists.call_count == 2
+
+            # Issue #282: chaque livre traité doit être marqué comme traité dans le cache
+            assert mock_cache_service.mark_as_processed.call_count == 2
 
     def test_get_books_by_validation_status(self):
         """Test récupération des livres par statut de validation."""
@@ -199,18 +210,104 @@ class TestCollectionsManagementService:
             assert "author_id" in result
             assert "book_id" in result
 
+    def test_auto_process_verified_books_should_mark_cache_entry_as_processed(self):
+        """Test TDD (Issue #282): le traitement doit persister status='mongo' dans le cache.
+
+        Bug racine: auto_process_verified_books() créait bien l'auteur/livre en base
+        mais n'appelait jamais mark_as_processed(), laissant le cache figé en 'verified'
+        (le bouton "Traiter" semblait ne rien faire côté UI).
+        """
+        service = CollectionsManagementService()
+
+        cache_id = ObjectId("64f1234567890abcdef99999")  # pragma: allowlist secret
+        verified_books = [
+            {
+                "_id": cache_id,
+                "auteur": "Michel Houellebecq",
+                "titre": "Les Particules élémentaires",
+                "editeur": "Flammarion",
+                "episode_oid": "64f1234567890abcdef12345",  # pragma: allowlist secret
+                "status": "verified",
+            }
+        ]
+
+        author_id = ObjectId("64f1234567890abcdef11111")  # pragma: allowlist secret
+        book_id = ObjectId("64f1234567890abcdef22222")  # pragma: allowlist secret
+
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_cache_service.get_books_by_status.return_value = verified_books
+            mock_mongodb.create_author_if_not_exists.return_value = author_id
+            mock_mongodb.create_book_if_not_exists.return_value = book_id
+            mock_mongodb.get_critical_review_by_episode_oid.return_value = None
+
+            service.auto_process_verified_books()
+
+            mock_cache_service.mark_as_processed.assert_called_once_with(
+                cache_id, author_id, book_id, metadata=ANY
+            )
+
+    def test_auto_process_verified_books_with_cache_id_should_process_only_that_book(
+        self,
+    ):
+        """Test TDD (Issue #282): passer cache_id doit cibler UN livre, pas tout traiter en masse.
+
+        Bug racine: le bouton "Traiter" d'un livre précis déclenchait le traitement de
+        TOUS les livres verified (l'endpoint ne prenait aucun paramètre).
+        """
+        service = CollectionsManagementService()
+
+        target_id = ObjectId("64f1234567890abcdef99999")  # pragma: allowlist secret
+        target_book = {
+            "_id": target_id,
+            "auteur": "Valérie Manteau",
+            "titre": "Le Sillon",
+            "editeur": "Le Tripode",
+            "episode_oid": "64f1234567890abcdef12345",  # pragma: allowlist secret
+            "status": "verified",
+        }
+
+        author_id = ObjectId("64f1234567890abcdef11111")  # pragma: allowlist secret
+        book_id = ObjectId("64f1234567890abcdef22222")  # pragma: allowlist secret
+
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_cache_service.get_cache_entry_by_id.return_value = target_book
+            mock_mongodb.create_author_if_not_exists.return_value = author_id
+            mock_mongodb.create_book_if_not_exists.return_value = book_id
+            mock_mongodb.get_critical_review_by_episode_oid.return_value = None
+
+            result = service.auto_process_verified_books(cache_id=str(target_id))
+
+            # Un seul livre traité, sélectionné par _id (pas par balayage global)
+            mock_cache_service.get_books_by_status.assert_not_called()
+            mock_cache_service.get_cache_entry_by_id.assert_called_once_with(target_id)
+            assert result["processed_count"] == 1
+            mock_cache_service.mark_as_processed.assert_called_once_with(
+                target_id, author_id, book_id, metadata=ANY
+            )
+
     def test_auto_process_links_books_to_critical_reviews(self):
         """Test TDD: l'auto-processing doit lier les livres aux avis critiques correspondants."""
         service = CollectionsManagementService()
 
-        # Mock des livres verified avec episode_oid
+        # Mock des livres verified avec episode_oid (Issue #282: champ `status`)
         verified_books = [
             {
+                "_id": ObjectId("68d3eb092f32bb8c43063f91"),  # pragma: allowlist secret
                 "auteur": "Maria Pourchet",
                 "titre": "Tressaillir",
                 "editeur": "Stock",
                 "episode_oid": "68c707ad6e51b9428ab87e9e",  # Episode du 14/09  # pragma: allowlist secret
-                "validation_status": "verified",
+                "status": "verified",
             }
         ]
 
@@ -221,9 +318,14 @@ class TestCollectionsManagementService:
             "summary": "...Maria Pourchet | Tressaillir | Stock...",
         }
 
-        with patch.object(service, "mongodb_service") as mock_mongodb:
+        with (
+            patch.object(service, "mongodb_service") as mock_mongodb,
+            patch(
+                "back_office_lmelp.services.collections_management_service.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+        ):
             # Mock des méthodes existantes avec système unifié
-            mock_mongodb.get_books_by_validation_status.return_value = verified_books
+            mock_cache_service.get_books_by_status.return_value = verified_books
             mock_mongodb.create_author_if_not_exists.return_value = ObjectId(
                 "67a79b615b03b52d8c51db29"  # ID existant de Maria Pourchet  # pragma: allowlist secret
             )
