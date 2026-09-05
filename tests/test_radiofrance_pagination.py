@@ -194,13 +194,47 @@ class TestRadioFranceDichotomySearch:
         )
 
 
+def _make_response(html: str) -> Mock:
+    """Construit un mock de réponse aiohttp pour un GET (Issue #290: pas de vrai réseau)."""
+    r = Mock()
+    r.status = 200
+    r.text = AsyncMock(return_value=html)
+    r.__aenter__ = AsyncMock(return_value=r)
+    r.__aexit__ = AsyncMock(return_value=None)
+    return r
+
+
+def _make_session(get_side_effect) -> Mock:
+    """Construit un mock de aiohttp.ClientSession avec un side_effect pour .get()."""
+    s = Mock()
+    s.get = Mock(side_effect=get_side_effect)
+    s.__aenter__ = AsyncMock(return_value=s)
+    s.__aexit__ = AsyncMock(return_value=None)
+    return s
+
+
+def _episode_html(date_str: str) -> str:
+    """Page épisode RadioFrance avec un JSON-LD RadioEpisode à la date donnée."""
+    return f"""<html><head>
+    <script type="application/ld+json">{{"@context":"https://schema.org","@graph":[
+      {{"@type":"RadioEpisode","dateCreated":"{date_str}T18:00:00.000Z"}}
+    ]}}</script>
+    </head><body></body></html>"""
+
+
 class TestRadioFrancePaginationForOldEpisodes:
-    """Tests pour la pagination quand l'épisode n'est pas dans la 1ère page."""
+    """Tests pour la pagination quand l'épisode n'est pas dans la 1ère page.
+
+    Issue #290: ces tests appelaient service.search_episode_page_url() sans
+    aucun mock, envoyant de vraies requêtes HTTP vers radiofrance.fr — non
+    déterministe et bloquant (timeout) si le réseau ne répond pas. Réécrits
+    avec le même pattern de mock que TestRadioFranceDichotomySearch ci-dessus.
+    """
 
     @pytest.mark.asyncio
     async def test_should_find_episode_from_2017_with_generic_title(self):
         """
-        RED Test: Doit trouver l'épisode du 01/10/2017 malgré titre générique.
+        Doit trouver l'épisode du 01/10/2017 malgré titre générique.
 
         PROBLÈME:
         - Titre générique: "Le masque et la plume livres"
@@ -211,38 +245,74 @@ class TestRadioFrancePaginationForOldEpisodes:
         SOLUTION ATTENDUE:
         - Essayer plusieurs pages de résultats (max 10 pages)
         - Arrêter quand l'épisode avec la bonne date est trouvé
-        - Arrêter si une page ne retourne aucun résultat
         """
         service = RadioFranceService()
-
-        # GIVEN: Episode ancien avec titre très générique
         episode_title = "Le masque et la plume livres"
-        episode_date = "2017-10-01"  # Épisode du 01/10/2017
+        episode_date = "2017-10-01"
+        target_url = "/franceinter/podcasts/le-masque-et-la-plume/episode-cible-1234567"
 
-        # WHEN: On recherche l'URL de cet épisode
-        result_url = await service.search_episode_page_url(episode_title, episode_date)
+        # Page 1: aucun résultat pertinent (mauvaise date). Page 2: l'épisode cible.
+        page1_html = """<html><body>
+        <a href="/franceinter/podcasts/le-masque-et-la-plume/autre-episode-7654321">Autre</a>
+        </body></html>"""
+        page2_html = f"""<html><body>
+        <a href="{target_url}">Episode cible</a>
+        </body></html>"""
 
-        # THEN: L'URL doit être trouvée malgré la pagination
+        def mock_get(url, **kwargs):
+            if "&p=2" in url:
+                return _make_response(page2_html)
+            if "&p=" in url:
+                return _make_response("<html><body></body></html>")
+            if target_url in url:
+                return _make_response(_episode_html(episode_date))
+            if "autre-episode" in url:
+                return _make_response(_episode_html("2020-01-01"))
+            return _make_response(page1_html)
+
+        with patch(
+            "aiohttp.ClientSession",
+            side_effect=lambda **kwargs: _make_session(mock_get),
+        ):
+            result_url = await service.search_episode_page_url(
+                episode_title, episode_date
+            )
+
         assert result_url is not None, (
             f"URL de l'épisode du {episode_date} devrait être trouvée "
             "même si pas dans la 1ère page de résultats"
         )
-        # La date est déjà vérifiée par le code (via _extract_episode_date)
-        # donc on vérifie juste que c'est une URL RadioFrance valide
-        assert "radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume" in result_url
+        assert target_url in result_url
 
     @pytest.mark.asyncio
     async def test_should_find_episode_from_august_2017(self):
-        """Test avec un autre épisode ancien (13/08/2017)."""
+        """Test avec un autre épisode ancien (13/08/2017), trouvé dès la 1ère page."""
         service = RadioFranceService()
-
         episode_title = "Le masque et la plume livres"
         episode_date = "2017-08-13"
+        target_url = (
+            "/franceinter/podcasts/le-masque-et-la-plume/episode-aout-2017-7654321"
+        )
 
-        result_url = await service.search_episode_page_url(episode_title, episode_date)
+        page1_html = f"""<html><body>
+        <a href="{target_url}">Episode août 2017</a>
+        </body></html>"""
+
+        def mock_get(url, **kwargs):
+            if target_url in url:
+                return _make_response(_episode_html(episode_date))
+            return _make_response(page1_html)
+
+        with patch(
+            "aiohttp.ClientSession",
+            side_effect=lambda **kwargs: _make_session(mock_get),
+        ):
+            result_url = await service.search_episode_page_url(
+                episode_title, episode_date
+            )
 
         assert result_url is not None
-        assert "radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume" in result_url
+        assert target_url in result_url
 
     @pytest.mark.asyncio
     async def test_should_stop_after_max_pages_to_avoid_infinite_loop(self):
@@ -253,15 +323,30 @@ class TestRadioFrancePaginationForOldEpisodes:
         Pour éviter des boucles infinies si l'épisode n'existe vraiment pas.
         """
         service = RadioFranceService()
-
-        # GIVEN: Episode qui n'existe probablement pas
         episode_title = "Épisode Totalement Inventé XYZ123"
         episode_date = "1900-01-01"
 
-        # WHEN: On recherche (devrait s'arrêter après max_pages)
-        result_url = await service.search_episode_page_url(episode_title, episode_date)
+        # Chaque page retourne un candidat, mais jamais à la bonne date — la
+        # pagination (et le fallback chronologique) doivent finir par
+        # abandonner sans boucle infinie, plutôt que de compter les pages
+        # exactement (le fallback dichotomique fait ses propres requêtes).
+        def mock_get(url, **kwargs):
+            if "episode-recent" in url:
+                return _make_response(_episode_html("2020-01-01"))
+            return _make_response(
+                """<html><body>
+                <a href="/franceinter/podcasts/le-masque-et-la-plume/episode-recent-1112223">E</a>
+                </body></html>"""
+            )
 
-        # THEN: Devrait retourner None sans timeout ni boucle infinie
+        with patch(
+            "aiohttp.ClientSession",
+            side_effect=lambda **kwargs: _make_session(mock_get),
+        ):
+            result_url = await service.search_episode_page_url(
+                episode_title, episode_date
+            )
+
         assert result_url is None
 
     @pytest.mark.asyncio
@@ -273,14 +358,25 @@ class TestRadioFrancePaginationForOldEpisodes:
         Si candidate_urls est vide, c'est qu'on a atteint la fin.
         """
         service = RadioFranceService()
-
-        # GIVEN: Titre très spécifique qui ne devrait avoir que quelques résultats
         episode_title = "Le masque et la plume livres épisode unique xyz"
-        episode_date = "2099-12-31"  # Date future
+        episode_date = "2099-12-31"
 
-        # WHEN: On recherche
-        result_url = await service.search_episode_page_url(episode_title, episode_date)
+        pages_requested = []
 
-        # THEN: Ne devrait pas faire 10 pages inutiles
-        # Devrait s'arrêter dès qu'une page retourne 0 résultats
+        def mock_get(url, **kwargs):
+            if "&p=" in url:
+                pages_requested.append(url)
+            # Toutes les pages (y compris la 1ère) sont vides : fin de pagination immédiate
+            return _make_response("<html><body></body></html>")
+
+        with patch(
+            "aiohttp.ClientSession",
+            side_effect=lambda **kwargs: _make_session(mock_get),
+        ):
+            result_url = await service.search_episode_page_url(
+                episode_title, episode_date
+            )
+
         assert result_url is None
+        # Page 1 vide → pagination doit s'arrêter immédiatement, aucune page suivante
+        assert len(pages_requested) == 0

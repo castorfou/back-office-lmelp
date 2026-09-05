@@ -152,6 +152,16 @@ class TestVerifyBookEnrichment:
                 "fetch_publisher_from_url",
                 return_value="Herscher",
             ),
+            patch.object(
+                babelio_service,
+                "fetch_full_title_from_url",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             result = await babelio_service.verify_book(
                 "Des visages et des mains: 150 portraits d'écrivain...",
@@ -190,6 +200,11 @@ class TestVerifyBookEnrichment:
         with (
             patch.object(babelio_service, "search", return_value=[mock_book_data]),
             patch.object(babelio_service, "fetch_publisher_from_url") as mock_fetch,
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             result = await babelio_service.verify_book(
                 "Titre vague incomplet", "Auteur Inconnu Totalement"
@@ -225,6 +240,11 @@ class TestVerifyBookEnrichment:
                 babelio_service,
                 "fetch_publisher_from_url",
                 side_effect=Exception("Scraping failed"),
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
             ),
         ):
             result = await babelio_service.verify_book(
