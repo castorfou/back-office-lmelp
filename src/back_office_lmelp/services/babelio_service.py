@@ -340,6 +340,46 @@ class BabelioService:
                 self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
                 return html
 
+    async def health_check(self) -> dict[str, Any]:
+        """Effectue une requête légère à la demande pour connaître l'état réel de Babelio.
+
+        Contrairement à /api/babelio/status en mode passif (qui ne fait que relire
+        le buffer des dernières requêtes applicatives), ce health check déclenche
+        une vraie requête réseau vers la page d'accueil Babelio — jamais autrement
+        mise en cache dans ce service — via le rate limiter existant (Issue #287).
+
+        Ne lève jamais d'exception : les échecs (403, captcha, timeout, circuit
+        déjà ouvert) sont capturés et journalisés via _log_request(), pour que
+        l'appelant (endpoint /api/babelio/status) puisse simplement relire le
+        buffer après cet appel plutôt que de gérer chaque type d'erreur.
+
+        Returns:
+            {"ok": bool} — True si la page d'accueil a été récupérée avec succès.
+        """
+        t0 = time.time()
+
+        if self._circuit_open:
+            # _fetch_page lève avant tout log dans ce cas — journaliser ici pour
+            # que /api/babelio/status voie bien "blocked_403" après l'appel.
+            self._log_request(
+                "page", self.base_url, 403, False, (time.time() - t0) * 1000
+            )
+            return {"ok": False}
+
+        try:
+            html = await self._fetch_page(self.base_url)
+        except (BabelioBlockedError, BabelioCaptchaError):
+            # Déjà journalisé par _fetch_page.
+            return {"ok": False}
+        except Exception as e:
+            logger.error(f"Erreur health check Babelio: {e}")
+            self._log_request(
+                "page", self.base_url, 0, False, (time.time() - t0) * 1000
+            )
+            return {"ok": False}
+
+        return {"ok": html is not None}
+
     async def _handle_search_response(
         self,
         response: Any,

@@ -48,7 +48,7 @@
           </div>
         </div>
 
-        <button @click="loadStatus" class="btn btn-secondary refresh-btn" :disabled="loading.status">
+        <button @click="refreshStatus" class="btn btn-secondary refresh-btn" :disabled="loading.status">
           🔄 Rafraîchir
         </button>
       </section>
@@ -318,6 +318,21 @@ export default {
         this.status = res.data;
       } catch (e) {
         console.error('Erreur chargement statut Babelio', e);
+      } finally {
+        this.loading.status = false;
+      }
+    },
+
+    // Déclenche un health check actif côté backend (Issue #287) — réservé au
+    // clic explicite sur "Rafraîchir", jamais au polling silencieux (30s),
+    // pour ne pas spammer Babelio à chaque visite de la page.
+    async refreshStatus() {
+      this.loading.status = true;
+      try {
+        const res = await axios.get('/api/babelio/status?live_check=true');
+        this.status = res.data;
+      } catch (e) {
+        console.error('Erreur rafraîchissement statut Babelio', e);
       } finally {
         this.loading.status = false;
       }

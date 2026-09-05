@@ -8,7 +8,7 @@ Tests pour :
 - GET /api/babelio/requests/recent
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,6 +26,7 @@ def mock_babelio_service():
     with patch("back_office_lmelp.app.babelio_service") as mock:
         mock.get_recent_requests.return_value = []
         mock.min_interval = 2.0
+        mock.health_check = AsyncMock(return_value={"ok": True})
         yield mock
 
 
@@ -84,6 +85,19 @@ def test_babelio_status_ok_when_no_errors(client, mock_babelio_service):
     assert data["overall"] == "ok"
 
 
+def test_babelio_status_unknown_when_no_recent_requests(client, mock_babelio_service):
+    """GET /api/babelio/status returns overall='unknown' when no request was ever attempted.
+
+    Issue #287: an empty buffer (fresh restart, or everything served from cache)
+    must NOT be reported as "ok" — that falsely implies Babelio was reached
+    successfully. The frontend already handles "unknown" (badge "❓ Inconnu").
+    """
+    mock_babelio_service.get_recent_requests.return_value = []
+    response = client.get("/api/babelio/status")
+    data = response.json()
+    assert data["overall"] == "unknown"
+
+
 def test_babelio_status_blocked_when_403(client, mock_babelio_service):
     """GET /api/babelio/status returns overall='blocked_403' when last request was 403."""
     mock_babelio_service.get_recent_requests.return_value = [
@@ -97,6 +111,48 @@ def test_babelio_status_blocked_when_403(client, mock_babelio_service):
         }
     ]
     response = client.get("/api/babelio/status")
+    data = response.json()
+    assert data["overall"] == "blocked_403"
+
+
+def test_babelio_status_without_live_check_does_not_call_health_check(
+    client, mock_babelio_service
+):
+    """GET /api/babelio/status (sans paramètre) ne déclenche pas de requête réseau.
+
+    Issue #287: le polling automatique (30s) du frontend ne doit jamais
+    spammer Babelio — seul un live_check explicite le doit.
+    """
+    client.get("/api/babelio/status")
+    mock_babelio_service.health_check.assert_not_called()
+
+
+def test_babelio_status_live_check_calls_health_check(client, mock_babelio_service):
+    """GET /api/babelio/status?live_check=true déclenche un health check à la demande."""
+    client.get("/api/babelio/status?live_check=true")
+    mock_babelio_service.health_check.assert_called_once()
+
+
+def test_babelio_status_live_check_reflects_fresh_result(client, mock_babelio_service):
+    """Après live_check, overall reflète le résultat frais du health check (pas l'ancien buffer)."""
+    mock_babelio_service.get_recent_requests.return_value = []
+
+    async def fake_health_check():
+        mock_babelio_service.get_recent_requests.return_value = [
+            {
+                "type": "page",
+                "term_or_url": "https://www.babelio.com",
+                "status_code": 403,
+                "cache_hit": False,
+                "duration_ms": 50,
+                "timestamp": 1000000,
+            }
+        ]
+        return {"ok": False}
+
+    mock_babelio_service.health_check = AsyncMock(side_effect=fake_health_check)
+
+    response = client.get("/api/babelio/status?live_check=true")
     data = response.json()
     assert data["overall"] == "blocked_403"
 
