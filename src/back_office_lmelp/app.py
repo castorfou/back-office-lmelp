@@ -19,6 +19,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+import asyncio
+import json
 import os
 import re
 import socket
@@ -51,6 +53,7 @@ from .services.calibre_matching_service import CalibreMatchingService
 from .services.calibre_service import calibre_service
 from .services.collections_management_service import collections_management_service
 from .services.critiques_extraction_service import critiques_extraction_service
+from .services.dashboard_stats_cache_service import dashboard_stats_cache_service
 from .services.duplicate_books_service import DuplicateBooksService
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
@@ -5171,6 +5174,72 @@ async def get_orphaned_avis_statistics() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des stats avis orphelins: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+async def _compute_dashboard_stats() -> dict[str, Any]:
+    """Agrège les 6 sources de statistiques consommées par le dashboard (Issue #279)."""
+    critiques_manquants_response = await get_critiques_manquants_count()
+    critiques_manquants_data = json.loads(bytes(critiques_manquants_response.body))
+
+    (
+        statistics,
+        collections_statistics,
+        duplicate_books_stats,
+        duplicate_authors_stats,
+        orphaned_avis_stats,
+    ) = await asyncio.gather(
+        get_statistics(),
+        get_livres_auteurs_statistics(),
+        duplicate_books_service.get_duplicate_statistics(),
+        duplicate_books_service.get_duplicate_authors_statistics(),
+        orphaned_avis_service.get_orphaned_statistics(),
+    )
+
+    return {
+        "statistics": statistics,
+        "collections_statistics": collections_statistics,
+        "critiques_manquants_count": critiques_manquants_data["count"],
+        "duplicate_books_count": duplicate_books_stats["total_duplicates"],
+        "duplicate_authors_count": duplicate_authors_stats["total_duplicates"],
+        "orphaned_avis_count": orphaned_avis_stats["orphaned_count"],
+    }
+
+
+@app.get("/api/dashboard/stats", response_model=None)
+async def get_dashboard_stats() -> dict[str, Any] | JSONResponse:
+    """Récupère les statistiques agrégées du dashboard, mises en cache (Issue #279).
+
+    Agrège en un seul payload les 6 sources consommées par les 14 tuiles
+    "Informations générales" de la page d'accueil. Mis en cache 5 minutes
+    (voir DashboardStatsCacheService) pour éviter de tout recalculer à
+    chaque affichage de la page.
+    """
+    try:
+        cached = dashboard_stats_cache_service.get_cached()
+        if cached is not None:
+            return cached
+
+        stats = await _compute_dashboard_stats()
+        dashboard_stats_cache_service.set_cache(stats)
+        return stats
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des statistiques dashboard: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/dashboard/stats/cache/invalidate", response_model=None)
+async def invalidate_dashboard_stats_cache() -> dict[str, str] | JSONResponse:
+    """Invalide le cache des statistiques dashboard (Issue #279).
+
+    Appelé par le bouton "Actualiser" du dashboard, sur le même pattern
+    que POST /api/calibre/cache/invalidate (Issue #199).
+    """
+    try:
+        dashboard_stats_cache_service.invalidate_cache()
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error invalidating dashboard stats cache: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/avis/orphaned", response_model=list[dict[str, Any]])

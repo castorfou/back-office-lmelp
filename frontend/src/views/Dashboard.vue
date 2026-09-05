@@ -16,7 +16,16 @@
     <main class="dashboard-content">
       <!-- Section Statistiques -->
       <section class="statistics-section">
-        <h2>Informations générales</h2>
+        <div class="statistics-header">
+          <h2>Informations générales</h2>
+          <span class="cache-info">Mise en cache 5 min</span>
+          <button
+            class="refresh-btn"
+            data-test="dashboard-refresh-button"
+            :disabled="refreshing"
+            @click="refreshDashboardStats"
+          >{{ refreshing ? 'Actualisation…' : 'Actualiser' }}</button>
+        </div>
         <div class="stats-grid">
           <a
             :href="lmelpFrontOfficeUrl"
@@ -386,7 +395,6 @@
 
 <script>
 import axios from 'axios';
-import { statisticsService, livresAuteursService } from '../services/api.js';
 import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
 import babelioSymbolLiaison from '../assets/babelio-symbol-liaison.svg';
@@ -448,7 +456,8 @@ export default {
       orphanedAvisCount: null,
       versionInfo: null,
       loading: true,
-      error: null
+      error: null,
+      refreshing: false
     };
   },
 
@@ -556,28 +565,33 @@ export default {
   },
 
   async mounted() {
-    // Charger toutes les statistiques en parallèle pour un affichage simultané
     await Promise.all([
-      this.loadStatistics(),
-      this.loadCollectionsStatistics(),
-      this.loadCritiquesManquants(),
-      this.loadDuplicateStatistics(),
-      this.loadOrphanedAvisStatistics(),
+      this.loadDashboardStats(),
       this.loadVersionInfo()
     ]);
   },
 
   methods: {
-    async loadStatistics() {
+    async loadDashboardStats() {
+      // Issue #279: un seul appel agrégé et mis en cache côté backend
+      // (5 min) au lieu de 5 appels séparés à chaque affichage de la page.
       try {
         this.loading = true;
         this.error = null;
-        const stats = await statisticsService.getStatistics();
-        this.statistics = stats;
+        const response = await axios.get('/api/dashboard/stats');
+        const stats = response.data;
+
+        this.statistics = stats.statistics;
+        this.collectionsStatistics = stats.collections_statistics;
+        this.episodesSansEmissionCount = stats.collections_statistics?.episodes_sans_emission;
+        this.critiquesManquantsCount = stats.critiques_manquants_count;
+        this.duplicateBooksCount = stats.duplicate_books_count;
+        this.duplicateAuthorsCount = stats.duplicate_authors_count;
+        this.orphanedAvisCount = stats.orphaned_avis_count;
       } catch (error) {
-        console.error('Erreur lors du chargement des statistiques:', error);
+        console.error('Erreur lors du chargement des statistiques du dashboard:', error);
         this.error = error.message;
-        // Garder les valeurs '...' en cas d'erreur
+        // Garder des valeurs par défaut ('--' ou null) en cas d'erreur
         this.statistics = {
           totalEpisodes: '--',
           maskedEpisodes: '--',
@@ -586,22 +600,6 @@ export default {
           criticalReviews: '--',
           lastUpdateDate: null
         };
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async loadCollectionsStatistics() {
-      try {
-        // Issue #124: Charger depuis /api/stats qui contient toutes les métriques
-        // y compris books_without_url_babelio et authors_without_url_babelio
-        const stats = await livresAuteursService.getCollectionsStatistics();
-        this.collectionsStatistics = stats;
-        // Issue #154: Charger le compteur épisodes sans émission
-        this.episodesSansEmissionCount = stats.episodes_sans_emission;
-      } catch (error) {
-        console.error('Erreur lors du chargement des statistiques des collections:', error);
-        // Garder les valeurs null en cas d'erreur pour afficher '...'
         this.collectionsStatistics = {
           episodes_non_traites: '--',
           couples_en_base: '--',
@@ -609,41 +607,27 @@ export default {
           couples_suggested_pas_en_base: '--',
           couples_not_found_pas_en_base: '--'
         };
-      }
-    },
-
-    async loadCritiquesManquants() {
-      try {
-        const response = await axios.get('/api/stats/critiques-manquants');
-        this.critiquesManquantsCount = response.data.count;
-      } catch (error) {
-        console.error('Erreur lors du chargement du nombre de critiques manquants:', error);
-        this.critiquesManquantsCount = null; // Afficher '...' en cas d'erreur
-      }
-    },
-
-    async loadDuplicateStatistics() {
-      try {
-        const [booksResponse, authorsResponse] = await Promise.all([
-          axios.get('/api/books/duplicates/statistics'),
-          axios.get('/api/authors/duplicates/statistics')
-        ]);
-        this.duplicateBooksCount = booksResponse.data.total_duplicates;
-        this.duplicateAuthorsCount = authorsResponse.data.total_duplicates;
-      } catch (error) {
-        console.error('Erreur lors du chargement des stats doublons:', error);
+        this.critiquesManquantsCount = null;
         this.duplicateBooksCount = null;
         this.duplicateAuthorsCount = null;
+        this.orphanedAvisCount = null;
+      } finally {
+        this.loading = false;
       }
     },
 
-    async loadOrphanedAvisStatistics() {
+    async refreshDashboardStats() {
+      // Issue #279: pattern identique au bouton "Actualiser" de la page OnKindle
+      // (Issue #249) : invalider le cache backend puis recharger.
+      this.refreshing = true;
       try {
-        const response = await axios.get('/api/avis/orphaned/statistics');
-        this.orphanedAvisCount = response.data.orphaned_count;
+        await axios.post('/api/dashboard/stats/cache/invalidate');
+        await this.loadDashboardStats();
       } catch (error) {
-        console.error('Erreur lors du chargement des stats avis orphelins:', error);
-        this.orphanedAvisCount = null;
+        console.error('Erreur lors de l\'actualisation des statistiques:', error);
+        this.error = error.message;
+      } finally {
+        this.refreshing = false;
       }
     },
 
@@ -774,9 +758,46 @@ export default {
 .statistics-section h2,
 .functions-section h2 {
   font-size: 1.5rem;
-  margin-bottom: 1.5rem;
   color: #333;
   text-align: center;
+}
+
+.statistics-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.statistics-header h2 {
+  margin-bottom: 0;
+}
+
+.statistics-header .cache-info {
+  font-size: 0.8rem;
+  color: #999;
+  font-style: italic;
+}
+
+.statistics-header .refresh-btn {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  background: #f0f2ff;
+  color: #667eea;
+  border: 1px solid #c5cdf5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.statistics-header .refresh-btn:hover:not(:disabled) {
+  background: #e0e4ff;
+}
+
+.statistics-header .refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .functions-section + .functions-section {

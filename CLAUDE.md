@@ -868,6 +868,41 @@ class DynamicUrlService:
 
 **Example**: `src/back_office_lmelp/services/annas_archive_url_service.py` (Issue #188)
 
+### Cache Invalidation Without a Write Abstraction Layer
+
+**Problem**: A TTL cache over aggregated stats needs invalidating whenever relevant MongoDB collections change — but this backend has no single abstraction for writes. Collections are accessed directly (`mongodb_service.livres_collection.update_one(...)`) from dozens of call sites across `app.py` and multiple services.
+
+**Solution**: Register a `pymongo.monitoring.CommandListener` once on the `MongoClient` (in `mongodb_service.connect()`) instead of patching every write call site:
+
+```python
+from pymongo import monitoring
+
+class DashboardStatsInvalidationListener(monitoring.CommandListener):  # type: ignore[misc]
+    def __init__(self, invalidate_fn):
+        self._invalidate_fn = invalidate_fn
+
+    def started(self, event):
+        if event.command_name not in {"insert", "update", "delete", "findAndModify", "bulkWrite"}:
+            return
+        collection_name = event.command.get(event.command_name)
+        if collection_name in WATCHED_COLLECTIONS:
+            self._invalidate_fn()
+
+    def succeeded(self, event): ...  # no-op, invalidation already done in started()
+    def failed(self, event): ...     # no-op
+
+# In MongoDBService.connect():
+self.client = MongoClient(self.mongo_url, event_listeners=[listener])
+```
+
+**Why this works**: the listener sits below the pymongo driver itself, so it intercepts every write regardless of which application code path (or future code) triggered it — no risk of forgetting to invalidate at a new call site.
+
+**Why not patch each call site**: this project has ~59 direct write call sites across 5 files (no `MongoDBService` method wraps them all). Patching each one is fragile and doesn't cover code added later.
+
+**mypy caveat**: pymongo ships no typed stub for `CommandListener`, so subclassing it triggers `Class cannot subclass "CommandListener" (has type "Any")` — silence with `# type: ignore[misc]` on the class declaration.
+
+**Example**: `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py` (Issue #279) — full details in [docs/dev/dashboard-stats-cache.md](docs/dev/dashboard-stats-cache.md)
+
 ### Validation - Double Layer Pattern
 
 **For critical operations (LLM saves, payments, data modifications):**
