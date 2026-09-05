@@ -149,7 +149,8 @@ Nouvelle page accessible depuis l'accueil :
   - Auteur A→Z / Z→A
 - **Infinite scroll** : Chargement progressif de 50 livres à la fois
 - **Statistiques** : Total livres, livres lus, pourcentage de lecture
-- **Tuiles cliquables** : Quand un livre Calibre correspond à un livre du Masque et la Plume (matching par titre normalisé), toute la tuile devient cliquable et renvoie vers sa fiche livre LMELP (`/livre/{id}`). Les livres sans correspondance restent affichés normalement, sans lien.
+- **Tuiles cliquables** : Quand un livre Calibre correspond à un livre du Masque et la Plume (matching par titre normalisé), toute la tuile devient cliquable et renvoie vers sa fiche livre LMELP (`/livre/{id}`). Les livres sans correspondance restent affichés normalement, sans lien. Au survol, une tuile cliquable s'entoure d'un liseret bleu (comme les tuiles de la page d'accueil) ; une tuile non cliquable reste statique.
+- **Indication visuelle des tags de date d'émission** : le tag `lmelp_YYMMDD` (date d'émission où le livre a été discuté) s'affiche avec un fond rose clair plutôt que le gris standard des autres tags — bonne indication (non garantie à 100%) qu'un livre est potentiellement cliquable.
 - **Conservation de l'état de la page** : La recherche, le filtre de statut et le tri actifs sont mémorisés dans l'URL. Après avoir cliqué sur une tuile pour consulter une fiche livre, un retour arrière du navigateur restaure la page Calibre exactement comme vous l'aviez laissée.
 
 ### Tags Calibre sur la page Livre

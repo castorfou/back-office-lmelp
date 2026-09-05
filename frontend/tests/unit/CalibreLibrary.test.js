@@ -885,6 +885,58 @@ describe('CalibreLibrary', () => {
     });
   });
 
+  describe('Emission date tag styling (Issue #288)', () => {
+    beforeEach(async () => {
+      calibreService.getStatus.mockResolvedValue({
+        available: true,
+        library_path: '/calibre',
+        total_books: 1
+      });
+      calibreService.getBooks.mockResolvedValue({
+        total: 1,
+        books: [
+          {
+            id: 1,
+            title: 'Livre test',
+            authors: ['Auteur Test'],
+            read: false,
+            mongo_livre_id: null,
+            tags: ['lmelp_260320', 'lmelp_nelly_kaprielian', 'Roman']
+          }
+        ]
+      });
+
+      wrapper = mount(CalibreLibrary, {
+        global: { plugins: [router] }
+      });
+
+      await flushPromises();
+    });
+
+    it('should detect a tag matching the lmelp_YYMMDD emission date format', () => {
+      expect(wrapper.vm.isLmelpDateTag('lmelp_260320')).toBe(true);
+    });
+
+    it('should not detect a lmelp_ critic name tag as an emission date tag', () => {
+      expect(wrapper.vm.isLmelpDateTag('lmelp_nelly_kaprielian')).toBe(false);
+    });
+
+    it('should not detect a regular tag as an emission date tag', () => {
+      expect(wrapper.vm.isLmelpDateTag('Roman')).toBe(false);
+    });
+
+    it('should apply the lmelp-date class only to the emission date tag', () => {
+      const tags = wrapper.findAll('.tag');
+      const dateTag = tags.find((t) => t.text() === 'lmelp_260320');
+      const criticTag = tags.find((t) => t.text() === 'lmelp_nelly_kaprielian');
+      const otherTag = tags.find((t) => t.text() === 'Roman');
+
+      expect(dateTag.classes()).toContain('tag-lmelp-date');
+      expect(criticTag.classes()).not.toContain('tag-lmelp-date');
+      expect(otherTag.classes()).not.toContain('tag-lmelp-date');
+    });
+  });
+
   describe('URL state persistence (Issue #277)', () => {
     beforeEach(() => {
       calibreService.getStatus.mockResolvedValue({

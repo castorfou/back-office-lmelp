@@ -144,7 +144,12 @@
               </span>
             </div>
             <div v-if="book.tags && book.tags.length > 0" class="book-tags">
-              <span v-for="tag in book.tags" :key="tag" class="tag">{{ tag }}</span>
+              <span
+                v-for="tag in book.tags"
+                :key="tag"
+                class="tag"
+                :class="{ 'tag-lmelp-date': isLmelpDateTag(tag) }"
+              >{{ tag }}</span>
             </div>
           </component>
         </div>
@@ -407,6 +412,13 @@ export default {
     highlightText(text, searchTerm) {
       // Use accent-insensitive highlighting (same as TextSearchEngine)
       return highlightSearchTermAccentInsensitive(text, searchTerm || this.searchText);
+    },
+
+    // Tag de date d'émission (format lmelp_YYMMDD, ex: lmelp_260320) — un
+    // livre portant ce tag a de bonnes chances d'être discuté au Masque et
+    // la Plume, donc potentiellement cliquable (Issue #288).
+    isLmelpDateTag(tag) {
+      return /^lmelp_\d{6}$/.test(tag);
     }
   }
 };
@@ -578,18 +590,20 @@ export default {
   padding: 1.5rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   color: inherit;
   text-decoration: none;
 }
 
-.book-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-}
-
 .book-card.clickable {
   cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.book-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  border-color: #667eea;
 }
 
 .book-header {
@@ -648,6 +662,13 @@ export default {
   border-radius: 12px;
   font-size: 0.85rem;
   color: #666;
+}
+
+/* Tag de date d'émission (lmelp_YYMMDD) : indication visuelle qu'un livre
+   a probablement été discuté au Masque et la Plume (Issue #288) */
+.tag-lmelp-date {
+  background: #fde3ef;
+  color: #b23b6f;
 }
 
 .no-books {
