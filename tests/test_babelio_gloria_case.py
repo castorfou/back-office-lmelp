@@ -7,7 +7,7 @@ Problème business réel :
 Solution : Fallback avec scraping d'auteur
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -36,7 +36,19 @@ class TestBabelioGloriaCase:
         - Résultat attendu: verified (pas not_found)
         """
         # Arrange
-        with patch.object(babelio_service, "search") as mock_search:
+        with (
+            patch.object(babelio_service, "search") as mock_search,
+            patch.object(
+                babelio_service,
+                "fetch_publisher_from_url",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
             # Nouveau comportement (Issue #124): Recherche par titre seul
             # L'auteur sert uniquement à filtrer les résultats
             mock_search.return_value = [

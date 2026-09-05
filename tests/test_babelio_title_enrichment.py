@@ -81,6 +81,16 @@ class TestTitleEnrichmentIntegration:
                 new_callable=AsyncMock,
                 return_value="Le Chemin continue : Biographie de Georges Lambrichs",
             ),
+            patch.object(
+                babelio_service,
+                "fetch_publisher_from_url",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             result = await babelio_service.verify_book(
                 "Le Chemin continue : Biographie de Georges Lambrichs",
@@ -131,6 +141,16 @@ class TestTitleEnrichmentIntegration:
                 "fetch_full_title_from_url",
                 new_callable=AsyncMock,
                 return_value="Le Chemin continue : Biographie de Georges Lambrichs",
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_publisher_from_url",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                babelio_service,
+                "fetch_author_url_from_page",
+                new=AsyncMock(return_value=None),
             ),
         ):
             result = await babelio_service.verify_book(

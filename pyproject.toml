@@ -52,6 +52,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
+    "pytest-timeout>=2.4.0",
     "httpx>=0.24.0",
     "ruff",
     "mypy",
@@ -94,6 +95,7 @@ where = ["src"]
 dev = [
     "pytest",
     "pytest-cov>=7.0.0",
+    "pytest-timeout>=2.4.0",
 ]
 
 # Configuration Ruff - Linter et formateur Python moderne
@@ -247,6 +249,10 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 pythonpath = "."
 testpaths = ["tests"]
+# Garde-fou contre les mocks incomplets qui déclenchent de vraies requêtes
+# réseau (Issue #290) : un test qui dépasse 15s échoue vite et bruyamment
+# ("Timeout >15s") au lieu de bloquer silencieusement toute la suite.
+timeout = 15
 filterwarnings = [
     "ignore::DeprecationWarning:websockets.legacy.*",
     "ignore::DeprecationWarning:uvicorn.protocols.websockets.*",

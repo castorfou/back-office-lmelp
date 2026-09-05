@@ -249,6 +249,12 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
        # Test with real service credentials
    ```
 
+10. **`pytest-timeout` est configuré globalement (`timeout = 15` dans `pyproject.toml`) comme garde-fou contre les mocks incomplets** (Issue #290) :
+    - Un test qui mocke `verify_book()`/`search_episode_page_url()` (ou toute fonction qui enchaîne plusieurs appels HTTP internes) doit mocker **toutes** les méthodes de scraping réellement traversées par le chemin de code exercé, pas seulement celle qu'il prétend tester.
+    - Exemple concret : `BabelioService.verify_book()` appelle `fetch_author_url_from_page()` **inconditionnellement** dès qu'un livre est trouvé (indépendamment du score de confiance) — un test qui ne mocke que `search()` déclenche un vrai GET HTTP invisible tant que le service externe répond vite, mais bloque le test ~10-30s (voire indéfiniment) dès que ce service est indisponible.
+    - Si un test `FAILED ... Timeout (>15.0s)` apparaît, lire le log applicatif juste avant (`Erreur scraping éditeur/titre/auteur pour <url>: ...`) pour identifier précisément quelle méthode manque — ne pas deviner à partir du nom du test.
+    - Un test légitimement plus lent que 15s (pas un mock manquant) doit utiliser `@pytest.mark.timeout(N)` dédié plutôt que d'augmenter le défaut global.
+
 ### Frontend Testing - Key Rules
 
 1. **Reset mocks between tests**: Use `vi.resetAllMocks()` in `beforeEach`
