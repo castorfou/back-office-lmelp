@@ -3332,8 +3332,18 @@ async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
 
 
 @app.get("/api/babelio/status")
-async def get_babelio_status() -> dict[str, Any]:
-    """Retourne l'état du service Babelio: cache, requêtes récentes, dernier statut."""
+async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
+    """Retourne l'état du service Babelio: cache, requêtes récentes, dernier statut.
+
+    Si live_check=true (Issue #287), déclenche d'abord une requête légère à la
+    demande via babelio_service.health_check() (page d'accueil, rate-limitée)
+    pour refléter un état réellement à jour, au lieu de dépendre du hasard des
+    dernières requêtes applicatives. Réservé à un déclenchement explicite
+    (bouton "Rafraîchir") — jamais au polling automatique du frontend.
+    """
+    if live_check:
+        await babelio_service.health_check()
+
     recent = babelio_service.get_recent_requests()
     cache_entries = 0
     cache_service = getattr(babelio_service, "cache_service", None)
@@ -3347,7 +3357,7 @@ async def get_babelio_status() -> dict[str, Any]:
     overall = "unknown"
     last_real = next((r for r in recent if not r.get("cache_hit")), None)
     if last_real is None:
-        overall = "ok"
+        overall = "unknown"
     elif last_real["status_code"] == 403:
         overall = "blocked_403"
     elif last_real["status_code"] == 200:
