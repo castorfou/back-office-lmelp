@@ -140,8 +140,10 @@ dmypy.json
 *.pkl
 data/raw/*
 data/processed/*
+data/audios/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/audios/.gitkeep
 
 # ML models
 *.model

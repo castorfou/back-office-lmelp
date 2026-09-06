@@ -74,6 +74,17 @@ cd /workspaces/back-office-lmelp/frontend && npm run build
 ./scripts/start-dev.sh
 ```
 
+**CRITIQUE avant de démarrer un serveur pour tester une nouvelle fonctionnalité** : vérifier qu'aucune instance backend/frontend ne tourne déjà, et arrêter l'ancienne avant d'en relancer une nouvelle.
+
+```bash
+# Vérifier l'état actuel avant de lancer start-dev.sh
+/workspaces/back-office-lmelp/.claude/get-services-info.sh
+```
+
+**Pourquoi c'est critique** : `vite.config.js` lit le fichier de découverte unifié (`.dev-ports.json`) pour configurer sa cible de proxy `/api` **une seule fois, au démarrage du process Vite** (pas à chaque requête). Si un ancien process backend tourne encore (démarré une session précédente, jamais arrêté) en même temps qu'un nouveau lancé par `start-dev.sh`, le frontend peut se retrouver avec un proxy pointant vers le mauvais port — symptôme typique : `curl` direct sur le backend répond `200` avec les bonnes données, mais le même appel via le frontend (`/api/...`) renvoie `404`, alors que `.dev-ports.json` contient pourtant le bon port. Un nouveau endpoint fraîchement ajouté au backend semble alors "ne pas exister" côté frontend alors qu'il fonctionne parfaitement en direct.
+
+**Comment l'éviter** : avant `./scripts/start-dev.sh`, toujours vérifier qu'aucun ancien process n'est actif (`get-services-info.sh` ou `ps aux | grep back_office_lmelp.app`). Si un ancien process traîne, l'arrêter proprement (jamais `kill -9` à l'aveugle — identifier le PID exact via le script de découverte, puis `kill <PID>`) avant de relancer.
+
 ### Documentation Commands
 
 ```bash

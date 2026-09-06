@@ -824,4 +824,35 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
 
     expect(pushSpy).toHaveBeenCalledWith('/avis-orphelins');
   });
+
+  it('affiche la section RSS Masque Et La Plume avec sa tuile Monitoring Downloads (Issue #295)', async () => {
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const rssCard = wrapper.find('[data-testid="function-rss-monitoring"]');
+    expect(rssCard.exists()).toBe(true);
+    expect(rssCard.text()).toContain('Monitoring Downloads');
+  });
+
+  it('navigue vers /rss-monitoring au clic sur la tuile RSS (Issue #295)', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const rssCard = wrapper.find('[data-testid="function-rss-monitoring"]');
+    await rssCard.trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/rss-monitoring');
+  });
 });

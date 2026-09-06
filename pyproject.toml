@@ -42,6 +42,7 @@ dependencies = [
     "ipykernel>=7.2.0",
     "numpy<2",
     "brotli>=1.2.0",
+    "feedparser>=6.0.14",
 ]
 
 [project.optional-dependencies]
@@ -229,6 +230,7 @@ module = [
     "dotenv.*",
     "yaml.*",
     "psutil.*",
+    "feedparser.*",
 ]
 ignore_missing_imports = true
 

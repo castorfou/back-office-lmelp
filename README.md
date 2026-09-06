@@ -213,6 +213,15 @@ export BABELIO_CACHE_LOG=1
 
 
 
+#### Synchronisation RSS Le Masque et la Plume
+- 📡 **Détection automatique** : Scrute le flux RSS France Inter pour les nouveaux épisodes de plus de 15 minutes
+- 🤖 **Classification LLM** : Distingue épisodes "livres" / "films" / "théâtre" via Azure OpenAI, ne télécharge que les épisodes livres
+- 🎧 **Téléchargement audio** : Récupère automatiquement le fichier audio de chaque nouvel épisode retenu
+- 🔁 **Déduplication à 2 niveaux** : Comparaison à la date du dernier épisode connu, puis vérification exacte (titre, date) avant insertion
+- 🔌 **Déclenchement flexible** : Bouton manuel sur `/rss-monitoring` ou appel API REST (`POST /api/rss/sync`) pour une automatisation externe (n8n, Automatisch)
+- 🔔 **Notifications ntfy.sh** : Alerte configurable en fin de synchronisation (épisode téléchargé ou non retenu)
+- 📋 **Monitoring dédié** : Page `/rss-monitoring` avec historique horodaté des synchronisations et détail par épisode
+
 #### Moteur de Recherche Textuelle
 - 🔍 **Recherche multi-collections** : Episodes, auteurs, livres, éditeurs
 - 📚 **Collections dédiées** : Recherche directe dans `auteurs` et `livres` MongoDB

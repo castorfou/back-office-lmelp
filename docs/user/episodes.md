@@ -4,6 +4,13 @@
 
 La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. Elle vous permet de consulter, modifier et améliorer les titres et descriptions des épisodes de podcast de manière intuitive et efficace.
 
+## Ajout d'un nouvel épisode
+
+Un épisode peut être ajouté à la base de deux façons :
+
+- **Automatiquement** via la synchronisation du flux RSS (voir `docs/user/rss-monitoring.md`) — détecte les nouveaux épisodes "livres" de plus de 15 minutes et télécharge leur fichier audio.
+- Le workflow de correction (titre, description, structuration) décrit ci-dessous s'applique de la même façon, quelle que soit l'origine de l'épisode.
+
 ## Cycle de vie d'un épisode
 
 ### 1. État initial (Non corrigé)

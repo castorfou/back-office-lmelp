@@ -92,6 +92,48 @@ class Settings:
         """
         return os.environ.get("ANNAS_ARCHIVE_URL") or None
 
+    # RSS Le Masque et la Plume (Issue #295)
+    @property
+    def rss_masque_et_la_plume_url(self) -> str:
+        """URL du flux RSS France Inter (RSS_MASQUE_ET_LA_PLUME_URL)."""
+        return os.environ.get(
+            "RSS_MASQUE_ET_LA_PLUME_URL",
+            "https://radiofrance-podcast.net/podcast09/rss_14007.xml",
+        )
+
+    @property
+    def rss_duree_mini_minutes(self) -> int:
+        """Durée minimale en minutes pour retenir un épisode (RSS_DUREE_MINI_MINUTES, défaut 15)."""
+        return int(os.environ.get("RSS_DUREE_MINI_MINUTES", "15"))
+
+    @property
+    def audio_storage_path(self) -> str:
+        """Répertoire de stockage des fichiers audio téléchargés (AUDIO_STORAGE_PATH).
+
+        Par défaut: /app/audios en production (volume Docker externe monté sur
+        le service backend). Fallback: data/audios (dev local).
+        """
+        return os.environ.get(
+            "AUDIO_STORAGE_PATH",
+            os.path.join(os.getcwd(), "data", "audios"),
+        )
+
+    @property
+    def rss_debug_log(self) -> bool:
+        """Active les logs debug du service de sync RSS (RSS_DEBUG_LOG)."""
+        return os.environ.get("RSS_DEBUG_LOG", "0").lower() in ("1", "true")
+
+    # Notifications ntfy.sh (Issue #295)
+    @property
+    def ntfy_server_url(self) -> str | None:
+        """URL du serveur ntfy.sh (NTFY_SERVER_URL). None désactive les notifications."""
+        return os.environ.get("NTFY_SERVER_URL") or None
+
+    @property
+    def ntfy_topic(self) -> str | None:
+        """Topic ntfy.sh (NTFY_TOPIC). None désactive les notifications."""
+        return os.environ.get("NTFY_TOPIC") or None
+
 
 @lru_cache
 def get_settings() -> Settings:

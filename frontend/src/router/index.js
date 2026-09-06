@@ -22,6 +22,7 @@ import CalibreCorrections from '../views/CalibreCorrections.vue';
 import OnKindle from '../views/OnKindle.vue';
 import Recommendations from '../views/Recommendations.vue';
 import BabelioControl from '../views/BabelioControl.vue';
+import RssMonitoring from '../views/RssMonitoring.vue';
 
 const routes = [
   {
@@ -206,6 +207,14 @@ const routes = [
     component: BabelioControl,
     meta: {
       title: 'Contrôle Babelio - Back-office LMELP'
+    }
+  },
+  {
+    path: '/rss-monitoring',
+    name: 'RssMonitoring',
+    component: RssMonitoring,
+    meta: {
+      title: 'Monitoring RSS - Back-office LMELP'
     }
   },
   {

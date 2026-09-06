@@ -382,6 +382,23 @@
           </div>
         </div>
       </section>
+
+      <!-- Section RSS Masque Et La Plume (Issue #295) -->
+      <section class="functions-section">
+        <h2>RSS Masque Et La Plume</h2>
+        <div class="functions-grid functions-grid--single">
+          <div
+            class="function-card clickable"
+            data-testid="function-rss-monitoring"
+            @click="navigateToRssMonitoring"
+          >
+            <div class="function-icon">📡</div>
+            <h3>Monitoring Downloads</h3>
+            <p>Historique des synchronisations RSS et téléchargements d'épisodes</p>
+            <div class="function-arrow">→</div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer version (Issue #205) -->
@@ -666,6 +683,10 @@ export default {
 
     navigateToBabelioControl() {
       this.$router.push('/babelio-control');
+    },
+
+    navigateToRssMonitoring() {
+      this.$router.push('/rss-monitoring');
     },
 
     navigateToBabelioCovers() {

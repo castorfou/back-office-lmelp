@@ -50,6 +50,34 @@ BABELIO_MIN_INTERVAL=0.5 python -m back_office_lmelp.app
 
 **Note** : Une valeur trop basse peut déclencher le système anti-bot de Babelio (captcha). En cas de timeouts ou de réponses `null`, augmenter cette valeur et fournir les cookies de session depuis le navigateur.
 
+## RSS Le Masque et la Plume (Issue #295)
+
+| Variable | Description | Valeur par défaut | Exemple |
+|----------|-------------|------------------|---------|
+| `RSS_MASQUE_ET_LA_PLUME_URL` | URL du flux RSS France Inter à synchroniser | `https://radiofrance-podcast.net/podcast09/rss_14007.xml` | — |
+| `RSS_DUREE_MINI_MINUTES` | Durée minimale (en minutes) pour retenir un épisode candidat | `15` | `20` |
+| `AUDIO_STORAGE_PATH` | Répertoire de stockage des fichiers audio téléchargés | `<racine_projet>/data/audios` (dev) | `/app/audios` (prod Docker) |
+| `RSS_DEBUG_LOG` | Active les logs de debug du service de synchronisation RSS | `0` (désactivé) | `1`, `true` |
+
+## Notifications ntfy.sh (Issue #295)
+
+| Variable | Description | Valeur par défaut | Exemple |
+|----------|-------------|------------------|---------|
+| `NTFY_SERVER_URL` | URL du serveur ntfy.sh utilisé pour les notifications de fin de synchronisation RSS. Non défini = notifications désactivées (no-op). | Aucune | `https://ntfy.sh` |
+| `NTFY_TOPIC` | Topic ntfy.sh à utiliser. Non défini = notifications désactivées (no-op). | Aucune | `mon-topic-prive` |
+
+### Usage notifications ntfy.sh
+
+```bash
+# Notifications désactivées (comportement par défaut, no-op silencieux)
+python -m back_office_lmelp.app
+
+# Activer les notifications en fin de synchronisation RSS
+NTFY_SERVER_URL=https://ntfy.sh NTFY_TOPIC=mon-topic-prive python -m back_office_lmelp.app
+```
+
+Abonnez-vous à `https://ntfy.sh/<votre-topic>` (application mobile ou navigateur) pour recevoir les notifications. Deux types de message sont envoyés par épisode traité : "Nouvel épisode ... téléchargé" (épisode livres inséré) ou "Épisode ... détecté (non retenu)" (film/théâtre, non téléchargé) — chacun préfixé par la date de diffusion de l'épisode (`dd/mm/yy`).
+
 ## Variables de debug
 
 | Variable | Description | Valeur par défaut | Exemple |
@@ -57,6 +85,7 @@ BABELIO_MIN_INTERVAL=0.5 python -m back_office_lmelp.app
 | `AVIS_CRITIQUES_DEBUG_LOG` | Active les logs de debug pour génération LLM des avis critiques | `0` (désactivé) | `1`, `true` |
 | `BABELIO_CACHE_LOG` | Active les logs détaillés du cache Babelio | `0` (désactivé) | `1`, `true`, `yes` |
 | `BABELIO_DEBUG_LOG` | Active les logs de debug détaillés du service Babelio (matching, scraping) | `0` (désactivé) | `1`, `true` |
+| `RSS_DEBUG_LOG` | Active les logs de debug du service de synchronisation RSS | `0` (désactivé) | `1`, `true` |
 
 ### Usage `AVIS_CRITIQUES_DEBUG_LOG`
 
