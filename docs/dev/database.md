@@ -82,6 +82,46 @@ interface Episode {
 }
 ```
 
+### Collection `rss_download_logs` (Issue #295)
+
+Un document par run de synchronisation RSS (`RssSyncService.sync()`), qu'il soit déclenché manuellement (UI) ou via un appel API externe (automatisation Automatisch/n8n).
+
+```json
+{
+  "_id": ObjectId("..."),
+  "started_at": ISODate("2026-09-06T12:53:25.453Z"),
+  "finished_at": ISODate("2026-09-06T12:53:37.872Z"),
+  "trigger": "manual",
+  "status": "success",
+  "feed_url": "https://radiofrance-podcast.net/podcast09/rss_14007.xml",
+  "episodes": [
+    {
+      "titre": "Haenel, Bellanger, Rico, Kasischke, Joncour : quel livre faut-il lire cette semaine selon le Masque ?",
+      "date": ISODate("2026-09-06T08:12:40.000Z"),
+      "duree": 2807,
+      "outcome": "downloaded",
+      "episode_id": "6a9d6250028a2103fd86131a",
+      "audio_downloaded": true,
+      "error_message": null
+    }
+  ],
+  "notification_sent": true,
+  "error_message": null
+}
+```
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `started_at` / `finished_at` | Date | Horodatage du run |
+| `trigger` | String | `"manual"` (bouton UI `/rss-monitoring`) ou `"api"` (appel externe) |
+| `status` | String | `"success"`, `"partial_error"` ou `"error"` (erreur globale, ex: flux RSS injoignable) |
+| `feed_url` | String | URL du flux RSS interrogée |
+| `episodes` | Array | Un élément par épisode candidat traité durant ce run |
+| `episodes[].outcome` | String | `"downloaded"`, `"skipped_not_book"`, `"already_exists"`, `"skipped_too_short"` ou `"error"` |
+| `notification_sent` | Boolean | `true` si au moins une notification ntfy.sh a été envoyée |
+
+**Index recommandé** : `{"started_at": -1}` pour le tri "plus récent en premier" de la page `/rss-monitoring`, et un index sur `episodes.outcome` pour l'agrégation utilisée par `get_last_processed_episode_date()` (voir `docs/dev/rss-sync.md`).
+
 ## Opérations CRUD
 
 ### Create (Insertion)

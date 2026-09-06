@@ -61,6 +61,7 @@ from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
+from .services.rss_sync_service import rss_sync_service
 from .settings import settings
 
 
@@ -264,6 +265,12 @@ class SaveCoverUrlRequest(BaseModel):
 
     livre_id: str
     url_cover: str
+
+
+class TriggerRssSyncRequest(BaseModel):
+    """Modèle pour déclencher une synchronisation RSS (Issue #295)."""
+
+    trigger: str = "api"  # "manual" (bouton UI) | "api" (appel externe n8n)
 
 
 class ExtractCoverUrlRequest(BaseModel):
@@ -3441,6 +3448,44 @@ async def get_babelio_recent_requests() -> list[dict[str, Any]]:
 
 
 # ── End of Babelio control endpoints ──────────────────────────────────────────
+
+
+# ── RSS Masque Et La Plume sync endpoints (Issue #295) ────────────────────────
+
+
+@app.post("/api/rss/sync")
+async def trigger_rss_sync(request: TriggerRssSyncRequest) -> dict[str, Any]:
+    """Déclenche une synchronisation RSS Le Masque et la Plume.
+
+    Appelé par le workflow n8n (trigger="api") ou par le bouton UI
+    "🔄 Rafraîchir Episodes" (trigger="manual"). Synchrone : retourne le
+    résumé du run une fois terminé (faible volume, 0 ou 1 épisode/semaine).
+    """
+    try:
+        return await rss_sync_service.sync(trigger=request.trigger)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/rss/logs")
+async def get_rss_sync_logs(limit: int = 50) -> list[dict[str, Any]]:
+    """Historique des runs de synchronisation RSS, plus récent en premier."""
+    try:
+        return mongodb_service.get_rss_download_logs(limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/rss/logs/{log_id}")
+async def get_rss_sync_log_detail(log_id: str) -> dict[str, Any]:
+    """Détail d'un run de synchronisation RSS."""
+    log = mongodb_service.get_rss_download_log_by_id(log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="Log non trouvé")
+    return log
+
+
+# ── End of RSS Masque Et La Plume sync endpoints ──────────────────────────────
 
 
 @app.post("/api/babelio-migration/mark-not-found")

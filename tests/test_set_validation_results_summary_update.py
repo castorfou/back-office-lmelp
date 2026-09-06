@@ -47,6 +47,19 @@ def test_red_set_validation_results_should_update_summary_with_babelio_publisher
         patch("back_office_lmelp.app.livres_auteurs_cache_service") as mock_cache,
         patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
         patch("back_office_lmelp.app.memory_guard") as mock_memory,
+        # Issue #290/#295 : une babelio_url déclenche inconditionnellement
+        # fetch_cover_url_from_babelio_page() et fetch_author_url_from_page()
+        # dans l'auto-processing de l'endpoint — sans ces mocks, un vrai
+        # appel réseau est fait vers babelio.com, qui répond 403 et ouvre
+        # le circuit breaker du singleton, polluant tout test suivant.
+        patch(
+            "back_office_lmelp.app.babelio_service.fetch_cover_url_from_babelio_page",
+            return_value=None,
+        ),
+        patch(
+            "back_office_lmelp.app.babelio_service.fetch_author_url_from_page",
+            return_value=None,
+        ),
     ):
         # Setup mocks
         mock_memory.check_memory_limit.return_value = None

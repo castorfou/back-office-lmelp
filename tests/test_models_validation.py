@@ -97,6 +97,8 @@ class TestEpisodeModel:
             "description_origin": None,
             "masked": False,  # Issue #107: Champ masked ajouté
             "episode_page_url": None,  # Issue #129: URL de la page RadioFrance
+            "url": None,  # Issue #295: URL audio source
+            "audio_rel_filename": None,  # Issue #295: chemin relatif fichier audio
         }
 
         assert result == expected
@@ -136,6 +138,8 @@ class TestEpisodeModel:
             "description_origin": None,
             "masked": False,  # Issue #107: Champ masked ajouté
             "episode_page_url": None,  # Issue #129: URL de la page RadioFrance
+            "url": None,  # Issue #295: URL audio source
+            "audio_rel_filename": None,  # Issue #295: chemin relatif fichier audio
         }
 
         assert result == expected

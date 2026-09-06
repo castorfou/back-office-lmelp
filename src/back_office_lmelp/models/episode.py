@@ -27,6 +27,9 @@ class Episode:
         self.masked: bool = data.get("masked", False)
         # Issue #129: URL de la page RadioFrance de l'épisode
         self.episode_page_url: str | None = data.get("episode_page_url")
+        # Issue #295: URL audio source et chemin relatif du fichier téléchargé
+        self.url: str | None = data.get("url")
+        self.audio_rel_filename: str | None = data.get("audio_rel_filename")
 
     def to_dict(self) -> dict[str, Any]:
         """Convertit l'épisode en dictionnaire pour l'API."""
@@ -47,6 +50,9 @@ class Episode:
             "masked": self.masked,
             # Issue #129: URL de la page RadioFrance
             "episode_page_url": self.episode_page_url,
+            # Issue #295: URL audio source et chemin relatif du fichier téléchargé
+            "url": self.url,
+            "audio_rel_filename": self.audio_rel_filename,
         }
 
     def to_summary_dict(self) -> dict[str, Any]:

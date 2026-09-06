@@ -10,6 +10,30 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from back_office_lmelp.app import app
+from back_office_lmelp.services.babelio_service import babelio_service
+
+
+@pytest.fixture(autouse=True)
+def _reset_babelio_circuit_breaker():
+    """Réinitialise le circuit breaker du singleton babelio_service avant
+    chaque test.
+
+    `babelio_service` est un singleton module-level partagé par TOUTE la
+    session pytest. Si un test omet de mocker une méthode de scraping
+    réellement traversée (cf. règle CLAUDE.md sur pytest-timeout, Issue
+    #290), un vrai appel réseau vers babelio.com peut recevoir un vrai 403
+    et ouvrir `_circuit_open = True` — cet état reste alors ouvert pour
+    TOUS les tests suivants de la session, même sans rapport avec Babelio,
+    faisant échouer silencieusement leur propre logique d'auto-processing
+    (Issue #295 : 3 tests touchés par cette fuite d'état).
+
+    Cette fixture ne dispense pas de corriger le mock incomplet à la
+    source — elle protège seulement les tests suivants d'un effet de bord
+    qu'un test mal mocké continuera de produire.
+    """
+    babelio_service._circuit_open = False
+    yield
+    babelio_service._circuit_open = False
 
 
 @pytest.fixture(scope="session")

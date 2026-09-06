@@ -67,3 +67,44 @@ class TestEpisodeModel:
         # Assert: episode_page_url doit être None
         assert "episode_page_url" in result
         assert result["episode_page_url"] is None
+
+    def test_episode_to_dict_should_include_url_and_audio_rel_filename(self):
+        """Issue #295 - to_dict() doit inclure url et audio_rel_filename.
+
+        GIVEN: Un épisode avec url (audio) et audio_rel_filename en base MongoDB
+        WHEN: to_dict() est appelé
+        THEN: Le dictionnaire retourné contient ces deux champs, réutilisés
+              tels quels (mêmes noms que dans le document Mongo, cf. schéma
+              réel vérifié via mcp__MongoDB__collection-schema).
+        """
+        episode_data = {
+            "_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "titre": "Test Episode",
+            "date": datetime(2023, 12, 10),
+            "type": "livres",
+            "description": "Test description",
+            "url": "https://proxycast.radiofrance.fr/xxx/episode.m4a",
+            "audio_rel_filename": "2023/episode.m4a",
+        }
+
+        episode = Episode(episode_data)
+        result = episode.to_dict()
+
+        assert result["url"] == "https://proxycast.radiofrance.fr/xxx/episode.m4a"
+        assert result["audio_rel_filename"] == "2023/episode.m4a"
+
+    def test_episode_to_dict_should_handle_missing_url_and_audio_rel_filename(self):
+        """Issue #295 - to_dict() doit gérer l'absence de url/audio_rel_filename."""
+        episode_data = {
+            "_id": "507f1f77bcf86cd799439011",  # pragma: allowlist secret
+            "titre": "Test Episode",
+            "date": datetime(2023, 12, 10),
+            "type": "podcast",
+            "description": "Test description",
+        }
+
+        episode = Episode(episode_data)
+        result = episode.to_dict()
+
+        assert result["url"] is None
+        assert result["audio_rel_filename"] is None

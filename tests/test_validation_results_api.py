@@ -316,6 +316,19 @@ class TestValidationResultsAPI:
                 "back_office_lmelp.app.livres_auteurs_cache_service"
             ) as mock_cache_service,
             patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+            # Issue #290/#295 : une babelio_url déclenche inconditionnellement
+            # fetch_cover_url_from_babelio_page() et fetch_author_url_from_page()
+            # dans l'auto-processing de l'endpoint — sans ces mocks, un vrai
+            # appel réseau est fait vers babelio.com, qui répond 403 et ouvre
+            # le circuit breaker du singleton, polluant tout test suivant.
+            patch(
+                "back_office_lmelp.app.babelio_service.fetch_cover_url_from_babelio_page",
+                return_value=None,
+            ),
+            patch(
+                "back_office_lmelp.app.babelio_service.fetch_author_url_from_page",
+                return_value=None,
+            ),
         ):
             # Mock: cache et auto-processing
             cache_entry_id = ObjectId(
@@ -380,6 +393,19 @@ class TestValidationResultsAPI:
                 "back_office_lmelp.app.livres_auteurs_cache_service"
             ) as mock_cache_service,
             patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+            # Issue #290/#295 : une babelio_url déclenche inconditionnellement
+            # fetch_cover_url_from_babelio_page() et fetch_author_url_from_page()
+            # dans l'auto-processing de l'endpoint — sans ces mocks, un vrai
+            # appel réseau est fait vers babelio.com, qui répond 403 et
+            # interrompt le traitement avant d'atteindre update_avis_critique.
+            patch(
+                "back_office_lmelp.app.babelio_service.fetch_cover_url_from_babelio_page",
+                return_value=None,
+            ),
+            patch(
+                "back_office_lmelp.app.babelio_service.fetch_author_url_from_page",
+                return_value=None,
+            ),
         ):
             # Setup mocks
             cache_entry_id = ObjectId(

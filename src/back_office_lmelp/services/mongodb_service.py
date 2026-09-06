@@ -37,6 +37,7 @@ class MongoDBService:
         self.emissions_collection: Collection | None = None
         self.avis_collection: Collection | None = None
         self.livresauteurs_cache_collection: Collection | None = None
+        self.rss_download_logs_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -61,6 +62,7 @@ class MongoDBService:
             self.emissions_collection = self.db.emissions
             self.avis_collection = self.db.avis
             self.livresauteurs_cache_collection = self.db.livresauteurs_cache
+            self.rss_download_logs_collection = self.db.rss_download_logs
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -76,6 +78,7 @@ class MongoDBService:
             self.emissions_collection = None
             self.avis_collection = None
             self.livresauteurs_cache_collection = None
+            self.rss_download_logs_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -307,6 +310,82 @@ class MongoDBService:
         except Exception as e:
             print(f"Erreur lors de l'insertion de l'épisode: {e}")
             raise
+
+    def find_episode_by_titre_and_date(
+        self, titre: str, date: datetime
+    ) -> dict[str, Any] | None:
+        """Vérifie l'existence exacte d'un épisode (dédup niveau 2, Issue #295)."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        doc = self.episodes_collection.find_one({"titre": titre, "date": date})
+        return dict(doc) if doc is not None else None
+
+    def get_last_episode_date(self) -> datetime | None:
+        """Retourne la date du dernier épisode connu (dédup niveau 1, Issue #295)."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        doc = self.episodes_collection.find_one({}, sort=[("date", -1)])
+        return doc.get("date") if doc else None
+
+    def get_last_processed_episode_date(self) -> datetime | None:
+        """Retourne la date max parmi les épisodes "skipped_not_book" déjà
+        vus lors d'un run RSS précédent (Issue #295).
+
+        Contrairement à get_last_episode_date() (qui ne voit que les
+        épisodes réellement insérés dans `episodes`, donc jamais les
+        épisodes "skipped_not_book"), cette méthode empêche de retraiter
+        et re-notifier indéfiniment un épisode non-livres déjà vu, tant
+        qu'aucun nouvel épisode livres n'est inséré après lui.
+
+        Ne considère volontairement PAS les épisodes "downloaded" : un
+        épisode livres inséré puis supprimé manuellement de `episodes`
+        (test manuel, correction d'erreur) doit rester retéléchargeable,
+        cohérent avec get_last_episode_date() qui consulte `episodes` en
+        temps réel et ne le verrait plus.
+        """
+        if self.rss_download_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        pipeline: list[dict[str, Any]] = [
+            {"$match": {"episodes.outcome": "skipped_not_book"}},
+            {"$unwind": "$episodes"},
+            {"$match": {"episodes.outcome": "skipped_not_book"}},
+            {"$group": {"_id": None, "max_date": {"$max": "$episodes.date"}}},
+        ]
+        result = list(self.rss_download_logs_collection.aggregate(pipeline))
+        if not result:
+            return None
+        max_date = result[0].get("max_date")
+        return max_date if isinstance(max_date, datetime) else None
+
+    def insert_rss_download_log(self, log_data: dict[str, Any]) -> str:
+        """Persiste un document de run de synchronisation RSS (Issue #295)."""
+        if self.rss_download_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        result = self.rss_download_logs_collection.insert_one(log_data)
+        return str(result.inserted_id)
+
+    def get_rss_download_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Liste les runs de synchronisation RSS, triés du plus récent au plus ancien."""
+        if self.rss_download_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        logs = list(
+            self.rss_download_logs_collection.find()
+            .sort([("started_at", -1)])
+            .limit(limit)
+        )
+        for log in logs:
+            log["_id"] = str(log["_id"])
+        return logs
+
+    def get_rss_download_log_by_id(self, log_id: str) -> dict[str, Any] | None:
+        """Récupère le détail d'un run de synchronisation RSS par son id."""
+        if self.rss_download_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        log = self.rss_download_logs_collection.find_one({"_id": ObjectId(log_id)})
+        if log is None:
+            return None
+        log["_id"] = str(log["_id"])
+        return dict(log)
 
     def get_all_critical_reviews(
         self, limit: int | None = None
