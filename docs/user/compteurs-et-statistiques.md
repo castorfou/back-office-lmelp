@@ -13,21 +13,45 @@ Cette page documente tous les compteurs affichés dans l'application et leurs r�
 ```javascript
 db.episodes.find().sort({diffusion: -1}).limit(1)
 ```
+**Clic:** Ouvre la page interne de Monitoring RSS (`/rss-monitoring`).
 
-### 2. Épisodes sans avis critiques
-**Valeur:** Nombre d'épisodes non masqués sans avis critique
+### 2. Épisodes sans transcription
+**Valeur:** Nombre d'épisodes non masqués sans transcription
+**Collection:** `episodes`
+**Formule:**
+```
+COUNT(episodes WHERE masked ≠ true AND transcription IN [null, ""])
+```
+**Requête MongoDB:**
+```javascript
+db.episodes.count({
+  $and: [
+    {$or: [{masked: {$ne: true}}, {masked: {$exists: false}}]},
+    {$or: [{transcription: null}, {transcription: ""}, {transcription: {$exists: false}}]}
+  ]
+})
+```
+**Clic:** Ouvre lmelp (application historique), où se lance encore la transcription.
+**Note importante:** Cette métrique n'est **pas** mise en cache (contrairement aux autres tuiles du dashboard, cache 5 min) car la transcription est effectuée depuis lmelp, une application externe dont ce back-office ne peut observer les écritures pour invalider un cache automatiquement. Endpoint dédié : `GET /api/episodes/without-transcription/count`.
+
+### 3. Épisodes sans avis critiques
+**Valeur:** Nombre d'épisodes non masqués, avec transcription, sans avis critique
 **Collections:** `episodes`, `avis_critiques`
 **Formule:**
 ```
-COUNT(episodes WHERE masked ≠ true)
+COUNT(episodes WHERE masked ≠ true AND transcription NOT IN [null, ""])
 - COUNT(DISTINCT avis_critiques.episode_oid WHERE episode.masked ≠ true)
 ```
+**Note importante:** Un épisode sans transcription est exclu de ce compteur — les avis critiques sont générés à partir de la transcription, donc un épisode qui n'en a pas encore ne peut logiquement pas en avoir (il est déjà signalé par la tuile "Épisodes sans transcription" ci-dessus).
 
 **Requête MongoDB:**
 ```javascript
-// Étape 1: Compter épisodes non masqués
+// Étape 1: Compter épisodes non masqués avec transcription
 db.episodes.count({
-  $or: [{masked: false}, {masked: {$exists: false}}]
+  $and: [
+    {$or: [{masked: false}, {masked: {$exists: false}}]},
+    {transcription: {$nin: [null, ""]}}
+  ]
 })
 
 // Étape 2: Compter avis dont l'épisode n'est pas masqué (via aggregation)
@@ -63,7 +87,7 @@ db.avis_critiques.aggregate([
 
 **Note importante:** Le calcul utilise une aggregation avec `$lookup` pour filtrer les avis critiques dont l'épisode est masqué. Cela garantit que seuls les épisodes non masqués sont comptés.
 
-### 3. Avis critiques sans analyse
+### 4. Avis critiques sans analyse
 **Valeur:** Épisodes avec avis critique mais sans extraction des livres
 **Collections:** `avis_critiques`, `livresauteurs_cache`, `episodes`
 **Formule:**
@@ -72,7 +96,7 @@ COUNT(DISTINCT avis_critiques.episode_oid WHERE episode.masked ≠ true)
 - COUNT(DISTINCT livresauteurs_cache.episode_oid WHERE episode.masked ≠ true)
 ```
 
-### 4. Livres suggérés
+### 5. Livres suggérés
 **Valeur:** Livres avec statut "suggested" dans le cache
 **Collection:** `livresauteurs_cache`
 **Requête:**
@@ -82,7 +106,7 @@ db.livresauteurs_cache.count({
 })
 ```
 
-### 5. Livres non trouvés
+### 6. Livres non trouvés
 **Valeur:** Livres avec statut "not_found" dans le cache
 **Collection:** `livresauteurs_cache`
 **Requête:**
@@ -92,7 +116,7 @@ db.livresauteurs_cache.count({
 })
 ```
 
-### 6. Livres sans lien Babelio
+### 7. Livres sans lien Babelio
 **Valeur:** Livres sans URL Babelio et non marqués "not_found"
 **Collection:** `livres`
 **Requête:**
@@ -105,12 +129,12 @@ db.livres.count({
 })
 ```
 
-### 7. Auteurs sans lien Babelio
+### 8. Auteurs sans lien Babelio
 **Valeur:** Auteurs sans URL Babelio et non marqués "not_found"
 **Collection:** `auteurs`
 **Requête:** Identique à "Livres sans lien Babelio"
 
-### 8. Critiques manquants
+### 9. Critiques manquants
 **Valeur:** Épisodes avec noms de critiques non présents en base
 **Collections:** `episodes`, `avis_critiques`, `critiques`
 **Logique:**
@@ -119,7 +143,7 @@ db.livres.count({
 3. Vérifier existence dans collection `critiques`
 4. Compter les épisodes avec au moins 1 critique manquant
 
-### 9. Épisodes sans émission
+### 10. Épisodes sans émission
 **Valeur:** Épisodes avec avis critique mais sans émission créée
 **Collections:** `avis_critiques`, `emissions`, `episodes`
 **Formule:**

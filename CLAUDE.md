@@ -956,6 +956,8 @@ self.client = MongoClient(self.mongo_url, event_listeners=[listener])
 
 **Example**: `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py` (Issue #279) — full details in [docs/dev/dashboard-stats-cache.md](docs/dev/dashboard-stats-cache.md)
 
+**Exception — metrics whose writes happen outside this MongoClient**: the `CommandListener` above only sees writes issued through this backend's own `MongoClient`. A metric whose source data is written by an *external* app (e.g. `episodes_without_transcription` counts episodes transcribed via the legacy lmelp Streamlit app, not this backend) cannot be invalidated by that listener — the write is invisible to it. Don't force such a metric into the shared 5-minute dashboard cache; expose it via its own **uncached** endpoint instead (`GET /api/episodes/without-transcription/count`, Issue #298), loaded by a separate frontend call rather than folded into `collections_statistics`.
+
 ### Validation - Double Layer Pattern
 
 **For critical operations (LLM saves, payments, data modifications):**

@@ -524,3 +524,89 @@ Total livres traités : 14"""
             # Assert
             # Résultat attendu: 69 épisodes avec avis (NON masqués) - 62 épisodes analysés (NON masqués) = 7
             assert result == 7, f"Attendu 7 épisodes, obtenu {result}"
+
+    def test_count_episodes_without_transcription_should_exclude_masked_episodes(self):
+        """Test TDD Issue #298: Le compteur doit exclure les épisodes masqués.
+
+        Reprend la logique de Episodes.get_missing_transcriptions() de lmelp:
+        transcription vide/null/absente, épisodes non masqués uniquement.
+        """
+        with patch(
+            "back_office_lmelp.services.stats_service.mongodb_service"
+        ) as mock_mongodb:
+            mock_episodes_collection = MagicMock()
+            mock_mongodb.get_collection.return_value = mock_episodes_collection
+            mock_episodes_collection.count_documents.return_value = 1
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service._count_episodes_without_transcription()
+
+            # Assert
+            mock_mongodb.get_collection.assert_called_once_with("episodes")
+            mock_episodes_collection.count_documents.assert_called_once_with(
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"masked": {"$ne": True}},
+                                {"masked": {"$exists": False}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"transcription": None},
+                                {"transcription": ""},
+                                {"transcription": {"$exists": False}},
+                            ]
+                        },
+                    ]
+                }
+            )
+            assert result == 1
+
+    def test_count_episodes_without_avis_critiques_should_exclude_episodes_without_transcription(
+        self,
+    ):
+        """Test TDD Issue #298: un épisode sans transcription ne peut pas encore
+        avoir d'avis critiques (générés à partir de la transcription) — il ne
+        doit pas être compté comme "à traiter" dans cette métrique.
+        """
+        with (
+            patch(
+                "back_office_lmelp.services.stats_service.mongodb_service"
+            ) as mock_mongodb,
+        ):
+            mock_episodes_collection = MagicMock()
+            mock_avis_critiques_collection = MagicMock()
+
+            collection_map = {
+                "episodes": mock_episodes_collection,
+                "avis_critiques": mock_avis_critiques_collection,
+            }
+            mock_mongodb.get_collection.side_effect = collection_map.get
+
+            # 1 seul épisode non masqué AVEC transcription (l'épisode sans
+            # transcription n'est pas compté grâce au nouveau filtre)
+            mock_episodes_collection.count_documents.return_value = 1
+            mock_avis_critiques_collection.aggregate.return_value = []
+
+            # Act
+            stats_service = StatsService()
+            result = stats_service._count_episodes_without_avis_critiques()
+
+            # Assert: la requête sur episodes doit filtrer masked ET transcription
+            mock_episodes_collection.count_documents.assert_called_once_with(
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"masked": False},
+                                {"masked": {"$exists": False}},
+                            ]
+                        },
+                        {"transcription": {"$nin": [None, ""]}},
+                    ]
+                }
+            )
+            assert result == 1

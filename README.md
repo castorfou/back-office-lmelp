@@ -164,6 +164,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🏗️ **Architecture cache-first** : Collection `livresauteurs_cache` avec `LivresAuteursCacheService` TDD complet
 - 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
 - ⚡ **Cache dashboard 5 min** : Statistiques agrégées (`/api/dashboard/stats`) mises en cache, invalidées automatiquement à chaque écriture MongoDB pertinente, avec bouton "Actualiser" pour forcer le rafraîchissement
+- 🎙️ **Tuile "Épisodes sans transcription"** : Métrique volontairement hors cache (`/api/episodes/without-transcription/count`), la transcription se lançant encore depuis lmelp — lien externe vers cette appli
 - 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
 - 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)
@@ -305,6 +306,7 @@ GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
 # Dashboard
 GET /api/dashboard/stats                     # Statistiques agrégées des 14 tuiles, mises en cache 5 min
 POST /api/dashboard/stats/cache/invalidate    # Force le rafraîchissement (bouton "Actualiser")
+GET /api/episodes/without-transcription/count # Épisodes sans transcription, non caché (migration lmelp)
 
 # Gestion des collections
 GET /api/livres-auteurs/statistics           # Statistiques des collections

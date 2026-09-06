@@ -23,6 +23,8 @@ Chaque synchronisation :
 2. Localisez la section **"RSS Masque Et La Plume"**
 3. Cliquez sur la tuile **"Monitoring Downloads"**
 
+La tuile **"Dernière mise à jour"** de la section "Informations générales" mène également à cette page.
+
 ### Navigation directe
 
 URL directe : `/rss-monitoring`
