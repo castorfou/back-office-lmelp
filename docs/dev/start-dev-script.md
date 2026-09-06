@@ -266,7 +266,7 @@ cleanup() {
 **Problème** : quand `start-dev.sh` est lancé en arrière-plan simple (`./scripts/start-dev.sh &`) depuis un outil dont le shell parent se termine juste après avoir passé la commande (typiquement l'outil Bash de Claude Code), la fin de ce shell parent envoie `SIGHUP` au job resté attaché. Le comportement par défaut de bash pour `SIGHUP` sur un script non interactif est de le tuer **immédiatement, sans exécuter le trap `cleanup()`** — les process backend/frontend qu'il a lui-même backgroundés restent alors orphelins (réattachés à init), invisibles dans `.dev-ports.json` mais toujours actifs sur leurs ports.
 
 **Solution à deux niveaux** :
-1. **Prévention** : toujours lancer le script avec `nohup ... & disown` (voir [CLAUDE.md](../../CLAUDE.md)) pour que `SIGHUP` n'atteigne jamais le script.
+1. **Prévention** : toujours lancer le script avec `nohup ... & disown` (voir `CLAUDE.md` à la racine du projet) pour que `SIGHUP` n'atteigne jamais le script.
 2. **Filet de sécurité** : le trap inclut désormais `SIGHUP`, donc même si le signal arrive malgré tout, `cleanup()` s'exécute et termine proprement backend/frontend au lieu de les laisser orphelins.
 
 **Garde-fou supplémentaire** : la suppression de `.dev-ports.json` dans `cleanup()` est conditionnée à la vérification (`kill -0`) que les deux process sont bien morts après le force-kill. Si l'un d'eux répond encore, le fichier est conservé (avec un avertissement) plutôt que supprimé silencieusement — pour que l'orphelin reste détectable via `.claude/get-services-info.sh` au lieu de disparaître du radar.
@@ -394,7 +394,7 @@ pkill -9 -f "vite"
 
 **Diagnostic** : `ps aux | grep back_office_lmelp.app` montre un process vivant alors que `.claude/get-services-info.sh` ne trouve rien.
 
-**Prévention** : toujours lancer le script avec `nohup ./scripts/start-dev.sh > /tmp/start-dev.log 2>&1 & disown` (voir [CLAUDE.md](../../CLAUDE.md)), jamais un simple `&`.
+**Prévention** : toujours lancer le script avec `nohup ./scripts/start-dev.sh > /tmp/start-dev.log 2>&1 & disown` (voir `CLAUDE.md` à la racine du projet), jamais un simple `&`.
 
 **Rattrapage si déjà orphelin** : identifier et arrêter manuellement les process (`ps aux | grep -E "back_office_lmelp|vite"`, puis `kill <PID>`, en vérifiant `ps -p <PID>` après coup).
 
