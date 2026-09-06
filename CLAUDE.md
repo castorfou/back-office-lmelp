@@ -98,6 +98,8 @@ cd /workspaces/back-office-lmelp/frontend && npm run build
 
 **Comment l'éviter** : avant `./scripts/start-dev.sh`, toujours vérifier qu'aucun ancien process n'est actif (`get-services-info.sh` ou `ps aux | grep back_office_lmelp.app`). Si un ancien process traîne, l'arrêter proprement (jamais `kill -9` à l'aveugle — identifier le PID exact via le script de découverte, puis `kill <PID>`) avant de relancer.
 
+**Après un `kill` manuel, vérifier que le process est bien mort (`ps -p <PID>`) avant de considérer le nettoyage terminé** — ne pas se fier uniquement à l'absence d'erreur de la commande `kill`. Sur plusieurs cycles rapprochés de redémarrage manuel (arrêt → relance → arrêt → relance, typique d'une session de debug qui recharge le code à chaque fix), il est facile de perdre le fil de quel PID correspond à quel cycle : `start-dev.sh` supprime et recrée `.dev-ports.json` à chaque lancement (voir le script, section cleanup en début de fichier), donc le fichier reflète toujours le dernier cycle lancé — mais un process d'un cycle précédent qui n'aurait pas reçu son signal d'arrêt (ex: kill sur le mauvais PID, ou terminal fermé sans `Ctrl+C`) continue de tourner en arrière-plan, invisible dans le fichier de découverte mais bien vivant sur le port qu'il occupait. `ps aux | grep back_office_lmelp.app` (sans filtrer sur un PID précis) reste le moyen le plus fiable de repérer un orphelin de ce type.
+
 ### Documentation Commands
 
 ```bash
