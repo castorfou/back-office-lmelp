@@ -22,6 +22,19 @@ source /home/vscode/.venv/bin/activate
 
 This enables direct use of tools like `ruff`, `mypy`, `pytest`, `mkdocs` without the `uv run` prefix.
 
+**CRITICAL** : les versions de `ruff`/`mypy` installées dans `.venv` peuvent différer de celles épinglées par pre-commit (`.pre-commit-config.yaml`) — un `mypy src/` ou `ruff check` direct peut donc passer localement puis échouer au commit (ou l'inverse), avec des messages d'erreur différents pour le même fichier. Avant de committer, déclencher ruff/mypy **via pre-commit** (pas les binaires `.venv`), en ciblant le hook précis plutôt que toute la suite :
+
+```bash
+# Un hook précis (id exact dans .pre-commit-config.yaml : ruff, ruff-format, mypy)
+pre-commit run mypy --files <fichier1> <fichier2> ...
+pre-commit run ruff --files <fichier1> <fichier2> ...
+pre-commit run ruff-format --files <fichier1> <fichier2> ...
+
+# Tous les hooks sur des fichiers précis, ou sur tout le repo
+pre-commit run --files <fichier1> <fichier2> ...
+pre-commit run --all-files
+```
+
 ## Essential Commands
 
 ### Backend Commands
