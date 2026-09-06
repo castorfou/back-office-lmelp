@@ -85,3 +85,48 @@ class TestStartDevScript:
         assert "SIGINT" in content or "INT" in content, (
             "Script should handle SIGINT (Ctrl+C)"
         )
+
+    def test_script_handles_sighup_signal(self):
+        """Test that the script traps SIGHUP so cleanup runs when the parent
+        shell (e.g. Claude Code's Bash tool) exits and sends SIGHUP to a
+        backgrounded, non-disowned job (Issue #299)."""
+        assert self.script_path.exists(), "Script must exist to test content"
+
+        with open(self.script_path) as f:
+            content = f.read()
+
+        trap_lines = [line for line in content.splitlines() if "trap cleanup" in line]
+        assert trap_lines, "Script should have a 'trap cleanup' line"
+        assert any("SIGHUP" in line for line in trap_lines), (
+            "Script should trap SIGHUP, otherwise bash kills the script "
+            "immediately without running cleanup() when the parent shell "
+            "exits, leaving backend/frontend orphaned"
+        )
+
+    def test_cleanup_checks_process_liveness_before_removing_ports_file(self):
+        """Test that cleanup() only deletes .dev-ports.json after verifying
+        backend/frontend processes are actually dead, instead of deleting it
+        unconditionally right after sending the kill signal (Issue #299)."""
+        assert self.script_path.exists(), "Script must exist to test content"
+
+        with open(self.script_path) as f:
+            content = f.read()
+
+        # Extract the cleanup() function body
+        cleanup_start = content.index("cleanup() {")
+        # cleanup() is the last function before the trap line; bound the
+        # search by the following "trap cleanup" call.
+        trap_call_index = content.index("trap cleanup", cleanup_start)
+        cleanup_body = content[cleanup_start:trap_call_index]
+
+        rm_index = cleanup_body.index('rm -f "$PROJECT_ROOT/.dev-ports.json"')
+        liveness_check_index = cleanup_body.find("kill -0")
+
+        assert liveness_check_index != -1, (
+            "cleanup() should check process liveness (kill -0) before "
+            "removing .dev-ports.json"
+        )
+        assert liveness_check_index < rm_index, (
+            "The liveness check must happen BEFORE removing .dev-ports.json, "
+            "otherwise the file can be deleted while a process is still alive"
+        )

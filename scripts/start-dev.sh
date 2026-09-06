@@ -177,10 +177,21 @@ cleanup() {
         wait_for_process $FRONTEND_PID "Frontend"
     fi
 
-    # Clean up unified discovery file
+    # Only remove the unified discovery file once we've verified both
+    # processes are actually dead. Deleting it unconditionally can make a
+    # still-alive orphan invisible to .claude/get-services-info.sh (Issue #299).
+    local backend_alive=false
+    local frontend_alive=false
+    [[ -n $BACKEND_PID ]] && kill -0 $BACKEND_PID 2>/dev/null && backend_alive=true
+    [[ -n $FRONTEND_PID ]] && kill -0 $FRONTEND_PID 2>/dev/null && frontend_alive=true
+
     if [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
-        rm -f "$PROJECT_ROOT/.dev-ports.json"
-        log "🧹 Unified port discovery file cleaned up"
+        if [[ $backend_alive == true || $frontend_alive == true ]]; then
+            warn "Un processus est toujours actif après force-kill - .dev-ports.json conservé pour rester détectable"
+        else
+            rm -f "$PROJECT_ROOT/.dev-ports.json"
+            log "🧹 Unified port discovery file cleaned up"
+        fi
     fi
 
     log "✅ Processus arrêtés proprement"
@@ -188,7 +199,12 @@ cleanup() {
 }
 
 # Trap signals for clean shutdown
-trap cleanup SIGINT SIGTERM
+# SIGHUP is trapped because bash's default disposition for it on a
+# non-interactive script is immediate termination WITHOUT running this
+# trap - which happens when the launching parent shell exits right after
+# backgrounding this script without nohup/disown (e.g. Claude Code's Bash
+# tool). Without this, backend/frontend end up orphaned (Issue #299).
+trap cleanup SIGINT SIGTERM SIGHUP
 
 # Check if we're in the right directory
 if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]] || [[ ! -d "$PROJECT_ROOT/frontend" ]]; then

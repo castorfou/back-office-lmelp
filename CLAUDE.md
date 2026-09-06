@@ -100,6 +100,21 @@ cd /workspaces/back-office-lmelp/frontend && npm run build
 
 **Après un `kill` manuel, vérifier que le process est bien mort (`ps -p <PID>`) avant de considérer le nettoyage terminé** — ne pas se fier uniquement à l'absence d'erreur de la commande `kill`. Sur plusieurs cycles rapprochés de redémarrage manuel (arrêt → relance → arrêt → relance, typique d'une session de debug qui recharge le code à chaque fix), il est facile de perdre le fil de quel PID correspond à quel cycle : `start-dev.sh` supprime et recrée `.dev-ports.json` à chaque lancement (voir le script, section cleanup en début de fichier), donc le fichier reflète toujours le dernier cycle lancé — mais un process d'un cycle précédent qui n'aurait pas reçu son signal d'arrêt (ex: kill sur le mauvais PID, ou terminal fermé sans `Ctrl+C`) continue de tourner en arrière-plan, invisible dans le fichier de découverte mais bien vivant sur le port qu'il occupait. `ps aux | grep back_office_lmelp.app` (sans filtrer sur un PID précis) reste le moyen le plus fiable de repérer un orphelin de ce type.
 
+**CRITIQUE : toujours lancer `start-dev.sh` avec `nohup ... & disown`, jamais un simple `&`, quand l'outil qui l'invoque (ex: l'outil Bash de Claude Code) termine son propre shell juste après avoir passé la commande** :
+
+```bash
+# ✅ CORRECT - survit à la fin du shell parent
+nohup ./scripts/start-dev.sh > /tmp/start-dev.log 2>&1 &
+disown
+
+# ❌ RISQUÉ - tué par SIGHUP quand le shell parent (l'appel d'outil Bash) se termine
+./scripts/start-dev.sh &
+```
+
+**Pourquoi c'est critique** (Issue #299) : un job d'arrière-plan non protégé (`nohup`) ni détaché (`disown`) reçoit `SIGHUP` quand le shell qui l'a lancé se termine — ce qui arrive systématiquement à la fin d'un appel d'outil Bash de Claude Code. Le script trape désormais aussi `SIGHUP` (en plus de `SIGINT`/`SIGTERM`) pour exécuter son `cleanup()` dans ce cas plutôt que d'être tué immédiatement sans nettoyage — mais `nohup ... & disown` reste la protection de premier niveau : elle évite que le signal n'atteigne le script, plutôt que de compter uniquement sur le trap pour réagir une fois le signal reçu.
+
+**`.dev-ports.json` n'est volontairement PAS dans `.gitignore`** : le laisser apparaître dans `git status` permet de voir visuellement sa création/suppression par `start-dev.sh`, ce qui aide à détecter un cleanup qui ne s'est pas fait correctement (fichier resté présent après arrêt des services). Faire simplement attention à ne pas le commit par erreur (`git status` avant un `git add`/commit) — ce n'est pas dramatique si ça arrive, mais autant l'éviter.
+
 ### Documentation Commands
 
 ```bash
