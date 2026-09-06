@@ -50,7 +50,21 @@ class TestBabelioTerminusCase:
         }
 
         # Act
-        with patch.object(babelio_service, "search", return_value=[mock_book_data]):
+        # Issue #290 : verify_book() appelle inconditionnellement
+        # fetch_publisher_from_url() (confidence >= 0.90) et
+        # fetch_author_url_from_page() dès qu'un livre est trouvé — sans
+        # ces mocks, un vrai appel réseau est fait vers babelio.com, qui
+        # répond 403 et ouvre le circuit breaker, polluant ce test et tout
+        # test suivant partageant le singleton.
+        with (
+            patch.object(babelio_service, "search", return_value=[mock_book_data]),
+            patch.object(
+                babelio_service, "fetch_publisher_from_url", return_value=None
+            ),
+            patch.object(
+                babelio_service, "fetch_author_url_from_page", return_value=None
+            ),
+        ):
             result = await babelio_service.verify_book(
                 "Terminus Malaussène", "Daniel Pennac"
             )
