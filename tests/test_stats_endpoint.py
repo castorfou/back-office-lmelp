@@ -279,3 +279,53 @@ class TestEpisodesWithoutTranscriptionCountEndpoint:
             response = client.get("/api/episodes/without-transcription/count")
 
             assert response.status_code == 500
+
+    def test_endpoint_should_invalidate_dashboard_cache_when_count_decreases(self):
+        """Test TDD Issue #298: une transcription faite dans lmelp fait baisser ce
+        compteur sans jamais passer par le MongoClient de ce backend — le
+        DashboardStatsInvalidationListener ne peut donc pas la détecter. Cet
+        endpoint doit invalider lui-même le cache dashboard quand il détecte
+        que le compte a baissé depuis le dernier appel, pour que la tuile
+        "Épisodes sans avis critiques" (qui dépend de la transcription) se
+        rafraîchisse sans attendre le TTL de 5 min.
+        """
+        import back_office_lmelp.app as app_module
+
+        with (
+            patch("back_office_lmelp.app.stats_service") as mock_stats_service,
+            patch(
+                "back_office_lmelp.app.dashboard_stats_cache_service"
+            ) as mock_cache_service,
+        ):
+            # Premier appel: 2 épisodes sans transcription
+            mock_stats_service._count_episodes_without_transcription.return_value = 2
+            app_module._last_episodes_without_transcription_count = None
+            client.get("/api/episodes/without-transcription/count")
+            mock_cache_service.invalidate_cache.assert_not_called()
+
+            # Deuxième appel: le compte baisse à 1 (une transcription a été faite)
+            mock_stats_service._count_episodes_without_transcription.return_value = 1
+            client.get("/api/episodes/without-transcription/count")
+            mock_cache_service.invalidate_cache.assert_called_once()
+
+    def test_endpoint_should_not_invalidate_dashboard_cache_when_count_increases(self):
+        """Le cache dashboard ne doit pas être invalidé quand le compte augmente
+        ou reste stable (nouvel épisode ajouté sans transcription, ou pas de
+        changement) — seule une baisse indique qu'une transcription a été faite.
+        """
+        import back_office_lmelp.app as app_module
+
+        with (
+            patch("back_office_lmelp.app.stats_service") as mock_stats_service,
+            patch(
+                "back_office_lmelp.app.dashboard_stats_cache_service"
+            ) as mock_cache_service,
+        ):
+            mock_stats_service._count_episodes_without_transcription.return_value = 1
+            app_module._last_episodes_without_transcription_count = None
+            client.get("/api/episodes/without-transcription/count")
+
+            mock_stats_service._count_episodes_without_transcription.return_value = 2
+            client.get("/api/episodes/without-transcription/count")
+
+            mock_cache_service.invalidate_cache.assert_not_called()

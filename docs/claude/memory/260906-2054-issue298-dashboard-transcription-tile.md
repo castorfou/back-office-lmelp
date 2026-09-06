@@ -19,6 +19,8 @@ Le repo `castorfou/lmelp` a été cloné temporairement (`gh repo clone`, suppri
 
 **Effet de bord découvert et corrigé** : un épisode sans transcription ne peut pas encore avoir d'avis critiques (générés à partir de la transcription) — il était donc compté à la fois dans "sans transcription" ET "sans avis critiques", gonflant artificiellement cette dernière métrique avec un épisode qui n'a rien à "traiter" tant que la transcription n'existe pas. Fix : `_count_episodes_without_avis_critiques()` filtre désormais aussi `transcription: {"$nin": [None, ""]}` sur le comptage des épisodes non masqués (`stats_service.py:130-159`).
 
+**Deuxième effet de bord découvert (question de l'utilisateur, pas détecté spontanément)** : `episodes_without_avis_critiques` fait partie du payload caché 5 min. Après cette exclusion, une transcription ajoutée dans lmelp rend un épisode potentiellement éligible à cette métrique — mais cette écriture ne passe pas par le `MongoClient` de ce backend, donc le `DashboardStatsInvalidationListener` ne peut pas la voir : la tuile serait restée figée jusqu'à 5 min. Fix : l'endpoint `GET /api/episodes/without-transcription/count` compare le compte retourné à la dernière valeur connue (variable module-level `_last_episodes_without_transcription_count` dans `app.py`) et invalide lui-même `dashboard_stats_cache_service` quand le compte **baisse** (signe qu'une transcription vient d'avoir lieu). Une hausse ou une stabilité ne déclenche rien. Pattern généralisable : toute métrique cachée qui dépend indirectement d'une donnée elle-même exposée par un endpoint non caché peut utiliser ce même endpoint comme point d'invalidation croisée.
+
 ## Implémentation frontend
 
 `frontend/src/views/Dashboard.vue` :
@@ -37,4 +39,4 @@ En testant visuellement via Playwright, `.dev-ports.json` a disparu deux fois al
 
 ## État à la fin de la session
 
-Code implémenté et vérifié (1571 tests backend, 712 tests frontend, pre-commit vert, vérification visuelle Playwright), mais **pas encore committé** — la session s'est arrêtée avant l'étape commit/PR pour traiter la découverte du bug #299 en aparté.
+Code committé (`98d1157`) et poussé, CI/CD verte (security, frontend-tests, tests Python 3.11/3.12, integration-tests, quality-gate). Une boucle supplémentaire a ensuite ajouté l'invalidation croisée du cache dashboard (voir ci-dessus), déclenchée par une question de l'utilisateur anticipant le scénario "transcription faite dans lmelp puis retour sur back-office-lmelp" — pas encore committée à la fin de cette section de la session.

@@ -5320,6 +5320,9 @@ async def invalidate_dashboard_stats_cache() -> dict[str, str] | JSONResponse:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+_last_episodes_without_transcription_count: int | None = None
+
+
 @app.get("/api/episodes/without-transcription/count", response_model=None)
 async def get_episodes_without_transcription_count() -> dict[str, int] | JSONResponse:
     """Compte les épisodes non masqués sans transcription (Issue #298).
@@ -5327,9 +5330,24 @@ async def get_episodes_without_transcription_count() -> dict[str, int] | JSONRes
     Volontairement hors du cache dashboard (Issue #279/dashboard_stats_cache_service) :
     la transcription se lance encore depuis lmelp, une appli externe dont ce
     back-office ne peut pas observer les écritures pour invalider un cache.
+
+    Une transcription faite dans lmelp fait baisser ce compte sans jamais
+    passer par le MongoClient de ce backend, donc le
+    DashboardStatsInvalidationListener ne peut pas la détecter : la tuile
+    "Épisodes sans avis critiques" (qui exclut désormais les épisodes sans
+    transcription) resterait figée jusqu'à expiration du cache (5 min). Pour
+    éviter cette incohérence, on invalide nous-mêmes le cache dashboard dès
+    qu'une baisse est détectée par rapport au dernier appel.
     """
+    global _last_episodes_without_transcription_count
     try:
         count = stats_service._count_episodes_without_transcription()
+        if (
+            _last_episodes_without_transcription_count is not None
+            and count < _last_episodes_without_transcription_count
+        ):
+            dashboard_stats_cache_service.invalidate_cache()
+        _last_episodes_without_transcription_count = count
         return {"count": count}
     except Exception as e:
         logger.error(f"Erreur lors du comptage des épisodes sans transcription: {e}")

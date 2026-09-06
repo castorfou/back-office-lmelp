@@ -62,6 +62,12 @@ GET /api/episodes/without-transcription/count
 
 qui recalcule à chaque appel via `StatsService._count_episodes_without_transcription()`. Côté frontend, `Dashboard.vue` charge cette valeur séparément (`loadEpisodesWithoutTranscriptionCount()`, appelée en parallèle de `loadDashboardStats()` dans `mounted()`), plutôt que de l'inclure dans `collections_statistics`.
 
+### Effet de bord sur une métrique cachée dépendante
+
+`episodes_without_avis_critiques` (dans le payload caché) exclut les épisodes sans transcription — un épisode dont la transcription est ajoutée dans lmelp devient donc potentiellement éligible à cette métrique, sans qu'aucune écriture ne transite par le `MongoClient` de ce backend pour le signaler au listener.
+
+Pour éviter que cette tuile reste figée jusqu'à 5 minutes après une transcription faite dans lmelp, l'endpoint `GET /api/episodes/without-transcription/count` (`app.py`) compare à chaque appel le compte retourné à la dernière valeur connue (variable module-level `_last_episodes_without_transcription_count`) : si le compte **baisse** (signe qu'une transcription vient d'avoir lieu), il invalide lui-même `dashboard_stats_cache_service`. Une hausse ou une valeur stable ne déclenche rien — le cas normal reste géré par le TTL de 5 min ou le bouton "Actualiser".
+
 ## Voir aussi
 
 - `src/back_office_lmelp/services/dashboard_stats_cache_service.py`
