@@ -27,15 +27,24 @@
           >{{ refreshing ? 'Actualisation…' : 'Actualiser' }}</button>
         </div>
         <div class="stats-grid">
-          <a
-            :href="lmelpFrontOfficeUrl"
+          <div
             class="stat-card clickable-stat"
-            target="_blank"
-            rel="noopener noreferrer"
+            @click="navigateToRssMonitoring"
             :title="tooltips.lastUpdate"
           >
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
+          </div>
+          <a
+            v-if="episodesWithoutTranscriptionCount !== 0"
+            :href="lmelpFrontOfficeUrl"
+            class="stat-card clickable-stat"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="tooltips.episodesSansTranscription"
+          >
+            <div class="stat-value">{{ episodesWithoutTranscriptionCount != null ? episodesWithoutTranscriptionCount : '...' }}</div>
+            <div class="stat-label">Épisodes sans transcription</div>
           </a>
           <div
             v-if="collectionsStatistics && collectionsStatistics.emissions_sans_avis !== 0"
@@ -449,9 +458,10 @@ export default {
       },
       tooltips: {
         lastUpdate: `Date du dernier épisode en base\nCollection: episodes\nRequête: episodes.find().sort({diffusion: -1}).limit(1)`,
+        episodesSansTranscription: `Épisodes non masqués sans transcription\nCollection: episodes\nRequête: episodes.find({masked: {$ne: true}, transcription: {$in: [null, ""]}})`,
         emissionsSansAvis: `Émissions avec pastille grise (⚪)\nCollection: emissions\nRequête: emissions.find({badge_status: "no_avis"})`,
         emissionsWithProblems: `Émissions avec pastille rouge (🔴) ou jaune (🟡)\nCollection: emissions\nRequête: emissions.find({badge_status: {$in: ["count_mismatch", "unmatched"]}})`,
-        episodesSansAvis: `Formule: COUNT(episodes non masqués) - COUNT(avis_critiques non masqués)\nCollections: episodes, avis_critiques\nFiltres: masked ≠ true`,
+        episodesSansAvis: `Formule: COUNT(episodes non masqués avec transcription) - COUNT(avis_critiques non masqués)\nCollections: episodes, avis_critiques\nFiltres: masked ≠ true, transcription non vide`,
         avisSansAnalyse: `Formule: COUNT(avis non masqués) - COUNT(livresauteurs_cache non masqués)\nCollections: avis_critiques, livresauteurs_cache, episodes\nFiltres: masked ≠ true`,
         livresSuggeres: `Livres avec statut "suggested" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "suggested"`,
         livresNonTrouves: `Livres avec statut "not_found" dans le cache\nCollection: livresauteurs_cache\nRequête: couples.status = "not_found"`,
@@ -471,6 +481,7 @@ export default {
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
       orphanedAvisCount: null,
+      episodesWithoutTranscriptionCount: null,
       versionInfo: null,
       loading: true,
       error: null,
@@ -584,7 +595,8 @@ export default {
   async mounted() {
     await Promise.all([
       this.loadDashboardStats(),
-      this.loadVersionInfo()
+      this.loadVersionInfo(),
+      this.loadEpisodesWithoutTranscriptionCount()
     ]);
   },
 
@@ -654,6 +666,18 @@ export default {
         this.versionInfo = response.data;
       } catch (error) {
         console.error('Erreur lors du chargement de la version:', error);
+      }
+    },
+
+    async loadEpisodesWithoutTranscriptionCount() {
+      // Issue #298: hors du cache dashboard (5 min) car la transcription se lance
+      // depuis lmelp, une appli externe dont ce back-office ne peut pas observer
+      // les écritures pour invalider un cache automatiquement.
+      try {
+        const response = await axios.get('/api/episodes/without-transcription/count');
+        this.episodesWithoutTranscriptionCount = response.data.count;
+      } catch (error) {
+        console.error('Erreur lors du chargement des épisodes sans transcription:', error);
       }
     },
 

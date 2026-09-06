@@ -81,6 +81,9 @@ describe('Dashboard - Tests d\'intégration', () => {
       if (url === '/api/dashboard/stats/cache/invalidate') {
         return Promise.reject(new Error(`GET non attendu sur ${url}`));
       }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 0 } });
+      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
     axios.post.mockImplementation((url) => {
@@ -274,6 +277,9 @@ describe('Dashboard - Tests d\'intégration', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 0 } });
+      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -301,6 +307,9 @@ describe('Dashboard - Tests d\'intégration', () => {
       }
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
+      }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 0 } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
@@ -508,6 +517,9 @@ describe('Dashboard - Tests d\'intégration', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 0 } });
+      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -646,6 +658,9 @@ describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 1 } });
+      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -694,8 +709,141 @@ describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
 
     expect(wrapper.vm.lmelpFrontOfficeUrl).toBe('https://lmelp.ascot63.synology.me/');
 
-    const tile = wrapper.find('.clickable-stat');
-    expect(tile.attributes('href')).toBe('https://lmelp.ascot63.synology.me/');
+    const tiles = wrapper.findAll('.clickable-stat');
+    const transcriptionTile = tiles.find(t => t.text().includes('Épisodes sans transcription'));
+    expect(transcriptionTile.attributes('href')).toBe('https://lmelp.ascot63.synology.me/');
+  });
+});
+
+describe('Dashboard - Tuile "Dernière mise à jour" pointe vers le monitoring RSS (Issue #298)', () => {
+  let wrapper;
+  let router;
+
+  const mockStatistics = {
+    totalEpisodes: 142,
+    maskedEpisodes: 5,
+    episodesWithCorrectedTitles: 37,
+    episodesWithCorrectedDescriptions: 45,
+    criticalReviews: 28,
+    lastUpdateDate: '2025-09-06T10:30:00Z'
+  };
+
+  const mockCollectionsStatistics = {
+    episodes_non_traites: 5,
+    couples_en_base: 42,
+    couples_suggested_pas_en_base: 0,
+    couples_not_found_pas_en_base: 0,
+    episodes_without_avis_critiques: 0,
+    avis_critiques_without_analysis: 0,
+    last_episode_date: '2024-12-10T20:00:00',
+    books_without_url_babelio: 0,
+    authors_without_url_babelio: 0,
+    emissions_sans_avis: 0,
+    emissions_with_problems: 0
+  };
+
+  function mockAxiosGet(transcriptionCount) {
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/dashboard/stats') {
+        return Promise.resolve({
+          data: {
+            statistics: mockStatistics,
+            collections_statistics: mockCollectionsStatistics,
+            critiques_manquants_count: 0,
+            duplicate_books_count: 0,
+            duplicate_authors_count: 0,
+            orphaned_avis_count: 0
+          }
+        });
+      }
+      if (url === '/api/version') {
+        return Promise.resolve({ data: {} });
+      }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: transcriptionCount } });
+      }
+      return Promise.reject(new Error(`URL non mockée: ${url}`));
+    });
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    mockAxiosGet(1);
+
+    router = createRouter({
+      history: createWebHistory(),
+      routes: [
+        { path: '/', component: Dashboard },
+        { path: '/rss-monitoring', component: { template: '<div>RSS Monitoring Page</div>' } }
+      ]
+    });
+
+    await router.push('/');
+  });
+
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+    }
+  });
+
+  it('navigue vers /rss-monitoring au clic sur la tuile "Dernière mise à jour" au lieu d\'ouvrir un lien externe', async () => {
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const tiles = wrapper.findAll('.clickable-stat');
+    const lastUpdateTile = tiles.find(t => t.text().includes('Dernière mise à jour'));
+
+    // Ce n'est plus un lien externe vers lmelp
+    expect(lastUpdateTile.attributes('href')).toBeUndefined();
+    expect(lastUpdateTile.attributes('target')).toBeUndefined();
+
+    const pushSpy = vi.spyOn(wrapper.vm.$router, 'push');
+    await lastUpdateTile.trigger('click');
+
+    expect(pushSpy).toHaveBeenCalledWith('/rss-monitoring');
+  });
+
+  it('affiche la tuile "Épisodes sans transcription" pointant vers lmelp avec le bon compte', async () => {
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const tiles = wrapper.findAll('.clickable-stat');
+    const transcriptionTile = tiles.find(t => t.text().includes('Épisodes sans transcription'));
+
+    expect(transcriptionTile).toBeTruthy();
+    expect(transcriptionTile.text()).toContain('1');
+    expect(transcriptionTile.attributes('href')).toBe(wrapper.vm.lmelpFrontOfficeUrl);
+    expect(transcriptionTile.attributes('target')).toBe('_blank');
+  });
+
+  it('masque la tuile "Épisodes sans transcription" quand le compte est 0', async () => {
+    mockAxiosGet(0);
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const cardLabels = wrapper.findAll('.stat-card').map(card => card.text());
+    expect(cardLabels.some(t => t.includes('Épisodes sans transcription'))).toBe(false);
   });
 });
 
@@ -742,6 +890,9 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
       }
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
+      }
+      if (url === '/api/episodes/without-transcription/count') {
+        return Promise.resolve({ data: { count: 0 } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });

@@ -5320,6 +5320,22 @@ async def invalidate_dashboard_stats_cache() -> dict[str, str] | JSONResponse:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@app.get("/api/episodes/without-transcription/count", response_model=None)
+async def get_episodes_without_transcription_count() -> dict[str, int] | JSONResponse:
+    """Compte les épisodes non masqués sans transcription (Issue #298).
+
+    Volontairement hors du cache dashboard (Issue #279/dashboard_stats_cache_service) :
+    la transcription se lance encore depuis lmelp, une appli externe dont ce
+    back-office ne peut pas observer les écritures pour invalider un cache.
+    """
+    try:
+        count = stats_service._count_episodes_without_transcription()
+        return {"count": count}
+    except Exception as e:
+        logger.error(f"Erreur lors du comptage des épisodes sans transcription: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.get("/api/avis/orphaned", response_model=list[dict[str, Any]])
 async def get_orphaned_avis() -> list[dict[str, Any]]:
     """Liste les avis orphelins pour la page de nettoyage (Issue #271)."""

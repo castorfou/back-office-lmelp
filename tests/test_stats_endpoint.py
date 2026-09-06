@@ -253,3 +253,29 @@ Total livres traités : 17"""
             data = response.json()
             assert "avis_critiques_without_analysis" in data
             assert data["avis_critiques_without_analysis"] == 0
+
+
+class TestEpisodesWithoutTranscriptionCountEndpoint:
+    """Tests TDD Issue #298: endpoint dédié, non mis en cache (dashboard stats)."""
+
+    def test_endpoint_should_return_count_from_stats_service(self):
+        """L'endpoint doit retourner le compte calculé par StatsService, sans passer par le cache dashboard."""
+        with patch("back_office_lmelp.app.stats_service") as mock_stats_service:
+            mock_stats_service._count_episodes_without_transcription.return_value = 3
+
+            response = client.get("/api/episodes/without-transcription/count")
+
+            assert response.status_code == 200
+            assert response.json() == {"count": 3}
+            mock_stats_service._count_episodes_without_transcription.assert_called_once()
+
+    def test_endpoint_should_return_500_on_error(self):
+        """L'endpoint doit retourner 500 si le calcul échoue."""
+        with patch("back_office_lmelp.app.stats_service") as mock_stats_service:
+            mock_stats_service._count_episodes_without_transcription.side_effect = (
+                Exception("boom")
+            )
+
+            response = client.get("/api/episodes/without-transcription/count")
+
+            assert response.status_code == 500

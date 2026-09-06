@@ -129,19 +129,30 @@ class StatsService:
 
     def _count_episodes_without_avis_critiques(self) -> int:
         """
-        Compte les épisodes non masqués sans avis critiques extraits (Issue #128).
+        Compte les épisodes non masqués, avec transcription, sans avis critiques
+        extraits (Issue #128, exclusion sans-transcription: Issue #298).
+
+        Un épisode sans transcription ne peut pas encore avoir d'avis critiques
+        (générés à partir de la transcription) : il est exclu pour ne pas gonfler
+        artificiellement le compte d'épisodes réellement à traiter.
 
         Returns:
-            Nombre d'épisodes où masked=False et n'ont pas d'avis critiques
+            Nombre d'épisodes où masked=False, transcription présente,
+            et sans avis critiques
         """
         episodes_collection = self.mongodb_service.get_collection("episodes")
         avis_critiques_collection = self.mongodb_service.get_collection(
             "avis_critiques"
         )
 
-        # Compter les épisodes non masqués
+        # Compter les épisodes non masqués avec transcription (Issue #298)
         non_masked_count = episodes_collection.count_documents(
-            {"$or": [{"masked": False}, {"masked": {"$exists": False}}]}
+            {
+                "$and": [
+                    {"$or": [{"masked": False}, {"masked": {"$exists": False}}]},
+                    {"transcription": {"$nin": [None, ""]}},
+                ]
+            }
         )
 
         # FIX: Utiliser aggregation pour filtrer les avis dont l'épisode est masqué
@@ -510,6 +521,40 @@ Total livres traités : {total_traites}"""
                 count += 1
 
         return count
+
+    def _count_episodes_without_transcription(self) -> int:
+        """
+        Compte les épisodes non masqués sans transcription (Issue #298).
+
+        Reprend la logique de `Episodes.get_missing_transcriptions()` de lmelp
+        (transcription vide ou null/absente), avec l'exclusion des épisodes
+        masqués déjà appliquée aux autres compteurs de ce service.
+
+        Returns:
+            Nombre d'épisodes non masqués sans transcription
+        """
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        return int(
+            episodes_collection.count_documents(
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"masked": {"$ne": True}},
+                                {"masked": {"$exists": False}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"transcription": None},
+                                {"transcription": ""},
+                                {"transcription": {"$exists": False}},
+                            ]
+                        },
+                    ]
+                }
+            )
+        )
 
     def _count_books_without_cover(self) -> int:
         """Compte les livres avec url_babelio mais sans url_cover (Issue #238)."""

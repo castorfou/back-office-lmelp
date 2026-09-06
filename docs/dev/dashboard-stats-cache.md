@@ -48,6 +48,20 @@ Le listener intercepte toute commande `insert`, `update`, `delete`, `findAndModi
 
 `pymongo` ne fournit pas de stub typé pour `monitoring.CommandListener`, donc subclasser cette classe déclenche `Class cannot subclass "CommandListener" (has type "Any")`. Solution : `# type: ignore[misc]` sur la déclaration de la classe.
 
+## Exception : métriques dont l'écriture source est externe
+
+Le `CommandListener` ci-dessus n'intercepte que les écritures passant par le `MongoClient` de ce backend. Une métrique dont les données source sont écrites par une **application externe** échappe totalement à ce mécanisme.
+
+Exemple : `episodes_without_transcription` (tuile "Épisodes sans transcription", Issue #298) compte les épisodes dont la transcription — encore lancée depuis l'application Streamlit historique `lmelp`, pas depuis ce back-office — est absente. Une transcription effectuée dans lmelp modifie directement MongoDB sans jamais transiter par le `MongoClient` de back-office-lmelp : le listener ne peut pas la voir, et le cache dashboard resterait figé jusqu'à expiration du TTL (5 min) si cette métrique y était intégrée.
+
+**Solution retenue** : exposer cette métrique via un endpoint dédié, **volontairement non caché** :
+
+```
+GET /api/episodes/without-transcription/count
+```
+
+qui recalcule à chaque appel via `StatsService._count_episodes_without_transcription()`. Côté frontend, `Dashboard.vue` charge cette valeur séparément (`loadEpisodesWithoutTranscriptionCount()`, appelée en parallèle de `loadDashboardStats()` dans `mounted()`), plutôt que de l'inclure dans `collections_statistics`.
+
 ## Voir aussi
 
 - `src/back_office_lmelp/services/dashboard_stats_cache_service.py`
