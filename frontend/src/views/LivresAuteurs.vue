@@ -402,6 +402,15 @@
                     >
                       ➕ Ajouter
                     </button>
+
+                    <button
+                      @click="confirmDeleteCacheEntry(book)"
+                      class="btn btn-outline-danger btn-sm"
+                      data-testid="delete-cache-entry-btn"
+                      title="Supprimer cette entrée détectée par erreur"
+                    >
+                      🗑️ Supprimer
+                    </button>
                   </template>
                   <span v-else class="mongo-status">-</span>
                 </td>
@@ -632,6 +641,41 @@
       </div>
     </div>
 
+    <!-- Modal de confirmation de suppression (Issue #303) -->
+    <div
+      v-if="showDeleteConfirmModal"
+      class="modal-overlay"
+      data-testid="delete-confirm-modal"
+      @click="cancelDeleteCacheEntry"
+    >
+      <div class="modal-content" @click.stop>
+        <h3>Supprimer cette entrée ?</h3>
+        <p v-if="bookToDelete">
+          Voulez-vous vraiment supprimer
+          <strong>{{ bookToDelete.titre }}</strong>
+          de <strong>{{ bookToDelete.auteur }}</strong> ?
+        </p>
+        <p class="warning-text">Cette action est irréversible.</p>
+
+        <div class="modal-actions">
+          <button
+            @click="deleteCacheEntry"
+            class="btn btn-danger"
+            data-testid="confirm-delete-btn"
+          >
+            🗑️ Supprimer définitivement
+          </button>
+          <button
+            @click="cancelDeleteCacheEntry"
+            class="btn btn-secondary"
+            data-testid="cancel-modal-btn"
+          >
+            ❌ Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+
 
   </div>
 </template>
@@ -707,6 +751,10 @@ export default {
       manualBabelioUrl: '',
       manualExtractingFromUrl: false,
       manualUrlError: null,
+
+      // Modal de confirmation de suppression (Issue #303)
+      showDeleteConfirmModal: false,
+      bookToDelete: null,
 
       // Contrôle d'affichage de la colonne YAML
       showYamlColumn: false,
@@ -1618,6 +1666,37 @@ export default {
       this.manualBabelioUrl = '';
       this.manualUrlError = null;
       this.manualExtractingFromUrl = false;
+    },
+
+    /**
+     * Ouvre le modal de confirmation de suppression (Issue #303)
+     */
+    confirmDeleteCacheEntry(book) {
+      this.bookToDelete = book;
+      this.showDeleteConfirmModal = true;
+    },
+
+    /**
+     * Ferme le modal de confirmation sans supprimer
+     */
+    cancelDeleteCacheEntry() {
+      this.showDeleteConfirmModal = false;
+      this.bookToDelete = null;
+    },
+
+    /**
+     * Supprime définitivement l'entrée de cache après confirmation (Issue #303)
+     */
+    async deleteCacheEntry() {
+      if (!this.bookToDelete) return;
+      try {
+        await livresAuteursService.deleteCacheEntry(this.bookToDelete.cache_id);
+        this.showDeleteConfirmModal = false;
+        this.bookToDelete = null;
+        await this.loadBooksForEpisode();
+      } catch (error) {
+        this.error = 'Erreur lors de la suppression du livre.';
+      }
     },
 
 

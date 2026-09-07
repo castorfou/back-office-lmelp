@@ -2874,6 +2874,30 @@ async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
+@app.delete("/api/livres-auteurs/cache/{cache_id}", response_model=dict[str, Any])
+async def delete_cache_entry(cache_id: str) -> dict[str, Any]:
+    """Supprime une entrée de cache précise (Issue #303).
+
+    Permet de retirer manuellement un livre détecté par erreur (mentionné
+    en passant dans l'épisode, pas au programme) avant qu'il ne soit
+    validé/créé en base livres/auteurs. Ne gère pas la suppression cascade
+    d'un livre déjà créé en base (status == "mongo") — hors scope.
+    """
+    if len(cache_id) != 24 or not all(c in "0123456789abcdefABCDEF" for c in cache_id):
+        raise HTTPException(status_code=404, detail="Entrée de cache non trouvée")
+
+    try:
+        object_id = ObjectId(cache_id)
+        deleted = livres_auteurs_cache_service.delete_cache_entry(object_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Entrée de cache non trouvée")
+        return {"deleted": True, "cache_id": cache_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
 # Note: add_manual_book endpoint removed - functionality unified with validate_suggestion
 
 
