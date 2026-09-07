@@ -77,3 +77,42 @@ class TestGetCacheEntryById:
             result = service.get_cache_entry_by_id(ObjectId())
 
             assert result is None
+
+
+class TestDeleteCacheEntry:
+    """Tests TDD pour delete_cache_entry() (suppression manuelle, Issue #303)."""
+
+    def test_delete_cache_entry_should_delete_matching_document(self):
+        """Doit supprimer le document dont `_id` correspond et retourner True."""
+        cache_id = ObjectId("64f1234567890abcdef99999")  # pragma: allowlist secret
+
+        with patch(
+            "back_office_lmelp.services.livres_auteurs_cache_service.mongodb_service"
+        ) as mock_mongodb:
+            mock_result = (
+                mock_mongodb.get_collection.return_value.delete_one.return_value
+            )
+            mock_result.deleted_count = 1
+
+            service = LivresAuteursCacheService()
+            result = service.delete_cache_entry(cache_id)
+
+            mock_mongodb.get_collection.return_value.delete_one.assert_called_once_with(
+                {"_id": cache_id}
+            )
+            assert result is True
+
+    def test_delete_cache_entry_should_return_false_when_not_found(self):
+        """Doit retourner False si aucun document ne correspond."""
+        with patch(
+            "back_office_lmelp.services.livres_auteurs_cache_service.mongodb_service"
+        ) as mock_mongodb:
+            mock_result = (
+                mock_mongodb.get_collection.return_value.delete_one.return_value
+            )
+            mock_result.deleted_count = 0
+
+            service = LivresAuteursCacheService()
+            result = service.delete_cache_entry(ObjectId())
+
+            assert result is False

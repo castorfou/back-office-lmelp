@@ -509,6 +509,23 @@ class LivresAuteursCacheService:
         result = cache_collection.delete_many({"episode_oid": episode_oid})
         return int(result.deleted_count)
 
+    def delete_cache_entry(self, cache_id: ObjectId) -> bool:
+        """
+        Supprime une entrée de cache précise par son `_id` (Issue #303).
+
+        Permet de retirer un livre détecté par erreur (mentionné en passant,
+        pas au programme) avant qu'il ne soit validé/créé en base.
+
+        Args:
+            cache_id: ObjectId de l'entrée de cache à supprimer
+
+        Returns:
+            True si un document a été supprimé, False si aucune entrée ne correspondait
+        """
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        result = cache_collection.delete_one({"_id": cache_id})
+        return bool(result.deleted_count > 0)
+
 
 # Instance globale du service
 livres_auteurs_cache_service = LivresAuteursCacheService()

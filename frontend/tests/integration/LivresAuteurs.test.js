@@ -26,6 +26,7 @@ vi.mock('../../src/services/api.js', () => ({
     getAllBooks: vi.fn(),
     setValidationResults: vi.fn(),
     deleteCacheByEpisode: vi.fn(),
+    deleteCacheEntry: vi.fn(),
   },
   episodeService: {
     getAllEpisodes: vi.fn(),
@@ -550,6 +551,128 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       const actionsHeader = wrapper.find('[data-testid="actions-header"]');
       expect(actionsHeader.exists()).toBe(true);
       expect(actionsHeader.text()).toContain('Actions');
+    });
+  });
+
+  // ========== TESTS TDD POUR LA SUPPRESSION MANUELLE D'UNE ENTRÉE DÉTECTÉE (Issue #303) ==========
+
+  describe('Suppression manuelle d\'une entrée détectée (Issue #303)', () => {
+    const mockBookNotFound = {
+      episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+      cache_id: '64f1234567890abcdef99999', // pragma: allowlist secret
+      auteur: 'Auteur Test',
+      titre: 'Titre Test',
+      editeur: 'Editeur Test',
+      status: 'not_found',
+      programme: false,
+      coup_de_coeur: false
+    };
+
+    const mockBookMongo = {
+      episode_oid: '64f1234567890abcdef12345', // pragma: allowlist secret
+      cache_id: '64f1234567890abcdef88888', // pragma: allowlist secret
+      auteur: 'Auteur En Base',
+      titre: 'Titre En Base',
+      editeur: 'Editeur En Base',
+      status: 'mongo',
+      programme: true,
+      coup_de_coeur: false
+    };
+
+    async function mountWithBooks(books) {
+      episodeService.getEpisodeById.mockResolvedValue(mockEpisode);
+      livresAuteursService.getEpisodesWithReviews.mockResolvedValue(mockEpisodesWithReviews);
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(books);
+
+      wrapper = mount(LivresAuteurs, {
+        global: { plugins: [router] }
+      });
+
+      await wrapper.vm.$nextTick();
+      wrapper.vm.selectedEpisodeId = mockEpisode.id;
+      await wrapper.vm.loadBooksForEpisode();
+      await wrapper.vm.$nextTick();
+    }
+
+    it('affiche un bouton "Supprimer" pour un livre avec status !== "mongo"', async () => {
+      await mountWithBooks([mockBookNotFound]);
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      expect(deleteButton.exists()).toBe(true);
+    });
+
+    it('n\'affiche PAS de bouton "Supprimer" pour un livre déjà en base (status mongo)', async () => {
+      await mountWithBooks([mockBookMongo]);
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      expect(deleteButton.exists()).toBe(false);
+    });
+
+    it('ouvre le modal de confirmation au clic sur "Supprimer"', async () => {
+      await mountWithBooks([mockBookNotFound]);
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      await deleteButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      const modal = wrapper.find('[data-testid="delete-confirm-modal"]');
+      expect(modal.exists()).toBe(true);
+      expect(modal.text()).toContain('Auteur Test');
+      expect(modal.text()).toContain('Titre Test');
+    });
+
+    it('appelle deleteCacheEntry avec le bon cache_id puis recharge la liste', async () => {
+      await mountWithBooks([mockBookNotFound]);
+
+      livresAuteursService.deleteCacheEntry.mockResolvedValueOnce({
+        deleted: true,
+        cache_id: mockBookNotFound.cache_id
+      });
+      livresAuteursService.getLivresAuteurs.mockResolvedValueOnce([]);
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      await deleteButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      const confirmButton = wrapper.find('[data-testid="confirm-delete-btn"]');
+      await confirmButton.trigger('click');
+      await wrapper.vm.$nextTick();
+      await wrapper.vm.$nextTick();
+
+      expect(livresAuteursService.deleteCacheEntry).toHaveBeenCalledWith(mockBookNotFound.cache_id);
+      expect(wrapper.vm.showDeleteConfirmModal).toBe(false);
+    });
+
+    it('ferme le modal sans supprimer au clic sur Annuler', async () => {
+      await mountWithBooks([mockBookNotFound]);
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      await deleteButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      const cancelButton = wrapper.find('[data-testid="delete-confirm-modal"] [data-testid="cancel-modal-btn"]');
+      await cancelButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      expect(livresAuteursService.deleteCacheEntry).not.toHaveBeenCalled();
+      expect(wrapper.vm.showDeleteConfirmModal).toBe(false);
+    });
+
+    it('affiche une erreur si la suppression échoue côté API', async () => {
+      await mountWithBooks([mockBookNotFound]);
+
+      livresAuteursService.deleteCacheEntry.mockRejectedValueOnce(new Error('Network error'));
+
+      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
+      await deleteButton.trigger('click');
+      await wrapper.vm.$nextTick();
+
+      const confirmButton = wrapper.find('[data-testid="confirm-delete-btn"]');
+      await confirmButton.trigger('click');
+      await wrapper.vm.$nextTick();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.error).toBeTruthy();
     });
   });
 

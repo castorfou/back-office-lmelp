@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from bson import ObjectId
 from fastapi.testclient import TestClient
 
 from back_office_lmelp.app import app
@@ -407,3 +408,45 @@ class TestLivresAuteursCacheEndpoint:
         result = response.json()
         assert result["deleted_count"] == 0
         assert result["episode_oid"] == episode_oid
+
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
+    def test_delete_cache_entry_success(self, mock_cache_service, client):
+        """Test de suppression d'une entrée de cache précise par son cache_id."""
+        # Arrange
+        cache_id = "64f1234567890abcdef99999"  # pragma: allowlist secret
+        mock_cache_service.delete_cache_entry = Mock(return_value=True)
+
+        # Act
+        response = client.delete(f"/api/livres-auteurs/cache/{cache_id}")
+
+        # Assert
+        assert response.status_code == 200
+        result = response.json()
+        assert result["deleted"] is True
+        assert result["cache_id"] == cache_id
+
+        called_arg = mock_cache_service.delete_cache_entry.call_args[0][0]
+        assert called_arg == ObjectId(cache_id)
+
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
+    def test_delete_cache_entry_not_found(self, mock_cache_service, client):
+        """Test de suppression quand l'entrée de cache n'existe pas."""
+        # Arrange
+        cache_id = "64f1234567890abcdef00000"  # pragma: allowlist secret
+        mock_cache_service.delete_cache_entry = Mock(return_value=False)
+
+        # Act
+        response = client.delete(f"/api/livres-auteurs/cache/{cache_id}")
+
+        # Assert
+        assert response.status_code == 404
+
+    @patch("back_office_lmelp.app.livres_auteurs_cache_service")
+    def test_delete_cache_entry_invalid_id_format(self, mock_cache_service, client):
+        """Test avec un cache_id qui n'est pas un ObjectId valide."""
+        # Act
+        response = client.delete("/api/livres-auteurs/cache/not-a-valid-id")
+
+        # Assert
+        assert response.status_code == 404
+        mock_cache_service.delete_cache_entry.assert_not_called()

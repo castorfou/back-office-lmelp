@@ -170,6 +170,16 @@ export const livresAuteursService = {
     const response = await api.delete(`/livres-auteurs/cache/episode/${episodeOid}`);
     return response.data;
   },
+
+  /**
+   * Supprime une entrée de cache précise (Issue #303)
+   * @param {string} cacheId - ID de l'entrée de cache à supprimer
+   * @returns {Promise<Object>} Résultat de la suppression
+   */
+  async deleteCacheEntry(cacheId) {
+    const response = await api.delete(`/livres-auteurs/cache/${cacheId}`);
+    return response.data;
+  },
 };
 
 /**

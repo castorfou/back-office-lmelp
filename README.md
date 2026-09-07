@@ -169,6 +169,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
 - 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)
 - ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées complètes
+- 🗑️ **Suppression manuelle** : Retrait d'une détection erronée (livre mentionné en passant, pas au programme) via bouton dédié et modal de confirmation, pour les entrées pas encore validées en base
 - 🔗 **Gestion des références** : Liaison automatique entre épisodes, avis critiques, auteurs et livres
 - 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées
 - 🎯 **Workflow complet** : De l'extraction des avis critiques jusqu'aux collections finales structurées
