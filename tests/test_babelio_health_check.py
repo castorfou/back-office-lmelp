@@ -127,6 +127,37 @@ async def test_health_check_timeout_logs_request_with_status_zero():
 
 
 @pytest.mark.asyncio
+async def test_health_check_bypasses_cache_and_logs_non_cache_hit(tmp_path):
+    """Test TDD (Issue #304): health_check() doit contourner le cache de la page
+    d'accueil et journaliser un vrai résultat réseau (cache_hit=False).
+
+    Bug racine: la page d'accueil Babelio est mise en cache 24h (comme toute
+    autre page scrapée) — un health_check() ultérieur sert alors ce cache et
+    journalise cache_hit=True, jamais filtré comme "requête récente réelle"
+    par /api/babelio/status (qui exclut explicitement les cache_hit). Résultat:
+    l'état du service Babelio reste bloqué à "Inconnu" tant que le cache de la
+    page d'accueil n'expire pas, même après un clic sur "Rafraîchir".
+    """
+    from back_office_lmelp.services.babelio_cache_service import BabelioCacheService
+
+    svc = BabelioService()
+    svc.cache_service = BabelioCacheService(cache_dir=tmp_path)
+
+    # Pré-remplir le cache comme si la page d'accueil avait déjà été scrapée
+    svc.cache_service.set_cached(
+        svc.base_url, "<html>cached</html>", search_type="page"
+    )
+
+    with patch("aiohttp.ClientSession", return_value=_mock_session_ctx(200)):
+        result = await svc.health_check()
+
+    assert result["ok"] is True
+    recent = svc.get_recent_requests()
+    assert len(recent) == 1
+    assert recent[0]["cache_hit"] is False
+
+
+@pytest.mark.asyncio
 async def test_health_check_does_not_raise_babelio_blocked_error():
     """health_check() ne doit jamais laisser fuiter BabelioBlockedError à l'appelant.
 

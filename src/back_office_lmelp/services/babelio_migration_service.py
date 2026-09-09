@@ -600,6 +600,30 @@ class BabelioMigrationService:
         logger.info(f"❌ {log_label} {item_id} marqué comme not found: {reason}")
         return True
 
+    def requeue_blocked_403_cases(self) -> int:
+        """Libère les cas bloqués par un 403 Babelio transitoire (Issue #304).
+
+        Supprime de babelio_problematic_cases tous les documents dont la
+        raison contient "blocked_403" (cookie Babelio expiré au moment du
+        run), pour qu'ils soient repris automatiquement au prochain
+        lancement du batch de migration.
+
+        Returns:
+            Nombre de cas libérés (deleted_count)
+        """
+        if self.mongodb_service.db is None:
+            raise RuntimeError("MongoDB not connected")
+
+        problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
+        result = problematic_collection.delete_many(
+            {"raison": {"$regex": "blocked_403"}}
+        )
+
+        logger.info(
+            f"🔓 {result.deleted_count} cas bloqués (403) libérés pour retraitement"
+        )
+        return int(result.deleted_count)
+
     def correct_title(self, livre_id: str, new_title: str) -> bool:
         """Corrige le titre d'un livre et le retire des cas problématiques.
 

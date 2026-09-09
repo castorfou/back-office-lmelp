@@ -259,7 +259,10 @@ class BabelioService:
         return any(marker in lower for marker in captcha_markers)
 
     async def _fetch_page(
-        self, url: str, babelio_cookies: str | None = None
+        self,
+        url: str,
+        babelio_cookies: str | None = None,
+        skip_cache: bool = False,
     ) -> str | None:
         """Gateway unifié pour tous les GETs de pages Babelio (Issue #245).
 
@@ -271,6 +274,10 @@ class BabelioService:
             url: URL complète de la page Babelio à scraper.
             babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
                 navigateur. Permet de contourner le captcha Babelio.
+            skip_cache: Si True, ignore le cache en lecture (une vraie requête
+                réseau est toujours effectuée) — utilisé par health_check()
+                (Issue #304), dont le but est justement de tester la
+                connectivité réelle, pas de servir une réponse mise en cache.
 
         Returns:
             HTML de la page (décodé cp1252) ou None si erreur HTTP.
@@ -283,7 +290,7 @@ class BabelioService:
             )
 
         # Cache hit: bypass rate limiter and HTTP request entirely
-        if self.cache_service is not None:
+        if self.cache_service is not None and not skip_cache:
             cached = self.cache_service.get_cached(url, search_type="page")
             if cached is not None:
                 html_cached: str = cached.get("data", "")
@@ -367,7 +374,7 @@ class BabelioService:
             return {"ok": False}
 
         try:
-            html = await self._fetch_page(self.base_url)
+            html = await self._fetch_page(self.base_url, skip_cache=True)
         except (BabelioBlockedError, BabelioCaptchaError):
             # Déjà journalisé par _fetch_page.
             return {"ok": False}

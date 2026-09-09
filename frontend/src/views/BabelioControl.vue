@@ -7,7 +7,8 @@
       <section class="card status-section">
         <h2>
           <span class="status-badge" :class="statusClass">{{ statusLabel }}</span>
-          État du service Babelio
+          État du service
+          <a href="https://www.babelio.com" target="_blank" rel="noopener noreferrer" class="link-babelio-site">Babelio</a>
         </h2>
 
         <div v-if="loading.status" class="loading">Chargement...</div>
@@ -21,7 +22,10 @@
             </span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Circuit breaker :</span>
+            <span
+              class="stat-label stat-label-help"
+              title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Il se referme automatiquement dès qu'un cookie valide est enregistré ci-dessous."
+            >Circuit breaker :</span>
             <span class="stat-value">
               <span v-if="status.circuit_open" class="badge badge-expired">🚫 Ouvert — requêtes bloquées</span>
               <span v-else class="badge badge-ok">✓ Fermé</span>
@@ -494,6 +498,15 @@ h2 {
 .status-blocked { background: #f8d7da; color: #721c24; }
 .status-captcha { background: #fff3cd; color: #856404; }
 .status-degraded { background: #fff3cd; color: #856404; }
+
+.link-babelio-site {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.link-babelio-site:hover {
+  color: #0d6efd;
+}
 .status-unknown { background: #e2e3e5; color: #383d41; }
 
 /* Stat rows */
@@ -504,6 +517,7 @@ h2 {
   border-bottom: 1px solid #f0f0f0;
 }
 .stat-label { color: #666; flex: 0 0 280px; }
+.stat-label-help { cursor: help; border-bottom: 1px dotted #999; }
 .stat-value { font-weight: 600; }
 
 .refresh-btn { margin-top: 1rem; }

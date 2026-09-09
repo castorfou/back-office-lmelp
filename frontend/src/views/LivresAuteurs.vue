@@ -71,7 +71,7 @@
 
       <!-- Cookie Babelio (jstsToken) — nécessaire pour les requêtes AJAX Issue #247 -->
       <section v-if="selectedEpisodeId" class="babelio-cookie-section">
-        <details>
+        <details :open="cookiePanelOpen" data-test="babelio-cookie-details">
           <summary class="babelio-cookie-summary">
             🔑 Cookie Babelio
             <span v-if="serverCookieActive" class="cookie-status cookie-ok">✓ Actif côté serveur</span>
@@ -776,6 +776,8 @@ export default {
   serverCookieActive: false,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
   babelioBlocked: false,
+  // Issue #304: ouvre automatiquement le panneau cookie quand un blocage est détecté
+  cookiePanelOpen: false,
   babelioCookieSavedAt: null,
   babelioCookieJustSaved: false,
   babelioCookieSavedConfirmationTimeout: null,
@@ -913,6 +915,13 @@ export default {
         this.extractFromBabelioUrl('manual');
       }
     }, 500),
+
+    // Issue #304: ouvrir automatiquement le panneau cookie quand un blocage est détecté
+    babelioBlocked(isBlocked) {
+      if (isBlocked) {
+        this.cookiePanelOpen = true;
+      }
+    },
   },
 
   async mounted() {
@@ -1036,6 +1045,13 @@ export default {
     handleValidationStatusChange(eventData) {
       const { bookKey, status, suggestion, validationResult } = eventData;
 
+      // Issue #304: un retry réussi après un blocage 403 (ou une erreur
+      // technique) doit être persisté pour CE livre uniquement, sinon le
+      // livre resterait indéfiniment non traité en base malgré le retry.
+      const previousStatus = this.validationStatuses.get(bookKey);
+      const wasStuck = previousStatus === 'blocked_403' || previousStatus === 'error';
+      const isNowStable = ['verified', 'corrected', 'not_found'].includes(status);
+
       // Stocker le statut de validation
       this.validationStatuses.set(bookKey, status);
 
@@ -1044,6 +1060,12 @@ export default {
         this.validationSuggestions.set(bookKey, suggestion);
       }
 
+      if (wasStuck && isNowStable) {
+        const book = this.books.find(b => this.getBookKey(b) === bookKey);
+        if (book) {
+          this.persistSingleBookValidation(book, validationResult, status);
+        }
+      }
 
       // Traitement automatique pour les livres verified
       if (status === 'verified') {
@@ -1076,6 +1098,38 @@ export default {
           // En cas d'erreur, retirer le livre du Set pour permettre une nouvelle tentative
           this.alreadyProcessedBooks.delete(bookKey);
         }
+      }
+    },
+
+    /**
+     * Persiste le résultat de validation d'un seul livre (Issue #304).
+     *
+     * Utilisé quand un retry ciblé (depuis BiblioValidationCell) sort un
+     * livre d'un état bloqué (403) ou en erreur — contrairement à
+     * autoValidateAndSendResults() qui traite tout l'épisode, cette méthode
+     * ne persiste que ce livre précis, sans toucher aux autres.
+     */
+    async persistSingleBookValidation(book, validationResult, status) {
+      try {
+        let backendStatus = status;
+        if (backendStatus === 'corrected') {
+          backendStatus = 'suggestion';
+        }
+
+        const bookForBackend = buildBookDataForBackend(book, validationResult, backendStatus);
+
+        const selectedEpisode = this.episodesWithReviews?.find(
+          ep => String(ep.id) === String(this.selectedEpisodeId)
+        );
+        const avis_critique_id = selectedEpisode?.avis_critique_id;
+
+        await livresAuteursService.setValidationResults({
+          episode_oid: this.selectedEpisodeId,
+          avis_critique_id: avis_critique_id,
+          books: [bookForBackend]
+        });
+      } catch (error) {
+        console.error('Erreur lors de la persistance du retry pour ce livre:', error);
       }
     },
 

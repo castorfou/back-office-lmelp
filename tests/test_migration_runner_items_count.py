@@ -5,7 +5,7 @@ d'éléments individuels traités (livres + auteurs) et non le nombre de groupes
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -100,27 +100,20 @@ class TestMigrationRunnerItemsCount:
 
                     mock_process_author.side_effect = process_author_result
 
-                    with patch(
-                        "back_office_lmelp.utils.migration_runner.BabelioService"
-                    ) as mock_babelio_cls:
-                        mock_babelio = AsyncMock()
-                        mock_babelio.close = AsyncMock()
-                        mock_babelio_cls.return_value = mock_babelio
+                    # Act
+                    runner = MigrationRunner()
+                    await runner.start_migration()
 
-                        # Act
-                        runner = MigrationRunner()
-                        await runner.start_migration()
+                    # Attendre que la migration se termine (Phase 1 + Phase 2)
+                    await asyncio.sleep(5.0)
 
-                        # Attendre que la migration se termine (Phase 1 + Phase 2)
-                        await asyncio.sleep(5.0)
-
-                        # Assert
-                        # Phase 1: 2 livres + 2 auteurs = 4 éléments
-                        # Phase 2: 1 auteur = 1 élément
-                        # Total: 5 éléments individuels (pas 3 groupes!)
-                        assert runner.books_processed == 5, (
-                            f"Expected 5 individual items, got {runner.books_processed}"
-                        )
+                    # Assert
+                    # Phase 1: 2 livres + 2 auteurs = 4 éléments
+                    # Phase 2: 1 auteur = 1 élément
+                    # Total: 5 éléments individuels (pas 3 groupes!)
+                    assert runner.books_processed == 5, (
+                        f"Expected 5 individual items, got {runner.books_processed}"
+                    )
 
     @pytest.mark.asyncio
     async def test_books_processed_should_count_livre_only_when_auteur_already_linked(
@@ -160,22 +153,15 @@ class TestMigrationRunnerItemsCount:
                 # Pas d'auteurs à compléter en Phase 2
                 mock_get_authors.return_value = []
 
-                with patch(
-                    "back_office_lmelp.utils.migration_runner.BabelioService"
-                ) as mock_babelio_cls:
-                    mock_babelio = AsyncMock()
-                    mock_babelio.close = AsyncMock()
-                    mock_babelio_cls.return_value = mock_babelio
+                # Act
+                runner = MigrationRunner()
+                await runner.start_migration()
+                await asyncio.sleep(1.0)
 
-                    # Act
-                    runner = MigrationRunner()
-                    await runner.start_migration()
-                    await asyncio.sleep(1.0)
-
-                    # Assert - Seulement 1 élément (le livre), pas 2
-                    assert runner.books_processed == 1, (
-                        f"Expected 1 item (livre only), got {runner.books_processed}"
-                    )
+                # Assert - Seulement 1 élément (le livre), pas 2
+                assert runner.books_processed == 1, (
+                    f"Expected 1 item (livre only), got {runner.books_processed}"
+                )
 
     @pytest.mark.asyncio
     async def test_books_processed_should_count_zero_when_both_fail(self):
@@ -215,20 +201,13 @@ class TestMigrationRunnerItemsCount:
             ) as mock_get_authors:
                 mock_get_authors.return_value = []
 
-                with patch(
-                    "back_office_lmelp.utils.migration_runner.BabelioService"
-                ) as mock_babelio_cls:
-                    mock_babelio = AsyncMock()
-                    mock_babelio.close = AsyncMock()
-                    mock_babelio_cls.return_value = mock_babelio
+                # Act
+                runner = MigrationRunner()
+                await runner.start_migration()
+                await asyncio.sleep(1.0)
 
-                    # Act
-                    runner = MigrationRunner()
-                    await runner.start_migration()
-                    await asyncio.sleep(1.0)
-
-                    # Assert - On compte quand même 1 groupe traité
-                    # (pour montrer la progression même en cas d'échec)
-                    assert runner.books_processed >= 1, (
-                        "Should count attempted processing even on failure"
-                    )
+                # Assert - On compte quand même 1 groupe traité
+                # (pour montrer la progression même en cas d'échec)
+                assert runner.books_processed >= 1, (
+                    "Should count attempted processing even on failure"
+                )

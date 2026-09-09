@@ -155,6 +155,15 @@ Une confirmation "✓ Cookie enregistré" s'affiche brièvement, et le statut pa
 
 Dans les deux cas, la solution est la même : rafraîchir le cookie et relancer.
 
+**Relancer les livres bloqués par un 403** (page **Liaison Babelio des
+livres**) : un livre bloqué par un 403 pendant la migration automatique
+n'est jamais classé "à traiter manuellement" — il reste éligible à un
+nouveau passage. Un bandeau **"⚠️ N livre(s) bloqué(s) par une erreur
+403"** apparaît automatiquement quand de tels cas existent, avec un bouton
+**"🔄 Relancer tous les 403"** : après avoir rafraîchi le cookie, ce bouton
+remet ces livres dans la file d'attente et relance la migration
+automatique dessus.
+
 ## Limitations connues
 
 - **Rate limiting** : 2 secondes entre requêtes vers Babelio (validation peut prendre 30-40 secondes par livre)

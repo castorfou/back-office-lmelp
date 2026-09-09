@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Script de lancement unifié pour backend et frontend
-# Usage: ./scripts/start-dev.sh
+# Usage: ./scripts/start-dev.sh [--restart]
+#   --restart  Tue proprement les processus backend/frontend précédents
+#              (via .dev-ports.json, avec fallback sur `ps aux` pour les
+#              orphelins) avant de démarrer de nouvelles instances.
 
 set -e  # Exit on any error
 
@@ -198,6 +201,63 @@ cleanup() {
     exit 0
 }
 
+# Function to kill previous backend/frontend instances before restarting
+# (--restart flag). Reuses kill_process_group/wait_for_process so orphans
+# get the same graceful-then-force-kill treatment as a normal Ctrl+C.
+restart_previous_instances() {
+    log "🔄 --restart: recherche des processus précédents à arrêter..."
+
+    local backend_pid=""
+    local frontend_pid=""
+
+    if [[ -f "$PROJECT_ROOT/.dev-ports.json" ]]; then
+        backend_pid=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('backend', {}).get('pid', ''))" 2>/dev/null)
+        frontend_pid=$(python3 -c "import json; data=json.load(open('$PROJECT_ROOT/.dev-ports.json')); print(data.get('frontend', {}).get('pid', ''))" 2>/dev/null)
+    fi
+
+    if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
+        log "Arrêt du backend précédent (PID: $backend_pid)"
+        kill_process_group "$backend_pid" "Backend"
+        wait_for_process "$backend_pid" "Backend"
+    fi
+
+    if [[ -n "$frontend_pid" ]] && kill -0 "$frontend_pid" 2>/dev/null; then
+        log "Arrêt du frontend précédent (PID: $frontend_pid)"
+        kill_process_group "$frontend_pid" "Frontend"
+        wait_for_process "$frontend_pid" "Frontend"
+    fi
+
+    # Fallback: .dev-ports.json peut être absent/périmé alors qu'un backend
+    # orphelin tourne encore (Issue #299) — repérer par nom de process.
+    local orphan_pids
+    orphan_pids=$(pgrep -f "back_office_lmelp\.app" 2>/dev/null || true)
+    for pid in $orphan_pids; do
+        if kill -0 "$pid" 2>/dev/null; then
+            warn "Backend orphelin détecté (PID: $pid, absent de .dev-ports.json) — arrêt"
+            kill_process_group "$pid" "Backend orphelin"
+            wait_for_process "$pid" "Backend orphelin"
+        fi
+    done
+
+    rm -f "$PROJECT_ROOT/.dev-ports.json"
+    log "✅ Processus précédents arrêtés"
+}
+
+# Parse command-line arguments
+RESTART=false
+for arg in "$@"; do
+    case "$arg" in
+        --restart)
+            RESTART=true
+            ;;
+        *)
+            error "Argument inconnu: $arg"
+            echo "Usage: $0 [--restart]"
+            exit 1
+            ;;
+    esac
+done
+
 # Trap signals for clean shutdown
 # SIGHUP is trapped because bash's default disposition for it on a
 # non-interactive script is immediate termination WITHOUT running this
@@ -210,6 +270,11 @@ trap cleanup SIGINT SIGTERM SIGHUP
 if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]] || [[ ! -d "$PROJECT_ROOT/frontend" ]]; then
     error "Ce script doit être exécuté depuis la racine du projet back-office-lmelp"
     exit 1
+fi
+
+# --restart: arrêter les instances précédentes avant de démarrer
+if [[ "$RESTART" == true ]]; then
+    restart_previous_instances
 fi
 
 # Check if frontend dependencies are installed

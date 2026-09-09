@@ -131,20 +131,21 @@ async def scrape_title_from_page(
         # CRITIQUE: Attendre le délai avant la requête HTTP
         await wait_rate_limit()
 
-        session = await babelio_service._get_session()
-        async with session.get(url) as response:
-            if response.status != 200:
-                return None
-
-            html = await response.text()
-            soup = BeautifulSoup(html, "lxml")
-
-            # Le titre est dans le premier <h1> de la page
-            title_elem = soup.find("h1")
-            if title_elem:
-                return title_elem.get_text(strip=True)
-
+        # Issue #304: passer par _fetch_page() (le gateway centralisé de
+        # babelio_service) plutôt qu'un appel brut session.get() — voir
+        # commentaire équivalent dans migrate_one_book_and_author.
+        html = await babelio_service._fetch_page(url)
+        if html is None:
             return None
+
+        soup = BeautifulSoup(html, "lxml")
+
+        # Le titre est dans le premier <h1> de la page
+        title_elem = soup.find("h1")
+        if title_elem:
+            return title_elem.get_text(strip=True)
+
+        return None
     except Exception as e:
         logger.error(f"❌ Erreur scraping titre depuis {url}: {e}")
         return None
@@ -345,34 +346,55 @@ async def migrate_one_book_and_author(
                 # CRITIQUE: Attendre le délai avant la requête HTTP
                 await wait_rate_limit()
 
-                session = await babelio_service._get_session()
-                async with session.get(url_babelio_livre) as response:
-                    if response.status != 200:
-                        logger.warning(
-                            f"⚠️  URL livre invalide (HTTP {response.status})"
-                        )
-                        # Ne logger que les 404 (vraiment introuvable)
-                        # 500/503 = problème serveur Babelio, pas un problème de données
-                        if response.status == 404:
-                            log_problematic_case(
-                                livre["_id"],
-                                titre,
-                                None,
-                                url_babelio_livre,
-                                nom_auteur,
-                                f"HTTP {response.status} (Not Found)",
-                            )
-                        else:
-                            logger.warning(
-                                "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
-                            )
-                        return {
-                            "livre_updated": False,
-                            "auteur_updated": False,
-                            "titre": titre,
-                            "auteur": nom_auteur,
-                            "status": "error",
-                        }
+                # Issue #304: passer par _fetch_page() (le gateway centralisé
+                # de babelio_service) plutôt qu'un appel brut session.get() —
+                # _fetch_page() applique les bons headers de page ET le
+                # cookie jstsToken stocké côté serveur. Un appel brut
+                # utilisait une session créée avec des headers d'API AJAX
+                # (Content-Type: application/json, X-Requested-With:
+                # XMLHttpRequest) et SANS ce cookie, que Babelio détectait et
+                # bloquait en 403 — alors même que la requête précédente
+                # (verify_book()/fetch_author_url_from_page(), mêmes bons
+                # headers + cookie) venait de réussir sur le même domaine.
+                try:
+                    html_check = await babelio_service._fetch_page(url_babelio_livre)
+                except Exception as e:
+                    # Certains fichiers de test importent back_office_lmelp
+                    # via un préfixe "src." incohérent avec le reste de la
+                    # suite (ex: test_api_refactoring.py), ce qui charge une
+                    # SECONDE copie du module babelio_service — avec sa
+                    # propre classe BabelioBlockedError, distincte de celle
+                    # importée ici bien que même nom qualifié. Comparer par
+                    # nom de classe (pas isinstance) pour rester robuste
+                    # face à cette duplication de module, absente en prod.
+                    if type(e).__name__ != "BabelioBlockedError":
+                        raise
+                    logger.warning("⚠️  URL livre invalide (HTTP 403)")
+                    # _fetch_page() a déjà ouvert le circuit breaker en
+                    # interne — un 403 est transitoire (cookie expiré), pas
+                    # un problème de données : ne pas logger dans
+                    # babelio_problematic_cases, pour que MigrationRunner
+                    # puisse retenter ce livre après correction du cookie.
+                    return {
+                        "livre_updated": False,
+                        "auteur_updated": False,
+                        "titre": titre,
+                        "auteur": nom_auteur,
+                        "status": "blocked_403",
+                    }
+
+                if html_check is None:
+                    logger.warning("⚠️  URL livre invalide (échec HTTP)")
+                    logger.warning(
+                        "⚠️  Ceci indique probablement que Babelio est temporairement indisponible"
+                    )
+                    return {
+                        "livre_updated": False,
+                        "auteur_updated": False,
+                        "titre": titre,
+                        "auteur": nom_auteur,
+                        "status": "error",
+                    }
 
                 logger.info("✅ URL livre vérifiée (HTTP 200)")
 
@@ -479,32 +501,35 @@ async def migrate_one_book_and_author(
                     # CRITIQUE: Attendre le délai avant la requête HTTP
                     await wait_rate_limit()
 
-                    session = await babelio_service._get_session()
-                    async with session.get(url_babelio_auteur) as response:
-                        if response.status == 200:
-                            logger.info(
-                                f"✅ URL auteur vérifiée (HTTP {response.status})"
+                    # Issue #304: passer par _fetch_page() (voir commentaire
+                    # équivalent pour l'URL livre ci-dessus) plutôt qu'un
+                    # appel brut session.get() sans cookie ni bons headers.
+                    html_check = await babelio_service._fetch_page(url_babelio_auteur)
+                    if html_check is not None:
+                        logger.info("✅ URL auteur vérifiée (HTTP 200)")
+                        if not dry_run:
+                            auteurs_collection.update_one(
+                                {"_id": auteur["_id"]},
+                                {
+                                    "$set": {
+                                        "url_babelio": url_babelio_auteur,
+                                        "updated_at": datetime.now(UTC),
+                                    }
+                                },
                             )
-                            if not dry_run:
-                                auteurs_collection.update_one(
-                                    {"_id": auteur["_id"]},
-                                    {
-                                        "$set": {
-                                            "url_babelio": url_babelio_auteur,
-                                            "updated_at": datetime.now(UTC),
-                                        }
-                                    },
-                                )
-                                logger.info("✅ Auteur mis à jour dans MongoDB")
-                            else:
-                                logger.info("🔍 [DRY-RUN] Auteur SERAIT mis à jour")
-                            author_updated = True
+                            logger.info("✅ Auteur mis à jour dans MongoDB")
                         else:
-                            logger.warning(
-                                f"⚠️  URL auteur invalide (HTTP {response.status})"
-                            )
+                            logger.info("🔍 [DRY-RUN] Auteur SERAIT mis à jour")
+                        author_updated = True
+                    else:
+                        logger.warning("⚠️  URL auteur invalide (échec HTTP)")
                 except Exception as e:
-                    logger.error(f"❌ Erreur vérification URL auteur: {e}")
+                    # Cf. commentaire équivalent pour l'URL livre ci-dessus
+                    # sur la comparaison par nom de classe plutôt qu'isinstance.
+                    if type(e).__name__ == "BabelioBlockedError":
+                        logger.warning("⚠️  URL auteur invalide (HTTP 403)")
+                    else:
+                        logger.error(f"❌ Erreur vérification URL auteur: {e}")
             else:
                 logger.info(
                     f"ℹ️  Auteur a déjà une URL Babelio: {auteur.get('url_babelio')}"
@@ -518,16 +543,27 @@ async def migrate_one_book_and_author(
         status = result.get("status")
         logger.warning(f"❌ Livre non traité (status: {status})")
 
-        # Logger TOUS les cas non-success pour éviter de les re-traiter indéfiniment
-        # Ceci inclut: not_found, error, et tout autre statut inattendu
-        log_problematic_case(
-            livre["_id"],
-            titre,
-            None,
-            "N/A",
-            nom_auteur,
-            f"Livre non traité - status: {status}",
-        )
+        if status == "blocked_403":
+            # Issue #304: un blocage 403 est transitoire (cookie Babelio
+            # expiré / circuit breaker), PAS un problème de données du livre.
+            # Ne PAS logger dans babelio_problematic_cases, sinon le livre
+            # serait exclu DÉFINITIVEMENT des futurs runs de migration
+            # (load_problematic_book_ids()), même après correction du cookie.
+            logger.warning(
+                "⚠️  Blocage Babelio 403 (cookie probablement expiré) — "
+                "le livre sera retenté automatiquement au prochain run"
+            )
+        else:
+            # Logger tous les autres cas non-success pour éviter de les
+            # re-traiter indéfiniment (not_found, error, statut inattendu)
+            log_problematic_case(
+                livre["_id"],
+                titre,
+                None,
+                "N/A",
+                nom_auteur,
+                f"Livre non traité - status: {status}",
+            )
 
     # Retourner les infos complètes pour MigrationRunner
     return {
@@ -540,10 +576,15 @@ async def migrate_one_book_and_author(
     }
 
 
-async def scrape_author_url_from_book_page(book_url: str) -> str | None:
+async def scrape_author_url_from_book_page(
+    babelio_service: BabelioService, book_url: str
+) -> str | None:
     """Scrape l'URL auteur depuis la page Babelio d'un livre.
 
     Args:
+        babelio_service: Instance partagée (singleton) du service Babelio —
+            jamais une instance locale, pour hériter du cookie stocké et de
+            l'état du circuit breaker.
         book_url: URL de la page Babelio du livre
 
     Returns:
@@ -551,7 +592,7 @@ async def scrape_author_url_from_book_page(book_url: str) -> str | None:
 
     Example:
         >>> url = await scrape_author_url_from_book_page(
-        ...     "https://www.babelio.com/livres/Orwell-1984/1234"
+        ...     babelio_service, "https://www.babelio.com/livres/Orwell-1984/1234"
         ... )
         >>> print(url)
         https://www.babelio.com/auteur/George-Orwell/5678
@@ -560,35 +601,31 @@ async def scrape_author_url_from_book_page(book_url: str) -> str | None:
         # CRITIQUE: Attendre le délai avant la requête HTTP
         await wait_rate_limit()
 
-        # Récupérer le service Babelio pour utiliser sa session HTTP
-        from back_office_lmelp.services.babelio_service import BabelioService
-
-        babelio_service = BabelioService()
-        session = await babelio_service._get_session()
-
-        async with session.get(book_url) as response:
-            if response.status != 200:
-                logger.warning(
-                    f"⚠️  Erreur HTTP {response.status} lors du scraping de {book_url}"
-                )
-                return None
-
-            html = await response.text()
-            soup = BeautifulSoup(html, "lxml")
-
-            # Chercher le lien auteur dans la page
-            # Format: <a href="/auteur/Nom-Prenom/12345" class="...">
-            author_link = soup.find("a", href=lambda x: x and "/auteur/" in x)
-            if author_link and author_link.get("href"):
-                author_path = author_link["href"]
-                # Convertir path relatif en URL absolue
-                if author_path.startswith("/"):
-                    author_url = f"https://www.babelio.com{author_path}"
-                    logger.info(f"✅ URL auteur trouvée: {author_url}")
-                    return author_url
-
-            logger.warning(f"⚠️  Aucune URL auteur trouvée dans {book_url}")
+        # Issue #304: utiliser le babelio_service partagé (singleton) reçu
+        # en paramètre, via son gateway _fetch_page() — jamais une instance
+        # BabelioService() locale (perd le cookie stocké et l'état du
+        # circuit breaker), ni un appel brut session.get() (headers d'API
+        # AJAX sans cookie, bloqué en 403 par Babelio).
+        html = await babelio_service._fetch_page(book_url)
+        if html is None:
+            logger.warning(f"⚠️  Erreur HTTP lors du scraping de {book_url}")
             return None
+
+        soup = BeautifulSoup(html, "lxml")
+
+        # Chercher le lien auteur dans la page
+        # Format: <a href="/auteur/Nom-Prenom/12345" class="...">
+        author_link = soup.find("a", href=lambda x: x and "/auteur/" in x)
+        if author_link and author_link.get("href"):
+            author_path = author_link["href"]
+            # Convertir path relatif en URL absolue
+            if author_path.startswith("/"):
+                author_url = f"https://www.babelio.com{author_path}"
+                logger.info(f"✅ URL auteur trouvée: {author_url}")
+                return author_url
+
+        logger.warning(f"⚠️  Aucune URL auteur trouvée dans {book_url}")
+        return None
 
     except Exception as e:
         logger.error(f"❌ Erreur lors du scraping de {book_url}: {e}")
@@ -786,12 +823,19 @@ async def get_all_authors_to_complete() -> list[dict]:
     return authors_to_process
 
 
-async def process_one_author(author_data: dict, dry_run: bool = False) -> dict:
+async def process_one_author(
+    author_data: dict,
+    dry_run: bool = False,
+    babelio_service: BabelioService | None = None,
+) -> dict:
     """Traite un auteur sans url_babelio en examinant ses livres.
 
     Args:
         author_data: Dict avec auteur_id, nom, livres (liste)
         dry_run: Si True, affiche sans modifier
+        babelio_service: Instance partagée (singleton) du service Babelio,
+            requise uniquement quand un livre avec url_babelio doit être
+            scrapé (Cas 2 ci-dessous) — jamais une instance locale.
 
     Returns:
         Dict avec status, auteur_updated, nom_auteur, raison
@@ -842,7 +886,7 @@ async def process_one_author(author_data: dict, dry_run: bool = False) -> dict:
         )
         await wait_rate_limit()
         author_url = await scrape_author_url_from_book_page(
-            livre_avec_url["url_babelio"]
+            babelio_service, livre_avec_url["url_babelio"]
         )
 
         if author_url is None:

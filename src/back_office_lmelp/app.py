@@ -128,7 +128,9 @@ class BookValidationResult(BaseModel):
     titre: str
     editeur: str
     programme: bool
-    validation_status: str  # 'verified' | 'suggested' | 'not_found'
+    validation_status: (
+        str  # 'verified' | 'suggestion' | 'not_found' | 'error' | 'blocked_403'
+    )
     suggested_author: str | None = None
     suggested_title: str | None = None
     # Issue #85: Champs d'enrichissement Babelio automatique
@@ -1697,11 +1699,12 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
         books_processed = 0
 
         for book_result in request.books:
-            # Issue #282: un échec technique (réseau, timeout, Babelio bloqué) ne
-            # doit PAS être persisté comme un "not_found" définitif — le livre
-            # reste simplement non traité et sera retenté au prochain chargement
-            # de la page, au lieu de rester bloqué en cache indéfiniment.
-            if book_result.validation_status == "error":
+            # Issue #282/#304: un échec technique (réseau, timeout) ou un
+            # blocage anti-bot Babelio (403) ne doit PAS être persisté comme
+            # un "not_found" définitif — le livre reste simplement non traité
+            # et sera retenté (chargement suivant, ou retry ciblé par livre),
+            # au lieu de rester bloqué en cache indéfiniment.
+            if book_result.validation_status in ("error", "blocked_403"):
                 continue
 
             # Convertir le statut de validation frontend vers statut cache unifié
@@ -3535,6 +3538,30 @@ async def mark_not_found(request: MarkNotFoundRequest) -> JSONResponse:
         return JSONResponse(
             status_code=404,
             content={"status": "error", "message": f"{item_label} non trouvé"},
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/babelio-migration/requeue-blocked-403")
+async def requeue_blocked_403_cases() -> JSONResponse:
+    """Libère tous les cas bloqués par un 403 Babelio transitoire (Issue #304).
+
+    Retire de babelio_problematic_cases tous les cas dont la raison contient
+    "blocked_403" (cookie expiré au moment d'un run de migration), pour
+    qu'ils soient repris automatiquement au prochain lancement du batch.
+    """
+    try:
+        count = babelio_migration_service.requeue_blocked_403_cases()
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "requeued_count": count,
+                "message": f"{count} cas libérés pour retraitement au prochain run",
+            },
         )
     except Exception as e:
         return JSONResponse(

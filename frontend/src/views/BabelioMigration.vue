@@ -11,7 +11,12 @@
 
     <!-- Panel de statut -->
     <div v-if="status" class="status-panel">
-      <h2>{{ migrationProgress.is_running ? '⚙️ Liaison en cours' : 'Migration Babelio' }}</h2>
+      <div class="status-panel-header">
+        <h2>{{ migrationProgress.is_running ? '⚙️ Liaison en cours' : 'Migration Babelio' }}</h2>
+        <router-link to="/babelio-control" class="link-babelio-control" data-test="link-babelio-control">
+          🛠️ Contrôle Babelio
+        </router-link>
+      </div>
 
       <!-- Cookie Babelio -->
       <div class="cookie-section">
@@ -27,6 +32,8 @@
             <p class="cookie-help">
               Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
               Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
+              Pour un diagnostic complet (cache, requêtes récentes, circuit breaker), voir la page
+              <router-link to="/babelio-control">Contrôle Babelio</router-link>.
             </p>
             <details class="cookie-instructions">
               <summary>Comment obtenir le cookie ?</summary>
@@ -358,6 +365,18 @@
 
     <!-- Liste des cas problématiques -->
     <div v-if="problematicCases.length > 0" class="cases-list">
+      <div v-if="blocked403CasesCount > 0" class="requeue-banner">
+        <span>⏰ {{ blocked403CasesCount }} cas bloqué(s) par un 403 Babelio (cookie probablement expiré)</span>
+        <button
+          data-test="requeue-blocked-403-btn"
+          class="btn-requeue"
+          :disabled="requeuingBlocked403"
+          @click="requeueBlocked403"
+        >
+          {{ requeuingBlocked403 ? '⏳ Libération...' : `🔄 Relancer tous les 403 (${blocked403CasesCount})` }}
+        </button>
+      </div>
+
       <h2>Cas à traiter manuellement ({{ problematicCases.length }})</h2>
 
       <div v-for="cas in problematicCases" :key="cas.livre_id || cas.auteur_id" class="case-card">
@@ -587,6 +606,7 @@ export default {
       processingCase: null,
       retryResults: {},
       toast: null,
+      requeuingBlocked403: false,
       migrationProgress: {
         is_running: false,
         start_time: null,
@@ -662,6 +682,14 @@ export default {
       if (this.coverProgress.total === 0) return 0;
       return (this.coverProgress.processed / this.coverProgress.total) * 100;
     },
+    // Issue #304: compte les cas problématiques bloqués par un 403 Babelio
+    // transitoire (cookie expiré au moment du run), à distinguer des vrais
+    // cas not_found qui nécessitent un traitement manuel.
+    blocked403CasesCount() {
+      return this.problematicCases.filter(
+        (cas) => cas.raison && cas.raison.includes('blocked_403')
+      ).length;
+    },
   },
   methods: {
     // Helper pour obtenir l'ID d'un cas (livre_id ou auteur_id selon le type)
@@ -729,6 +757,22 @@ export default {
         this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
       } finally {
         this.processingCase = null;
+      }
+    },
+
+    async requeueBlocked403() {
+      this.requeuingBlocked403 = true;
+      try {
+        const response = await axios.post('/api/babelio-migration/requeue-blocked-403');
+        this.showToast(
+          response.data.message || `🔓 ${response.data.requeued_count} cas libérés`,
+          'success'
+        );
+        await this.loadData();
+      } catch (err) {
+        this.showToast(`Erreur: ${err.response?.data?.message || err.message}`, 'error');
+      } finally {
+        this.requeuingBlocked403 = false;
       }
     },
 
@@ -1299,6 +1343,34 @@ h2 {
   margin-bottom: 30px;
 }
 
+.status-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.status-panel-header h2 {
+  margin: 0;
+}
+
+.link-babelio-control {
+  font-size: 0.9em;
+  color: #495057;
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: white;
+  white-space: nowrap;
+}
+
+.link-babelio-control:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
 .stats-section-title {
   margin: 20px 0 10px 0;
   color: #495057;
@@ -1598,6 +1670,42 @@ h2 {
 /* Cases List */
 .cases-list {
   margin-top: 30px;
+}
+
+/* Issue #304: bandeau d'action groupée pour les cas bloqués par un 403 */
+.requeue-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #fff3cd;
+  color: #664d03;
+  border: 1px solid #ffe69c;
+  border-radius: 8px;
+  font-size: 0.95em;
+}
+
+.btn-requeue {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #fd7e14;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-requeue:hover:not(:disabled) {
+  background: #e8590c;
+}
+
+.btn-requeue:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .case-card {

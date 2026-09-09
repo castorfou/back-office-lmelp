@@ -284,6 +284,79 @@ describe('BiblioValidationCell', () => {
     });
   });
 
+  describe('Blocked 403 (Issue #304)', () => {
+    it('should display a distinct blocked state (not the generic error state) when Babelio returns blocked_403', async () => {
+      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      BiblioValidationService.mockImplementation(() => ({
+        validateBiblio: vi.fn().mockResolvedValue({
+          status: 'blocked_403',
+          data: {
+            original: { author: 'Michel Houellebecq', title: 'Les Particules élémentaires' },
+            reason: 'babelio_blocked_403'
+          }
+        })
+      }));
+
+      wrapper = mount(BiblioValidationCell, {
+        props: defaultProps
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('[data-testid="validation-blocked-403"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="validation-error"]').exists()).toBe(false);
+      expect(wrapper.text()).toContain('403');
+    });
+
+    it('should provide a retry button on the blocked_403 state', async () => {
+      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+      const mockValidateBiblio = vi.fn().mockResolvedValue({
+        status: 'blocked_403',
+        data: {
+          original: { author: 'Michel Houellebecq', title: 'Les Particules élémentaires' },
+          reason: 'babelio_blocked_403'
+        }
+      });
+
+      BiblioValidationService.mockImplementation(() => ({
+        validateBiblio: mockValidateBiblio
+      }));
+
+      wrapper = mount(BiblioValidationCell, {
+        props: defaultProps
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await wrapper.vm.$nextTick();
+
+      const retryButton = wrapper.find('[data-testid="validation-blocked-403"] [data-testid="retry-button"]');
+      expect(retryButton.exists()).toBe(true);
+
+      mockValidateBiblio.mockClear();
+      mockValidateBiblio.mockResolvedValue({
+        status: 'verified',
+        data: {
+          original: {
+            author: 'Michel Houellebecq',
+            title: 'Les Particules élémentaires',
+            publisher: 'Flammarion'
+          },
+          source: 'babelio',
+          confidence_score: 1.0
+        }
+      });
+
+      wrapper.vm.lastValidationTime = 0;
+      await retryButton.trigger('click');
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('[data-testid="validation-success"]').exists()).toBe(true);
+    });
+  });
+
   describe('Rate limiting', () => {
     it('should respect rate limiting by delaying verification', async () => {
       wrapper = mount(BiblioValidationCell, {

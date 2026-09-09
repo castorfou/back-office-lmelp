@@ -243,6 +243,49 @@ class TestValidationResultsAPI:
             mock_mongodb.create_author_if_not_exists.assert_not_called()
             mock_mongodb.create_book_if_not_exists.assert_not_called()
 
+    def test_set_validation_results_should_not_persist_blocked_403_as_not_found(self):
+        """Test TDD (Issue #304): un statut 'blocked_403' ne doit PAS être persisté comme 'not_found'.
+
+        Un blocage Babelio (403) est un échec transitoire (cookie expiré/IP
+        bloquée), pas un vrai "livre introuvable" — comme pour 'error'
+        (Issue #282), le livre ne doit pas être figé en cache et doit rester
+        retentable au prochain chargement ou via le bouton retry par livre.
+        """
+        episode_oid = "68c707ad6e51b9428ab87e9e"  # pragma: allowlist secret
+        avis_critique_id = ObjectId(
+            "68c718a16e51b9428ab88066"  # pragma: allowlist secret
+        )
+
+        validation_results = {
+            "episode_oid": episode_oid,
+            "avis_critique_id": str(avis_critique_id),
+            "books": [
+                {
+                    "auteur": "Boualem Sansal",
+                    "titre": "La Légende",
+                    "editeur": "Grasset",
+                    "programme": True,
+                    "validation_status": "blocked_403",
+                }
+            ],
+        }
+
+        with (
+            patch(
+                "back_office_lmelp.app.livres_auteurs_cache_service"
+            ) as mock_cache_service,
+            patch("back_office_lmelp.app.mongodb_service") as mock_mongodb,
+        ):
+            response = self.client.post(
+                "/api/set-validation-results", json=validation_results
+            )
+
+            assert response.status_code == 200
+
+            mock_cache_service.create_cache_entry.assert_not_called()
+            mock_mongodb.create_author_if_not_exists.assert_not_called()
+            mock_mongodb.create_book_if_not_exists.assert_not_called()
+
     def test_set_validation_results_should_still_persist_real_not_found(self):
         """Test TDD (Issue #282): un vrai 'not_found' doit continuer à créer une entrée cache.
 
