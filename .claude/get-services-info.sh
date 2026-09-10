@@ -8,6 +8,18 @@ set -e
 PROJECT_ROOT="/workspaces/back-office-lmelp"
 UNIFIED_FILE="$PROJECT_ROOT/.dev-ports.json"
 
+# Read MONGODB_URL the same way the backend does (python-dotenv's
+# load_dotenv(), see mongodb_service.py / app.py) instead of parsing .env
+# by hand — keeps this in sync with whatever precedence/format dotenv uses.
+get_mongodb_url() {
+    python3 -c "
+from dotenv import load_dotenv
+import os
+load_dotenv()
+print(os.getenv('MONGODB_URL', ''))
+" 2>/dev/null
+}
+
 # Parse command line arguments
 OPTION="${1:-summary}"
 
@@ -48,6 +60,10 @@ try:
 except:
     print('Error reading services info')
 "
+        MONGODB_URL=$(get_mongodb_url)
+        if [[ -n "$MONGODB_URL" ]]; then
+            echo "MongoDB: $MONGODB_URL"
+        fi
         ;;
     --summary|*)
         # Human-readable summary
@@ -68,6 +84,12 @@ except:
             "$PROJECT_ROOT/.claude/get-frontend-info.sh"
         else
             echo "Frontend: Not running"
+        fi
+
+        MONGODB_URL=$(get_mongodb_url)
+        if [[ -n "$MONGODB_URL" ]]; then
+            echo
+            echo "MongoDB: $MONGODB_URL"
         fi
 
         echo

@@ -5,7 +5,7 @@ qui appelle directement migrate_one_book_and_author() au lieu du script bash.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -56,29 +56,21 @@ class TestMigrationRunnerPythonDirect:
 
             mock_migrate.side_effect = side_effect_migrate
 
-            # Mock BabelioService
-            with patch(
-                "back_office_lmelp.utils.migration_runner.BabelioService"
-            ) as mock_babelio_cls:
-                mock_babelio = AsyncMock()
-                mock_babelio.close = AsyncMock()
-                mock_babelio_cls.return_value = mock_babelio
+            # Act - Lancer la migration
+            runner = MigrationRunner()
+            result = await runner.start_migration()
 
-                # Act - Lancer la migration
-                runner = MigrationRunner()
-                result = await runner.start_migration()
+            # Assert - Vérifier que le statut est started
+            assert result["status"] == "started"
 
-                # Assert - Vérifier que le statut est started
-                assert result["status"] == "started"
+            # Vérifier qu'aucun subprocess n'est créé
+            assert runner.process is None
 
-                # Vérifier qu'aucun subprocess n'est créé
-                assert runner.process is None
+            # Attendre un peu pour que la tâche background s'exécute
+            await asyncio.sleep(0.5)
 
-                # Attendre un peu pour que la tâche background s'exécute
-                await asyncio.sleep(0.5)
-
-                # Vérifier que migrate_one_book_and_author a été appelée
-                assert mock_migrate.called
+            # Vérifier que migrate_one_book_and_author a été appelée
+            assert mock_migrate.called
 
     @pytest.mark.asyncio
     async def test_migration_should_populate_book_logs_directly(self):
@@ -114,30 +106,23 @@ class TestMigrationRunnerPythonDirect:
 
             mock_migrate.side_effect = side_effect_migrate
 
-            with patch(
-                "back_office_lmelp.utils.migration_runner.BabelioService"
-            ) as mock_babelio_cls:
-                mock_babelio = AsyncMock()
-                mock_babelio.close = AsyncMock()
-                mock_babelio_cls.return_value = mock_babelio
+            # Act
+            runner = MigrationRunner()
+            await runner.start_migration()
 
-                # Act
-                runner = MigrationRunner()
-                await runner.start_migration()
+            # Attendre que la migration traite au moins 1 livre
+            await asyncio.sleep(0.5)
 
-                # Attendre que la migration traite au moins 1 livre
-                await asyncio.sleep(0.5)
+            # Assert - Vérifier que book_logs est peuplé
+            status = runner.get_status()
+            assert len(status["book_logs"]) >= 1
 
-                # Assert - Vérifier que book_logs est peuplé
-                status = runner.get_status()
-                assert len(status["book_logs"]) >= 1
-
-                # Vérifier la structure du premier book_log
-                first_log = status["book_logs"][0]
-                assert first_log["titre"] == "Le Petit Prince"
-                assert first_log["auteur"] == "Antoine de Saint-Exupéry"
-                assert first_log["livre_status"] == "success"
-                assert first_log["auteur_status"] == "success"
+            # Vérifier la structure du premier book_log
+            first_log = status["book_logs"][0]
+            assert first_log["titre"] == "Le Petit Prince"
+            assert first_log["auteur"] == "Antoine de Saint-Exupéry"
+            assert first_log["livre_status"] == "success"
+            assert first_log["auteur_status"] == "success"
 
     @pytest.mark.asyncio
     async def test_migration_should_stop_when_no_more_books(self):
@@ -160,22 +145,15 @@ class TestMigrationRunnerPythonDirect:
 
             mock_migrate.side_effect = side_effect_migrate
 
-            with patch(
-                "back_office_lmelp.utils.migration_runner.BabelioService"
-            ) as mock_babelio_cls:
-                mock_babelio = AsyncMock()
-                mock_babelio.close = AsyncMock()
-                mock_babelio_cls.return_value = mock_babelio
+            # Act
+            runner = MigrationRunner()
+            await runner.start_migration()
 
-                # Act
-                runner = MigrationRunner()
-                await runner.start_migration()
+            # Attendre que la migration se termine
+            await asyncio.sleep(1.0)
 
-                # Attendre que la migration se termine
-                await asyncio.sleep(1.0)
-
-                # Assert - La migration doit être terminée
-                assert runner.is_running is False
+            # Assert - La migration doit être terminée
+            assert runner.is_running is False
 
     @pytest.mark.asyncio
     async def test_migration_should_map_error_status_correctly(self):
@@ -206,23 +184,16 @@ class TestMigrationRunnerPythonDirect:
 
             mock_migrate.side_effect = side_effect_migrate
 
-            with patch(
-                "back_office_lmelp.utils.migration_runner.BabelioService"
-            ) as mock_babelio_cls:
-                mock_babelio = AsyncMock()
-                mock_babelio.close = AsyncMock()
-                mock_babelio_cls.return_value = mock_babelio
+            # Act
+            runner = MigrationRunner()
+            await runner.start_migration()
+            await asyncio.sleep(1.0)
 
-                # Act
-                runner = MigrationRunner()
-                await runner.start_migration()
-                await asyncio.sleep(1.0)
-
-                # Assert
-                status = runner.get_status()
-                assert len(status["book_logs"]) > 0, (
-                    "book_logs should contain at least one entry"
-                )
-                first_log = status["book_logs"][0]
-                assert first_log["livre_status"] in ["error", "not_found"]
-                assert first_log["auteur_status"] in ["error", "none"]
+            # Assert
+            status = runner.get_status()
+            assert len(status["book_logs"]) > 0, (
+                "book_logs should contain at least one entry"
+            )
+            first_log = status["book_logs"][0]
+            assert first_log["livre_status"] in ["error", "not_found"]
+            assert first_log["auteur_status"] in ["error", "none"]

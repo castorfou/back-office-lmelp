@@ -702,3 +702,45 @@ class TestBabelioMigrationService:
         call_args = mock_livres_collection.update_one.call_args
         assert call_args[0][0] == {"_id": ObjectId(livre_id)}
         assert "cover_mismatch_page_title" in call_args[0][1]["$unset"]
+
+    def test_requeue_blocked_403_cases_should_delete_only_blocked_403_cases(
+        self, migration_service, mock_mongodb_service
+    ):
+        """Test TDD (Issue #304): requeue_blocked_403_cases() doit supprimer
+        uniquement les cas dont la raison contient 'blocked_403', et retourner
+        leur nombre.
+
+        Problème business réel:
+        - Un run de migration avec cookie expiré a pollué babelio_problematic_cases
+          avec plusieurs livres marqués "blocked_403" (transitoire, pas un vrai
+          problème de données)
+        - Ces livres sont exclus définitivement des futurs runs
+        - L'utilisateur doit pouvoir les "libérer" en masse après avoir corrigé
+          le cookie, sans affecter les vrais cas problématiques (not_found, etc.)
+        """
+        mock_problematic_collection = MagicMock()
+        mock_delete_result = MagicMock()
+        mock_delete_result.deleted_count = 3
+        mock_problematic_collection.delete_many.return_value = mock_delete_result
+
+        mock_mongodb_service.db.__getitem__.side_effect = lambda name: (
+            mock_problematic_collection
+            if name == "babelio_problematic_cases"
+            else MagicMock()
+        )
+
+        result = migration_service.requeue_blocked_403_cases()
+
+        assert result == 3
+        mock_problematic_collection.delete_many.assert_called_once_with(
+            {"raison": {"$regex": "blocked_403"}}
+        )
+
+    def test_requeue_blocked_403_cases_should_raise_when_db_not_connected(
+        self, migration_service, mock_mongodb_service
+    ):
+        """Test TDD (Issue #304): doit lever RuntimeError si MongoDB non connecté."""
+        mock_mongodb_service.db = None
+
+        with pytest.raises(RuntimeError):
+            migration_service.requeue_blocked_403_cases()

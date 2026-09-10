@@ -73,16 +73,12 @@ class TestAuthorAlreadyLinked:
             }
         )
 
-        # Mock HTTP session pour vérification URL (200 OK)
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = MagicMock()
-        mock_session.get.return_value = mock_response
-
-        mock_babelio_service._get_session = AsyncMock(return_value=mock_session)
+        # Mock _fetch_page() (gateway centralisé) pour vérification URL — le
+        # HTML retourné n'a pas besoin d'être exploité ici, seul son
+        # existence (non-None) compte pour valider la vérification HTTP.
+        mock_babelio_service._fetch_page = AsyncMock(
+            return_value="<html><h1>Chien 51</h1></html>"
+        )
 
         with (
             patch(

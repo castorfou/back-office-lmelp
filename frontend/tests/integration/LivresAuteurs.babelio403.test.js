@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import LivresAuteurs from '../../src/views/LivresAuteurs.vue';
-import { livresAuteursService } from '../../src/services/api.js';
+import { livresAuteursService, babelioService } from '../../src/services/api.js';
 import BiblioValidationService from '../../src/services/BiblioValidationService.js';
 
 vi.mock('../../src/services/api.js', () => ({
@@ -220,6 +220,111 @@ describe('LivresAuteurs - Détection blocage Babelio 403 (Issue #251)', () => {
       await wrapper.vm.$nextTick();
 
       expect(wrapper.vm.babelioBlocked).toBe(true);
+    });
+
+    it('active babelioBlocked et envoie validation_status=blocked_403 (pas not_found) sans mocker validateBiblio directement (Issue #304)', async () => {
+      const mockBooks = [
+        {
+          episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+          auteur: 'Boualem Sansal',
+          titre: 'La Légende',
+          editeur: 'Grasset',
+          validation_status: null,
+          programme: false,
+        },
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+      livresAuteursService.setValidationResults.mockResolvedValue({ success: true });
+      babelioService.verifyAuthor.mockResolvedValue({ status: 'blocked_403' });
+      babelioService.verifyBook.mockResolvedValue({ status: 'blocked_403' });
+
+      await mountPage();
+
+      wrapper.vm.books = mockBooks;
+
+      await wrapper.vm.autoValidateAndSendResults();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.babelioBlocked).toBe(true);
+
+      const call = livresAuteursService.setValidationResults.mock.calls[0][0];
+      const sentBook = call.books.find(b => b.auteur === 'Boualem Sansal');
+      expect(sentBook.validation_status).toBe('blocked_403');
+    });
+  });
+
+  describe('Retry ciblé par livre après blocage (Issue #304)', () => {
+    it('un retry réussi sur un livre bloqué persiste uniquement ce livre (pas tout l\'épisode)', async () => {
+      const mockBooks = [
+        {
+          episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+          auteur: 'Boualem Sansal',
+          titre: 'La Légende',
+          editeur: 'Grasset',
+          status: 'not_found',
+          programme: false,
+        },
+        {
+          episode_oid: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
+          auteur: 'Autre Auteur',
+          titre: 'Autre Titre',
+          editeur: 'Autre Éditeur',
+          status: 'not_found',
+          programme: false,
+        },
+      ];
+
+      livresAuteursService.getLivresAuteurs.mockResolvedValue(mockBooks);
+      livresAuteursService.setValidationResults.mockResolvedValue({ success: true });
+      livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue({ processed_count: 0 });
+
+      await mountPage();
+      wrapper.vm.books = mockBooks;
+      await wrapper.vm.$nextTick();
+
+      const bookKey = wrapper.vm.getBookKey(mockBooks[0]);
+
+      // Simule l'état "précédemment bloqué" pour ce livre
+      wrapper.vm.validationStatuses.set(bookKey, 'blocked_403');
+
+      livresAuteursService.setValidationResults.mockClear();
+
+      // Simule l'émission du composant BiblioValidationCell après un retry réussi
+      wrapper.vm.handleValidationStatusChange({
+        bookKey,
+        status: 'verified',
+        suggestion: null,
+        validationResult: {
+          status: 'verified',
+          original: { author: 'Boualem Sansal', title: 'La Légende' },
+          data: { source: 'babelio', confidence_score: 1.0 }
+        }
+      });
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(livresAuteursService.setValidationResults).toHaveBeenCalledTimes(1);
+      const call = livresAuteursService.setValidationResults.mock.calls[0][0];
+      expect(call.books).toHaveLength(1);
+      expect(call.books[0].auteur).toBe('Boualem Sansal');
+    });
+  });
+
+  describe('Auto-ouverture du panneau cookie (Issue #304)', () => {
+    it('ouvre automatiquement le panneau Cookie Babelio quand babelioBlocked passe à true', async () => {
+      await mountPage();
+      wrapper.vm.selectedEpisodeId = mockEpisodesWithReviews[0]._id.$oid;
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.cookiePanelOpen).toBe(false);
+
+      wrapper.vm.babelioBlocked = true;
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.cookiePanelOpen).toBe(true);
+      const details = wrapper.find('[data-test="babelio-cookie-details"]');
+      expect(details.attributes('open')).toBeDefined();
     });
   });
 });

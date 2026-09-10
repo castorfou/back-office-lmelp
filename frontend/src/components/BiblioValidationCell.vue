@@ -30,6 +30,24 @@
       </div>
     </div>
 
+    <!-- Blocked 403 (Issue #304): Babelio a bloqué la requête, distinct d'une erreur générique -->
+    <div v-else-if="validationResult && validationResult.status === 'blocked_403'"
+         class="validation-status blocked"
+         data-testid="validation-blocked-403">
+      <span class="status-icon">🚫</span>
+      <div class="status-content">
+        <span class="status-text">Bloqué (403)</span>
+        <button
+          @click="startValidation"
+          class="retry-button"
+          data-testid="retry-button"
+          title="Réessayer après avoir corrigé le cookie Babelio"
+        >
+          ↻
+        </button>
+      </div>
+    </div>
+
     <!-- Success - Perfect match -->
     <div v-else-if="validationResult && validationResult.status === 'verified'"
          class="validation-status success"
@@ -201,6 +219,7 @@ export default {
         case 'suggestion': return 'corrected';
         case 'not_found': return 'not_found';
         case 'error': return 'error';
+        case 'blocked_403': return 'blocked_403';
         default: return 'error';
       }
     },

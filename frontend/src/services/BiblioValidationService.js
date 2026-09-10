@@ -103,6 +103,15 @@ export class BiblioValidationService {
         matchingExtractedBook.author
       );
 
+      // Babelio a bloqué la requête (403) — remonter immédiatement au lieu de
+      // retomber silencieusement sur Phase 1 (Issue #304)
+      if (bookValidation && bookValidation.status === 'blocked_403') {
+        return {
+          status: 'blocked_403',
+          data: { original, reason: 'babelio_blocked_403' }
+        };
+      }
+
       if (bookValidation && bookValidation.status === 'verified') {
         // Issue #75: Double appel de confirmation si confidence entre 0.85 et 0.99
         const confidence = bookValidation.confidence_score || 0;
@@ -429,6 +438,19 @@ export class BiblioValidationService {
     episodeId
   }) {
     // 🐛 DEBUG: Arbitrage start
+
+    // Cas 0: Babelio a bloqué la requête (403) — ne pas confondre avec un
+    // "not_found" légitime (Issue #304)
+    if (authorValidation?.status === 'blocked_403' || bookValidation?.status === 'blocked_403') {
+      return {
+        status: 'blocked_403',
+        data: {
+          original,
+          reason: 'babelio_blocked_403',
+          attempts: episodeId ? ['ground_truth', 'babelio'] : ['babelio']
+        }
+      };
+    }
 
     // Cas 1: Ground truth disponible avec matches de qualité - PRIORITAIRE
     const hasGroundTruth = groundTruthResult?.found_suggestions;

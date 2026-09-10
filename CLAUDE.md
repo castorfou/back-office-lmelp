@@ -296,6 +296,12 @@ cd /workspaces/back-office-lmelp/frontend && npm test -- --run
     - Si un test `FAILED ... Timeout (>15.0s)` apparaît, lire le log applicatif juste avant (`Erreur scraping éditeur/titre/auteur pour <url>: ...`) pour identifier précisément quelle méthode manque — ne pas deviner à partir du nom du test.
     - Un test légitimement plus lent que 15s (pas un mock manquant) doit utiliser `@pytest.mark.timeout(N)` dédié plutôt que d'augmenter le défaut global.
 
+11. **`src.back_office_lmelp...` vs `back_office_lmelp...` — deux imports différents chargent DEUX copies distinctes du même module** (Issue #304) :
+    - Quelques fichiers de test legacy (ex: `test_api_refactoring.py`) importent via `from src.back_office_lmelp.app import app`, alors que le reste de la suite utilise `from back_office_lmelp.app import app` (sans préfixe). Python traite ces deux chemins comme des modules **distincts** dans `sys.modules` — une classe définie dans ce module (ex: une exception custom) existe alors en DEUX exemplaires : même nom qualifié affiché dans les tracebacks, mais `isinstance()`/`is` renvoie `False` entre les deux.
+    - **Symptôme caractéristique** : un test passe en isolation mais échoue selon la combinaison d'autres fichiers exécutés avant lui dans la même session pytest (non-déterministe par ordre de collecte, pas par timing) — typiquement un `except MonException:` qui ne catche pas alors que le code semble correct à la lecture.
+    - **Diagnostic rapide** : comparer `id(ClasseAttendue)` vs `id(type(exception_reçue))`, ou `ClasseAttendue is type(exception_reçue)`, plutôt que de re-vérifier la logique métier qui est probablement correcte.
+    - **Fix pragmatique** (sans toucher aux imports `src.` legacy, trop risqué à grande échelle) : dans le code de production qui catche l'exception, comparer par nom (`type(e).__name__ == "MonException"`) plutôt que `except MonException:` — inoffensif, une seule copie du module tourne réellement en production.
+
 ### Frontend Testing - Key Rules
 
 1. **Reset mocks between tests**: Use `vi.resetAllMocks()` in `beforeEach`
@@ -870,6 +876,55 @@ if not result:
     if result:
         result = scrape_from_author_page(result)
 ```
+
+### HTTP Gateway Bypass — Raw `session.get()` vs Centralized `_fetch_page()`
+
+**CRITICAL**: When a service exposes a centralized HTTP gateway method
+(e.g. `BabelioService._fetch_page()`) that applies specific headers and an
+authentication cookie, never call `session.get(url)` directly via
+`_get_session()` elsewhere in the codebase — even for "just a quick HTTP
+200 check".
+
+```python
+# ❌ WRONG - raw session bypasses page headers AND the stored auth cookie
+session = await babelio_service._get_session()
+async with session.get(url) as response:
+    if response.status != 200:
+        return None
+    html = await response.text()
+
+# ✅ CORRECT - goes through the gateway that applies page headers + cookie
+html = await babelio_service._fetch_page(url)
+if html is None:
+    return None
+```
+
+**Why this is dangerous**: `_get_session()` creates a session with a
+default header profile meant for API/AJAX calls (`Content-Type:
+application/json`, `X-Requested-With: XMLHttpRequest`) and without the
+site's stored auth cookie — only generic static cookies are set once at
+session creation. `_fetch_page()` uses a different header profile (real
+page navigation headers) and injects the stored cookie on every call. A
+site can accept the gateway's requests while silently blocking (403) the
+same URL fetched through a raw `session.get()` — even seconds after a
+successful `_fetch_page()` call to a nearly-identical URL, since the two
+code paths use completely different request fingerprints. This produces a
+confusing symptom: "authentication looks fine (cookie present, no ban),
+but this one specific check keeps failing."
+
+**How to find every occurrence**: grep the whole codebase for
+`_get_session()` (or the service's raw-session accessor) — one already-
+fixed call site is not proof the others were fixed too; each was
+introduced independently over time by different features/scripts reaching
+for "a quick way to hit this URL".
+
+**Testing implication**: a mock that stubs `_get_session()`/`session.get()`
+for such a function will keep passing after you migrate the function to
+`_fetch_page()` — because a full `AsyncMock()` auto-mocks the new method
+call too and returns a truthy non-`None` object. Update the test's mock to
+target `_fetch_page()` explicitly, and assert it was called with the
+expected URL, to actually verify the fix rather than accidentally keep
+testing the old code path.
 
 ### Dynamic URL Configuration with Health Checks
 

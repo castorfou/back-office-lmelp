@@ -5,7 +5,7 @@ même quand la Phase 1 (migration des livres) se termine car il n'y a
 plus de livres en attente (pending_count = 0).
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -73,10 +73,6 @@ class TestMigrationRunnerPhase2:
             }
         )
 
-        # Mock BabelioService
-        mock_babelio_service = MagicMock()
-        mock_babelio_service.close = AsyncMock()
-
         with (
             patch(
                 "src.back_office_lmelp.utils.migration_runner.migrate_one_book_and_author",
@@ -89,10 +85,6 @@ class TestMigrationRunnerPhase2:
             patch(
                 "src.back_office_lmelp.utils.migration_runner.process_one_author",
                 mock_process_one,
-            ),
-            patch(
-                "src.back_office_lmelp.utils.migration_runner.BabelioService",
-                return_value=mock_babelio_service,
             ),
         ):
             # Act

@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from back_office_lmelp.services.babelio_service import BabelioService
+from back_office_lmelp.services.babelio_service import babelio_service
 
 
 # Import migrate_one_book_and_author from scripts
@@ -239,8 +239,11 @@ class MigrationRunner:
     async def _run_python_migration(self) -> None:
         """Background task to run migration using Python function directly."""
         try:
-            # Create BabelioService instance
-            babelio_service = BabelioService()
+            # Issue #304: réutiliser le singleton partagé babelio_service (pas
+            # une nouvelle instance) — sinon le cookie/circuit breaker de cette
+            # migration seraient invisibles depuis la page Contrôle Babelio
+            # (et vice-versa : un cookie corrigé pendant la migration n'aurait
+            # aucun effet sur elle).
 
             # Loop until no more books or stopped
             max_iterations = 1000
@@ -344,6 +347,25 @@ class MigrationRunner:
 
                     logger.info(summary)
 
+                    # Issue #304: ni "blocked_403" (cookie Babelio expiré,
+                    # circuit breaker ouvert côté serveur) ni "error"
+                    # (timeout/erreur réseau transitoire) ne sont jamais
+                    # exclus des runs futurs — volontairement, un échec
+                    # technique ne doit pas être confondu avec un vrai
+                    # "livre introuvable" (cf. commentaire dans
+                    # migrate_url_babelio.py). Mais ceci signifie aussi que,
+                    # dans CETTE MÊME run, ce livre sera retrouvé identique à
+                    # l'itération suivante et retenté indéfiniment jusqu'à
+                    # épuiser max_iterations. Arrêter net dans les deux cas ;
+                    # l'utilisateur corrige le cookie (403) ou retente plus
+                    # tard (timeout/réseau) puis relance.
+                    if status in ("blocked_403", "error"):
+                        logger.warning(
+                            f"🚫 Échec sur '{titre}' (status={status}) — arrêt de "
+                            "la migration pour éviter de boucler sur ce même livre"
+                        )
+                        break
+
                     # Small delay between books
                     await asyncio.sleep(1)
 
@@ -376,8 +398,12 @@ class MigrationRunner:
                         f"🔄 [{idx}/{total_authors}] Traitement: {nom_auteur} ({nb_livres} livres)"
                     )
 
-                    # Traiter cet auteur
-                    author_result = await process_one_author(author_data, dry_run=False)
+                    # Traiter cet auteur (singleton partagé, pas d'instance isolée)
+                    author_result = await process_one_author(
+                        author_data,
+                        dry_run=False,
+                        babelio_service=babelio_service,
+                    )
 
                     auteur_updated = author_result.get("auteur_updated", False)
                     raison = author_result.get("raison", "")
@@ -445,8 +471,9 @@ class MigrationRunner:
                 f"✅ Phase 2 terminée - {authors_completed} auteurs complétés sur {total_authors} auteurs traités"
             )
 
-            # Close babelio service
-            await babelio_service.close()
+            # Issue #304: ne PAS fermer babelio_service — c'est le singleton
+            # partagé avec le reste de l'application (page Contrôle Babelio,
+            # validation manuelle), pas une instance dédiée à cette migration.
 
             # Mark as complete
             if self.is_running:

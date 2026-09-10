@@ -22,3 +22,4 @@ nav:
   - Playwright MCP: playwright-mcp.md
   - Déploiement: deployment.md
   - Sécurité: security.md
+  - Blocage IP: blocage_ip.md
