@@ -23,6 +23,7 @@ import OnKindle from '../views/OnKindle.vue';
 import Recommendations from '../views/Recommendations.vue';
 import BabelioControl from '../views/BabelioControl.vue';
 import RssMonitoring from '../views/RssMonitoring.vue';
+import PgxTranscription from '../views/PgxTranscription.vue';
 
 const routes = [
   {
@@ -215,6 +216,14 @@ const routes = [
     component: RssMonitoring,
     meta: {
       title: 'Monitoring RSS - Back-office LMELP'
+    }
+  },
+  {
+    path: '/transcription-pgx',
+    name: 'PgxTranscription',
+    component: PgxTranscription,
+    meta: {
+      title: 'Transcription PGX - Back-office LMELP'
     }
   },
   {

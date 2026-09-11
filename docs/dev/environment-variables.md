@@ -157,6 +157,30 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 🔍 [DEBUG] _find_best_book_match: 1 livre(s) après filtre auteur (seuil>0.7)
 ```
 
+## Transcription PGX (Issue #302)
+
+| Variable | Description | Valeur par défaut | Exemple |
+|----------|-------------|------------------|---------|
+| `PGX_HOST` | IP directe de la station PGX (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement) | Aucune (requis pour activer PGX) | `192.168.50.151` |
+| `PGX_USER` | Utilisateur SSH sur PGX | Aucune (requis) | `f279814` |
+| `PGX_SSH_KEY_PATH` | Chemin de la clé privée SSH dédiée à PGX (générée automatiquement si absente à ce chemin, via `ensure_pgx_ssh_key()`) | Aucune (requis) | `/app/keys/pgx_ed25519` |
+| `PGX_REMOTE_AUDIO_ROOT` | Répertoire distant racine des audios sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/audios` |
+| `PGX_REMOTE_TRANSCRIPTION_ROOT` | Répertoire distant racine des transcriptions sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/transcriptions` |
+| `PGX_TRANSCRIPTION_TIMEOUT_S` | Délai max d'attente (secondes) d'une transcription générée par le watcher PGX | `1800` (30 min) | `3600` |
+| `PGX_POLL_INTERVAL_S` | Intervalle de poll SSH (secondes) pendant l'attente d'une transcription | `10` | `5` |
+
+Les 5 premières variables sont toutes requises pour activer les
+fonctionnalités PGX (`GET /api/pgx/diagnostics` renvoie sinon
+`missing_vars` sans tenter d'appel réseau). PGX doit être allumée
+manuellement (Wi-Fi uniquement, veille système désactivée) — aucun réveil
+à distance n'est tenté.
+
+**Cache local** : avant d'envoyer un épisode vers PGX, le pipeline vérifie
+si un fichier `<audio>.txt` existe déjà à côté du fichier audio local
+(`AUDIO_STORAGE_PATH`) — si oui, la transcription est lue directement sans
+solliciter PGX (utile pour rejouer un traitement, ou si une transcription a
+déjà été produite lors d'un run antérieur).
+
 ## Configuration frontend
 
 Le frontend n'utilise aucune variable d'environnement pour sa configuration réseau :

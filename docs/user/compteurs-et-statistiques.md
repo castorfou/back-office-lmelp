@@ -31,8 +31,8 @@ db.episodes.count({
   ]
 })
 ```
-**Clic:** Ouvre lmelp (application historique), où se lance encore la transcription.
-**Note importante:** Cette métrique n'est **pas** mise en cache (contrairement aux autres tuiles du dashboard, cache 5 min) car la transcription est effectuée depuis lmelp, une application externe dont ce back-office ne peut observer les écritures pour invalider un cache automatiquement. Endpoint dédié : `GET /api/episodes/without-transcription/count`.
+**Clic:** Ouvre la page transcription PGX (`/transcription-pgx`), où la transcription peut être lancée directement depuis ce back-office — voir `docs/user/transcription-pgx.md`.
+**Note :** Cette métrique est intégrée au payload caché standard du dashboard (`/api/dashboard/stats`, cache 5 min), invalidé automatiquement à chaque écriture du champ `transcription` sur la collection `episodes`.
 
 ### 3. Épisodes sans avis critiques
 **Valeur:** Nombre d'épisodes non masqués, avec transcription, sans avis critique

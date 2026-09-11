@@ -1,5 +1,6 @@
 """Service autonome pour la consultation des statistiques du cache livres/auteurs."""
 
+from datetime import datetime
 from typing import Any
 
 from .livres_auteurs_cache_service import livres_auteurs_cache_service
@@ -43,6 +44,17 @@ class StatsService:
 
         # Issue #238: Livres avec url_babelio mais sans url_cover
         stats["books_without_cover"] = self._count_books_without_cover()
+
+        # Issue #302: Épisodes sans transcription, réintégré au payload caché
+        # standard (auparavant endpoint dédié non-caché, nécessaire tant que
+        # la transcription se lançait depuis lmelp — une appli externe dont ce
+        # backend ne pouvait pas observer les écritures pour invalider le
+        # cache dashboard). Le pipeline PGX écrit désormais `transcription`
+        # via ce même MongoClient, donc DashboardStatsInvalidationListener
+        # invalide nativement ce cache sur toute écriture `episodes`.
+        stats["episodes_without_transcription_count"] = (
+            self._count_episodes_without_transcription()
+        )
 
         return stats
 
@@ -522,6 +534,24 @@ Total livres traités : {total_traites}"""
 
         return count
 
+    _EPISODES_WITHOUT_TRANSCRIPTION_FILTER = {
+        "$and": [
+            {
+                "$or": [
+                    {"masked": {"$ne": True}},
+                    {"masked": {"$exists": False}},
+                ]
+            },
+            {
+                "$or": [
+                    {"transcription": None},
+                    {"transcription": ""},
+                    {"transcription": {"$exists": False}},
+                ]
+            },
+        ]
+    }
+
     def _count_episodes_without_transcription(self) -> int:
         """
         Compte les épisodes non masqués sans transcription (Issue #298).
@@ -536,25 +566,38 @@ Total livres traités : {total_traites}"""
         episodes_collection = self.mongodb_service.get_collection("episodes")
         return int(
             episodes_collection.count_documents(
-                {
-                    "$and": [
-                        {
-                            "$or": [
-                                {"masked": {"$ne": True}},
-                                {"masked": {"$exists": False}},
-                            ]
-                        },
-                        {
-                            "$or": [
-                                {"transcription": None},
-                                {"transcription": ""},
-                                {"transcription": {"$exists": False}},
-                            ]
-                        },
-                    ]
-                }
+                self._EPISODES_WITHOUT_TRANSCRIPTION_FILTER
             )
         )
+
+    def get_episodes_without_transcription(self) -> list[dict[str, Any]]:
+        """
+        Liste les épisodes non masqués sans transcription (Issue #302).
+
+        Même filtre que _count_episodes_without_transcription(), mais retourne
+        les documents (id/titre/date) pour peupler la sélection de la file de
+        transcription PGX, plutôt qu'un simple compte.
+
+        Returns:
+            Liste de dicts {id, titre, date}
+        """
+        episodes_collection = self.mongodb_service.get_collection("episodes")
+        episodes = episodes_collection.find(
+            self._EPISODES_WITHOUT_TRANSCRIPTION_FILTER, {"titre": 1, "date": 1}
+        )
+        result = []
+        for episode in episodes:
+            date_value = episode.get("date")
+            result.append(
+                {
+                    "id": str(episode["_id"]),
+                    "titre": episode.get("titre"),
+                    "date": date_value.isoformat()
+                    if isinstance(date_value, datetime)
+                    else date_value,
+                }
+            )
+        return result
 
     def _count_books_without_cover(self) -> int:
         """Compte les livres avec url_babelio mais sans url_cover (Issue #238)."""

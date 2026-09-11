@@ -60,3 +60,4 @@ Si configurées (voir `docs/dev/environment-variables.md`), des notifications so
 ## Voir aussi
 
 - `docs/dev/rss-sync.md` (détail technique du service de synchronisation)
+- `docs/user/transcription-pgx.md` — page dédiée `/transcription-pgx`, accessible depuis la même section "Podcast Masque Et La Plume" du tableau de bord

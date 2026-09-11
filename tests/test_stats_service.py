@@ -1,10 +1,14 @@
 """Tests TDD pour le service autonome de consultation des statistiques."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from bson import ObjectId
 
 from back_office_lmelp.services.stats_service import StatsService
+
+
+FAKE_EPISODE_ID = "507f1f77bcf86cd799439011"  # pragma: allowlist secret
 
 
 class TestStatsService:
@@ -56,6 +60,7 @@ class TestStatsService:
                 "avis_critiques_without_analysis": 0,
                 "emissions_sans_avis": 0,
                 "emissions_with_problems": 0,
+                "episodes_without_transcription_count": 0,
             }
             assert result == expected_result
             mock_cache.get_statistics_from_cache.assert_called_once()
@@ -564,6 +569,61 @@ Total livres traités : 14"""
                 }
             )
             assert result == 1
+
+    def test_get_episodes_without_transcription_should_use_same_filter_as_count(self):
+        """Issue #302: get_episodes_without_transcription() (find) applique le même
+        filtre que _count_episodes_without_transcription() (count_documents), et
+        retourne id/titre/date pour peupler la sélection UI PGX.
+
+        MongoDB retourne un datetime pour le champ date (pas une string) — le
+        service doit le convertir en ISO string pour rester JSON-sérialisable
+        par l'endpoint FastAPI qui l'expose (piège réel rencontré Issue #302:
+        JSONResponse lève "Object of type datetime is not JSON serializable").
+        """
+        with patch(
+            "back_office_lmelp.services.stats_service.mongodb_service"
+        ) as mock_mongodb:
+            mock_episodes_collection = MagicMock()
+            mock_mongodb.get_collection.return_value = mock_episodes_collection
+            mock_episodes_collection.find.return_value = [
+                {
+                    "_id": ObjectId(FAKE_EPISODE_ID),
+                    "titre": "Episode A",
+                    "date": datetime(2026, 1, 1, 10, 10, 50, tzinfo=UTC),
+                },
+            ]
+
+            stats_service = StatsService()
+            result = stats_service.get_episodes_without_transcription()
+
+            mock_mongodb.get_collection.assert_called_once_with("episodes")
+            mock_episodes_collection.find.assert_called_once_with(
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"masked": {"$ne": True}},
+                                {"masked": {"$exists": False}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"transcription": None},
+                                {"transcription": ""},
+                                {"transcription": {"$exists": False}},
+                            ]
+                        },
+                    ]
+                },
+                {"titre": 1, "date": 1},
+            )
+            assert result == [
+                {
+                    "id": FAKE_EPISODE_ID,
+                    "titre": "Episode A",
+                    "date": "2026-01-01T10:10:50+00:00",
+                }
+            ]
 
     def test_count_episodes_without_avis_critiques_should_exclude_episodes_without_transcription(
         self,

@@ -164,7 +164,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 🏗️ **Architecture cache-first** : Collection `livresauteurs_cache` avec `LivresAuteursCacheService` TDD complet
 - 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
 - ⚡ **Cache dashboard 5 min** : Statistiques agrégées (`/api/dashboard/stats`) mises en cache, invalidées automatiquement à chaque écriture MongoDB pertinente, avec bouton "Actualiser" pour forcer le rafraîchissement
-- 🎙️ **Tuile "Épisodes sans transcription"** : Métrique volontairement hors cache (`/api/episodes/without-transcription/count`), la transcription se lançant encore depuis lmelp — lien externe vers cette appli
+- 🎙️ **Tuile "Épisodes sans transcription"** : Métrique intégrée au payload caché standard du dashboard, navigue vers la page transcription PGX dédiée (`/transcription-pgx`)
 - 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
 - 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)
@@ -223,6 +223,14 @@ export BABELIO_CACHE_LOG=1
 - 🔌 **Déclenchement flexible** : Bouton manuel sur `/rss-monitoring` ou appel API REST (`POST /api/rss/sync`) pour une automatisation externe (n8n, Automatisch)
 - 🔔 **Notifications ntfy.sh** : Alerte configurable en fin de synchronisation (épisode téléchargé ou non retenu)
 - 📋 **Monitoring dédié** : Page `/rss-monitoring` avec historique horodaté des synchronisations et détail par épisode
+
+#### Transcription PGX
+- 🖥️ **Station GPU dédiée** : Pipeline de transcription automatisée via SSH/SCP vers la station GPU PGX (portage complet depuis lmelp, Issue #302)
+- 🔍 **Diagnostic en direct** : Checklist joignabilité / authentification SSH (clé dédiée) / répertoires distants, sur la section `/rss-monitoring#pgx`
+- ▶️ **Traitement en file** : Lance en une action tous les épisodes sans transcription, traités séquentiellement (une seule machine GPU)
+- 💾 **Cache local** : Réutilise une transcription déjà présente localement (`<audio>.txt`) sans re-solliciter PGX
+- 📊 **Suivi en temps réel** : Progression par épisode (envoi → attente → rapatriement), polling toutes les 2s
+- 🔌 **Aucun réveil à distance** : PGX doit être allumée manuellement (Wi-Fi uniquement, veille système désactivée)
 
 #### Moteur de Recherche Textuelle
 - 🔍 **Recherche multi-collections** : Episodes, auteurs, livres, éditeurs
@@ -307,7 +315,12 @@ GET /api/episodes-with-reviews    # Episodes ayant des avis critiques
 # Dashboard
 GET /api/dashboard/stats                     # Statistiques agrégées des 14 tuiles, mises en cache 5 min
 POST /api/dashboard/stats/cache/invalidate    # Force le rafraîchissement (bouton "Actualiser")
-GET /api/episodes/without-transcription/count # Épisodes sans transcription, non caché (migration lmelp)
+
+# Transcription PGX (Issue #302)
+GET /api/pgx/diagnostics                       # Checklist joignabilité/auth SSH/répertoires distants
+GET /api/pgx/episodes-without-transcription     # Liste des épisodes en attente de transcription
+POST /api/pgx/transcription/start               # Lance le traitement de la file (tous les épisodes en attente)
+GET /api/pgx/transcription/progress             # Progression en cours (polling)
 
 # Gestion des collections
 GET /api/livres-auteurs/statistics           # Statistiques des collections

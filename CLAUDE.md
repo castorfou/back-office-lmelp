@@ -926,6 +926,45 @@ target `_fetch_page()` explicitly, and assert it was called with the
 expected URL, to actually verify the fix rather than accidentally keep
 testing the old code path.
 
+### Subprocess Calls to External System Tools — asyncio, Never Blocking
+
+**CRITICAL**: When a service needs to shell out to an external system tool
+(ssh, scp, ssh-keygen, or any CLI), use `asyncio.create_subprocess_exec` +
+`await process.communicate()`, never `subprocess.run()`/`subprocess.Popen()`
+directly inside a coroutine.
+
+```python
+# ❌ WRONG - blocks the entire asyncio event loop while the subprocess runs
+async def send_audio_to_pgx(local_path: str, remote_dir: str, ...) -> None:
+    subprocess.run(["scp", "-i", key_path, local_path, f"{user}@{host}:{remote_dir}/"])
+
+# ✅ CORRECT - yields control back to the event loop while waiting
+async def send_audio_to_pgx(local_path: str, remote_dir: str, ...) -> None:
+    process = await asyncio.create_subprocess_exec(
+        "scp", "-i", key_path, local_path, f"{user}@{host}:{remote_dir}/",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_s)
+```
+
+**Why this matters**: this backend runs a single asyncio event loop serving
+all HTTP requests. A blocking `subprocess.run()` inside a coroutine (even
+one awaited from a `asyncio.create_task()`-based background runner, cf.
+`MigrationRunner`/`PgxTranscriptionRunner`) freezes every other request —
+dashboard stats, other endpoints, everything — for the full duration of the
+external command (an `scp` of an audio file, or an `ssh` poll that legitimately
+takes seconds).
+
+**Same reasoning for TCP reachability checks**: use `asyncio.open_connection()`
+wrapped in `asyncio.wait_for()`, not a blocking `socket.create_connection()`.
+
+**Example**: `src/back_office_lmelp/services/pgx_service.py` (Issue #302) —
+first service in this backend to talk to an external system tool (ssh/scp
+for the PGX transcription pipeline); ported from a synchronous
+`subprocess.run()`-based module in `castorfou/lmelp` (`nbs/pgx.py`), adapted
+to asyncio throughout since it now runs inside this backend's shared event
+loop rather than a standalone Streamlit process.
+
 ### Dynamic URL Configuration with Health Checks
 
 **Pattern**: Multi-tier fallback for external service URLs that change frequently.

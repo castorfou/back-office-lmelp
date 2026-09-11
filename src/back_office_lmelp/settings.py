@@ -134,6 +134,42 @@ class Settings:
         """Topic ntfy.sh (NTFY_TOPIC). None désactive les notifications."""
         return os.environ.get("NTFY_TOPIC") or None
 
+    # Transcription PGX (Issue #302)
+    @property
+    def pgx_host(self) -> str | None:
+        """IP de la station PGX (PGX_HOST). Toujours une IP directe, jamais un nom .local."""
+        return os.environ.get("PGX_HOST") or None
+
+    @property
+    def pgx_user(self) -> str | None:
+        """Utilisateur SSH sur PGX (PGX_USER)."""
+        return os.environ.get("PGX_USER") or None
+
+    @property
+    def pgx_ssh_key_path(self) -> str | None:
+        """Chemin de la clé privée SSH dédiée à PGX (PGX_SSH_KEY_PATH)."""
+        return os.environ.get("PGX_SSH_KEY_PATH") or None
+
+    @property
+    def pgx_remote_audio_root(self) -> str | None:
+        """Répertoire distant racine des audios sur PGX (PGX_REMOTE_AUDIO_ROOT)."""
+        return os.environ.get("PGX_REMOTE_AUDIO_ROOT") or None
+
+    @property
+    def pgx_remote_transcription_root(self) -> str | None:
+        """Répertoire distant racine des transcriptions sur PGX (PGX_REMOTE_TRANSCRIPTION_ROOT)."""
+        return os.environ.get("PGX_REMOTE_TRANSCRIPTION_ROOT") or None
+
+    @property
+    def pgx_transcription_timeout_s(self) -> float:
+        """Délai max d'attente d'une transcription PGX (PGX_TRANSCRIPTION_TIMEOUT_S, défaut 1800s)."""
+        return float(os.environ.get("PGX_TRANSCRIPTION_TIMEOUT_S", "1800"))
+
+    @property
+    def pgx_poll_interval_s(self) -> float:
+        """Intervalle de poll SSH pendant l'attente d'une transcription (PGX_POLL_INTERVAL_S, défaut 10s)."""
+        return float(os.environ.get("PGX_POLL_INTERVAL_S", "10"))
+
 
 @lru_cache
 def get_settings() -> Settings:
