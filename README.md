@@ -226,7 +226,8 @@ export BABELIO_CACHE_LOG=1
 
 #### Transcription PGX
 - 🖥️ **Station GPU dédiée** : Pipeline de transcription automatisée via SSH/SCP vers la station GPU PGX (portage complet depuis lmelp, Issue #302)
-- 🔍 **Diagnostic en direct** : Checklist joignabilité / authentification SSH (clé dédiée) / répertoires distants, sur la section `/rss-monitoring#pgx`
+- 🔍 **Diagnostic en direct** : Checklist joignabilité / authentification SSH (clé dédiée) / répertoires distants, toujours visible sur `/transcription-pgx` (y compris quand la configuration est incomplète)
+- 🔑 **Clé SSH dédiée** : Affichage de la clé publique et de la commande `authorized_keys` à exécuter sur PGX, dès que `PGX_SSH_KEY_PATH` est configuré
 - ▶️ **Traitement en file** : Lance en une action tous les épisodes sans transcription, traités séquentiellement (une seule machine GPU)
 - 💾 **Cache local** : Réutilise une transcription déjà présente localement (`<audio>.txt`) sans re-solliciter PGX
 - 📊 **Suivi en temps réel** : Progression par épisode (envoi → attente → rapatriement), polling toutes les 2s
@@ -318,6 +319,7 @@ POST /api/dashboard/stats/cache/invalidate    # Force le rafraîchissement (bout
 
 # Transcription PGX (Issue #302)
 GET /api/pgx/diagnostics                       # Checklist joignabilité/auth SSH/répertoires distants
+GET /api/pgx/ssh-key                           # Clé SSH publique dédiée à autoriser sur PGX
 GET /api/pgx/episodes-without-transcription     # Liste des épisodes en attente de transcription
 POST /api/pgx/transcription/start               # Lance le traitement de la file (tous les épisodes en attente)
 GET /api/pgx/transcription/progress             # Progression en cours (polling)

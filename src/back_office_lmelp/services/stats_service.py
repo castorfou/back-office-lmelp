@@ -1,10 +1,17 @@
 """Service autonome pour la consultation des statistiques du cache livres/auteurs."""
 
+import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from .livres_auteurs_cache_service import livres_auteurs_cache_service
 from .mongodb_service import mongodb_service
+
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class StatsService:
@@ -14,6 +21,20 @@ class StatsService:
         """Initialise le service de statistiques."""
         self.cache_service = livres_auteurs_cache_service
         self.mongodb_service = mongodb_service
+
+    def _safe(self, metric_name: str, fn: Callable[[], T]) -> T | None:
+        """Exécute une fonction de calcul de métrique en isolant son échec.
+
+        Issue #310: avant ce garde-fou, une exception dans un seul compteur
+        (ex: collection MongoDB temporairement inaccessible) faisait échouer
+        tout `get_cache_statistics()`, donc tout `/api/dashboard/stats` —
+        cassant les 14 tuiles du dashboard pour une seule métrique en panne.
+        """
+        try:
+            return fn()
+        except Exception as e:
+            logger.error(f"Erreur lors du calcul de la métrique '{metric_name}': {e}")
+            return None
 
     def get_cache_statistics(self) -> dict[str, Any]:
         """
@@ -26,24 +47,38 @@ class StatsService:
         stats = dict(result) if result else {}
 
         # Issue #124: Ajouter métriques de complétude URL Babelio
-        stats["books_without_url_babelio"] = self._count_books_without_url_babelio()
-        stats["authors_without_url_babelio"] = self._count_authors_without_url_babelio()
+        stats["books_without_url_babelio"] = self._safe(
+            "books_without_url_babelio", self._count_books_without_url_babelio
+        )
+        stats["authors_without_url_babelio"] = self._safe(
+            "authors_without_url_babelio", self._count_authors_without_url_babelio
+        )
 
         # Issue #128: Ajouter nouvelles métriques
-        stats["last_episode_date"] = self._get_last_episode_date()
-        stats["episodes_without_avis_critiques"] = (
-            self._count_episodes_without_avis_critiques()
+        stats["last_episode_date"] = self._safe(
+            "last_episode_date", self._get_last_episode_date
         )
-        stats["avis_critiques_without_analysis"] = (
-            self._count_avis_critiques_without_analysis()
+        stats["episodes_without_avis_critiques"] = self._safe(
+            "episodes_without_avis_critiques",
+            self._count_episodes_without_avis_critiques,
+        )
+        stats["avis_critiques_without_analysis"] = self._safe(
+            "avis_critiques_without_analysis",
+            self._count_avis_critiques_without_analysis,
         )
 
         # Issue #185: Ajouter métriques des badges d'émissions
-        stats["emissions_sans_avis"] = self._count_emissions_sans_avis()
-        stats["emissions_with_problems"] = self._count_emissions_with_problems()
+        stats["emissions_sans_avis"] = self._safe(
+            "emissions_sans_avis", self._count_emissions_sans_avis
+        )
+        stats["emissions_with_problems"] = self._safe(
+            "emissions_with_problems", self._count_emissions_with_problems
+        )
 
         # Issue #238: Livres avec url_babelio mais sans url_cover
-        stats["books_without_cover"] = self._count_books_without_cover()
+        stats["books_without_cover"] = self._safe(
+            "books_without_cover", self._count_books_without_cover
+        )
 
         # Issue #302: Épisodes sans transcription, réintégré au payload caché
         # standard (auparavant endpoint dédié non-caché, nécessaire tant que
@@ -52,8 +87,9 @@ class StatsService:
         # cache dashboard). Le pipeline PGX écrit désormais `transcription`
         # via ce même MongoClient, donc DashboardStatsInvalidationListener
         # invalide nativement ce cache sur toute écriture `episodes`.
-        stats["episodes_without_transcription_count"] = (
-            self._count_episodes_without_transcription()
+        stats["episodes_without_transcription_count"] = self._safe(
+            "episodes_without_transcription_count",
+            self._count_episodes_without_transcription,
         )
 
         return stats

@@ -63,7 +63,8 @@ URL directe : `/transcription-pgx`
 ## Vérifier la configuration
 
 La checklist de diagnostic s'exécute **automatiquement** au chargement de la page, avec un
-statut 🟢/🔴/⚪ par étape :
+statut 🟢/🔴/⚪ par étape, et reste **toujours visible** — y compris quand la configuration
+PGX est incomplète :
 
 1. **Machine joignable** — le port SSH répond.
 2. **Authentification SSH (clé dédiée)** — une vraie connexion est testée (pas juste le
@@ -74,12 +75,31 @@ statut 🟢/🔴/⚪ par étape :
 
 Chaque étape court-circuite les suivantes si elle échoue (inutile de tester
 l'authentification si injoignable, par exemple). Si des variables d'environnement PGX sont
-manquantes (voir `docs/dev/environment-variables.md`), la checklist n'est pas exécutée et un
-message liste les variables absentes.
+manquantes (voir `docs/dev/environment-variables.md`), aucun appel réseau n'est tenté : les 4
+étapes s'affichent en statut ⚪ (non exécuté) et un message au-dessus liste les variables
+absentes.
 
-Le bouton **"🔄 Rafraîchir le statut"** relance manuellement la checklist et la liste des
-épisodes en attente, sans recharger toute la page (utile après avoir allumé PGX ou déployé
-une clé SSH sur `authorized_keys`).
+Le bouton **"🔄 Rafraîchir le statut"** relance manuellement la checklist, la clé SSH et la
+liste des épisodes en attente, sans recharger toute la page (utile après avoir allumé PGX ou
+déployé une clé SSH sur `authorized_keys`).
+
+## Clé SSH dédiée
+
+Dès que `PGX_SSH_KEY_PATH` est configuré (voir `docs/dev/environment-variables.md`), la page
+affiche :
+
+- La **clé publique** générée automatiquement au premier démarrage (idempotent : la même
+  clé est réutilisée à chaque redémarrage tant que le fichier existe à cet emplacement — sur
+  un volume Docker persistant en production, elle ne change donc jamais après le premier
+  déploiement).
+- La **commande à exécuter sur PGX** pour l'autoriser :
+  ```bash
+  echo '<clé publique>' >> ~/.ssh/authorized_keys
+  ```
+
+Cette section reste visible même si le reste de la configuration (`PGX_HOST`, `PGX_USER`,
+répertoires distants) est encore incomplet — la clé doit pouvoir être déployée sur PGX en
+amont, avant que les autres variables ne soient renseignées.
 
 ## Dépannage {#depannage}
 
@@ -122,7 +142,16 @@ d'une tout autre cause :
 - Pour un épisode particulièrement long, augmentez `PGX_TRANSCRIPTION_TIMEOUT_S` (voir
   `docs/dev/environment-variables.md`).
 
+### Erreur `[Errno 2] No such file or directory` dans les logs backend
+
+Toutes les étapes de diagnostic échouent avec cette erreur (et non un message d'échec
+d'authentification ou de joignabilité). Cela signifie que les commandes système `ssh`/`scp`
+ne sont pas installées dans l'environnement d'exécution du backend — pas un problème de
+configuration PGX. En déploiement Docker, vérifiez que l'image du service `backend` inclut
+bien le paquet `openssh-client` (voir `docs/dev/environment-variables.md` et la
+documentation `docker-lmelp` du service `backend`).
+
 ## Voir aussi
 
 - `docs/dev/environment-variables.md` — configuration complète des variables `PGX_*`.
-- `docs/user/rss-monitoring.md` — page où se trouve la section transcription PGX.
+- `docs/dev/pgx-transcription.md` — documentation développeur (architecture, patterns).

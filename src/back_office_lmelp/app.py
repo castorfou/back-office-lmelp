@@ -3774,6 +3774,28 @@ async def get_pgx_diagnostics() -> JSONResponse:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@app.get("/api/pgx/ssh-key")
+async def get_pgx_ssh_key() -> JSONResponse:
+    """Clé publique SSH dédiée à PGX, à autoriser dans `authorized_keys` sur PGX.
+
+    Génère la paire de clés si elle n'existe pas encore (idempotent, voir
+    `pgx_service.ensure_pgx_ssh_key`). Ne nécessite pas que le reste de la
+    configuration PGX (host/user/répertoires distants) soit complet : la clé
+    doit pouvoir être affichée et déployée sur PGX avant même que ces autres
+    variables ne soient renseignées.
+    """
+    try:
+        key_path = settings.pgx_ssh_key_path
+        if not key_path:
+            return JSONResponse(content={"public_key": None, "missing_config": True})
+
+        public_key = await pgx_service.ensure_pgx_ssh_key(key_path)
+        return JSONResponse(content={"public_key": public_key, "missing_config": False})
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la clé SSH PGX: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.get("/api/pgx/episodes-without-transcription")
 async def get_pgx_episodes_without_transcription() -> JSONResponse:
     """Liste les épisodes sans transcription — file traitée par le pipeline PGX."""

@@ -24,16 +24,28 @@
           Configuration PGX incomplète — variables manquantes :
           {{ pgxMissingVars.join(', ') }}
         </div>
-        <template v-else>
-          <div class="pgx-diagnostics">
-            <div v-for="diag in pgxDiagnostics" :key="diag.name" class="pgx-diag-row">
-              <span class="badge" :class="pgxStatusBadgeClass(diag.status)">
-                {{ pgxStatusIcon(diag.status) }}
-              </span>
-              <strong>{{ diag.name }}</strong> — {{ diag.detail }}
-            </div>
-          </div>
 
+        <div class="pgx-diagnostics">
+          <div
+            v-for="diag in pgxDiagnosticsDisplay"
+            :key="diag.name"
+            class="pgx-diag-row"
+          >
+            <span class="badge" :class="pgxStatusBadgeClass(diag.status)">
+              {{ pgxStatusIcon(diag.status) }}
+            </span>
+            <strong>{{ diag.name }}</strong> — {{ diag.detail }}
+          </div>
+        </div>
+
+        <div v-if="sshPublicKey" data-testid="pgx-ssh-public-key" class="pgx-ssh-key-section">
+          <p class="pgx-ssh-key-label">Clé SSH dédiée — à autoriser sur PGX :</p>
+          <pre class="pgx-ssh-key-block"><code>{{ sshPublicKey }}</code></pre>
+          <p class="pgx-ssh-key-label">Commande à exécuter sur PGX :</p>
+          <pre class="pgx-ssh-key-block"><code>echo '{{ sshPublicKey }}' >> ~/.ssh/authorized_keys</code></pre>
+        </div>
+
+        <template v-if="pgxMissingVars.length === 0">
           <div v-if="pgxEpisodes.length > 0" class="pgx-episodes-summary">
             <p class="pgx-episodes-count">{{ pgxEpisodes.length }} épisode(s) seront traités :</p>
             <ul class="pgx-episodes-list">
@@ -91,6 +103,13 @@
 import Navigation from '../components/Navigation.vue';
 import axios from 'axios';
 
+const PGX_DIAGNOSTIC_STEP_NAMES = [
+  'Machine joignable',
+  'Authentification SSH (clé dédiée)',
+  'Répertoire audio distant',
+  'Répertoire transcriptions distant',
+];
+
 export default {
   name: 'PgxTranscription',
   components: { Navigation },
@@ -100,6 +119,7 @@ export default {
       pgxDiagnostics: [],
       pgxMissingVars: [],
       pgxEpisodes: [],
+      sshPublicKey: null,
       pgxProgress: {
         is_running: false,
         episode_ids: [],
@@ -124,6 +144,22 @@ export default {
       );
     },
 
+    pgxDiagnosticsDisplay() {
+      // Issue #310: la checklist reste toujours visible, même quand la
+      // config PGX est incomplète — dans ce cas le backend renvoie une
+      // liste vide (pas d'appel réseau, piège lmelp #110), donc on affiche
+      // les 4 étapes connues avec un statut "skipped" grisé plutôt que de
+      // masquer toute la section derrière le seul message d'avertissement.
+      if (this.pgxMissingVars.length > 0) {
+        return PGX_DIAGNOSTIC_STEP_NAMES.map((name) => ({
+          name,
+          status: 'skipped',
+          detail: 'Configuration PGX incomplète',
+        }));
+      }
+      return this.pgxDiagnostics;
+    },
+
     pgxProgressPercentage() {
       if (this.pgxProgress.episode_ids.length === 0) return 0;
       return Math.round(
@@ -134,6 +170,7 @@ export default {
 
   mounted() {
     this.loadPgxDiagnostics();
+    this.loadPgxSshKey();
     this.loadPgxEpisodes();
     this.checkPgxProgress();
   },
@@ -146,7 +183,11 @@ export default {
     async refreshStatus() {
       this.refreshing = true;
       try {
-        await Promise.all([this.loadPgxDiagnostics(), this.loadPgxEpisodes()]);
+        await Promise.all([
+          this.loadPgxDiagnostics(),
+          this.loadPgxSshKey(),
+          this.loadPgxEpisodes(),
+        ]);
       } finally {
         this.refreshing = false;
       }
@@ -159,6 +200,15 @@ export default {
         this.pgxMissingVars = res.data.missing_vars;
       } catch (e) {
         console.error('Erreur chargement diagnostics PGX', e);
+      }
+    },
+
+    async loadPgxSshKey() {
+      try {
+        const res = await axios.get('/api/pgx/ssh-key');
+        this.sshPublicKey = res.data.public_key;
+      } catch (e) {
+        console.error('Erreur chargement clé SSH PGX', e);
       }
     },
 
@@ -303,6 +353,27 @@ h2 {
 
 .pgx-diagnostics { margin-bottom: 1rem; }
 .pgx-diag-row { padding: 0.25rem 0; font-size: 0.9rem; }
+
+.pgx-ssh-key-section {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+.pgx-ssh-key-label { margin: 0.5rem 0 0.25rem; font-size: 0.85rem; font-weight: 600; color: #495057; }
+.pgx-ssh-key-label:first-child { margin-top: 0; }
+.pgx-ssh-key-block {
+  margin: 0;
+  padding: 0.5rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 
 .pgx-episodes-summary {
   margin-bottom: 1rem;

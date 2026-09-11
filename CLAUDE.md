@@ -965,6 +965,20 @@ for the PGX transcription pipeline); ported from a synchronous
 to asyncio throughout since it now runs inside this backend's shared event
 loop rather than a standalone Streamlit process.
 
+**CRITICAL — the Docker runtime image must actually install the binary**:
+`asyncio.create_subprocess_exec("ssh", ...)` raises
+`FileNotFoundError: [Errno 2] No such file or directory` if the binary
+isn't installed in the container — indistinguishable in the traceback from
+a wrong path. A devcontainer or local machine already has `ssh` installed
+system-wide, and the pytest suite mocks every subprocess call, so this gap
+is invisible until a real deployment. When porting a service that shells
+out to a system tool, grep the target Dockerfile's `apt-get install` line
+(e.g. `docker/build/backend/Dockerfile`) and confirm the package providing
+that binary (`openssh-client` for ssh/scp/ssh-keygen) is actually there —
+don't assume it's covered by an existing `curl`/`gosu`-only install line.
+Issue #310: `pgx_service.py` shipped in #302 without this, so the entire
+PGX pipeline failed with this exact error on first NAS deployment.
+
 ### Dynamic URL Configuration with Health Checks
 
 **Pattern**: Multi-tier fallback for external service URLs that change frequently.
@@ -1065,7 +1079,24 @@ self.client = MongoClient(self.mongo_url, event_listeners=[listener])
 
 **Example**: `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py` (Issue #279) — full details in [docs/dev/dashboard-stats-cache.md](docs/dev/dashboard-stats-cache.md)
 
-**Exception — metrics whose writes happen outside this MongoClient**: the `CommandListener` above only sees writes issued through this backend's own `MongoClient`. A metric whose source data is written by an *external* app (e.g. `episodes_without_transcription` counts episodes transcribed via the legacy lmelp Streamlit app, not this backend) cannot be invalidated by that listener — the write is invisible to it. Don't force such a metric into the shared 5-minute dashboard cache; expose it via its own **uncached** endpoint instead (`GET /api/episodes/without-transcription/count`, Issue #298), loaded by a separate frontend call rather than folded into `collections_statistics`.
+**Exception — metrics whose writes happen outside this MongoClient**: the `CommandListener` above only sees writes issued through this backend's own `MongoClient`. A metric whose source data is written by an *external* app cannot be invalidated by that listener — the write is invisible to it. Don't force such a metric into the shared 5-minute dashboard cache; expose it via its own **uncached** endpoint instead, loaded by a separate frontend call rather than folded into `collections_statistics`. (Historical example, no longer applicable: `episodes_without_transcription` used this pattern via `GET /api/episodes/without-transcription/count` while the PGX transcription pipeline still ran from the legacy lmelp Streamlit app — Issue #298. Since Issue #302 ported that pipeline into this backend's own `MongoClient`, the write is no longer external, and the metric was folded back into the standard cached `collections_statistics` payload.)
+
+**Isolate each metric's own failure inside a multi-metric aggregator**: a single unguarded metric computation (e.g. one `count_documents()` call among a dozen in `StatsService.get_cache_statistics()`) that raises breaks the *entire* payload, not just its own field — the exception propagates through `asyncio.gather()` in `_compute_dashboard_stats()` and turns all 14 dashboard tiles into a 500, not just the one tied to the failing metric. Wrap each metric call in a small helper that catches, logs, and returns `None` on failure:
+
+```python
+def _safe(self, metric_name: str, fn: Callable[[], T]) -> T | None:
+    try:
+        return fn()
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul de la métrique '{metric_name}': {e}")
+        return None
+
+stats["episodes_without_transcription_count"] = self._safe(
+    "episodes_without_transcription_count", self._count_episodes_without_transcription
+)
+```
+
+On the frontend, make sure the error-path fallback object (e.g. `Dashboard.vue`'s `catch` block in `loadDashboardStats()`) lists **every** key the template reads, explicitly set to `null` — an *absent* key looks identical to `null` at first render (`v-if="... !== 0"` lets `undefined` through, same as `null`), but a template that also checks `!= null` before showing a value stays stuck on a loading placeholder (`'...'`) forever, even after a later successful reload overwrites the object, if that key was never part of the fallback shape to begin with (Issue #310).
 
 ### Validation - Double Layer Pattern
 

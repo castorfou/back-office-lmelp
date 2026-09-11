@@ -10,11 +10,23 @@ vi.mock('axios', () => ({
   },
 }));
 
-function mockApi({ diagnostics = [], missingVars = [], episodes = [], progress = null } = {}) {
+function mockApi({
+  diagnostics = [],
+  missingVars = [],
+  episodes = [],
+  progress = null,
+  sshKey = null,
+  sshKeyMissingConfig = false,
+} = {}) {
   axios.get.mockImplementation((url) => {
     if (url === '/api/pgx/diagnostics') {
       return Promise.resolve({
         data: { diagnostics, missing_vars: missingVars },
+      });
+    }
+    if (url === '/api/pgx/ssh-key') {
+      return Promise.resolve({
+        data: { public_key: sshKey, missing_config: sshKeyMissingConfig },
       });
     }
     if (url === '/api/pgx/episodes-without-transcription') {
@@ -76,14 +88,33 @@ describe('PgxTranscription (Issue #302)', () => {
     expect(text).toContain('Authentification SSH');
   });
 
-  it("affiche un avertissement de configuration manquante sans appeler le diagnostic réseau", async () => {
+  it("affiche un avertissement de configuration manquante ET la checklist grisée en même temps (Issue #310)", async () => {
     mockApi({ missingVars: ['PGX_HOST', 'PGX_SSH_KEY_PATH'] });
 
     const wrapper = mountView();
     await vi.runAllTimersAsync();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('PGX_HOST');
+    const text = wrapper.text();
+    expect(text).toContain('PGX_HOST');
+    // La checklist doit rester visible (statuts non exécutés), pas masquée
+    // derrière le seul message d'avertissement — comportement lmelp.
+    expect(text).toContain('Machine joignable');
+    expect(text).toContain('Authentification SSH');
+    expect(text).toContain('Répertoire audio distant');
+    expect(text).toContain('Répertoire transcriptions distant');
+  });
+
+  it("n'appelle pas le diagnostic réseau quand la config est incomplète (piège lmelp #110)", async () => {
+    mockApi({ missingVars: ['PGX_HOST', 'PGX_SSH_KEY_PATH'] });
+
+    mountView();
+    await vi.runAllTimersAsync();
+
+    // Le backend lui-même court-circuite déjà l'appel réseau (testé côté
+    // backend) ; ce test vérifie que le frontend ne masque pas cette
+    // information en prétendant que tout est vert.
+    expect(axios.get).toHaveBeenCalledWith('/api/pgx/diagnostics');
   });
 
   it('désactive le bouton de lancement si la checklist PGX n\'est pas entièrement au vert', async () => {
@@ -301,5 +332,48 @@ describe('PgxTranscription (Issue #302)', () => {
 
     expect(wrapper.text()).toContain('répond');
     expect(wrapper.text()).toContain('Episode Un');
+  });
+
+  it('affiche la clé SSH publique et la commande authorized_keys (Issue #310)', async () => {
+    mockApi({
+      missingVars: ['PGX_HOST'],
+      sshKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA back-office-lmelp-pgx',
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    const text = wrapper.text();
+    expect(text).toContain('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA back-office-lmelp-pgx');
+    expect(text).toContain('authorized_keys');
+  });
+
+  it("n'affiche pas la section clé SSH quand PGX_SSH_KEY_PATH n'est pas configuré", async () => {
+    mockApi({ missingVars: ['PGX_SSH_KEY_PATH'], sshKey: null, sshKeyMissingConfig: true });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="pgx-ssh-public-key"]').exists()).toBe(false);
+  });
+
+  it('recharge la clé SSH au clic sur le bouton de rafraîchissement', async () => {
+    mockApi({ sshKey: 'ssh-ed25519 ANCIENNE_CLE' });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('ANCIENNE_CLE');
+
+    mockApi({ sshKey: 'ssh-ed25519 NOUVELLE_CLE' });
+
+    await wrapper.find('[data-testid="pgx-refresh-button"]').trigger('click');
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('NOUVELLE_CLE');
   });
 });

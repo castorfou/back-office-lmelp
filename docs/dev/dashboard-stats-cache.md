@@ -54,9 +54,40 @@ Le `CommandListener` ci-dessus n'intercepte que les écritures passant par le `M
 
 `episodes_without_transcription_count` (tuile "Épisodes sans transcription") en est un exemple : elle est intégrée au payload caché standard (`StatsService.get_cache_statistics()`) depuis que le pipeline de transcription PGX (Issue #302) écrit le champ `transcription` via ce même `MongoClient` — le listener l'observe donc nativement. Si une métrique future dépend d'une écriture réellement externe à ce backend, exposez-la via un endpoint dédié **non caché** plutôt que de l'ajouter au payload agrégé (voir `docs/dev/environment-variables.md` pour un exemple de service externe, ou tout futur cas similaire).
 
+## Isolation par métrique dans `StatsService.get_cache_statistics()`
+
+`get_cache_statistics()` calcule une dizaine de métriques indépendantes (une par tuile).
+Sans isolation, une exception dans **une seule** d'entre elles (ex: collection MongoDB
+temporairement inaccessible) fait échouer toute la fonction, qui fait échouer
+`GET /api/livres-auteurs/statistics` (500), qui fait échouer `_compute_dashboard_stats()`
+via `asyncio.gather()`, qui fait échouer tout `GET /api/dashboard/stats` (500) — cassant
+les 14 tuiles pour une seule métrique en panne.
+
+`get_cache_statistics()` enveloppe donc chaque calcul dans un helper `_safe(metric_name,
+fn)` qui catch toute exception, la logue, et retourne `None` pour cette clé uniquement :
+
+```python
+def _safe(self, metric_name: str, fn: Callable[[], T]) -> T | None:
+    try:
+        return fn()
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul de la métrique '{metric_name}': {e}")
+        return None
+```
+
+**Contrepartie côté frontend** : le bloc `catch` de `Dashboard.vue::loadDashboardStats()`
+(déclenché si `/api/dashboard/stats` échoue malgré tout, ex: erreur réseau complète) doit
+lister explicitement **toutes** les clés lues par le template, à `null` — une clé absente
+de cet objet de fallback laisse sa tuile bloquée indéfiniment sur le placeholder de
+chargement (`'...'`), y compris après un rechargement réussi ultérieur qui écrase l'objet
+en entier plutôt que de le fusionner (Issue #310 : `episodes_without_transcription_count`
+avait été omise de ce fallback, la tuile restait alors bloquée sur `...` en production dès
+qu'une seule requête avait échoué).
+
 ## Voir aussi
 
 - `src/back_office_lmelp/services/dashboard_stats_cache_service.py`
 - `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py`
 - `src/back_office_lmelp/services/mongodb_service.py` (méthode `connect()`)
+- `src/back_office_lmelp/services/stats_service.py` (méthode `_safe()`)
 - `docs/dev/calibre-integration.md` (cache 5 min de `CalibreMatchingService`, pattern source)

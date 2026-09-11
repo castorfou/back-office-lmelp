@@ -636,12 +636,30 @@ export default {
           criticalReviews: '--',
           lastUpdateDate: null
         };
+        // Issue #310: objet complet (toutes les clés lues par le template),
+        // explicitement à null plutôt qu'absentes — un champ absent laisse
+        // sa tuile bloquée sur '...' indéfiniment (même après un
+        // rechargement réussi ultérieur qui écraserait cet objet), car le
+        // v-if de la carte (`!== 0`) laisse passer `undefined` alors que le
+        // stat-value (`!= null`) ne l'affiche pas.
         this.collectionsStatistics = {
           episodes_non_traites: '--',
           couples_en_base: '--',
           avis_critiques_analyses: '--',
           couples_suggested_pas_en_base: '--',
-          couples_not_found_pas_en_base: '--'
+          couples_not_found_pas_en_base: '--',
+          episodes_without_transcription_count: null,
+          emissions_sans_avis: null,
+          emissions_with_problems: null,
+          episodes_without_avis_critiques: null,
+          avis_critiques_without_analysis: null,
+          books_without_url_babelio: null,
+          authors_without_url_babelio: null,
+          books_without_cover: null,
+          livres_uniques: null,
+          auteurs_uniques: null,
+          episodes_sans_emission: null,
+          last_episode_date: null
         };
         this.critiquesManquantsCount = null;
         this.duplicateBooksCount = null;

@@ -24,9 +24,12 @@ RUN uv sync --frozen --no-dev
 # Stage 2: Runtime
 FROM python:3.11-slim
 
-# Install curl for healthcheck, gosu to drop root privileges at runtime
+# Install curl for healthcheck, gosu to drop root privileges at runtime,
+# openssh-client for the ssh/scp/ssh-keygen binaries the PGX transcription
+# pipeline shells out to (Issue #310 — missing in the runtime image made
+# the whole pipeline fail with "FileNotFoundError: [Errno 2]" in prod)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl gosu && \
+    apt-get install -y --no-install-recommends curl gosu openssh-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Non-root user (default UID/GID, overridable at runtime via PUID/PGID
