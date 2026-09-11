@@ -78,6 +78,12 @@
             </strong>
             <strong v-else>Traitement terminé</strong>
           </div>
+          <div v-if="pgxProgress.retry_pending" class="pgx-retry-banner">
+            ⏳ PGX injoignable — nouvelle tentative programmée
+            <span v-if="pgxProgress.next_attempt_at">
+              vers {{ formatDateTime(pgxProgress.next_attempt_at) }}
+            </span>
+          </div>
           <div v-if="pgxProgress.episode_ids.length > 0" class="progress-bar-container">
             <div class="progress-bar-track">
               <div
@@ -93,6 +99,78 @@
           <ul class="pgx-logs-list">
             <li v-for="(log, idx) in pgxProgress.logs" :key="idx">{{ log }}</li>
           </ul>
+        </div>
+      </section>
+
+      <!-- Historique (Issue #309) -->
+      <section class="card history-section">
+        <div class="section-header">
+          <h2>📋 Historique des transcriptions</h2>
+          <button
+            @click="loadPgxLogs"
+            class="btn btn-secondary"
+            :disabled="loadingPgxLogs"
+          >
+            🔄 Rafraîchir
+          </button>
+        </div>
+
+        <div v-if="loadingPgxLogs" class="loading">Chargement...</div>
+        <div v-else-if="pgxLogs.length === 0" class="empty-state">
+          Aucune transcription enregistrée
+        </div>
+
+        <div v-else class="logs-table-wrapper">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Déclenchement</th>
+                <th>Statut</th>
+                <th>Épisodes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="log in pgxLogs" :key="log._id">
+                <tr class="pgx-log-row" @click="togglePgxLogDetail(log._id)">
+                  <td class="td-date">{{ formatDateTime(log.started_at) }}</td>
+                  <td>{{ log.trigger }}</td>
+                  <td>
+                    <span class="badge" :class="pgxLogStatusBadgeClass(log.status)">{{ log.status }}</span>
+                  </td>
+                  <td>{{ (log.episodes || []).length }}</td>
+                </tr>
+                <tr v-if="expandedPgxLogId === log._id" class="detail-row">
+                  <td colspan="4">
+                    <div v-if="loadingPgxLogDetail" class="loading">Chargement...</div>
+                    <div v-else-if="detailedPgxLog" class="log-detail">
+                      <div v-if="detailedPgxLog.error_message" class="error-message">
+                        {{ detailedPgxLog.error_message }}
+                      </div>
+                      <ul>
+                        <li v-for="(ep, idx) in detailedPgxLog.episodes" :key="idx">
+                          <strong>{{ ep.titre }}</strong> —
+                          <span class="badge" :class="ep.success ? 'badge-ok' : 'badge-expired'">
+                            {{ ep.success ? 'succès' : 'échec' }}
+                          </span>
+                          <span v-if="ep.error"> : {{ ep.error }}</span>
+                        </li>
+                      </ul>
+                      <div v-if="(detailedPgxLog.retry_attempts || []).length > 0" class="retry-attempts">
+                        <p class="pgx-ssh-key-label">Tentatives de retry :</p>
+                        <ul>
+                          <li v-for="(attempt, idx) in detailedPgxLog.retry_attempts" :key="idx">
+                            {{ formatDateTime(attempt.attempted_at) }} —
+                            {{ attempt.reachable ? 'PGX joignable' : 'PGX injoignable' }}
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
       </section>
     </main>
@@ -129,9 +207,16 @@ export default {
         start_time: null,
         logs: [],
         last_update: null,
+        retry_pending: false,
+        next_attempt_at: null,
       },
       pgxPollInterval: null,
       refreshing: false,
+      pgxLogs: [],
+      expandedPgxLogId: null,
+      detailedPgxLog: null,
+      loadingPgxLogs: false,
+      loadingPgxLogDetail: false,
     };
   },
 
@@ -173,6 +258,7 @@ export default {
     this.loadPgxSshKey();
     this.loadPgxEpisodes();
     this.checkPgxProgress();
+    this.loadPgxLogs();
   },
 
   beforeUnmount() {
@@ -278,6 +364,50 @@ export default {
       return new Date(value).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', year: '2-digit'
       });
+    },
+
+    formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    },
+
+    async loadPgxLogs() {
+      this.loadingPgxLogs = true;
+      try {
+        const res = await axios.get('/api/pgx/logs');
+        this.pgxLogs = res.data;
+      } catch (e) {
+        console.error('Erreur chargement historique PGX', e);
+      } finally {
+        this.loadingPgxLogs = false;
+      }
+    },
+
+    async togglePgxLogDetail(logId) {
+      if (this.expandedPgxLogId === logId) {
+        this.expandedPgxLogId = null;
+        this.detailedPgxLog = null;
+        return;
+      }
+      this.expandedPgxLogId = logId;
+      this.detailedPgxLog = null;
+      this.loadingPgxLogDetail = true;
+      try {
+        const res = await axios.get(`/api/pgx/logs/${logId}`);
+        this.detailedPgxLog = res.data;
+      } catch (e) {
+        console.error('Erreur chargement détail transcription PGX', e);
+      } finally {
+        this.loadingPgxLogDetail = false;
+      }
+    },
+
+    pgxLogStatusBadgeClass(status) {
+      if (status === 'success') return 'badge-ok';
+      if (status === 'partial_error') return 'badge-warning';
+      return 'badge-expired';
     },
   },
 };
@@ -443,4 +573,48 @@ h2 {
   max-height: 200px;
   overflow-y: auto;
 }
+
+.pgx-retry-banner {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.badge-warning { background: #fff3cd; color: #856404; }
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.section-header h2 { margin: 0; }
+
+.logs-table-wrapper { overflow-x: auto; }
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.logs-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+.logs-table td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.pgx-log-row { cursor: pointer; }
+.pgx-log-row:hover { background: #f8f9fa; }
+.detail-row td { background: #fafafa; }
+.log-detail ul { margin: 0; padding-left: 1.2rem; }
+.error-message { color: #721c24; margin-bottom: 0.5rem; }
+.retry-attempts { margin-top: 0.5rem; }
+
+.loading { color: #666; font-style: italic; padding: 1rem 0; }
 </style>

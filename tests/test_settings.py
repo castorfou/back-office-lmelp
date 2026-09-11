@@ -64,6 +64,8 @@ class TestPgxSettings:
         "PGX_REMOTE_TRANSCRIPTION_ROOT",
         "PGX_TRANSCRIPTION_TIMEOUT_S",
         "PGX_POLL_INTERVAL_S",
+        "PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS",
+        "PGX_TRANSCRIPTION_RETRY_MAX_HOURS",
     )
 
     def teardown_method(self):
@@ -168,3 +170,37 @@ class TestPgxSettings:
         settings = Settings()
 
         assert settings.pgx_poll_interval_s == 10.0
+
+    def test_pgx_transcription_retry_interval_hours_should_return_env_value_when_set(
+        self,
+    ):
+        """pgx_transcription_retry_interval_hours retourne la valeur convertie en float."""
+        os.environ["PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS"] = "2"
+
+        settings = Settings()
+
+        assert settings.pgx_transcription_retry_interval_hours == 2.0
+
+    def test_pgx_transcription_retry_interval_hours_should_return_default_when_not_set(
+        self,
+    ):
+        """pgx_transcription_retry_interval_hours retourne 1.0 par défaut."""
+        settings = Settings()
+
+        assert settings.pgx_transcription_retry_interval_hours == 1.0
+
+    def test_pgx_transcription_retry_max_hours_should_return_env_value_when_set(self):
+        """pgx_transcription_retry_max_hours retourne la valeur convertie en float."""
+        os.environ["PGX_TRANSCRIPTION_RETRY_MAX_HOURS"] = "48"
+
+        settings = Settings()
+
+        assert settings.pgx_transcription_retry_max_hours == 48.0
+
+    def test_pgx_transcription_retry_max_hours_should_return_default_when_not_set(
+        self,
+    ):
+        """pgx_transcription_retry_max_hours retourne 24.0 par défaut."""
+        settings = Settings()
+
+        assert settings.pgx_transcription_retry_max_hours == 24.0

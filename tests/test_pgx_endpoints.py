@@ -163,6 +163,105 @@ class TestStartPgxTranscription:
         assert response.json() == {"status": "nothing_to_do"}
 
 
+class TestStartPgxTranscriptionTrigger:
+    """trigger="manual" (défaut) | "api" (Issue #309)."""
+
+    def test_should_accept_missing_body_and_default_to_manual(self, client):
+        """Piège FastAPI : un body Pydantic model avec des champs par défaut
+        renvoie quand même 422 sur une requête sans body du tout, sauf si le
+        paramètre lui-même a une valeur par défaut d'instance."""
+        with patch(
+            "back_office_lmelp.utils.pgx_transcription_runner.pgx_transcription_runner"
+        ) as mock_runner:
+            mock_runner.start_transcription = AsyncMock(
+                return_value={"status": "started", "episode_count": 1}
+            )
+
+            response = client.post("/api/pgx/transcription/start")
+
+        assert response.status_code == 200
+        mock_runner.start_transcription.assert_awaited_once_with(trigger="manual")
+
+    def test_should_pass_api_trigger_through_when_specified(self, client):
+        with patch(
+            "back_office_lmelp.utils.pgx_transcription_runner.pgx_transcription_runner"
+        ) as mock_runner:
+            mock_runner.start_transcription = AsyncMock(
+                return_value={"status": "started", "episode_count": 1}
+            )
+
+            response = client.post(
+                "/api/pgx/transcription/start", json={"trigger": "api"}
+            )
+
+        assert response.status_code == 200
+        mock_runner.start_transcription.assert_awaited_once_with(trigger="api")
+
+
+class TestGetPgxLogs:
+    def test_should_return_logs_list(self, client):
+        logs = [
+            {
+                "_id": "686bf5e18380ee925ae5e318",
+                "trigger": "manual",
+                "status": "success",
+            }
+        ]
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.get_pgx_transcription_logs = MagicMock(return_value=logs)
+
+            response = client.get("/api/pgx/logs")
+
+        assert response.status_code == 200
+        assert response.json() == logs
+
+    def test_should_pass_limit_query_param(self, client):
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.get_pgx_transcription_logs = MagicMock(return_value=[])
+
+            client.get("/api/pgx/logs?limit=5")
+
+        mock_mongo.get_pgx_transcription_logs.assert_called_once_with(limit=5)
+
+    def test_should_return_500_on_error(self, client):
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.get_pgx_transcription_logs = MagicMock(
+                side_effect=Exception("boom")
+            )
+
+            response = client.get("/api/pgx/logs")
+
+        assert response.status_code == 500
+
+
+class TestGetPgxLogById:
+    def test_should_return_log_detail(self, client):
+        log = {
+            "_id": "686bf5e18380ee925ae5e318",
+            "trigger": "manual",
+            "status": "success",
+        }
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.get_pgx_transcription_log_by_id = MagicMock(return_value=log)
+
+            response = client.get(
+                "/api/pgx/logs/686bf5e18380ee925ae5e318"  # pragma: allowlist secret
+            )
+
+        assert response.status_code == 200
+        assert response.json() == log
+
+    def test_should_return_404_when_not_found(self, client):
+        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+            mock_mongo.get_pgx_transcription_log_by_id = MagicMock(return_value=None)
+
+            response = client.get(
+                "/api/pgx/logs/686bf5e18380ee925ae5e318"  # pragma: allowlist secret
+            )
+
+        assert response.status_code == 404
+
+
 class TestGetPgxTranscriptionProgress:
     def test_should_return_current_status(self, client):
         status = {

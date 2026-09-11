@@ -170,6 +170,19 @@ class Settings:
         """Intervalle de poll SSH pendant l'attente d'une transcription (PGX_POLL_INTERVAL_S, défaut 10s)."""
         return float(os.environ.get("PGX_POLL_INTERVAL_S", "10"))
 
+    @property
+    def pgx_transcription_retry_interval_hours(self) -> float:
+        """Intervalle entre deux tentatives de reprise si PGX est injoignable au
+        déclenchement via l'API (PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS, défaut 1h,
+        Issue #309)."""
+        return float(os.environ.get("PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS", "1"))
+
+    @property
+    def pgx_transcription_retry_max_hours(self) -> float:
+        """Durée max cumulée de retry avant abandon définitif du cycle
+        (PGX_TRANSCRIPTION_RETRY_MAX_HOURS, défaut 24h, Issue #309)."""
+        return float(os.environ.get("PGX_TRANSCRIPTION_RETRY_MAX_HOURS", "24"))
+
 
 @lru_cache
 def get_settings() -> Settings:

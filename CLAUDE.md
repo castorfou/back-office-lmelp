@@ -379,6 +379,37 @@ server: {
    # NOT: result.modified_count > 0       # ❌ Fails if already in desired state
    ```
 
+3. **Optional Pydantic body — a missing body is NOT the same as `{}`** (Issue #309):
+   a route parameter typed as a Pydantic model, even with every field
+   defaulted, still requires the request body to be *present* unless the
+   **parameter itself** has a default instance:
+   ```python
+   class TriggerRequest(BaseModel):
+       trigger: str = "manual"  # every field has a default…
+
+   # ❌ WRONG - a POST with NO body at all still returns 422, despite the
+   # model's own defaults — FastAPI distinguishes "body absent" from "body {}"
+   @app.post("/api/x/start")
+   async def start(request: TriggerRequest) -> JSONResponse: ...
+
+   # ✅ CORRECT - default instance on the parameter makes the whole body optional
+   _default_trigger_request = TriggerRequest()  # module-level singleton
+
+   @app.post("/api/x/start")
+   async def start(
+       request: TriggerRequest = _default_trigger_request,
+   ) -> JSONResponse: ...
+   ```
+   **Why not `TriggerRequest()` inline as the default**: ruff's `B008` rule
+   forbids a function call in argument defaults (evaluated once at import
+   time, a classic mutable-default footgun even though Pydantic models are
+   normally safe here) — define the instance as a module-level singleton
+   right after the class instead.
+   **Regression test that actually catches this**: a client call with no
+   `json=` kwarg at all (not `json={}`) asserting `200`, not `422` — a test
+   that always passes `json={"trigger": "manual"}` never exercises the
+   missing-body path and would miss this exact bug.
+
 **Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns) in developer guide.
 
 ### Livres avec Co-Auteurs - Limitation Modèle Actuel
@@ -732,6 +763,68 @@ async def search_with_pagination(query: str, target_date: str) -> str | None:
 - ❌ Without max_pages: Infinite loop if item doesn't exist
 - ❌ Without empty check: Unnecessary requests beyond last page
 - ❌ Without timeout: Hanging requests can block entire process
+
+### Retry Scheduling as a Wrapper, Never a Reimplementation of the Loop It Retries
+
+**CRITICAL**: When adding automatic retry to an existing sequential
+processing loop (e.g. a singleton runner that processes a queue one item
+at a time), the retry must be a thin scheduling layer *around* the
+existing loop's failure point — never a second implementation of the loop
+itself.
+
+```python
+# ❌ WRONG - a new "retry runner" duplicates the whole episode-processing
+# pipeline (send, wait, fetch, write to Mongo) just to add a sleep+retry
+# around the reachability check
+async def _run_with_retry(self):
+    while not await pgx_service.wait_for_pgx_reachable(host):
+        await asyncio.sleep(interval)
+    for episode_id in self.episode_ids:
+        ...  # re-implements everything _run() already does
+
+# ✅ CORRECT - the retry only wraps the reachability gate; once reachable,
+# control returns into the SAME for-loop, at the SAME index, that already
+# existed before retry was added
+for index, episode_id in enumerate(self.episode_ids):
+    if not pgx_reachability_checked:
+        if not await pgx_service.wait_for_pgx_reachable(host):
+            if trigger == "api":
+                if not await self._wait_for_reachable_with_retry(host):
+                    break  # cap exceeded, abandon — loop unchanged otherwise
+            else:
+                return  # manual: unchanged immediate-abort behavior
+        pgx_reachability_checked = True
+    # ... existing send/wait/fetch pipeline, completely untouched
+```
+
+**Why this matters**: a queue-processing singleton (cf. `MigrationRunner`,
+`PgxTranscriptionRunner`) accumulates real business logic over time (local
+caching, per-item error isolation, progress tracking). A "retry runner"
+built alongside it as a separate component inevitably drifts out of sync
+with that logic — every future fix to the main loop needs a matching fix
+in the retry copy, and nobody remembers to do both.
+
+**How to keep the existing lock/concurrency guard valid for free**: if the
+running-state flag (`is_running`) is already set before the loop starts
+and only cleared in a `finally` after the loop ends, a retry `await
+asyncio.sleep(...)` *inside* that loop keeps the flag `True` for the whole
+wait — the existing "already running" guard on the entry point then also
+covers "a retry is currently pending", with zero new locking code.
+
+**Testability**: mock `asyncio.sleep` so the wait is instant, but do NOT
+assume that alone makes a real-wall-clock deadline (`datetime.now(UTC) <
+retry_deadline`) converge quickly — the real clock still advances by
+whatever the test actually takes to run, which can be seconds per
+iteration if the mocked-away sleep was hiding real work per loop pass. Use
+fractional-hour settings small enough that the deadline is reached within
+a handful of iterations (e.g. `retry_interval_hours=0.0001`), rather than
+mocking `datetime.now` itself (fragile — easy to undercount how many times
+`datetime.now()` is actually called per iteration across logging,
+state-tracking, and the loop condition itself).
+
+**Example**: `src/back_office_lmelp/utils/pgx_transcription_runner.py`
+(Issue #309) — `_wait_for_reachable_with_retry()` wraps the single
+reachability check already used by the unmodified per-episode `for` loop.
 
 ### Business Logic First
 

@@ -90,28 +90,109 @@ masquer toute la section derrière le seul message d'avertissement de config inc
   masqués sans transcription, via `stats_service.get_episodes_without_transcription()`
   (même filtre Mongo que le compteur caché `episodes_without_transcription_count`, mais
   `find()` au lieu de `count_documents()`).
-- `POST /api/pgx/transcription/start` — sans paramètre, traite **toute** la file
-  courante des épisodes en attente (décision produit : une action déclenche tout le
+- `POST /api/pgx/transcription/start` — accepte un body optionnel
+  `{"trigger": "manual" | "api"}` (défaut `"manual"` ; un POST sans corps du tout reste
+  valide, voir la section "Déclenchement automatique" ci-dessous). Traite **toute** la
+  file courante des épisodes en attente (décision produit : une action déclenche tout le
   backlog plutôt qu'un sélecteur par épisode). Retourne `{"status": "already_running" |
   "nothing_to_do" | "started", "episode_count": N}`.
 - `GET /api/pgx/transcription/progress` — statut consommé par polling (2s côté
-  frontend), même pattern que `GET /api/babelio-migration/progress`.
+  frontend), même pattern que `GET /api/babelio-migration/progress`. Expose désormais
+  aussi `retry_pending` (bool) et `next_attempt_at` (ISO 8601 ou `null`).
+- `GET /api/pgx/logs` — historique des cycles de transcription persistés, plus récent en
+  premier (`?limit=50` par défaut). Voir "Historique persisté" ci-dessous.
+- `GET /api/pgx/logs/{log_id}` — détail d'un cycle (404 si non trouvé).
 
 Pas d'endpoint `stop` (décision explicite, cohérent avec lmelp qui n'en avait pas non
 plus — un pipeline SSH en cours n'est pas trivialement interruptible proprement).
 
-## Logs — en mémoire uniquement, pas de persistance MongoDB
+## Logs — en mémoire pour le run courant, historique persisté par cycle
 
-Contrairement à `rss_download_logs` (un document par run RSS, historique consultable
-même après redémarrage), les logs PGX (`PgxTranscriptionRunner.logs`) vivent uniquement
-en mémoire dans le singleton : perdus au redémarrage du backend, et **réinitialisés à
-chaque nouveau `start_transcription()`** (`self.logs = []`). Décision assumée : pas
-d'accumulation indéfinie d'un historique de transcriptions, contrairement à RSS où le
-faible volume (0-1 run/semaine) rend la persistance sans risque.
+Les logs ligne-par-ligne d'un run **en cours** (`PgxTranscriptionRunner.logs`) restent
+en mémoire dans le singleton, réinitialisés à chaque nouveau `start_transcription()`
+(`self.logs = []`) — comportement inchangé depuis #302, adapté à un suivi en direct
+plutôt qu'à un historique.
 
 Chaque ligne est horodatée (`_log()`, préfixe `dd/mm/yy HH:MM:SS`) — date incluse, pas
 seulement l'heure, un run de plusieurs épisodes pouvant s'étaler sur des dizaines de
 minutes voire chevaucher minuit.
+
+Depuis l'Issue #309, un **résumé par cycle** (pas les logs bruts) est en revanche
+persisté dans la collection MongoDB `pgx_transcription_logs`, sur le modèle de
+`rss_download_logs` (#295) — voir "Déclenchement automatique" ci-dessous.
+
+## Déclenchement automatique (Issue #309)
+
+`POST /api/pgx/transcription/start` accepte un paramètre `trigger`, même pattern que
+`rss_sync_service.py` (`TriggerRssSyncRequest`) :
+
+- `"manual"` (défaut, bouton UI de `/transcription-pgx`) : comportement inchangé depuis
+  #302 — si PGX est injoignable, le cycle s'arrête immédiatement, sans retry (l'utilisateur
+  est devant l'écran, il peut relancer lui-même).
+- `"api"` (n8n/Automatisch) : si PGX est injoignable **avant qu'aucun épisode n'ait été
+  traité**, le backend programme lui-même un retry interne toutes les heures
+  (`PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS`, défaut 1h) jusqu'à ce que PGX redevienne
+  joignable ou jusqu'à un plafond de 24h (`PGX_TRANSCRIPTION_RETRY_MAX_HOURS`) — sans
+  nouvel appel externe nécessaire. Au-delà du plafond, le cycle est marqué
+  `pgx_unreachable_abandoned`.
+
+### Mécanisme de retry — une couche au-dessus de `_run()`, pas une réimplémentation
+
+`PgxTranscriptionRunner._wait_for_reachable_with_retry()` enveloppe uniquement le test
+de joignabilité déjà présent dans la boucle `for` de `_run()` — dès que PGX redevient
+joignable, le traitement **reprend dans la même boucle, au même index**, sans redémarrer
+ni dupliquer la logique d'envoi/attente/rapatriement. `is_running` reste `True` pendant
+toute l'attente (y compris les `asyncio.sleep`), donc le garde-fou existant
+(`already_running`) couvre nativement le cas d'un appel Automatisch pendant une fenêtre
+de retry en cours — aucun nouveau verrou. Voir la règle CLAUDE.md "Retry Scheduling as a
+Wrapper, Never a Reimplementation of the Loop It Retries" pour le pattern générique.
+
+### Historique persisté — `pgx_transcription_logs`
+
+Un document par **cycle complet** (déclenchement → succès ou abandon), pas un document
+par tentative de retry individuelle (les tentatives sont imbriquées dans `retry_attempts`) :
+
+```python
+{
+    "started_at": datetime,            # UTC, début du cycle
+    "finished_at": datetime,           # UTC, fin du cycle
+    "trigger": str,                    # "manual" | "api"
+    "status": str,                     # "success" | "partial_error" | "error" | "pgx_unreachable_abandoned"
+    "episode_ids": list[str],          # snapshot de la file au démarrage
+    "episodes": [                      # un par épisode réellement tenté (vide si abandon avant tout traitement)
+        {"episode_id": str, "titre": str, "success": bool, "error": str | None},
+    ],
+    "retry_attempts": [                # vide pour trigger="manual" ou si PGX joignable direct
+        {"attempted_at": datetime, "reachable": bool},
+    ],
+    "notification_sent": bool,
+    "error_message": str | None,       # exception inattendue de haut niveau, sinon None
+}
+```
+
+S'applique aussi bien aux cycles `"manual"` qu'`"api"` — vue unifiée dans la section
+"📋 Historique des transcriptions" de `/transcription-pgx` (table + détail expansible au
+clic, sur le modèle de `/rss-monitoring`).
+
+### Notifications ntfy.sh
+
+Réutilise `send_ntfy_notification()`, extrait de `RssSyncService` (#295) vers
+`src/back_office_lmelp/utils/ntfy.py` (fonction standalone, `rss_sync_service.py` non
+modifié). Même logique que RSS : **une notification par événement**, au fil de l'eau,
+pas de résumé groupé en fin de cycle :
+
+1. **Par épisode transcrit avec succès** — titre `"Transcription PGX terminée —
+   {date}"`, message = titre de l'épisode (calqué sur
+   `RssSyncService._format_episode_date()`/`send_ntfy_notification()`).
+2. **Par épisode en échec** (`PgxError`, ex: timeout scp) — titre `"Échec
+   transcription PGX — {date}"`, message = titre + erreur.
+3. Au **premier** échec de joignabilité déclenchant un retry (`trigger="api"`
+   uniquement) — une seule fois, pour signaler qu'il faut allumer PGX, sans attendre
+   24h en silence.
+
+Aucune notification sur `nothing_to_do`, ni de synthèse groupée en fin de cycle (y
+compris sur `pgx_unreachable_abandoned` — seule la notification du premier échec de
+joignabilité, point 3, couvre ce cas).
 
 ## Piège réel rencontré : `datetime` non JSON-sérialisable
 
@@ -171,17 +252,26 @@ image de base ou un autre pipeline de build, vérifier que ce paquet suit.
 
 Voir `docs/dev/environment-variables.md` pour le détail des variables `PGX_HOST`,
 `PGX_USER`, `PGX_SSH_KEY_PATH`, `PGX_REMOTE_AUDIO_ROOT`,
-`PGX_REMOTE_TRANSCRIPTION_ROOT`, `PGX_TRANSCRIPTION_TIMEOUT_S`, `PGX_POLL_INTERVAL_S`.
+`PGX_REMOTE_TRANSCRIPTION_ROOT`, `PGX_TRANSCRIPTION_TIMEOUT_S`, `PGX_POLL_INTERVAL_S`,
+`PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS`, `PGX_TRANSCRIPTION_RETRY_MAX_HOURS`.
 
 ## Tests
 
 Tous les tests mockent `asyncio.create_subprocess_exec`/`asyncio.open_connection` —
-aucun accès réseau réel :
+aucun accès réseau réel, et le retry horaire est testé en mockant `asyncio.sleep` +
+en réduisant les intervalles de retry (settings patchés à des heures fractionnaires
+minuscules) plutôt qu'en attendant de vraies heures :
 
 - `tests/test_pgx_service.py` — fonctions pures et pipeline SSH/SCP mockées.
 - `tests/test_pgx_transcription_runner.py` — orchestration de la file (singleton,
-  `already_running`/`nothing_to_do`, cascade d'échecs, cache local).
-- `tests/test_pgx_endpoints.py` — endpoints FastAPI (mocks du service/runner).
+  `already_running`/`nothing_to_do`, cascade d'échecs, cache local, retry horaire
+  (`TestApiRetryScheduling`), persistance de l'historique par statut
+  (`TestPgxTranscriptionLogPersistence`)).
+- `tests/test_pgx_endpoints.py` — endpoints FastAPI (mocks du service/runner),
+  y compris le piège FastAPI body-absent (`TestStartPgxTranscriptionTrigger`)
+  et les nouveaux endpoints `GET /api/pgx/logs`/`GET /api/pgx/logs/{id}`.
+- `tests/test_mongodb_service_pgx.py` — CRUD de la collection `pgx_transcription_logs`.
+- `tests/test_ntfy.py` — helper de notification standalone extrait de RSS.
 
 Le pipeline complet a aussi été validé en conditions réelles (vraie station PGX, base
 MongoDB locale de test — voir `docs/dev/blocage_ip.md` pour le mécanisme de base locale

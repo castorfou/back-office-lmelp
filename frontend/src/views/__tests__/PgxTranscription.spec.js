@@ -17,6 +17,8 @@ function mockApi({
   progress = null,
   sshKey = null,
   sshKeyMissingConfig = false,
+  logs = [],
+  logDetail = null,
 } = {}) {
   axios.get.mockImplementation((url) => {
     if (url === '/api/pgx/diagnostics') {
@@ -44,8 +46,16 @@ function mockApi({
             start_time: null,
             logs: [],
             last_update: null,
+            retry_pending: false,
+            next_attempt_at: null,
           },
       });
+    }
+    if (url === '/api/pgx/logs') {
+      return Promise.resolve({ data: logs });
+    }
+    if (url.startsWith('/api/pgx/logs/')) {
+      return Promise.resolve({ data: logDetail });
     }
     return Promise.reject(new Error(`Unexpected URL: ${url}`));
   });
@@ -375,5 +385,138 @@ describe('PgxTranscription (Issue #302)', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('NOUVELLE_CLE');
+  });
+
+  describe('Historique (Issue #309)', () => {
+    it('affiche les logs récupérés au montage', async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'manual',
+            status: 'success',
+            episodes: [{ episode_id: 'ep1', titre: 'Ep', success: true, error: null }],
+          },
+        ],
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const text = wrapper.text();
+      expect(text).toContain('manual');
+      expect(text).toContain('success');
+    });
+
+    it("affiche un état vide quand aucun log n'existe", async () => {
+      mockApi({ logs: [] });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('Aucune transcription enregistrée');
+    });
+
+    it('affiche le badge correct par statut', async () => {
+      mockApi();
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.pgxLogStatusBadgeClass('success')).toBe('badge-ok');
+      expect(wrapper.vm.pgxLogStatusBadgeClass('partial_error')).toBe('badge-warning');
+      expect(wrapper.vm.pgxLogStatusBadgeClass('error')).toBe('badge-expired');
+      expect(wrapper.vm.pgxLogStatusBadgeClass('pgx_unreachable_abandoned')).toBe(
+        'badge-expired'
+      );
+    });
+
+    it('charge le détail au clic sur une ligne', async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'api',
+            status: 'pgx_unreachable_abandoned',
+            episodes: [],
+          },
+        ],
+        logDetail: {
+          _id: 'log1',
+          trigger: 'api',
+          status: 'pgx_unreachable_abandoned',
+          episodes: [],
+          retry_attempts: [{ attempted_at: '2026-03-01T11:00:00+00:00', reachable: false }],
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      expect(axios.get).toHaveBeenCalledWith('/api/pgx/logs/log1');
+      expect(wrapper.vm.detailedPgxLog).toEqual(
+        expect.objectContaining({ _id: 'log1' })
+      );
+    });
+
+    it('replie le détail au second clic sur la même ligne', async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'manual',
+            status: 'success',
+            episodes: [],
+          },
+        ],
+        logDetail: { _id: 'log1', trigger: 'manual', status: 'success', episodes: [] },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.expandedPgxLogId).toBe('log1');
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.expandedPgxLogId).toBe(null);
+    });
+
+    it('affiche un bandeau si une nouvelle tentative de retry est programmée', async () => {
+      mockApi({
+        progress: {
+          is_running: true,
+          episode_ids: ['ep1'],
+          current_episode_id: null,
+          current_episode_index: 0,
+          processed: [],
+          start_time: '2026-03-01T10:00:00+00:00',
+          logs: ['PGX injoignable — nouvelle tentative dans 1.0h'],
+          last_update: '2026-03-01T10:00:00+00:00',
+          retry_pending: true,
+          next_attempt_at: '2026-03-01T11:00:00+00:00',
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.text()).toContain('injoignable');
+    });
   });
 });
