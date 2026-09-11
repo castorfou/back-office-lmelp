@@ -44,8 +44,9 @@ s'affiche en temps réel : épisode en cours, logs détaillés par étape, résu
     PGX doit être **allumée manuellement** avant de lancer une transcription. Le pipeline ne
     tente aucun réveil à distance (Wake-on-LAN) : sur une machine Wi-Fi uniquement avec la
     mise en veille système désactivée pour des raisons de stabilité GPU, ce mécanisme n'est
-    pas fiable. Si PGX est injoignable, le pipeline s'arrête avec un message clair invitant
-    à l'allumer puis à réessayer.
+    pas fiable. Depuis un déclenchement manuel (bouton), le pipeline s'arrête immédiatement
+    avec un message clair invitant à l'allumer puis à réessayer — depuis un déclenchement
+    externe automatisé, voir "Déclenchement automatique et historique" ci-dessous.
 
 ## Accès à l'interface
 
@@ -101,6 +102,34 @@ Cette section reste visible même si le reste de la configuration (`PGX_HOST`, `
 répertoires distants) est encore incomplet — la clé doit pouvoir être déployée sur PGX en
 amont, avant que les autres variables ne soient renseignées.
 
+## Déclenchement automatique et historique
+
+En plus du bouton manuel, la transcription peut être déclenchée par un outil
+d'automatisation externe (n8n/Automatisch), par exemple une fois par jour ou à la
+détection d'un nouvel épisode via le flux RSS déjà en place. Ce déclenchement
+externe se distingue du bouton par un comportement plus tolérant à une PGX éteinte :
+
+!!! tip "Retry automatique si PGX est éteinte"
+    Si PGX est injoignable au moment d'un déclenchement externe, le backend ne
+    reste **pas bloqué en échec** : il réessaie automatiquement, toutes les heures,
+    pendant 24h maximum — sans qu'il soit nécessaire de redéclencher manuellement.
+    Une notification (si les notifications ntfy.sh sont configurées) prévient dès
+    le premier échec, pour savoir qu'il faut allumer PGX — pas de rappel répété
+    ensuite tant que PGX reste éteinte. Chaque épisode transcrit avec succès (ou en
+    échec) envoie ensuite sa propre notification, avec son titre, comme pour les
+    nouveaux épisodes détectés sur le flux RSS.
+
+Une nouvelle section **"📋 Historique des transcriptions"**, sous le panneau de
+progression, liste tous les cycles passés — qu'ils aient été déclenchés
+manuellement (bouton) ou automatiquement — avec leur date, leur mode de
+déclenchement, leur statut, et le nombre d'épisodes traités. Cliquer sur une ligne
+déroule le détail : épisodes traités (succès/échec) et, le cas échéant, les
+tentatives de retry effectuées.
+
+Si un cycle est en attente d'une prochaine tentative de retry, un bandeau
+⏳ apparaît dans le panneau de progression, indiquant l'heure approximative de la
+prochaine tentative.
+
 ## Dépannage {#depannage}
 
 ### "PGX injoignable"
@@ -155,3 +184,5 @@ documentation `docker-lmelp` du service `backend`).
 
 - `docs/dev/environment-variables.md` — configuration complète des variables `PGX_*`.
 - `docs/dev/pgx-transcription.md` — documentation développeur (architecture, patterns).
+- `docs/dev/automatisch-pgx-transcription.md` — configuration du déclenchement externe
+  via Automatisch, sur le modèle de la synchronisation RSS.

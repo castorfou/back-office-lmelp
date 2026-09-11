@@ -10,7 +10,7 @@ par POST /api/pgx/transcription/start, suivi par polling GET
 import asyncio
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from bson import ObjectId
@@ -20,6 +20,7 @@ from ..services.mongodb_service import mongodb_service
 from ..services.pgx_service import PgxError
 from ..services.stats_service import stats_service
 from ..settings import settings
+from .ntfy import send_ntfy_notification
 
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,9 @@ class PgxTranscriptionRunner:
         self.start_time: datetime | None = None
         self.logs: list[str] = []
         self.last_update: datetime | None = None
+        self.retry_pending: bool = False
+        self.next_attempt_at: datetime | None = None
+        self.retry_attempts: list[dict[str, Any]] = []
 
     @classmethod
     def get_instance(cls) -> "PgxTranscriptionRunner":
@@ -64,8 +68,14 @@ class PgxTranscriptionRunner:
         self.last_update = now
         logger.info(message)
 
-    async def start_transcription(self) -> dict[str, Any]:
+    async def start_transcription(self, trigger: str = "manual") -> dict[str, Any]:
         """Démarre le traitement de la file d'épisodes sans transcription.
+
+        Args:
+            trigger: "manual" (bouton UI, défaut) ou "api" (déclenchement
+                externe n8n/Automatisch). "api" active le retry horaire
+                automatique si PGX est injoignable (Issue #309) ;
+                "manual" garde le comportement d'abandon immédiat.
 
         Returns:
             {"status": "already_running"} si un traitement est déjà en cours,
@@ -88,13 +98,111 @@ class PgxTranscriptionRunner:
             self.start_time = datetime.now(UTC)
             self.logs = []
             self.last_update = self.start_time
+            self.retry_pending = False
+            self.next_attempt_at = None
+            self.retry_attempts = []
 
-            asyncio.create_task(self._run())
+            asyncio.create_task(self._run(trigger))
 
             return {"status": "started", "episode_count": len(episodes)}
 
-    async def _run(self) -> None:
+    async def _send_notification(self, title: str, message: str) -> None:
+        await send_ntfy_notification(
+            settings.ntfy_server_url, settings.ntfy_topic, title, message
+        )
+
+    async def _wait_for_reachable_with_retry(self, host: str) -> bool:
+        """Retry horaire de joignabilité PGX, plafonné (Issue #309).
+
+        Notifie une seule fois au premier échec (pas à chaque tentative),
+        pour que l'utilisateur sache qu'il doit allumer PGX. Retourne True
+        dès que PGX redevient joignable, False si le plafond est dépassé.
+        """
+        retry_deadline = datetime.now(UTC) + timedelta(
+            hours=settings.pgx_transcription_retry_max_hours
+        )
+        first_attempt = True
+        while datetime.now(UTC) < retry_deadline:
+            self.retry_pending = True
+            self.next_attempt_at = datetime.now(UTC) + timedelta(
+                hours=settings.pgx_transcription_retry_interval_hours
+            )
+            self._log(
+                "PGX injoignable — nouvelle tentative dans "
+                f"{settings.pgx_transcription_retry_interval_hours}h"
+            )
+            if first_attempt:
+                await self._send_notification(
+                    "PGX injoignable — transcription en attente",
+                    "Allumez PGX pour reprendre la transcription. Nouvelle "
+                    "tentative automatique toutes les heures pendant "
+                    f"{settings.pgx_transcription_retry_max_hours}h.",
+                )
+                first_attempt = False
+
+            await asyncio.sleep(settings.pgx_transcription_retry_interval_hours * 3600)
+
+            attempt_reachable = await pgx_service.wait_for_pgx_reachable(
+                host, timeout_s=10, poll_interval_s=2
+            )
+            self.retry_attempts.append(
+                {
+                    "attempted_at": datetime.now(UTC).isoformat(),
+                    "reachable": attempt_reachable,
+                }
+            )
+            if attempt_reachable:
+                self.retry_pending = False
+                self.next_attempt_at = None
+                self._log("PGX de nouveau joignable — reprise du traitement")
+                return True
+
+        self.retry_pending = False
+        self.next_attempt_at = None
+        return False
+
+    @staticmethod
+    def _format_episode_date(episode_date: datetime) -> str:
+        """Formate la date d'un épisode pour affichage (dd/mm/yy)."""
+        return episode_date.strftime("%d/%m/%y")
+
+    def _build_log_document(
+        self, trigger: str, status: str, error_message: str | None = None
+    ) -> dict[str, Any]:
+        """Construit le document de cycle persisté dans pgx_transcription_logs."""
+        finished_at = datetime.now(UTC)
+        return {
+            "started_at": self.start_time,
+            "finished_at": finished_at,
+            "trigger": trigger,
+            "status": status,
+            "episode_ids": list(self.episode_ids),
+            "episodes": list(self.processed),
+            "retry_attempts": list(self.retry_attempts),
+            "notification_sent": bool(self.processed),
+            "error_message": error_message,
+        }
+
+    async def _finalize_cycle(
+        self, trigger: str, status: str, error_message: str | None = None
+    ) -> None:
+        """Persiste l'historique du cycle (Issue #309).
+
+        Les notifications ntfy sont envoyées au fil de l'eau, par épisode
+        (succès/échec) ou au premier échec de joignabilité — jamais ici en
+        résumé groupé (même logique que RssSyncService : un message par
+        événement, pas de synthèse de fin de cycle).
+        """
+        log_document = self._build_log_document(trigger, status, error_message)
+        try:
+            mongodb_service.insert_pgx_transcription_log(dict(log_document))
+        except Exception as exc:  # noqa: BLE001 - la persistance ne doit jamais casser le run
+            logger.error(f"Erreur lors de la persistance du log PGX: {exc}")
+
+    async def _run(self, trigger: str = "manual") -> None:
         """Traite la file d'épisodes séquentiellement."""
+        status = "success"
+        error_message: str | None = None
         try:
             host = settings.pgx_host
             user = settings.pgx_user
@@ -112,13 +220,18 @@ class PgxTranscriptionRunner:
                 and remote_transcription_root
             ):
                 self._log("Configuration PGX incomplète — abandon")
+                status = "error"
+                error_message = "Configuration PGX incomplète"
                 return
 
             pgx_reachability_checked = False
+            abandoned = False
 
             for index, episode_id in enumerate(self.episode_ids):
                 self.current_episode_id = episode_id
                 self.current_episode_index = index
+                episode = None
+                titre = episode_id
 
                 try:
                     episode = mongodb_service.get_episode_by_id(episode_id)
@@ -147,12 +260,21 @@ class PgxTranscriptionRunner:
                             if not await pgx_service.wait_for_pgx_reachable(
                                 host, timeout_s=10, poll_interval_s=2
                             ):
-                                self._log(
-                                    "PGX injoignable — vérifiez qu'elle est allumée "
-                                    "et sur le réseau (aucun réveil automatique "
-                                    "n'est tenté)"
-                                )
-                                return
+                                if trigger == "manual":
+                                    self._log(
+                                        "PGX injoignable — vérifiez qu'elle est "
+                                        "allumée et sur le réseau (aucun réveil "
+                                        "automatique n'est tenté)"
+                                    )
+                                    return
+                                if not await self._wait_for_reachable_with_retry(host):
+                                    self._log(
+                                        "PGX toujours injoignable après "
+                                        f"{settings.pgx_transcription_retry_max_hours}h "
+                                        "— abandon du cycle"
+                                    )
+                                    abandoned = True
+                                    break
                             pgx_reachability_checked = True
 
                         self._log(
@@ -213,16 +335,37 @@ class PgxTranscriptionRunner:
                     self.processed.append(
                         {"episode_id": episode_id, "success": True, "error": None}
                     )
+                    episode_date_str = self._format_episode_date(episode["date"])
+                    await self._send_notification(
+                        f"Transcription PGX terminée — {episode_date_str}", titre
+                    )
                 except PgxError as exc:
                     self._log(f"[{index + 1}/{len(self.episode_ids)}] Échec: {exc}")
                     self.processed.append(
                         {"episode_id": episode_id, "success": False, "error": str(exc)}
                     )
+                    if episode is not None:
+                        episode_date_str = self._format_episode_date(episode["date"])
+                        title = f"Échec transcription PGX — {episode_date_str}"
+                    else:
+                        title = "Échec transcription PGX"
+                    await self._send_notification(title, f"{titre} : {exc}")
+
+            if abandoned:
+                status = "pgx_unreachable_abandoned"
+            elif any(not entry["success"] for entry in self.processed):
+                status = "partial_error"
+            else:
+                status = "success"
         except Exception as exc:  # noqa: BLE001 - garde-fou pour toujours libérer is_running
             self._log(f"Erreur inattendue du pipeline PGX: {exc}")
+            status = "error"
+            error_message = str(exc)
         finally:
             self.is_running = False
             self.current_episode_id = None
+            if self.start_time is not None:
+                await self._finalize_cycle(trigger, status, error_message)
 
     def get_status(self) -> dict[str, Any]:
         """Récupère l'état actuel de la file, consommé par le polling GET."""
@@ -235,6 +378,10 @@ class PgxTranscriptionRunner:
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "logs": self.logs[-50:],
             "last_update": self.last_update.isoformat() if self.last_update else None,
+            "retry_pending": self.retry_pending,
+            "next_attempt_at": self.next_attempt_at.isoformat()
+            if self.next_attempt_at
+            else None,
         }
 
 

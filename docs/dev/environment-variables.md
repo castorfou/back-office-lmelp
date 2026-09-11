@@ -168,12 +168,19 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 | `PGX_REMOTE_TRANSCRIPTION_ROOT` | Répertoire distant racine des transcriptions sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/transcriptions` |
 | `PGX_TRANSCRIPTION_TIMEOUT_S` | Délai max d'attente (secondes) d'une transcription générée par le watcher PGX | `1800` (30 min) | `3600` |
 | `PGX_POLL_INTERVAL_S` | Intervalle de poll SSH (secondes) pendant l'attente d'une transcription | `10` | `5` |
+| `PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS` | Intervalle entre deux tentatives de reprise si PGX est injoignable au déclenchement via l'API (`trigger="api"` uniquement, Issue #309) | `1` (1h) | `2` |
+| `PGX_TRANSCRIPTION_RETRY_MAX_HOURS` | Durée max cumulée de retry avant abandon définitif du cycle (`status: "pgx_unreachable_abandoned"`) | `24` (24h) | `48` |
 
 Les 5 premières variables sont toutes requises pour activer les
 fonctionnalités PGX (`GET /api/pgx/diagnostics` renvoie sinon
 `missing_vars` sans tenter d'appel réseau). PGX doit être allumée
 manuellement (Wi-Fi uniquement, veille système désactivée) — aucun réveil
 à distance n'est tenté.
+
+Les deux variables `PGX_TRANSCRIPTION_RETRY_*` ne sont consultées que pour
+un cycle déclenché avec `trigger="api"` (n8n/Automatisch) — un cycle
+`trigger="manual"` (bouton UI) garde son comportement d'abandon immédiat
+sans jamais les lire.
 
 **Cache local** : avant d'envoyer un épisode vers PGX, le pipeline vérifie
 si un fichier `<audio>.txt` existe déjà à côté du fichier audio local

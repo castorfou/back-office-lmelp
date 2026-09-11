@@ -276,6 +276,19 @@ class TriggerRssSyncRequest(BaseModel):
     trigger: str = "api"  # "manual" (bouton UI) | "api" (appel externe n8n)
 
 
+class TriggerPgxTranscriptionRequest(BaseModel):
+    """Modèle pour déclencher la transcription PGX (Issue #309)."""
+
+    trigger: str = "manual"  # "manual" (bouton UI) | "api" (n8n/Automatisch)
+
+
+# Instance par défaut réutilisée comme valeur par défaut du paramètre body de
+# start_pgx_transcription() — évite l'appel de fonction dans les arguments
+# par défaut (ruff B008), tout en gardant le body FastAPI optionnel (piège
+# décrit dans la docstring de la route : Issue #309).
+_default_trigger_pgx_transcription_request = TriggerPgxTranscriptionRequest()
+
+
 class ExtractCoverUrlRequest(BaseModel):
     """Modèle pour extraire l'URL de couverture depuis une page Babelio (Issue #238)."""
 
@@ -3810,12 +3823,21 @@ async def get_pgx_episodes_without_transcription() -> JSONResponse:
 
 
 @app.post("/api/pgx/transcription/start")
-async def start_pgx_transcription() -> JSONResponse:
-    """Lance le traitement de la file d'épisodes sans transcription sur PGX."""
+async def start_pgx_transcription(
+    request: TriggerPgxTranscriptionRequest = _default_trigger_pgx_transcription_request,
+) -> JSONResponse:
+    """Lance le traitement de la file d'épisodes sans transcription sur PGX.
+
+    trigger="manual" (défaut, bouton UI) : comportement inchangé, abandon
+    immédiat si PGX injoignable. trigger="api" (n8n/Automatisch) : retry
+    horaire automatique si PGX injoignable, plafonné (Issue #309).
+    """
     try:
         from .utils.pgx_transcription_runner import pgx_transcription_runner
 
-        result = await pgx_transcription_runner.start_transcription()
+        result = await pgx_transcription_runner.start_transcription(
+            trigger=request.trigger
+        )
         return JSONResponse(content=result)
     except Exception as e:
         logger.error(f"Erreur lors du démarrage de la transcription PGX: {e}")
@@ -3834,6 +3856,30 @@ async def get_pgx_transcription_progress() -> JSONResponse:
         return JSONResponse(content=status)
     except Exception as e:
         logger.error(f"Erreur lors de la récupération de la progression PGX: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/pgx/logs")
+async def get_pgx_transcription_logs(limit: int = 50) -> JSONResponse:
+    """Historique des cycles de transcription PGX, plus récent en premier (Issue #309)."""
+    try:
+        logs = mongodb_service.get_pgx_transcription_logs(limit=limit)
+        return JSONResponse(content=logs)
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de l'historique PGX: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/pgx/logs/{log_id}")
+async def get_pgx_transcription_log_detail(log_id: str) -> JSONResponse:
+    """Détail d'un cycle de transcription PGX (Issue #309)."""
+    try:
+        log = mongodb_service.get_pgx_transcription_log_by_id(log_id)
+        if log is None:
+            return JSONResponse(status_code=404, content={"error": "Log non trouvé"})
+        return JSONResponse(content=log)
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération du détail PGX: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 

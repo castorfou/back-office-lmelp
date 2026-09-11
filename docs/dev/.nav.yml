@@ -19,6 +19,7 @@ nav:
   - Cache statistiques dashboard: dashboard-stats-cache.md
   - Synchronisation RSS: rss-sync.md
   - Transcription PGX: pgx-transcription.md
+  - "Automatisch : transcription PGX": automatisch-pgx-transcription.md
   - Variables d'environnement: environment-variables.md
   - "Étude VPN + proxy Babelio": vpn-babelio-feasibility-study.md
   - Développement: development.md

@@ -38,6 +38,7 @@ class MongoDBService:
         self.avis_collection: Collection | None = None
         self.livresauteurs_cache_collection: Collection | None = None
         self.rss_download_logs_collection: Collection | None = None
+        self.pgx_transcription_logs_collection: Collection | None = None
 
     def connect(self) -> bool:
         """Établit la connexion à MongoDB."""
@@ -63,6 +64,7 @@ class MongoDBService:
             self.avis_collection = self.db.avis
             self.livresauteurs_cache_collection = self.db.livresauteurs_cache
             self.rss_download_logs_collection = self.db.rss_download_logs
+            self.pgx_transcription_logs_collection = self.db.pgx_transcription_logs
             return True
         except Exception as e:
             print(f"Erreur de connexion MongoDB: {e}")
@@ -79,6 +81,7 @@ class MongoDBService:
             self.avis_collection = None
             self.livresauteurs_cache_collection = None
             self.rss_download_logs_collection = None
+            self.pgx_transcription_logs_collection = None
             return False
 
     def disconnect(self) -> None:
@@ -382,6 +385,36 @@ class MongoDBService:
         if self.rss_download_logs_collection is None:
             raise Exception("Connexion MongoDB non établie")
         log = self.rss_download_logs_collection.find_one({"_id": ObjectId(log_id)})
+        if log is None:
+            return None
+        log["_id"] = str(log["_id"])
+        return dict(log)
+
+    def insert_pgx_transcription_log(self, log_data: dict[str, Any]) -> str:
+        """Persiste un document de cycle de transcription PGX (Issue #309)."""
+        if self.pgx_transcription_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        result = self.pgx_transcription_logs_collection.insert_one(log_data)
+        return str(result.inserted_id)
+
+    def get_pgx_transcription_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Liste les cycles de transcription PGX, triés du plus récent au plus ancien."""
+        if self.pgx_transcription_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        logs = list(
+            self.pgx_transcription_logs_collection.find()
+            .sort([("started_at", -1)])
+            .limit(limit)
+        )
+        for log in logs:
+            log["_id"] = str(log["_id"])
+        return logs
+
+    def get_pgx_transcription_log_by_id(self, log_id: str) -> dict[str, Any] | None:
+        """Récupère le détail d'un cycle de transcription PGX par son id."""
+        if self.pgx_transcription_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        log = self.pgx_transcription_logs_collection.find_one({"_id": ObjectId(log_id)})
         if log is None:
             return None
         log["_id"] = str(log["_id"])
