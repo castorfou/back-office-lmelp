@@ -7,6 +7,8 @@ nav:
   - Recherche avancée: advanced-search.md
   - Pages de détail: detail-pages.md
   - Compteurs et statistiques: compteurs-et-statistiques.md
+  - Monitoring RSS: rss-monitoring.md
+  - Transcription PGX: transcription-pgx.md
   - Vérification Babelio: babelio-verification.md
   - Correction automatique résumés: automatic-summary-correction.md
   - Palmarès: palmares.md

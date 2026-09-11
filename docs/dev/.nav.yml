@@ -17,6 +17,9 @@ nav:
   - Calibre: calibre-integration.md
   - Calibre db schema: calibre-db-schema.md
   - Cache statistiques dashboard: dashboard-stats-cache.md
+  - Synchronisation RSS: rss-sync.md
+  - Transcription PGX: pgx-transcription.md
+  - Variables d'environnement: environment-variables.md
   - "Étude VPN + proxy Babelio": vpn-babelio-feasibility-study.md
   - Développement: development.md
   - Playwright MCP: playwright-mcp.md
