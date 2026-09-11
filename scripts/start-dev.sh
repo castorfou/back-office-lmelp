@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # Script de lancement unifié pour backend et frontend
-# Usage: ./scripts/start-dev.sh [--restart]
+# Usage: ./scripts/start-dev.sh [--restart|--stop]
 #   --restart  Tue proprement les processus backend/frontend précédents
 #              (via .dev-ports.json, avec fallback sur `ps aux` pour les
 #              orphelins) avant de démarrer de nouvelles instances.
+#   --stop     Tue proprement les processus backend/frontend précédents
+#              (même logique que --restart) puis quitte sans rien démarrer.
 
 set -e  # Exit on any error
 
@@ -201,11 +203,13 @@ cleanup() {
     exit 0
 }
 
-# Function to kill previous backend/frontend instances before restarting
-# (--restart flag). Reuses kill_process_group/wait_for_process so orphans
-# get the same graceful-then-force-kill treatment as a normal Ctrl+C.
-restart_previous_instances() {
-    log "🔄 --restart: recherche des processus précédents à arrêter..."
+# Function to kill previous backend/frontend instances (--restart and
+# --stop flags share this logic; --restart starts new instances afterward,
+# --stop simply exits). Reuses kill_process_group/wait_for_process so
+# orphans get the same graceful-then-force-kill treatment as a normal Ctrl+C.
+stop_previous_instances() {
+    local caller_flag="${1:---restart}"
+    log "🔄 $caller_flag: recherche des processus précédents à arrêter..."
 
     local backend_pid=""
     local frontend_pid=""
@@ -245,18 +249,41 @@ restart_previous_instances() {
 
 # Parse command-line arguments
 RESTART=false
+STOP=false
 for arg in "$@"; do
     case "$arg" in
         --restart)
             RESTART=true
             ;;
+        --stop)
+            STOP=true
+            ;;
         *)
             error "Argument inconnu: $arg"
-            echo "Usage: $0 [--restart]"
+            echo "Usage: $0 [--restart|--stop]"
             exit 1
             ;;
     esac
 done
+
+if [[ "$RESTART" == true && "$STOP" == true ]]; then
+    error "--restart et --stop sont mutuellement exclusifs"
+    echo "Usage: $0 [--restart|--stop]"
+    exit 1
+fi
+
+# Check if we're in the right directory
+if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]] || [[ ! -d "$PROJECT_ROOT/frontend" ]]; then
+    error "Ce script doit être exécuté depuis la racine du projet back-office-lmelp"
+    exit 1
+fi
+
+# --stop: arrêter les instances précédentes puis quitter sans rien démarrer
+if [[ "$STOP" == true ]]; then
+    stop_previous_instances "--stop"
+    log "✅ Services arrêtés (--stop)"
+    exit 0
+fi
 
 # Trap signals for clean shutdown
 # SIGHUP is trapped because bash's default disposition for it on a
@@ -266,15 +293,9 @@ done
 # tool). Without this, backend/frontend end up orphaned (Issue #299).
 trap cleanup SIGINT SIGTERM SIGHUP
 
-# Check if we're in the right directory
-if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]] || [[ ! -d "$PROJECT_ROOT/frontend" ]]; then
-    error "Ce script doit être exécuté depuis la racine du projet back-office-lmelp"
-    exit 1
-fi
-
 # --restart: arrêter les instances précédentes avant de démarrer
 if [[ "$RESTART" == true ]]; then
-    restart_previous_instances
+    stop_previous_instances "--restart"
 fi
 
 # Check if frontend dependencies are installed
