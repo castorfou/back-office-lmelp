@@ -41,6 +41,7 @@ from .middleware import EnrichedLoggingMiddleware
 from .models.critique import Critique
 from .models.emission import Emission
 from .models.episode import Episode
+from .services import pgx_service
 from .services.annas_archive_url_service import AnnasArchiveUrlService
 from .services.avis_critiques_generation_service import (
     avis_critiques_generation_service,
@@ -3744,6 +3745,76 @@ async def stop_migration_process() -> JSONResponse:
         )
 
 
+@app.get("/api/pgx/diagnostics")
+async def get_pgx_diagnostics() -> JSONResponse:
+    """Checklist de disponibilité PGX (joignabilité, auth SSH, répertoires distants).
+
+    Retourne une liste vide de diagnostics tant que la configuration PGX
+    (variables d'environnement) est incomplète, sans tenter d'appel réseau
+    voué à planter (piège lmelp Issue #110).
+    """
+    try:
+        config = {
+            "host": settings.pgx_host,
+            "user": settings.pgx_user,
+            "key_path": settings.pgx_ssh_key_path,
+            "remote_audio_root": settings.pgx_remote_audio_root,
+            "remote_transcription_root": settings.pgx_remote_transcription_root,
+        }
+        missing_vars = pgx_service.get_pgx_config_missing_vars(config)
+        if missing_vars:
+            return JSONResponse(
+                content={"diagnostics": [], "missing_vars": missing_vars}
+            )
+
+        diagnostics = await pgx_service.run_pgx_diagnostics(config)
+        return JSONResponse(content={"diagnostics": diagnostics, "missing_vars": []})
+    except Exception as e:
+        logger.error(f"Erreur lors du diagnostic PGX: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/pgx/episodes-without-transcription")
+async def get_pgx_episodes_without_transcription() -> JSONResponse:
+    """Liste les épisodes sans transcription — file traitée par le pipeline PGX."""
+    try:
+        episodes = stats_service.get_episodes_without_transcription()
+        return JSONResponse(content={"episodes": episodes})
+    except Exception as e:
+        logger.error(
+            f"Erreur lors de la récupération des épisodes sans transcription: {e}"
+        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/pgx/transcription/start")
+async def start_pgx_transcription() -> JSONResponse:
+    """Lance le traitement de la file d'épisodes sans transcription sur PGX."""
+    try:
+        from .utils.pgx_transcription_runner import pgx_transcription_runner
+
+        result = await pgx_transcription_runner.start_transcription()
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Erreur lors du démarrage de la transcription PGX: {e}")
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/pgx/transcription/progress")
+async def get_pgx_transcription_progress() -> JSONResponse:
+    """Récupère la progression actuelle du pipeline de transcription PGX (polling)."""
+    try:
+        from .utils.pgx_transcription_runner import pgx_transcription_runner
+
+        status = pgx_transcription_runner.get_status()
+        return JSONResponse(content=status)
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la progression PGX: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.get("/openapi_reduced.json")
 async def openapi_reduced() -> JSONResponse:
     """Retourne une version allégée de la spec OpenAPI (chemins, méthodes, summary, params, responses).
@@ -5368,40 +5439,6 @@ async def invalidate_dashboard_stats_cache() -> dict[str, str] | JSONResponse:
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Error invalidating dashboard stats cache: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-_last_episodes_without_transcription_count: int | None = None
-
-
-@app.get("/api/episodes/without-transcription/count", response_model=None)
-async def get_episodes_without_transcription_count() -> dict[str, int] | JSONResponse:
-    """Compte les épisodes non masqués sans transcription (Issue #298).
-
-    Volontairement hors du cache dashboard (Issue #279/dashboard_stats_cache_service) :
-    la transcription se lance encore depuis lmelp, une appli externe dont ce
-    back-office ne peut pas observer les écritures pour invalider un cache.
-
-    Une transcription faite dans lmelp fait baisser ce compte sans jamais
-    passer par le MongoClient de ce backend, donc le
-    DashboardStatsInvalidationListener ne peut pas la détecter : la tuile
-    "Épisodes sans avis critiques" (qui exclut désormais les épisodes sans
-    transcription) resterait figée jusqu'à expiration du cache (5 min). Pour
-    éviter cette incohérence, on invalide nous-mêmes le cache dashboard dès
-    qu'une baisse est détectée par rapport au dernier appel.
-    """
-    global _last_episodes_without_transcription_count
-    try:
-        count = stats_service._count_episodes_without_transcription()
-        if (
-            _last_episodes_without_transcription_count is not None
-            and count < _last_episodes_without_transcription_count
-        ):
-            dashboard_stats_cache_service.invalidate_cache()
-        _last_episodes_without_transcription_count = count
-        return {"count": count}
-    except Exception as e:
-        logger.error(f"Erreur lors du comptage des épisodes sans transcription: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 

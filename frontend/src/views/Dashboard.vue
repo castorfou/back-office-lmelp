@@ -35,17 +35,15 @@
             <div class="stat-value">{{ formattedLastUpdate || '...' }}</div>
             <div class="stat-label">Dernière mise à jour</div>
           </div>
-          <a
-            v-if="episodesWithoutTranscriptionCount !== 0"
-            :href="lmelpFrontOfficeUrl"
+          <div
+            v-if="collectionsStatistics && collectionsStatistics.episodes_without_transcription_count !== 0"
             class="stat-card clickable-stat"
-            target="_blank"
-            rel="noopener noreferrer"
+            @click="navigateToPgxTranscription"
             :title="tooltips.episodesSansTranscription"
           >
-            <div class="stat-value">{{ episodesWithoutTranscriptionCount != null ? episodesWithoutTranscriptionCount : '...' }}</div>
+            <div class="stat-value">{{ (collectionsStatistics && collectionsStatistics.episodes_without_transcription_count != null) ? collectionsStatistics.episodes_without_transcription_count : '...' }}</div>
             <div class="stat-label">Épisodes sans transcription</div>
-          </a>
+          </div>
           <div
             v-if="collectionsStatistics && collectionsStatistics.emissions_sans_avis !== 0"
             class="stat-card clickable-stat"
@@ -392,10 +390,10 @@
         </div>
       </section>
 
-      <!-- Section RSS Masque Et La Plume (Issue #295) -->
+      <!-- Section Podcast Masque Et La Plume (Issue #295, renommée Issue #302) -->
       <section class="functions-section">
-        <h2>RSS Masque Et La Plume</h2>
-        <div class="functions-grid functions-grid--single">
+        <h2>Podcast Masque Et La Plume</h2>
+        <div class="functions-grid">
           <div
             class="function-card clickable"
             data-testid="function-rss-monitoring"
@@ -404,6 +402,17 @@
             <div class="function-icon">📡</div>
             <h3>Monitoring Downloads</h3>
             <p>Historique des synchronisations RSS et téléchargements d'épisodes</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
+            data-testid="function-pgx-transcription"
+            @click="navigateToPgxTranscription"
+          >
+            <div class="function-icon">🖥️</div>
+            <h3>Transcriptions PGX</h3>
+            <p>Diagnostic et lancement de la transcription automatisée via la station GPU PGX</p>
             <div class="function-arrow">→</div>
           </div>
         </div>
@@ -481,7 +490,6 @@ export default {
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
       orphanedAvisCount: null,
-      episodesWithoutTranscriptionCount: null,
       versionInfo: null,
       loading: true,
       error: null,
@@ -596,7 +604,6 @@ export default {
     await Promise.all([
       this.loadDashboardStats(),
       this.loadVersionInfo(),
-      this.loadEpisodesWithoutTranscriptionCount()
     ]);
   },
 
@@ -669,18 +676,6 @@ export default {
       }
     },
 
-    async loadEpisodesWithoutTranscriptionCount() {
-      // Issue #298: hors du cache dashboard (5 min) car la transcription se lance
-      // depuis lmelp, une appli externe dont ce back-office ne peut pas observer
-      // les écritures pour invalider un cache automatiquement.
-      try {
-        const response = await axios.get('/api/episodes/without-transcription/count');
-        this.episodesWithoutTranscriptionCount = response.data.count;
-      } catch (error) {
-        console.error('Erreur lors du chargement des épisodes sans transcription:', error);
-      }
-    },
-
     navigateToEpisodes() {
       this.$router.push('/episodes');
     },
@@ -715,6 +710,10 @@ export default {
 
     navigateToBabelioCovers() {
       this.$router.push('/babelio-migration#covers');
+    },
+
+    navigateToPgxTranscription() {
+      this.$router.push('/transcription-pgx');
     },
 
     navigateToAdvancedSearch() {
@@ -910,7 +909,7 @@ export default {
 
 .functions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
   gap: 1.5rem;
 }
 

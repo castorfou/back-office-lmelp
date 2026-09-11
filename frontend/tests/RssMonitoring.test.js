@@ -24,7 +24,6 @@ describe('RssMonitoring', () => {
   });
 
   it('charge l\'historique des synchronisations au montage', async () => {
-    axios.get.mockReset();
     axios.get.mockResolvedValue({
       data: [{ _id: '1', started_at: '2026-09-06T10:00:00Z', trigger: 'manual', status: 'success', episodes: [] }],
     });

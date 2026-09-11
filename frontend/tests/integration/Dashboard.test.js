@@ -55,7 +55,8 @@ describe('Dashboard - Tests d\'intégration', () => {
     avis_critiques_without_analysis: 0,
     last_episode_date: '2024-12-10T20:00:00',
     books_without_url_babelio: 5,
-    authors_without_url_babelio: 3
+    authors_without_url_babelio: 3,
+    episodes_without_transcription_count: 0
   };
 
   function buildDashboardStatsPayload(overrides = {}) {
@@ -80,9 +81,6 @@ describe('Dashboard - Tests d\'intégration', () => {
       }
       if (url === '/api/dashboard/stats/cache/invalidate') {
         return Promise.reject(new Error(`GET non attendu sur ${url}`));
-      }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 0 } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
@@ -277,9 +275,6 @@ describe('Dashboard - Tests d\'intégration', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 0 } });
-      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -307,9 +302,6 @@ describe('Dashboard - Tests d\'intégration', () => {
       }
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
-      }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 0 } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
@@ -517,9 +509,6 @@ describe('Dashboard - Tests d\'intégration', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 0 } });
-      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -658,9 +647,6 @@ describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
       }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 1 } });
-      }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
 
@@ -708,10 +694,6 @@ describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.lmelpFrontOfficeUrl).toBe('https://lmelp.ascot63.synology.me/');
-
-    const tiles = wrapper.findAll('.clickable-stat');
-    const transcriptionTile = tiles.find(t => t.text().includes('Épisodes sans transcription'));
-    expect(transcriptionTile.attributes('href')).toBe('https://lmelp.ascot63.synology.me/');
   });
 });
 
@@ -748,7 +730,10 @@ describe('Dashboard - Tuile "Dernière mise à jour" pointe vers le monitoring R
         return Promise.resolve({
           data: {
             statistics: mockStatistics,
-            collections_statistics: mockCollectionsStatistics,
+            collections_statistics: {
+              ...mockCollectionsStatistics,
+              episodes_without_transcription_count: transcriptionCount
+            },
             critiques_manquants_count: 0,
             duplicate_books_count: 0,
             duplicate_authors_count: 0,
@@ -758,9 +743,6 @@ describe('Dashboard - Tuile "Dernière mise à jour" pointe vers le monitoring R
       }
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
-      }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: transcriptionCount } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
@@ -811,7 +793,7 @@ describe('Dashboard - Tuile "Dernière mise à jour" pointe vers le monitoring R
     expect(pushSpy).toHaveBeenCalledWith('/rss-monitoring');
   });
 
-  it('affiche la tuile "Épisodes sans transcription" pointant vers lmelp avec le bon compte', async () => {
+  it('affiche la tuile "Épisodes sans transcription" naviguant vers la page transcription PGX dédiée avec le bon compte', async () => {
     wrapper = mount(Dashboard, {
       global: {
         plugins: [router]
@@ -826,8 +808,12 @@ describe('Dashboard - Tuile "Dernière mise à jour" pointe vers le monitoring R
 
     expect(transcriptionTile).toBeTruthy();
     expect(transcriptionTile.text()).toContain('1');
-    expect(transcriptionTile.attributes('href')).toBe(wrapper.vm.lmelpFrontOfficeUrl);
-    expect(transcriptionTile.attributes('target')).toBe('_blank');
+    expect(transcriptionTile.attributes('href')).toBeUndefined();
+
+    const pushSpy = vi.spyOn(wrapper.vm.$router, 'push');
+    await transcriptionTile.trigger('click');
+
+    expect(pushSpy).toHaveBeenCalledWith('/transcription-pgx');
   });
 
   it('masque la tuile "Épisodes sans transcription" quand le compte est 0', async () => {
@@ -890,9 +876,6 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
       }
       if (url === '/api/version') {
         return Promise.resolve({ data: {} });
-      }
-      if (url === '/api/episodes/without-transcription/count') {
-        return Promise.resolve({ data: { count: 0 } });
       }
       return Promise.reject(new Error(`URL non mockée: ${url}`));
     });
@@ -976,7 +959,7 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     expect(pushSpy).toHaveBeenCalledWith('/avis-orphelins');
   });
 
-  it('affiche la section RSS Masque Et La Plume avec sa tuile Monitoring Downloads (Issue #295)', async () => {
+  it('affiche la section Podcast Masque Et La Plume avec sa tuile Monitoring Downloads (Issue #295)', async () => {
     wrapper = mount(Dashboard, {
       global: {
         plugins: [router]
@@ -984,6 +967,8 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     });
 
     await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('Podcast Masque Et La Plume');
 
     const rssCard = wrapper.find('[data-testid="function-rss-monitoring"]');
     expect(rssCard.exists()).toBe(true);
@@ -1005,5 +990,36 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     await rssCard.trigger('click');
 
     expect(push).toHaveBeenCalledWith('/rss-monitoring');
+  });
+
+  it('affiche une tuile dédiée Transcriptions PGX, distincte de la tuile RSS (Issue #302)', async () => {
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const pgxCard = wrapper.find('[data-testid="function-pgx-transcription"]');
+    expect(pgxCard.exists()).toBe(true);
+    expect(pgxCard.text()).toContain('Transcriptions PGX');
+  });
+
+  it('navigue vers /transcription-pgx au clic sur la tuile Transcriptions PGX (Issue #302)', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const pgxCard = wrapper.find('[data-testid="function-pgx-transcription"]');
+    await pgxCard.trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/transcription-pgx');
   });
 });

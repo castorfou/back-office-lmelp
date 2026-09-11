@@ -44,7 +44,7 @@ Si le client n'est pas configuré, `classify_episode_type()` retourne `"inconnu"
 
 Les champs `url` (URL audio source) et `audio_rel_filename` (chemin relatif `<année>/<basename(url)>`) existaient déjà dans certains documents de la collection (écrits historiquement par `lmelp`) mais n'étaient pas exposés par le modèle `Episode`. Ils sont maintenant lus et retournés par `Episode.to_dict()` — noms de champs réutilisés à l'identique, sans renommage.
 
-`audio_rel_filename` est ensuite consommé par l'étape suivante de la chaîne de traitement (transcription automatisée PGX côté `lmelp`) — le format doit rester `<année>/<basename(url)>`, relatif à la racine du dossier audio, pour ne pas casser cette étape.
+`audio_rel_filename` est ensuite consommé par l'étape suivante de la chaîne de traitement (transcription automatisée PGX, voir `docs/dev/pgx-transcription.md`) — le format doit rester `<année>/<basename(url)>`, relatif à la racine du dossier audio, pour ne pas casser cette étape.
 
 ### Nouvelle collection `rss_download_logs`
 
