@@ -69,6 +69,58 @@ class TestGetPgxDiagnostics:
         mock_pgx.run_pgx_diagnostics.assert_not_called()
 
 
+class TestGetPgxSshKey:
+    """Issue #310: endpoint pour afficher la clé SSH publique PGX dans l'UI."""
+
+    def test_should_return_public_key(self, client):
+        with (
+            patch("back_office_lmelp.app.settings") as mock_settings,
+            patch("back_office_lmelp.app.pgx_service") as mock_pgx,
+        ):
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_pgx.ensure_pgx_ssh_key = AsyncMock(return_value="ssh-ed25519 AAAA...")
+
+            response = client.get("/api/pgx/ssh-key")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "public_key": "ssh-ed25519 AAAA...",
+            "missing_config": False,
+        }
+        mock_pgx.ensure_pgx_ssh_key.assert_called_once_with("/keys/pgx_ed25519")
+
+    def test_should_not_call_ensure_key_when_path_missing(self, client):
+        with (
+            patch("back_office_lmelp.app.settings") as mock_settings,
+            patch("back_office_lmelp.app.pgx_service") as mock_pgx,
+        ):
+            mock_settings.pgx_ssh_key_path = None
+            mock_pgx.ensure_pgx_ssh_key = AsyncMock()
+
+            response = client.get("/api/pgx/ssh-key")
+
+        assert response.status_code == 200
+        assert response.json() == {"public_key": None, "missing_config": True}
+        mock_pgx.ensure_pgx_ssh_key.assert_not_called()
+
+    def test_should_return_500_on_pgx_error(self, client):
+        from back_office_lmelp.services.pgx_service import PgxError
+
+        with (
+            patch("back_office_lmelp.app.settings") as mock_settings,
+            patch("back_office_lmelp.app.pgx_service") as mock_pgx,
+        ):
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_pgx.ensure_pgx_ssh_key = AsyncMock(
+                side_effect=PgxError("Échec ssh-keygen: command not found")
+            )
+
+            response = client.get("/api/pgx/ssh-key")
+
+        assert response.status_code == 500
+        assert "ssh-keygen" in response.json()["error"]
+
+
 class TestGetEpisodesWithoutTranscription:
     def test_should_return_episode_list(self, client):
         episodes = [{"id": "abc123", "titre": "Un épisode", "date": "2026-03-01"}]

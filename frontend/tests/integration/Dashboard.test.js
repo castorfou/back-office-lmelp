@@ -291,6 +291,49 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(wrapper.text()).toContain('--');
   });
 
+  it('Issue #310: après un échec de /api/dashboard/stats, la tuile "Épisodes sans transcription" ne reste pas bloquée sur "..." pour toujours', async () => {
+    let dashboardStatsCallCount = 0;
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/dashboard/stats') {
+        dashboardStatsCallCount += 1;
+        if (dashboardStatsCallCount === 1) {
+          return Promise.reject(new Error('Erreur réseau'));
+        }
+        return Promise.resolve({
+          data: {
+            statistics: {},
+            collections_statistics: { episodes_without_transcription_count: 3 },
+          },
+        });
+      }
+      if (url === '/api/version') {
+        return Promise.resolve({ data: {} });
+      }
+      return Promise.reject(new Error(`URL non mockée: ${url}`));
+    });
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Après l'échec, la clé doit être présente et explicitement null (pas
+    // absente) — un fallback incomplet la laisserait undefined pour
+    // toujours, même après un rechargement réussi ultérieur.
+    expect(wrapper.vm.collectionsStatistics.episodes_without_transcription_count).toBeNull();
+
+    // Un rechargement réussi (ex: clic "Actualiser") doit ensuite afficher
+    // la vraie valeur, pas rester bloqué sur '...'.
+    await wrapper.vm.loadDashboardStats();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.collectionsStatistics.episodes_without_transcription_count).toBe(3);
+  });
+
   it('affiche des indicateurs de chargement pour les statistiques', async () => {
     let resolveDashboardStats;
     const dashboardStatsPromise = new Promise(resolve => {

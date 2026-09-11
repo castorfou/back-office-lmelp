@@ -67,10 +67,25 @@ que PGX reste éteinte).
 `run_pgx_diagnostics()` — `wait_for_pgx_reachable()` lève sinon une erreur non catchée
 si `host` est `None`. C'est ce que fait l'endpoint `GET /api/pgx/diagnostics`.
 
+Côté frontend (`PgxTranscription.vue`), la checklist reste **toujours visible**, y compris
+quand `missing_vars` n'est pas vide (Issue #310) : la computed `pgxDiagnosticsDisplay`
+affiche dans ce cas les 4 étapes connues avec un statut `skipped` forcé côté client (le
+backend renvoie une liste vide, cohérent avec le court-circuit ci-dessus), plutôt que de
+masquer toute la section derrière le seul message d'avertissement de config incomplète.
+
 ## Endpoints
 
 - `GET /api/pgx/diagnostics` — checklist ci-dessus. Retourne `{"diagnostics": [],
   "missing_vars": [...]}` sans appel réseau si la config est incomplète.
+- `GET /api/pgx/ssh-key` — retourne `{"public_key": str | None, "missing_config": bool}`.
+  Appelle `pgx_service.ensure_pgx_ssh_key(settings.pgx_ssh_key_path)` (génère la paire de
+  clés si absente, idempotent) uniquement si `PGX_SSH_KEY_PATH` est défini — pas d'appel
+  si `missing_config` serait `True`, même piège que `get_pgx_config_missing_vars()` pour
+  `run_pgx_diagnostics()`. Consommé par `/transcription-pgx` pour afficher la clé publique
+  et la commande `authorized_keys` (Issue #310 : cette route n'existait pas dans le
+  portage initial #302, alors que `ensure_pgx_ssh_key()` était déjà écrite et testée —
+  gap entre service et endpoint, jamais détecté par la suite pytest puisque les deux sont
+  mockés indépendamment).
 - `GET /api/pgx/episodes-without-transcription` — liste (id/titre/date) des épisodes non
   masqués sans transcription, via `stats_service.get_episodes_without_transcription()`
   (même filtre Mongo que le compteur caché `episodes_without_transcription_count`, mais
@@ -128,6 +143,29 @@ production lui-même, d'où sa découverte tardive.
 besoin d'endpoint dédié non caché ni de logique de comparaison de compteur, contrairement
 à l'implémentation initiale de la tuile (Issue #298), car l'écriture du champ
 `transcription` passe désormais nativement par le `MongoClient` de ce backend.
+
+**Isolation par métrique (Issue #310)** : `get_cache_statistics()` enveloppe chaque calcul
+de métrique (dont `_count_episodes_without_transcription()`) dans un helper `_safe()` qui
+catch toute exception et retourne `None` — sans cette isolation, une seule métrique en
+échec (ex: collection `episodes` temporairement inaccessible) faisait planter tout le
+payload `/api/dashboard/stats` en 500 via `asyncio.gather()`, cassant les 14 tuiles du
+dashboard plutôt que la seule tuile concernée. Voir CLAUDE.md, section "Cache Invalidation
+Without a Write Abstraction Layer", pour le pattern complet (backend + fallback frontend
+correspondant dans `Dashboard.vue`).
+
+## Prérequis Docker : `openssh-client` dans l'image runtime
+
+**Piège rencontré au premier déploiement NAS (Issue #310)** : `pgx_service.py` shell-out
+vers `ssh`/`scp`/`ssh-keygen` via `asyncio.create_subprocess_exec`. Si ces binaires ne
+sont pas installés dans l'image Docker du service `backend`, chaque appel lève
+`FileNotFoundError: [Errno 2] No such file or directory` — indiscernable dans les logs
+d'un problème de configuration PGX (host/clé/réseau). Invisible en devcontainer (`ssh` y
+est déjà présent nativement) et dans la suite pytest (tous les subprocess sont mockés) :
+seul un déploiement réel de l'image le révèle.
+
+`docker/build/backend/Dockerfile` installe désormais `openssh-client` dans le stage
+runtime, à la suite de `curl`/`gosu`. Si ce service est un jour porté vers une autre
+image de base ou un autre pipeline de build, vérifier que ce paquet suit.
 
 ## Configuration
 

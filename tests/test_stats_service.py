@@ -65,6 +65,40 @@ class TestStatsService:
             assert result == expected_result
             mock_cache.get_statistics_from_cache.assert_called_once()
 
+    def test_get_cache_statistics_should_isolate_metric_failure(self):
+        """Issue #310: une métrique en échec (ex: collection episodes
+        temporairement inaccessible) ne doit plus faire planter tout le
+        payload dashboard — seule cette clé doit retomber à None, les autres
+        métriques restant correctement peuplées."""
+        mock_cache_stats = {"couples_en_base": 3}
+
+        with (
+            patch(
+                "back_office_lmelp.services.stats_service.livres_auteurs_cache_service"
+            ) as mock_cache,
+            patch(
+                "back_office_lmelp.services.stats_service.mongodb_service"
+            ) as mock_mongodb,
+        ):
+            mock_cache.get_statistics_from_cache.return_value = mock_cache_stats
+            mock_mongodb.get_collection.return_value.count_documents.side_effect = (
+                Exception("MongoDB indisponible")
+            )
+            mock_mongodb.get_collection.return_value.find_one.return_value = None
+            mock_mongodb.get_collection.return_value.distinct.return_value = []
+            mock_mongodb.get_collection.return_value.find.return_value = []
+
+            stats_service = StatsService()
+            result = stats_service.get_cache_statistics()
+
+            # Toutes les métriques basées sur count_documents() échouent de la
+            # même façon ici (même mock), mais le dict reste complet avec None
+            # plutôt qu'une exception qui remonte et casse tout le payload.
+            assert result["episodes_without_transcription_count"] is None
+            assert result["books_without_url_babelio"] is None
+            assert result["couples_en_base"] == 3
+            assert result["last_episode_date"] is None
+
     def test_stats_service_should_get_detailed_breakdown(self):
         """Test TDD: Le service doit fournir une répartition détaillée."""
         mock_detailed_stats = [
