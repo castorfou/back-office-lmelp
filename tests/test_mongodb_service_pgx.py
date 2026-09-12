@@ -74,3 +74,20 @@ class TestPgxTranscriptionLogs:
         )
 
         assert result is None
+
+    def test_update_pgx_transcription_log_sets_fields_by_id(self):
+        """Issue #313 : un cycle qui entre en retry est persisté dès le
+        début (statut intermédiaire), puis mis à jour au fil de l'eau —
+        nécessite un update ciblé par _id, distinct de l'insert initial."""
+        service = MongoDBService()
+        service.pgx_transcription_logs_collection = MagicMock()
+        log_id = "686bf5e18380ee925ae5e318"  # pragma: allowlist secret
+
+        service.update_pgx_transcription_log(
+            log_id, {"status": "pgx", "retry_attempts": [{"reachable": False}]}
+        )
+
+        service.pgx_transcription_logs_collection.update_one.assert_called_once_with(
+            {"_id": ObjectId(log_id)},
+            {"$set": {"status": "pgx", "retry_attempts": [{"reachable": False}]}},
+        )

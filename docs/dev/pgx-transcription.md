@@ -133,8 +133,7 @@ persisté dans la collection MongoDB `pgx_transcription_logs`, sur le modèle de
   traité**, le backend programme lui-même un retry interne toutes les heures
   (`PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS`, défaut 1h) jusqu'à ce que PGX redevienne
   joignable ou jusqu'à un plafond de 24h (`PGX_TRANSCRIPTION_RETRY_MAX_HOURS`) — sans
-  nouvel appel externe nécessaire. Au-delà du plafond, le cycle est marqué
-  `pgx_unreachable_abandoned`.
+  nouvel appel externe nécessaire. Au-delà du plafond, le cycle est marqué `pgx`.
 
 ### Mécanisme de retry — une couche au-dessus de `_run()`, pas une réimplémentation
 
@@ -154,25 +153,48 @@ par tentative de retry individuelle (les tentatives sont imbriquées dans `retry
 
 ```python
 {
-    "started_at": datetime,            # UTC, début du cycle
-    "finished_at": datetime,           # UTC, fin du cycle
+    "started_at": str | None,          # ISO 8601 UTC, début du cycle
+    "finished_at": str | None,         # ISO 8601 UTC, fin du cycle — None tant que le
+                                        # cycle n'est pas terminé (cf. persistance
+                                        # anticipée ci-dessous)
     "trigger": str,                    # "manual" | "api"
-    "status": str,                     # "success" | "partial_error" | "error" | "pgx_unreachable_abandoned"
+    "status": str,                     # "success" | "error" | "pgx"
     "episode_ids": list[str],          # snapshot de la file au démarrage
     "episodes": [                      # un par épisode réellement tenté (vide si abandon avant tout traitement)
-        {"episode_id": str, "titre": str, "success": bool, "error": str | None},
+        {"episode_id": str, "titre": str, "date": str, "success": bool, "error": str | None},
     ],
     "retry_attempts": [                # vide pour trigger="manual" ou si PGX joignable direct
-        {"attempted_at": datetime, "reachable": bool},
+        {"attempted_at": str, "reachable": bool},
     ],
     "notification_sent": bool,
     "error_message": str | None,       # exception inattendue de haut niveau, sinon None
 }
 ```
 
+**Statuts simplifiés à 3 valeurs** (Issue #313) : `success` (aucun échec), `error` (au
+moins un épisode tenté a échoué — qu'il s'agisse d'un échec total ou partiel du cycle),
+`pgx` (problème de connexion à la machine PGX elle-même — retry en cours ou abandon
+après le plafond de 24h). Le badge résumé n'affiche que ces 3 valeurs (vert pour
+`success`, rouge sinon) ; la granularité fine (résultat par épisode, tentatives de
+retry) reste disponible dans le détail au clic sur une ligne.
+
+**Persistance anticipée dès l'entrée en retry** (Issue #313) : contrairement au
+comportement initial de #309 (un seul `insert_pgx_transcription_log()` en toute fin de
+cycle), un cycle qui bascule en retry (`trigger="api"`, PGX injoignable au démarrage)
+est persisté dès la première tentative ratée — statut `"pgx"`, `finished_at: None`,
+`retry_attempts` déjà peuplé de cette 1re tentative. Le document est ensuite mis à jour
+(`update_pgx_transcription_log()`, pas un nouvel insert) à chaque tentative de retry
+suivante, puis une dernière fois avec le statut définitif à la fin du cycle. Sans cette
+persistance anticipée, un cycle en attente pendant plusieurs heures resterait invisible
+dans l'historique alors qu'il travaille activement en arrière-plan (seul le panneau de
+progression, via polling `GET /api/pgx/transcription/progress`, montrait cet état).
+
 S'applique aussi bien aux cycles `"manual"` qu'`"api"` — vue unifiée dans la section
 "📋 Historique des transcriptions" de `/transcription-pgx` (table + détail expansible au
-clic, sur le modèle de `/rss-monitoring`).
+clic, sur le modèle de `/rss-monitoring`). La liste et le détail ouvert se rafraîchissent
+automatiquement pendant le polling de progression (2s) et au clic manuel sur
+"🔄 Rafraîchir" — la colonne "Date" du tableau affiche `finished_at` (repli sur
+`started_at` tant que le cycle n'est pas terminé).
 
 ### Notifications ntfy.sh
 
@@ -181,17 +203,25 @@ Réutilise `send_ntfy_notification()`, extrait de `RssSyncService` (#295) vers
 modifié). Même logique que RSS : **une notification par événement**, au fil de l'eau,
 pas de résumé groupé en fin de cycle :
 
-1. **Par épisode transcrit avec succès** — titre `"Transcription PGX terminée —
-   {date}"`, message = titre de l'épisode (calqué sur
-   `RssSyncService._format_episode_date()`/`send_ntfy_notification()`).
+1. **Par épisode transcrit avec succès** — titre `"PGX - Nouvel épisode Le Masque et
+   la Plume transcrit — {date}"`, message = titre de l'épisode (aligné sur le pattern
+   RSS, `"RSS - Nouvel épisode Le Masque et la Plume téléchargé — {date}"`). Le préfixe
+   `"PGX - "`/`"RSS - "` (Issue #313) est ajouté par la couche d'envoi générique
+   (`send_ntfy_notification()` pour PGX, `RssSyncService.send_ntfy_notification()` pour
+   RSS), pas au niveau des appelants.
 2. **Par épisode en échec** (`PgxError`, ex: timeout scp) — titre `"Échec
-   transcription PGX — {date}"`, message = titre + erreur.
+   transcription PGX — {date}"`, message générique ("erreur technique, voir
+   l'historique... pour le détail") — **sans jamais exposer le détail technique brut**
+   (ex: stderr SSH multi-lignes type `kex_exchange_identification`) dans la
+   notification poussée ; ce détail reste dans `episodes[].error` de l'historique, à
+   usage diagnostic.
 3. Au **premier** échec de joignabilité déclenchant un retry (`trigger="api"`
    uniquement) — une seule fois, pour signaler qu'il faut allumer PGX, sans attendre
-   24h en silence.
+   24h en silence. Message dynamique reprenant les valeurs réelles de
+   `PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS`/`PGX_TRANSCRIPTION_RETRY_MAX_HOURS`.
 
 Aucune notification sur `nothing_to_do`, ni de synthèse groupée en fin de cycle (y
-compris sur `pgx_unreachable_abandoned` — seule la notification du premier échec de
+compris sur abandon après plafond de retry — seule la notification du premier échec de
 joignabilité, point 3, couvre ce cas).
 
 ## Piège réel rencontré : `datetime` non JSON-sérialisable
@@ -215,6 +245,30 @@ date_value = episode.get("date")
 Cf. la règle CLAUDE.md "MongoDB DateTime vs String Handling" — ici, le piège se
 cachait dans un mock de test qui contredisait cette règle plutôt que dans le code de
 production lui-même, d'où sa découverte tardive.
+
+## Piège réel rencontré : `retry_attempts` initial manquant, `finished_at` prématuré
+
+**Bugs trouvés lors du test manuel en conditions réelles (Issue #313)**, sur le
+mécanisme de persistance anticipée décrit ci-dessus :
+
+- La toute première tentative de joignabilité (le health-check initial qui déclenche
+  l'entrée en retry, avant même le premier `asyncio.sleep`) n'était jamais ajoutée à
+  `retry_attempts` — seules les tentatives faites *dans* la boucle `while` de
+  `_wait_for_reachable_with_retry()` l'étaient. Résultat : le détail affichait
+  "1 tentative" pour un cycle qui en avait en réalité fait 2 (l'échec initial + la
+  reprise). Fix : `self.retry_attempts.append({"attempted_at": ..., "reachable":
+  False})` ajouté avant la boucle, donc déjà présent dans le document au moment de
+  l'insertion initiale.
+- `_build_log_document()` calculait systématiquement `finished_at =
+  datetime.now(UTC)`, y compris pour le document intermédiaire "pgx" pas encore
+  terminé — donnant la date de la 1re tentative ratée comme fausse "date de fin"
+  visible dans la colonne Date du tableau. Fix : paramètre `finished: bool = True` ;
+  le document intermédiaire est construit avec `finished=False` (`finished_at: None`).
+
+Les deux bugs n'ont été découverts que par capture d'écran de l'utilisateur en
+conditions réelles — les tests unitaires initiaux du mécanisme de persistance
+anticipée vérifiaient le comportement "insert puis update", sans vérifier le contenu
+exact du tout premier document inséré.
 
 ## Cache dashboard
 

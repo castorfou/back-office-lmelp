@@ -25,6 +25,7 @@ async def send_ntfy_notification(
     if not server_url or not topic:
         return
 
+    title = f"PGX - {title}"
     url = f"{server_url.rstrip('/')}/{topic}"
     headers = {"Title": title}
     if tags:

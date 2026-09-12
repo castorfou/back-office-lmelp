@@ -181,6 +181,25 @@ describe('PgxTranscription (Issue #302)', () => {
     const startButton = wrapper.find('[data-testid="pgx-start-button"]');
     expect(startButton.attributes('disabled')).toBeUndefined();
     expect(wrapper.text()).toContain('2');
+    expect(wrapper.text()).toContain('2 épisodes seront traités :');
+  });
+
+  it('accorde le texte au singulier quand un seul épisode est en attente', async () => {
+    mockApi({
+      diagnostics: [
+        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
+        { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
+        { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
+      ],
+      episodes: [{ id: 'abc', titre: 'Episode Un', date: '2026-03-01' }],
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('1 épisode sera traité :');
   });
 
   it('affiche une ligne par épisode avec sa date de diffusion (dd/mm/yy) et son titre', async () => {
@@ -234,6 +253,146 @@ describe('PgxTranscription (Issue #302)', () => {
     expect(wrapper.vm.pgxPollInterval).not.toBeNull();
   });
 
+  it("rafraîchit l'historique automatiquement pendant le polling de progression", async () => {
+    mockApi({
+      diagnostics: [
+        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
+        { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
+        { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
+      ],
+      episodes: [{ id: 'abc', titre: 'Episode Un', date: '2026-03-01' }],
+    });
+    axios.post.mockResolvedValueOnce({
+      data: { status: 'started', episode_count: 1 },
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="pgx-start-button"]').trigger('click');
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+
+    expect(axios.post).toHaveBeenCalledWith('/api/pgx/transcription/start');
+    expect(wrapper.vm.pgxPollInterval).not.toBeNull();
+
+    const callsBefore = axios.get.mock.calls.filter(
+      (c) => c[0] === '/api/pgx/logs'
+    ).length;
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const callsAfter = axios.get.mock.calls.filter(
+      (c) => c[0] === '/api/pgx/logs'
+    ).length;
+    expect(callsAfter).toBeGreaterThan(callsBefore);
+  });
+
+  it("rafraîchit le détail d'historique ouvert pendant le polling de progression", async () => {
+    mockApi({
+      diagnostics: [
+        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
+        { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
+        { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
+      ],
+      episodes: [{ id: 'abc', titre: 'Episode Un', date: '2026-03-01' }],
+      logs: [
+        {
+          _id: 'log1',
+          started_at: '2026-03-01T10:00:00+00:00',
+          trigger: 'api',
+          status: 'pgx',
+          episodes: [],
+        },
+      ],
+      logDetail: {
+        _id: 'log1',
+        trigger: 'api',
+        status: 'pgx',
+        episodes: [],
+        retry_attempts: [],
+      },
+    });
+    axios.post.mockResolvedValueOnce({
+      data: { status: 'started', episode_count: 1 },
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('.pgx-log-row').trigger('click');
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.detailedPgxLog.status).toBe('pgx');
+
+    await wrapper.find('[data-testid="pgx-start-button"]').trigger('click');
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+
+    // Le cycle se termine avec succès entre-temps : le détail déjà ouvert
+    // doit se resynchroniser pendant le polling, pas rester figé sur 'pgx'.
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/pgx/diagnostics') {
+        return Promise.resolve({
+          data: { diagnostics: [], missing_vars: [] },
+        });
+      }
+      if (url === '/api/pgx/episodes-without-transcription') {
+        return Promise.resolve({ data: { episodes: [] } });
+      }
+      if (url === '/api/pgx/transcription/progress') {
+        return Promise.resolve({
+          data: {
+            is_running: true,
+            episode_ids: ['abc'],
+            current_episode_id: null,
+            current_episode_index: 0,
+            processed: [],
+            start_time: '2026-03-01T10:00:00+00:00',
+            logs: [],
+            last_update: '2026-03-01T10:00:00+00:00',
+            retry_pending: false,
+            next_attempt_at: null,
+          },
+        });
+      }
+      if (url === '/api/pgx/logs') {
+        return Promise.resolve({
+          data: [
+            {
+              _id: 'log1',
+              started_at: '2026-03-01T10:00:00+00:00',
+              trigger: 'api',
+              status: 'success',
+              episodes: [{ titre: 'Episode Un', success: true, error: null }],
+            },
+          ],
+        });
+      }
+      if (url === '/api/pgx/logs/log1') {
+        return Promise.resolve({
+          data: {
+            _id: 'log1',
+            trigger: 'api',
+            status: 'success',
+            episodes: [{ titre: 'Episode Un', success: true, error: null }],
+            retry_attempts: [],
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    await vi.advanceTimersByTimeAsync(2000);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.detailedPgxLog.status).toBe('success');
+  });
+
   it('arrête le polling automatiquement quand is_running redevient false', async () => {
     mockApi({
       diagnostics: [
@@ -277,6 +436,9 @@ describe('PgxTranscription (Issue #302)', () => {
       }
       if (url === '/api/pgx/diagnostics') {
         return Promise.resolve({ data: { diagnostics: [], missing_vars: [] } });
+      }
+      if (url === '/api/pgx/logs') {
+        return Promise.resolve({ data: [] });
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
     });
@@ -369,6 +531,42 @@ describe('PgxTranscription (Issue #302)', () => {
     expect(wrapper.find('[data-testid="pgx-ssh-public-key"]').exists()).toBe(false);
   });
 
+  it("n'affiche pas la section clé SSH quand l'authentification SSH est déjà réussie", async () => {
+    mockApi({
+      diagnostics: [
+        { name: 'Machine joignable', status: 'ok', detail: 'répond' },
+        { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: 'Authentification réussie' },
+        { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
+        { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
+      ],
+      sshKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA back-office-lmelp-pgx',
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="pgx-ssh-public-key"]').exists()).toBe(false);
+  });
+
+  it('affiche la section clé SSH quand l\'authentification SSH échoue encore', async () => {
+    mockApi({
+      diagnostics: [
+        { name: 'Machine joignable', status: 'ok', detail: 'répond' },
+        { name: 'Authentification SSH (clé dédiée)', status: 'fail', detail: 'Échec' },
+        { name: 'Répertoire audio distant', status: 'skipped', detail: '...' },
+        { name: 'Répertoire transcriptions distant', status: 'skipped', detail: '...' },
+      ],
+      sshKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA back-office-lmelp-pgx',
+    });
+
+    const wrapper = mountView();
+    await vi.runAllTimersAsync();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="pgx-ssh-public-key"]').exists()).toBe(true);
+  });
+
   it('recharge la clé SSH au clic sur le bouton de rafraîchissement', async () => {
     mockApi({ sshKey: 'ssh-ed25519 ANCIENNE_CLE' });
 
@@ -427,11 +625,53 @@ describe('PgxTranscription (Issue #302)', () => {
       await wrapper.vm.$nextTick();
 
       expect(wrapper.vm.pgxLogStatusBadgeClass('success')).toBe('badge-ok');
-      expect(wrapper.vm.pgxLogStatusBadgeClass('partial_error')).toBe('badge-warning');
       expect(wrapper.vm.pgxLogStatusBadgeClass('error')).toBe('badge-expired');
-      expect(wrapper.vm.pgxLogStatusBadgeClass('pgx_unreachable_abandoned')).toBe(
-        'badge-expired'
-      );
+      expect(wrapper.vm.pgxLogStatusBadgeClass('pgx')).toBe('badge-expired');
+    });
+
+    it("affiche l'heure de fin (finished_at) dans la colonne Date, pas l'heure de début", async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            finished_at: '2026-03-01T10:05:00+00:00',
+            trigger: 'api',
+            status: 'success',
+            episodes: [],
+          },
+        ],
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const dateCell = wrapper.find('.td-date');
+      expect(dateCell.text()).toContain('10:05');
+      expect(dateCell.text()).not.toContain('10:00');
+    });
+
+    it("retombe sur started_at pour la colonne Date quand finished_at est absent (cycle en cours)", async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            finished_at: null,
+            trigger: 'api',
+            status: 'pgx',
+            episodes: [],
+          },
+        ],
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const dateCell = wrapper.find('.td-date');
+      expect(dateCell.text()).toContain('10:00');
     });
 
     it('charge le détail au clic sur une ligne', async () => {
@@ -466,6 +706,203 @@ describe('PgxTranscription (Issue #302)', () => {
       expect(wrapper.vm.detailedPgxLog).toEqual(
         expect.objectContaining({ _id: 'log1' })
       );
+    });
+
+    it('affiche la date et le titre de chaque épisode du détail, comme pour l\'historique RSS', async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'api',
+            status: 'success',
+            episodes: [{ titre: 'Un bel épisode', date: '2026-03-01T00:00:00+00:00', success: true, error: null }],
+          },
+        ],
+        logDetail: {
+          _id: 'log1',
+          trigger: 'api',
+          status: 'success',
+          episodes: [{ titre: 'Un bel épisode', date: '2026-03-01T00:00:00+00:00', success: true, error: null }],
+          retry_attempts: [],
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const detailText = wrapper.find('.log-detail').text();
+      expect(detailText).toContain('Un bel épisode');
+      expect(detailText).toContain('01/03/26');
+    });
+
+    it("rafraîchit aussi le détail ouvert au clic sur le bouton Rafraîchir de l'historique", async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'api',
+            status: 'pgx',
+            episodes: [],
+          },
+        ],
+        logDetail: {
+          _id: 'log1',
+          trigger: 'api',
+          status: 'pgx',
+          episodes: [],
+          retry_attempts: [],
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.detailedPgxLog.status).toBe('pgx');
+
+      axios.get.mockImplementation((url) => {
+        if (url === '/api/pgx/diagnostics') {
+          return Promise.resolve({ data: { diagnostics: [], missing_vars: [] } });
+        }
+        if (url === '/api/pgx/episodes-without-transcription') {
+          return Promise.resolve({ data: { episodes: [] } });
+        }
+        if (url === '/api/pgx/transcription/progress') {
+          return Promise.resolve({
+            data: {
+              is_running: false,
+              episode_ids: [],
+              current_episode_id: null,
+              current_episode_index: 0,
+              processed: [],
+              start_time: null,
+              logs: [],
+              last_update: null,
+              retry_pending: false,
+              next_attempt_at: null,
+            },
+          });
+        }
+        if (url === '/api/pgx/logs') {
+          return Promise.resolve({
+            data: [
+              {
+                _id: 'log1',
+                started_at: '2026-03-01T10:00:00+00:00',
+                finished_at: '2026-03-01T10:05:00+00:00',
+                trigger: 'api',
+                status: 'success',
+                episodes: [{ titre: 'Episode Un', success: true, error: null }],
+              },
+            ],
+          });
+        }
+        if (url === '/api/pgx/logs/log1') {
+          return Promise.resolve({
+            data: {
+              _id: 'log1',
+              trigger: 'api',
+              status: 'success',
+              episodes: [{ titre: 'Episode Un', success: true, error: null }],
+              retry_attempts: [],
+            },
+          });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const refreshButton = wrapper
+        .findAll('button')
+        .find((b) => b.text().includes('🔄 Rafraîchir') && !b.text().includes('statut'));
+      await refreshButton.trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.vm.detailedPgxLog.status).toBe('success');
+    });
+
+    it('affiche un récapitulatif du retry (heure de démarrage + nombre de tentatives) quand la reprise a réussi', async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'api',
+            status: 'success',
+            episodes: [{ titre: 'Un épisode', date: '2026-03-01T00:00:00+00:00', success: true, error: null }],
+          },
+        ],
+        logDetail: {
+          _id: 'log1',
+          started_at: '2026-03-01T10:00:00+00:00',
+          trigger: 'api',
+          status: 'success',
+          episodes: [{ titre: 'Un épisode', date: '2026-03-01T00:00:00+00:00', success: true, error: null }],
+          retry_attempts: [
+            { attempted_at: '2026-03-01T10:30:00+00:00', reachable: false },
+            { attempted_at: '2026-03-01T11:00:00+00:00', reachable: true },
+          ],
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const detailText = wrapper.find('.log-detail').text();
+      expect(detailText).toContain('Démarré à');
+      expect(detailText).toContain('repris après 2 tentatives');
+    });
+
+    it("affiche 'toujours injoignable' quand le retry a été abandonné sans jamais réussir", async () => {
+      mockApi({
+        logs: [
+          {
+            _id: 'log1',
+            started_at: '2026-03-01T10:00:00+00:00',
+            trigger: 'api',
+            status: 'pgx_unreachable_abandoned',
+            episodes: [],
+          },
+        ],
+        logDetail: {
+          _id: 'log1',
+          started_at: '2026-03-01T10:00:00+00:00',
+          trigger: 'api',
+          status: 'pgx_unreachable_abandoned',
+          episodes: [],
+          retry_attempts: [
+            { attempted_at: '2026-03-01T11:00:00+00:00', reachable: false },
+            { attempted_at: '2026-03-01T12:00:00+00:00', reachable: false },
+          ],
+        },
+      });
+
+      const wrapper = mountView();
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      await wrapper.find('.pgx-log-row').trigger('click');
+      await vi.runAllTimersAsync();
+      await wrapper.vm.$nextTick();
+
+      const detailText = wrapper.find('.log-detail').text();
+      expect(detailText).toContain('toujours injoignable');
+      expect(detailText).toContain('2 tentative(s)');
     });
 
     it('replie le détail au second clic sur la même ligne', async () => {

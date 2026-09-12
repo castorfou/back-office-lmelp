@@ -6,12 +6,12 @@ import psutil
 class MemoryGuard:
     """Surveille et limite l'utilisation mémoire."""
 
-    def __init__(self, max_memory_mb: int = 500, check_interval: int = 10):
+    def __init__(self, max_memory_mb: int = 1000, check_interval: int = 10):
         """
         Initialise le garde-fou mémoire.
 
         Args:
-            max_memory_mb: Limite mémoire en MB (défaut: 500MB)
+            max_memory_mb: Limite mémoire en MB (défaut: 1000MB)
             check_interval: Intervalle de vérification en secondes
         """
         self.max_memory_bytes = max_memory_mb * 1024 * 1024
@@ -85,4 +85,4 @@ class MemoryGuard:
 
 
 # Instance globale
-memory_guard = MemoryGuard(max_memory_mb=500)
+memory_guard = MemoryGuard(max_memory_mb=1000)

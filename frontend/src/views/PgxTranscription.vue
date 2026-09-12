@@ -38,7 +38,7 @@
           </div>
         </div>
 
-        <div v-if="sshPublicKey" data-testid="pgx-ssh-public-key" class="pgx-ssh-key-section">
+        <div v-if="sshPublicKey && !sshAuthOk" data-testid="pgx-ssh-public-key" class="pgx-ssh-key-section">
           <p class="pgx-ssh-key-label">Clé SSH dédiée — à autoriser sur PGX :</p>
           <pre class="pgx-ssh-key-block"><code>{{ sshPublicKey }}</code></pre>
           <p class="pgx-ssh-key-label">Commande à exécuter sur PGX :</p>
@@ -47,7 +47,7 @@
 
         <template v-if="pgxMissingVars.length === 0">
           <div v-if="pgxEpisodes.length > 0" class="pgx-episodes-summary">
-            <p class="pgx-episodes-count">{{ pgxEpisodes.length }} épisode(s) seront traités :</p>
+            <p class="pgx-episodes-count">{{ pgxEpisodesCountLabel }}</p>
             <ul class="pgx-episodes-list">
               <li v-for="ep in pgxEpisodes" :key="ep.id">
                 <span class="episode-date">{{ formatEpisodeDate(ep.date) }}</span>
@@ -133,7 +133,7 @@
             <tbody>
               <template v-for="log in pgxLogs" :key="log._id">
                 <tr class="pgx-log-row" @click="togglePgxLogDetail(log._id)">
-                  <td class="td-date">{{ formatDateTime(log.started_at) }}</td>
+                  <td class="td-date">{{ formatDateTime(log.finished_at || log.started_at) }}</td>
                   <td>{{ log.trigger }}</td>
                   <td>
                     <span class="badge" :class="pgxLogStatusBadgeClass(log.status)">{{ log.status }}</span>
@@ -149,6 +149,7 @@
                       </div>
                       <ul>
                         <li v-for="(ep, idx) in detailedPgxLog.episodes" :key="idx">
+                          <span class="episode-date">{{ formatEpisodeDate(ep.date) }}</span>
                           <strong>{{ ep.titre }}</strong> —
                           <span class="badge" :class="ep.success ? 'badge-ok' : 'badge-expired'">
                             {{ ep.success ? 'succès' : 'échec' }}
@@ -157,7 +158,10 @@
                         </li>
                       </ul>
                       <div v-if="(detailedPgxLog.retry_attempts || []).length > 0" class="retry-attempts">
-                        <p class="pgx-ssh-key-label">Tentatives de retry :</p>
+                        <p class="pgx-ssh-key-label">
+                          Démarré à {{ formatDateTime(detailedPgxLog.started_at) }} —
+                          {{ retryAttemptsSummary(detailedPgxLog.retry_attempts) }}
+                        </p>
                         <ul>
                           <li v-for="(attempt, idx) in detailedPgxLog.retry_attempts" :key="idx">
                             {{ formatDateTime(attempt.attempted_at) }} —
@@ -245,11 +249,25 @@ export default {
       return this.pgxDiagnostics;
     },
 
+    sshAuthOk() {
+      const sshDiag = this.pgxDiagnostics.find((d) =>
+        d.name.startsWith('Authentification SSH')
+      );
+      return sshDiag != null && sshDiag.status === 'ok';
+    },
+
     pgxProgressPercentage() {
       if (this.pgxProgress.episode_ids.length === 0) return 0;
       return Math.round(
         (this.pgxProgress.processed.length / this.pgxProgress.episode_ids.length) * 100
       );
+    },
+
+    pgxEpisodesCountLabel() {
+      const count = this.pgxEpisodes.length;
+      return count > 1
+        ? `${count} épisodes seront traités :`
+        : `${count} épisode sera traité :`;
     },
   },
 
@@ -311,6 +329,8 @@ export default {
       try {
         const res = await axios.get('/api/pgx/transcription/progress');
         this.pgxProgress = res.data;
+        await this.refreshPgxLogsSilently();
+        await this.refreshExpandedPgxLogDetailSilently();
         if (!res.data.is_running && this.pgxPollInterval) {
           this.stopPgxPolling();
           await this.loadPgxEpisodes();
@@ -373,15 +393,33 @@ export default {
       });
     },
 
+    retryAttemptsSummary(retryAttempts) {
+      const attempts = retryAttempts || [];
+      const successIndex = attempts.findIndex((a) => a.reachable);
+      if (successIndex === -1) {
+        return `PGX injoignable au démarrage — ${attempts.length} tentative(s), toujours injoignable`;
+      }
+      const attemptCount = successIndex + 1;
+      const attemptWord = attemptCount > 1 ? 'tentatives' : 'tentative';
+      return `PGX injoignable au démarrage — repris après ${attemptCount} ${attemptWord}`;
+    },
+
     async loadPgxLogs() {
       this.loadingPgxLogs = true;
+      try {
+        await this.refreshPgxLogsSilently();
+        await this.refreshExpandedPgxLogDetailSilently();
+      } finally {
+        this.loadingPgxLogs = false;
+      }
+    },
+
+    async refreshPgxLogsSilently() {
       try {
         const res = await axios.get('/api/pgx/logs');
         this.pgxLogs = res.data;
       } catch (e) {
         console.error('Erreur chargement historique PGX', e);
-      } finally {
-        this.loadingPgxLogs = false;
       }
     },
 
@@ -395,18 +433,24 @@ export default {
       this.detailedPgxLog = null;
       this.loadingPgxLogDetail = true;
       try {
-        const res = await axios.get(`/api/pgx/logs/${logId}`);
-        this.detailedPgxLog = res.data;
-      } catch (e) {
-        console.error('Erreur chargement détail transcription PGX', e);
+        await this.refreshExpandedPgxLogDetailSilently();
       } finally {
         this.loadingPgxLogDetail = false;
       }
     },
 
+    async refreshExpandedPgxLogDetailSilently() {
+      if (!this.expandedPgxLogId) return;
+      try {
+        const res = await axios.get(`/api/pgx/logs/${this.expandedPgxLogId}`);
+        this.detailedPgxLog = res.data;
+      } catch (e) {
+        console.error('Erreur chargement détail transcription PGX', e);
+      }
+    },
+
     pgxLogStatusBadgeClass(status) {
       if (status === 'success') return 'badge-ok';
-      if (status === 'partial_error') return 'badge-warning';
       return 'badge-expired';
     },
   },

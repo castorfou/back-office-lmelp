@@ -467,3 +467,4 @@ class TestSendNtfyNotification:
             await service.send_ntfy_notification("title", "message")
 
         assert mock_session.called_with[0][0] == "https://ntfy.sh/lmelp-episodes"
+        assert mock_session.called_with[1]["headers"]["Title"] == "RSS - title"

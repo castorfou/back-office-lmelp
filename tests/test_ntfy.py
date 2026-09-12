@@ -56,7 +56,7 @@ class TestSendNtfyNotification:
             )
 
         assert mock_session.called_with[0][0] == "https://ntfy.sh/lmelp-pgx"
-        assert mock_session.called_with[1]["headers"]["Title"] == "title"
+        assert mock_session.called_with[1]["headers"]["Title"] == "PGX - title"
 
     @pytest.mark.asyncio
     async def test_posts_with_tags_header_when_provided(self):

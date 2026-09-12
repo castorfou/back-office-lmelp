@@ -420,6 +420,21 @@ class MongoDBService:
         log["_id"] = str(log["_id"])
         return dict(log)
 
+    def update_pgx_transcription_log(
+        self, log_id: str, log_data: dict[str, Any]
+    ) -> None:
+        """Met à jour un document de cycle PGX déjà persisté (Issue #313).
+
+        Utilisé quand un cycle bascule en retry (visible dans l'historique
+        dès le début de l'attente, pas seulement à la fin), puis mis à jour
+        au fil des tentatives et enfin avec le statut définitif.
+        """
+        if self.pgx_transcription_logs_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        self.pgx_transcription_logs_collection.update_one(
+            {"_id": ObjectId(log_id)}, {"$set": log_data}
+        )
+
     def get_all_critical_reviews(
         self, limit: int | None = None
     ) -> list[dict[str, Any]]:
