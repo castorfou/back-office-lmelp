@@ -27,7 +27,11 @@ import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    import uvicorn
 
 from bson import ObjectId
 from fastapi import FastAPI, HTTPException, Request
@@ -5629,7 +5633,7 @@ async def get_avis_stats() -> JSONResponse:
 
 
 # Variables globales pour la gestion propre du serveur
-_server_instance = None
+_server_instance: "uvicorn.Server | None" = None
 
 
 def signal_handler(signum, frame):

@@ -120,11 +120,18 @@ externe se distingue du bouton par un comportement plus tolérant à une PGX ét
     nouveaux épisodes détectés sur le flux RSS.
 
 Une nouvelle section **"📋 Historique des transcriptions"**, sous le panneau de
-progression, liste tous les cycles passés — qu'ils aient été déclenchés
-manuellement (bouton) ou automatiquement — avec leur date, leur mode de
-déclenchement, leur statut, et le nombre d'épisodes traités. Cliquer sur une ligne
-déroule le détail : épisodes traités (succès/échec) et, le cas échéant, les
-tentatives de retry effectuées.
+progression, liste tous les cycles — qu'ils aient été déclenchés manuellement
+(bouton) ou automatiquement — avec leur date (heure de fin, ou heure de début tant
+que le cycle n'est pas terminé), leur mode de déclenchement, leur statut
+(`success`/`error`/`pgx`), et le nombre d'épisodes traités. Cliquer sur une ligne
+déroule le détail : épisodes traités (succès/échec) et, le cas échéant, l'heure de
+démarrage, un résumé des tentatives de retry ("repris après N tentative(s)" ou
+"toujours injoignable"), et le détail de chaque tentative.
+
+Un cycle qui attend PGX (statut `pgx`) apparaît **dès sa première tentative
+ratée** — pas seulement une fois terminé — pour rester visible même si l'attente
+dure plusieurs heures. La liste et le détail ouvert se rafraîchissent
+automatiquement pendant qu'un cycle est en cours, et au clic sur "🔄 Rafraîchir".
 
 Si un cycle est en attente d'une prochaine tentative de retry, un bandeau
 ⏳ apparaît dans le panneau de progression, indiquant l'heure approximative de la

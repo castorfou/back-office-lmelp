@@ -12,6 +12,7 @@ import logging
 import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 
@@ -52,6 +53,7 @@ class PgxTranscriptionRunner:
         self.retry_pending: bool = False
         self.next_attempt_at: datetime | None = None
         self.retry_attempts: list[dict[str, Any]] = []
+        self.current_log_id: str | None = None
 
     @classmethod
     def get_instance(cls) -> "PgxTranscriptionRunner":
@@ -62,7 +64,8 @@ class PgxTranscriptionRunner:
 
     def _log(self, message: str) -> None:
         now = datetime.now(UTC)
-        self.logs.append(f"{now.strftime('%d/%m/%y %H:%M:%S')} - {message}")
+        local_now = now.astimezone(ZoneInfo("Europe/Paris"))
+        self.logs.append(f"{local_now.strftime('%d/%m/%y %H:%M:%S')} - {message}")
         if len(self.logs) > 200:
             self.logs = self.logs[-200:]
         self.last_update = now
@@ -101,6 +104,7 @@ class PgxTranscriptionRunner:
             self.retry_pending = False
             self.next_attempt_at = None
             self.retry_attempts = []
+            self.current_log_id = None
 
             asyncio.create_task(self._run(trigger))
 
@@ -111,7 +115,33 @@ class PgxTranscriptionRunner:
             settings.ntfy_server_url, settings.ntfy_topic, title, message
         )
 
-    async def _wait_for_reachable_with_retry(self, host: str) -> bool:
+    def _persist_pending_retry_cycle(self, trigger: str) -> None:
+        """Persiste le cycle dès la première tentative de retry ratée
+        (Issue #313), pour que l'utilisateur voie qu'un cycle est en cours
+        dans l'historique sans attendre sa fin (potentiellement des heures
+        plus tard). Statut 'pgx' — mis à jour ensuite au fil des tentatives
+        puis avec le statut définitif à la fin du cycle."""
+        log_document = self._build_log_document(trigger, "pgx", finished=False)
+        try:
+            self.current_log_id = mongodb_service.insert_pgx_transcription_log(
+                dict(log_document)
+            )
+        except Exception as exc:  # noqa: BLE001 - la persistance ne doit jamais casser le run
+            logger.error(f"Erreur lors de la persistance anticipée du log PGX: {exc}")
+
+    def _sync_retry_attempts_to_log(self) -> None:
+        """Met à jour le document déjà persisté avec les tentatives de retry
+        au fur et à mesure (Issue #313)."""
+        if self.current_log_id is None:
+            return
+        try:
+            mongodb_service.update_pgx_transcription_log(
+                self.current_log_id, {"retry_attempts": list(self.retry_attempts)}
+            )
+        except Exception as exc:  # noqa: BLE001 - la persistance ne doit jamais casser le run
+            logger.error(f"Erreur lors de la mise à jour du log PGX: {exc}")
+
+    async def _wait_for_reachable_with_retry(self, host: str, trigger: str) -> bool:
         """Retry horaire de joignabilité PGX, plafonné (Issue #309).
 
         Notifie une seule fois au premier échec (pas à chaque tentative),
@@ -120,6 +150,9 @@ class PgxTranscriptionRunner:
         """
         retry_deadline = datetime.now(UTC) + timedelta(
             hours=settings.pgx_transcription_retry_max_hours
+        )
+        self.retry_attempts.append(
+            {"attempted_at": datetime.now(UTC).isoformat(), "reachable": False}
         )
         first_attempt = True
         while datetime.now(UTC) < retry_deadline:
@@ -132,12 +165,15 @@ class PgxTranscriptionRunner:
                 f"{settings.pgx_transcription_retry_interval_hours}h"
             )
             if first_attempt:
+                interval_h = settings.pgx_transcription_retry_interval_hours
+                max_h = settings.pgx_transcription_retry_max_hours
                 await self._send_notification(
                     "PGX injoignable — transcription en attente",
                     "Allumez PGX pour reprendre la transcription. Nouvelle "
-                    "tentative automatique toutes les heures pendant "
-                    f"{settings.pgx_transcription_retry_max_hours}h.",
+                    f"tentative automatique toutes les {interval_h}h pendant "
+                    f"{max_h}h.",
                 )
+                self._persist_pending_retry_cycle(trigger)
                 first_attempt = False
 
             await asyncio.sleep(settings.pgx_transcription_retry_interval_hours * 3600)
@@ -151,6 +187,7 @@ class PgxTranscriptionRunner:
                     "reachable": attempt_reachable,
                 }
             )
+            self._sync_retry_attempts_to_log()
             if attempt_reachable:
                 self.retry_pending = False
                 self.next_attempt_at = None
@@ -167,13 +204,23 @@ class PgxTranscriptionRunner:
         return episode_date.strftime("%d/%m/%y")
 
     def _build_log_document(
-        self, trigger: str, status: str, error_message: str | None = None
+        self,
+        trigger: str,
+        status: str,
+        error_message: str | None = None,
+        finished: bool = True,
     ) -> dict[str, Any]:
-        """Construit le document de cycle persisté dans pgx_transcription_logs."""
-        finished_at = datetime.now(UTC)
+        """Construit le document de cycle persisté dans pgx_transcription_logs.
+
+        `finished=False` pour le document intermédiaire persisté dès l'entrée
+        en retry (Issue #313) : le cycle n'est pas terminé, `finished_at` ne
+        doit donc pas prendre l'heure de cet instant intermédiaire (trompeur
+        pour l'affichage — donnerait la date de la 1re tentative ratée
+        plutôt que la vraie fin de cycle).
+        """
         return {
-            "started_at": self.start_time,
-            "finished_at": finished_at,
+            "started_at": self.start_time.isoformat() if self.start_time else None,
+            "finished_at": datetime.now(UTC).isoformat() if finished else None,
             "trigger": trigger,
             "status": status,
             "episode_ids": list(self.episode_ids),
@@ -195,7 +242,12 @@ class PgxTranscriptionRunner:
         """
         log_document = self._build_log_document(trigger, status, error_message)
         try:
-            mongodb_service.insert_pgx_transcription_log(dict(log_document))
+            if self.current_log_id is not None:
+                mongodb_service.update_pgx_transcription_log(
+                    self.current_log_id, dict(log_document)
+                )
+            else:
+                mongodb_service.insert_pgx_transcription_log(dict(log_document))
         except Exception as exc:  # noqa: BLE001 - la persistance ne doit jamais casser le run
             logger.error(f"Erreur lors de la persistance du log PGX: {exc}")
 
@@ -267,7 +319,9 @@ class PgxTranscriptionRunner:
                                         "automatique n'est tenté)"
                                     )
                                     return
-                                if not await self._wait_for_reachable_with_retry(host):
+                                if not await self._wait_for_reachable_with_retry(
+                                    host, trigger
+                                ):
                                     self._log(
                                         "PGX toujours injoignable après "
                                         f"{settings.pgx_transcription_retry_max_hours}h "
@@ -333,28 +387,48 @@ class PgxTranscriptionRunner:
                         f"[{index + 1}/{len(self.episode_ids)}] {titre}: terminé ✅"
                     )
                     self.processed.append(
-                        {"episode_id": episode_id, "success": True, "error": None}
+                        {
+                            "episode_id": episode_id,
+                            "titre": titre,
+                            "date": episode["date"].isoformat(),
+                            "success": True,
+                            "error": None,
+                        }
                     )
                     episode_date_str = self._format_episode_date(episode["date"])
                     await self._send_notification(
-                        f"Transcription PGX terminée — {episode_date_str}", titre
+                        f"Nouvel épisode Le Masque et la Plume transcrit — {episode_date_str}",
+                        titre,
                     )
                 except PgxError as exc:
                     self._log(f"[{index + 1}/{len(self.episode_ids)}] Échec: {exc}")
                     self.processed.append(
-                        {"episode_id": episode_id, "success": False, "error": str(exc)}
+                        {
+                            "episode_id": episode_id,
+                            "titre": titre,
+                            "date": episode["date"].isoformat()
+                            if episode is not None
+                            else None,
+                            "success": False,
+                            "error": str(exc),
+                        }
                     )
                     if episode is not None:
                         episode_date_str = self._format_episode_date(episode["date"])
                         title = f"Échec transcription PGX — {episode_date_str}"
                     else:
                         title = "Échec transcription PGX"
-                    await self._send_notification(title, f"{titre} : {exc}")
+                    await self._send_notification(
+                        title,
+                        f"{titre} : erreur technique, voir l'historique dans "
+                        "Back-office LMELP pour le détail",
+                    )
 
+            failed_count = sum(1 for entry in self.processed if not entry["success"])
             if abandoned:
-                status = "pgx_unreachable_abandoned"
-            elif any(not entry["success"] for entry in self.processed):
-                status = "partial_error"
+                status = "pgx"
+            elif failed_count > 0:
+                status = "error"
             else:
                 status = "success"
         except Exception as exc:  # noqa: BLE001 - garde-fou pour toujours libérer is_running

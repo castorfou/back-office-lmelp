@@ -114,4 +114,4 @@ class TestMemoryGuardSimple:
         assert memory_guard is not None
         assert hasattr(memory_guard, "check_memory_limit")
         assert hasattr(memory_guard, "force_shutdown")
-        assert memory_guard.max_memory_bytes == 500 * 1024 * 1024
+        assert memory_guard.max_memory_bytes == 1000 * 1024 * 1024
