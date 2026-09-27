@@ -421,7 +421,7 @@ class PgxTranscriptionRunner:
                     await self._send_notification(
                         title,
                         f"{titre} : erreur technique, voir l'historique dans "
-                        "Back-office LMELP pour le détail",
+                        "lmelp pour le détail",
                     )
 
             failed_count = sum(1 for entry in self.processed if not entry["success"])

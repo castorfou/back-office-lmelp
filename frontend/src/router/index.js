@@ -31,7 +31,7 @@ const routes = [
     name: 'Dashboard',
     component: Dashboard,
     meta: {
-      title: 'Accueil - Back-office LMELP'
+      title: 'Accueil - lmelp'
     }
   },
   {
@@ -39,7 +39,7 @@ const routes = [
     name: 'Episodes',
     component: EpisodePage,
     meta: {
-      title: 'Gestion des Épisodes - Back-office LMELP'
+      title: 'Gestion des Épisodes - lmelp'
     }
   },
   {
@@ -47,7 +47,7 @@ const routes = [
     name: 'LivresAuteurs',
     component: LivresAuteurs,
     meta: {
-      title: 'Livres et Auteurs - Back-office LMELP'
+      title: 'Livres et Auteurs - lmelp'
     }
   },
   {
@@ -55,7 +55,7 @@ const routes = [
     name: 'BabelioTest',
     component: BabelioTest,
     meta: {
-      title: 'Recherche Babelio - Back-office LMELP'
+      title: 'Recherche Babelio - lmelp'
     }
   },
   {
@@ -63,7 +63,7 @@ const routes = [
     name: 'BabelioMigration',
     component: BabelioMigration,
     meta: {
-      title: 'Migration Babelio - Back-office LMELP'
+      title: 'Migration Babelio - lmelp'
     }
   },
   {
@@ -71,7 +71,7 @@ const routes = [
     name: 'AdvancedSearch',
     component: AdvancedSearch,
     meta: {
-      title: 'Recherche avancée - Back-office LMELP'
+      title: 'Recherche avancée - lmelp'
     }
   },
   {
@@ -79,7 +79,7 @@ const routes = [
     name: 'AuteurDetail',
     component: AuteurDetail,
     meta: {
-      title: 'Détail Auteur - Back-office LMELP'
+      title: 'Détail Auteur - lmelp'
     }
   },
   {
@@ -87,7 +87,7 @@ const routes = [
     name: 'LivreDetail',
     component: LivreDetail,
     meta: {
-      title: 'Détail Livre - Back-office LMELP'
+      title: 'Détail Livre - lmelp'
     }
   },
   {
@@ -95,7 +95,7 @@ const routes = [
     name: 'Critiques',
     component: () => import('../views/Critiques.vue'),
     meta: {
-      title: 'Critiques - Back-office LMELP'
+      title: 'Critiques - lmelp'
     }
   },
   {
@@ -103,7 +103,7 @@ const routes = [
     name: 'CritiqueDetail',
     component: () => import('../views/CritiqueDetail.vue'),
     meta: {
-      title: 'Détail Critique - Back-office LMELP'
+      title: 'Détail Critique - lmelp'
     }
   },
   {
@@ -111,7 +111,7 @@ const routes = [
     name: 'MasquerEpisodes',
     component: MasquerEpisodes,
     meta: {
-      title: 'Masquer les Épisodes - Back-office LMELP'
+      title: 'Masquer les Épisodes - lmelp'
     }
   },
   {
@@ -119,7 +119,7 @@ const routes = [
     name: 'CalibreLibrary',
     component: CalibreLibrary,
     meta: {
-      title: 'Bibliothèque Calibre - Back-office LMELP'
+      title: 'Bibliothèque Calibre - lmelp'
     }
   },
   {
@@ -127,7 +127,7 @@ const routes = [
     name: 'IdentificationCritiques',
     component: IdentificationCritiques,
     meta: {
-      title: 'Identification des Critiques - Back-office LMELP'
+      title: 'Identification des Critiques - lmelp'
     }
   },
   {
@@ -135,7 +135,7 @@ const routes = [
     name: 'GenerationAvisCritiques',
     component: GenerationAvisCritiques,
     meta: {
-      title: 'Génération Avis Critiques - Back-office LMELP'
+      title: 'Génération Avis Critiques - lmelp'
     }
   },
   {
@@ -143,7 +143,7 @@ const routes = [
     name: 'DuplicateBooks',
     component: DuplicateBooks,
     meta: {
-      title: 'Gestion des Doublons - Back-office LMELP'
+      title: 'Gestion des Doublons - lmelp'
     }
   },
   {
@@ -151,7 +151,7 @@ const routes = [
     name: 'OrphanedAvis',
     component: OrphanedAvis,
     meta: {
-      title: 'Avis Orphelins - Back-office LMELP'
+      title: 'Avis Orphelins - lmelp'
     }
   },
   {
@@ -159,7 +159,7 @@ const routes = [
     name: 'Palmares',
     component: Palmares,
     meta: {
-      title: 'Palmarès - Back-office LMELP'
+      title: 'Palmarès - lmelp'
     }
   },
   {
@@ -167,7 +167,7 @@ const routes = [
     name: 'CalibreCorrections',
     component: CalibreCorrections,
     meta: {
-      title: 'Corrections Calibre - Back-office LMELP'
+      title: 'Corrections Calibre - lmelp'
     }
   },
   {
@@ -175,7 +175,7 @@ const routes = [
     name: 'OnKindle',
     component: OnKindle,
     meta: {
-      title: 'OnKindle - Back-office LMELP'
+      title: 'OnKindle - lmelp'
     }
   },
   {
@@ -183,7 +183,7 @@ const routes = [
     name: 'Recommendations',
     component: Recommendations,
     meta: {
-      title: 'Mes Recommandations - Back-office LMELP'
+      title: 'Mes Recommandations - lmelp'
     }
   },
   {
@@ -191,7 +191,7 @@ const routes = [
     name: 'EmissionDetail',
     component: () => import('../views/Emissions.vue'),
     meta: {
-      title: 'Émission - Back-office LMELP'
+      title: 'Émission - lmelp'
     }
   },
   {
@@ -199,7 +199,7 @@ const routes = [
     name: 'Emissions',
     component: () => import('../views/Emissions.vue'),
     meta: {
-      title: 'Émissions - Back-office LMELP'
+      title: 'Émissions - lmelp'
     }
   },
   {
@@ -207,7 +207,7 @@ const routes = [
     name: 'BabelioControl',
     component: BabelioControl,
     meta: {
-      title: 'Contrôle Babelio - Back-office LMELP'
+      title: 'Contrôle Babelio - lmelp'
     }
   },
   {
@@ -215,7 +215,7 @@ const routes = [
     name: 'RssMonitoring',
     component: RssMonitoring,
     meta: {
-      title: 'Monitoring RSS - Back-office LMELP'
+      title: 'Monitoring RSS - lmelp'
     }
   },
   {
@@ -223,7 +223,7 @@ const routes = [
     name: 'PgxTranscription',
     component: PgxTranscription,
     meta: {
-      title: 'Transcription PGX - Back-office LMELP'
+      title: 'Transcription PGX - lmelp'
     }
   },
   {
@@ -231,7 +231,7 @@ const routes = [
     name: 'About',
     component: () => import('../views/AboutPage.vue'),
     meta: {
-      title: 'À propos - Back-office LMELP'
+      title: 'À propos - lmelp'
     }
   }
 ];
@@ -253,7 +253,7 @@ const router = createRouter({
 
 // Mettre à jour le titre de la page lors de la navigation
 router.afterEach((to) => {
-  document.title = to.meta.title || 'Back-office LMELP';
+  document.title = to.meta.title || 'lmelp';
 });
 
 export default router;

@@ -112,7 +112,7 @@ describe('EpisodePage - Tests d\'intégration (legacy)', () => {
       }
     });
 
-    // La page EpisodePage ne devrait plus avoir le titre "Back-office LMELP"
+    // La page EpisodePage ne devrait pas avoir le titre « lmelp » de l'accueil
     const mainHeader = wrapper.find('.page-header h1');
     expect(mainHeader.exists()).toBe(false);
 

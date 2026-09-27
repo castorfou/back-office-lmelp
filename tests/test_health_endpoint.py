@@ -43,4 +43,4 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
-        assert "Back-office LMELP API" in data["message"]
+        assert "lmelp API" in data["message"]

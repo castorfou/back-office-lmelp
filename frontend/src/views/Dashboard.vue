@@ -2,7 +2,7 @@
   <div class="dashboard">
     <!-- Bandeau d'en-tête -->
     <header class="page-header">
-      <h1>Back-office LMELP</h1>
+      <h1>lmelp</h1>
       <p class="subtitle">
         Gestion et correction des épisodes du Masque et la Plume
       </p>
@@ -434,7 +434,6 @@ import TextSearchEngine from '../components/TextSearchEngine.vue';
 import babelioSymbol from '../assets/babelio-symbol.svg';
 import babelioSymbolLiaison from '../assets/babelio-symbol-liaison.svg';
 import calibreIcon from '../assets/calibre_logo.png';
-import { getLmelpFrontOfficeUrl } from '../utils/lmelpFrontOfficeUrl.js';
 
 export default {
   name: 'Dashboard',
@@ -522,16 +521,6 @@ export default {
         console.error('Erreur de formatage de date:', error);
         return '--';
       }
-    },
-
-    lmelpFrontOfficeUrl() {
-      // Issue #265: URL dérivée dynamiquement du hostname d'accès au back-office
-      return getLmelpFrontOfficeUrl(window.location.hostname);
-    },
-
-    lmelpAvisCritiquesUrl() {
-      // Issue #265: URL dérivée dynamiquement du hostname d'accès au back-office
-      return getLmelpFrontOfficeUrl(window.location.hostname, 'avis_critiques');
     },
 
     babelioCompletionPercentage() {

@@ -200,7 +200,7 @@ describe('EpisodePage - Tests d\'intégration', () => {
     expect(wrapper.find('.help-message').exists()).toBe(false);
   });
 
-  it('ne affiche pas le titre "Back-office LMELP" de la page d\'accueil', async () => {
+  it("n'affiche pas le titre « lmelp » de la page d'accueil", async () => {
     episodeService.getAllEpisodes.mockResolvedValue(mockEpisodes);
 
     wrapper = mount(EpisodePage, {

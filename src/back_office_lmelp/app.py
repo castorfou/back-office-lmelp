@@ -390,7 +390,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="Back-office LMELP",
+    title="lmelp",
     description="Interface de gestion pour la base de données du Masque et la Plume",
     version=_build_info.get("commit_short", "0.1.0"),
     lifespan=lifespan,
@@ -465,7 +465,7 @@ app.add_middleware(EnrichedLoggingMiddleware)
 async def root() -> dict[str, str]:
     """Point d'entrée de l'API."""
     return {
-        "message": "Back-office LMELP API",
+        "message": "lmelp API",
         "version": _build_info.get("commit_short", "unknown"),
     }
 
