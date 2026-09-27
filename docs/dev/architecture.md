@@ -1,8 +1,8 @@
-# Architecture - Back-Office LMELP
+# Architecture - lmelp
 
 ## Vue d'ensemble
 
-L'architecture du Back-Office LMELP suit un pattern client-serveur classique avec des composants spécialisés pour la gestion de la mémoire et la robustesse du système.
+L'architecture de lmelp suit un pattern client-serveur classique avec des composants spécialisés pour la gestion de la mémoire et la robustesse du système.
 
 ## Diagramme d'architecture
 

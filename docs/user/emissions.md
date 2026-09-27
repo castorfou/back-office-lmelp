@@ -233,4 +233,4 @@ Pour les autres problèmes, consultez le [Guide de résolution de problèmes](tr
 
 ---
 
-*Page mise à jour pour la version actuelle du Back-Office LMELP.*
+*Page mise à jour pour la version actuelle de lmelp.*

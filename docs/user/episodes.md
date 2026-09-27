@@ -1,8 +1,8 @@
-# Gestion des épisodes - Back-Office LMELP
+# Gestion des épisodes - lmelp
 
 ## Vue d'ensemble
 
-La gestion des épisodes est la fonctionnalité centrale du Back-Office LMELP. Elle vous permet de consulter, modifier et améliorer les titres et descriptions des épisodes de podcast de manière intuitive et efficace.
+La gestion des épisodes est la fonctionnalité centrale de lmelp. Elle vous permet de consulter, modifier et améliorer les titres et descriptions des épisodes de podcast de manière intuitive et efficace.
 
 ## Ajout d'un nouvel épisode
 

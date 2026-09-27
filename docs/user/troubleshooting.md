@@ -1,4 +1,4 @@
-# Résolution de problèmes - Back-Office LMELP
+# Résolution de problèmes - lmelp
 
 ## Problèmes courants et solutions
 

@@ -6,7 +6,9 @@ This file provides quick guidance to Claude Code (claude.ai/code) when working w
 
 ## Project Overview
 
-Full-stack application for managing database related to lmelp project:
+Full-stack application for managing database related to lmelp project. Its
+user-visible name is **lmelp** (PWA, page titles, API title) — this repo replaces
+the decommissioned Streamlit `lmelp` app; `back-office-lmelp` is only the repo name.
 - **Backend**: Python FastAPI with MongoDB integration + Calibre SQLite (optional)
 - **Frontend**: Vue.js 3 SPA with Vite build system
 - **Environment**: VS Code devcontainers (Docker-based)
@@ -114,6 +116,22 @@ disown
 **Pourquoi c'est critique** (Issue #299) : un job d'arrière-plan non protégé (`nohup`) ni détaché (`disown`) reçoit `SIGHUP` quand le shell qui l'a lancé se termine — ce qui arrive systématiquement à la fin d'un appel d'outil Bash de Claude Code. Le script trape désormais aussi `SIGHUP` (en plus de `SIGINT`/`SIGTERM`) pour exécuter son `cleanup()` dans ce cas plutôt que d'être tué immédiatement sans nettoyage — mais `nohup ... & disown` reste la protection de premier niveau : elle évite que le signal n'atteigne le script, plutôt que de compter uniquement sur le trap pour réagir une fois le signal reçu.
 
 **`.dev-ports.json` n'est volontairement PAS dans `.gitignore`** : le laisser apparaître dans `git status` permet de voir visuellement sa création/suppression par `start-dev.sh`, ce qui aide à détecter un cleanup qui ne s'est pas fait correctement (fichier resté présent après arrêt des services). Faire simplement attention à ne pas le commit par erreur (`git status` avant un `git add`/commit) — ce n'est pas dramatique si ça arrive, mais autant l'éviter.
+
+### PWA Icons
+
+The PNG/ICO icons in `frontend/public/` (favicons, `android-chrome-*`, `maskable-icon-*`)
+are **generated** — never edit or replace them by hand:
+
+```bash
+python scripts/generate_favicons.py
+```
+
+It composes the mask + feather of `gimp_favicon/favicon.png` (green) with the database of
+`gimp_favicon/favicon_back-office-lmelp.png` (pink) on a flat green background. Maskable
+icons must stay fully opaque with the motif inside the central 80 % disc;
+`tests/test_generate_favicons.py` checks both the generator and the committed files.
+Keep scripts out of `frontend/public/`: everything there is copied as-is into the
+published build.
 
 ### Documentation Commands
 

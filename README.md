@@ -1,6 +1,6 @@
-# Back-office LMELP
+# lmelp
 
-Interface de gestion pour la base de données du projet [LMELP](https://github.com/castorfou/lmelp) (Le Masque et La Plume).
+Application **lmelp** (Le Masque et La Plume) : constitution et gestion de la base de données des émissions, livres, critiques et avis. Ce dépôt (`back-office-lmelp`) remplace l'application Streamlit historique [lmelp](https://github.com/castorfou/lmelp) ; la consultation mobile est assurée par [lmelp-mobile](https://github.com/castorfou/lmelp-mobile).
 
 
 ## 🎯 Objectif

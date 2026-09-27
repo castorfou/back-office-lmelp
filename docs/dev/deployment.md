@@ -1,6 +1,6 @@
 # Déploiement
 
-Cette section couvre les aspects de déploiement du back-office LMELP.
+Cette section couvre les aspects de déploiement de lmelp.
 
 ## Environnements
 

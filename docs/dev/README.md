@@ -1,8 +1,8 @@
-# Documentation Développeurs - Back-Office LMELP
+# Documentation Développeurs - lmelp
 
 ## Vue d'ensemble technique
 
-Le Back-Office LMELP est une application web full-stack pour la gestion d'épisodes de podcast avec des fonctionnalités avancées de protection mémoire.
+lmelp est une application web full-stack pour la gestion d'épisodes de podcast avec des fonctionnalités avancées de protection mémoire.
 
 ## Architecture
 

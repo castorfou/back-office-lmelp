@@ -34,7 +34,7 @@ Deux endpoints exposent la synchronisation :
 
 ## Classification LLM
 
-Contrairement au projet `lmelp` (frontoffice Streamlit, qui partage la même base MongoDB) qui utilise un modèle HuggingFace zero-shot local (`facebook/bart-large-mnli`), ce service réutilise le client Azure OpenAI déjà configuré ailleurs dans le repo (`AZURE_API_KEY`, `AZURE_ENDPOINT`, `AZURE_API_VERSION`, `AZURE_DEPLOYMENT_NAME`), sur le modèle exact de l'appel LLM de `radiofrance_service.py` (`asyncio.wait_for(asyncio.to_thread(...), timeout=30)`).
+Contrairement à l'ancienne application Streamlit `lmelp` (décommissionnée), qui utilisait un modèle HuggingFace zero-shot local (`facebook/bart-large-mnli`), ce service réutilise le client Azure OpenAI déjà configuré ailleurs dans le repo (`AZURE_API_KEY`, `AZURE_ENDPOINT`, `AZURE_API_VERSION`, `AZURE_DEPLOYMENT_NAME`), sur le modèle exact de l'appel LLM de `radiofrance_service.py` (`asyncio.wait_for(asyncio.to_thread(...), timeout=30)`).
 
 Si le client n'est pas configuré, `classify_episode_type()` retourne `"inconnu"` — l'épisode n'est ni téléchargé ni notifié comme "livres" par erreur.
 

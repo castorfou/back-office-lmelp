@@ -1,8 +1,8 @@
-# Guide de l'interface - Back-Office LMELP
+# Guide de l'interface - lmelp
 
 ## Vue d'ensemble
 
-L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle se compose de deux sections principales qui s'affichent de manière responsive selon la taille de votre écran.
+L'interface de lmelp est conçue pour être simple et efficace. Elle se compose de deux sections principales qui s'affichent de manière responsive selon la taille de votre écran.
 
 ## Anatomie de l'interface
 
@@ -10,7 +10,7 @@ L'interface du Back-Office LMELP est conçue pour être simple et efficace. Elle
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🎧 Back-Office LMELP                                      │
+│  🎧 lmelp                                                  │
 │  ─────────────────────────────────────────────────────────  │
 │                                                             │
 │  🔍 Rechercher...                                          │

@@ -1,5 +1,12 @@
 # Guide de tests et validation
 
+!!! info "Déploiement autonome"
+    Ce guide concerne le déploiement **autonome** de `docker/deployment/docker-compose.yml`
+    (conteneurs `lmelp-backend` / `lmelp-frontend`, MongoDB existant). En production sur le
+    NAS, lmelp tourne dans la stack [docker-lmelp](https://github.com/castorfou/docker-lmelp)
+    (conteneurs `lmelp-backoffice-backend` / `lmelp-backoffice-frontend`, frontend sur 8081) :
+    voir [Architecture Docker](docker-setup.md).
+
 ## Tests locaux avant déploiement
 
 ### Prérequis
@@ -307,14 +314,14 @@ Vérifier :
 
 DSM → **Control Panel** → **Login Portal** → **Advanced** → **Reverse Proxy**
 
-Vérifier la règle :
-- Source : `lmelp.ascot63.synology.me` (port 443)
-- Destination : `localhost` (port 8080)
+Vérifier la règle **lmelp** :
+- Source : HTTPS, `lmelp.ascot63.synology.me` (port 443), profil de contrôle d'accès « réseau local »
+- Destination : HTTP, `localhost`, port du frontend (`FRONTEND_PORT` : 8081 sur le NAS)
 
 #### 2. Test HTTPS
 
 ```bash
-# Depuis Internet (ou autre réseau)
+# Depuis le réseau local (la règle n'est pas exposée sur Internet)
 curl https://lmelp.ascot63.synology.me
 
 # Vérifier certificat SSL
