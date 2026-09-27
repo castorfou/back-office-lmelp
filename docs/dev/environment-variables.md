@@ -193,7 +193,6 @@ déjà été produite lors d'un run antérieur).
 Le frontend n'utilise aucune variable d'environnement pour sa configuration réseau :
 
 - L'URL de l'API backend est toujours **relative** (`/api/...`) : en dev le proxy Vite (`frontend/vite.config.js`) la redirige vers le backend, en production nginx (`docker/build/frontend/nginx.conf`) fait de même.
-- L'URL du front-office lmelp (tuile "Dernière mise à jour" du Dashboard) est dérivée dynamiquement, côté client, à partir de `window.location.hostname` — voir `frontend/src/utils/lmelpFrontOfficeUrl.js`.
 
 ## Exemple de fichier `.env`
 

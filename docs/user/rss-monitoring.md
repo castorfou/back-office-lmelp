@@ -1,4 +1,4 @@
-# Monitoring RSS Le Masque et la Plume - Back-Office LMELP
+# Monitoring RSS Le Masque et la Plume - lmelp
 
 ## Vue d'ensemble
 

@@ -1,8 +1,8 @@
-# Base de données - Back-Office LMELP
+# Base de données - lmelp
 
 ## Vue d'ensemble
 
-Le Back-Office LMELP utilise MongoDB comme base de données principale pour stocker les informations des épisodes de podcast.
+lmelp utilise MongoDB comme base de données principale pour stocker les informations des épisodes de podcast.
 
 ## Configuration
 

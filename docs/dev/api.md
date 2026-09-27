@@ -1,4 +1,4 @@
-# Documentation API - Back-Office LMELP
+# Documentation API - lmelp
 
 ## FastAPI Best Practices
 

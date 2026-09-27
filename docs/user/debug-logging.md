@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-Le back-office LMELP propose des variables d'environnement pour activer des logs de debug détaillés. Ces logs sont utiles pour diagnostiquer des problèmes de génération de contenu, de matching avec Babelio, ou d'autres opérations complexes.
+lmelp propose des variables d'environnement pour activer des logs de debug détaillés. Ces logs sont utiles pour diagnostiquer des problèmes de génération de contenu, de matching avec Babelio, ou d'autres opérations complexes.
 
 **Important :** Les logs de debug sont **désactivés par défaut** en production pour éviter la pollution des logs et préserver les performances.
 
@@ -326,4 +326,4 @@ Puis redémarrez le conteneur.
 
 ---
 
-*Documentation mise à jour pour la version actuelle du back-office LMELP. Les variables de debug sont un outil de diagnostic, pas une fonctionnalité de production.*
+*Documentation mise à jour pour la version actuelle de lmelp. Les variables de debug sont un outil de diagnostic, pas une fonctionnalité de production.*

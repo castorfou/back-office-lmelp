@@ -1,8 +1,8 @@
-# Guide utilisateur - Back-Office LMELP
+# Guide utilisateur - lmelp
 
 ## Bienvenue
 
-Le Back-Office LMELP est une application web simple et intuitive pour consulter et modifier les descriptions des épisodes de podcast. Cette interface vous permet de corriger et améliorer les descriptions générées automatiquement.
+lmelp est une application web simple et intuitive pour consulter et modifier les descriptions des épisodes de podcast. Cette interface vous permet de corriger et améliorer les descriptions générées automatiquement.
 
 ## Accès à l'application
 
@@ -40,7 +40,7 @@ L'interface comprend maintenant **deux pages principales** :
 
 ```
 ┌─────────────────────────────────────┐
-│        Back-office LMELP            │
+│        lmelp                        │
 │   Gestion des épisodes du           │
 │     Masque et la Plume              │
 └─────────────────────────────────────┘
@@ -321,4 +321,4 @@ En cas de problème persistant :
 
 ---
 
-*Cette documentation correspond à la version actuelle du Back-Office LMELP. Pour les développeurs, consultez la [documentation technique](../dev/README.md).*
+*Cette documentation correspond à la version actuelle de lmelp. Pour les développeurs, consultez la [documentation technique](../dev/README.md).*

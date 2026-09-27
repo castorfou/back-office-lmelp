@@ -400,4 +400,4 @@ En cas de problème avec la recherche :
 
 ---
 
-*Cette fonctionnalité est disponible depuis la version actuelle du Back-Office LMELP. Pour les développeurs, consultez la [documentation API](../dev/api.md#advanced-search-api).*
+*Cette fonctionnalité est disponible depuis la version actuelle de lmelp. Pour les développeurs, consultez la [documentation API](../dev/api.md#advanced-search-api).*

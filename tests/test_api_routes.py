@@ -38,7 +38,7 @@ class TestAPIRoutes:
         response = client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["message"] == "Back-office LMELP API"
+        assert data["message"] == "lmelp API"
         assert "version" in data  # Version dynamique depuis git (Issue #205)
 
     def test_get_episodes_success(

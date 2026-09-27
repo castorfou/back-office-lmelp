@@ -1,5 +1,12 @@
 # Guide de déploiement Portainer
 
+!!! info "Déploiement autonome"
+    Ce guide concerne le déploiement **autonome** de `docker/deployment/docker-compose.yml`
+    (conteneurs `lmelp-backend` / `lmelp-frontend`, MongoDB existant). En production sur le
+    NAS, lmelp tourne dans la stack [docker-lmelp](https://github.com/castorfou/docker-lmelp)
+    (conteneurs `lmelp-backoffice-backend` / `lmelp-backoffice-frontend`, frontend sur 8081) :
+    voir [Architecture Docker](docker-setup.md).
+
 ## Prérequis
 
 - Portainer installé sur le NAS Synology

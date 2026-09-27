@@ -124,7 +124,7 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('h1').text()).toBe('Back-office LMELP');
+    expect(wrapper.find('h1').text()).toBe('lmelp');
     expect(wrapper.text()).toContain('Gestion et correction des épisodes du Masque et la Plume');
   });
 
@@ -139,7 +139,7 @@ describe('Dashboard - Tests d\'intégration', () => {
 
     const header = wrapper.find('.page-header');
     expect(header.exists()).toBe(true);
-    expect(header.find('h1').text()).toBe('Back-office LMELP');
+    expect(header.find('h1').text()).toBe('lmelp');
   });
 
   it('affiche la fonction Episode - Modification Titre/Description comme cliquable', async () => {
@@ -637,106 +637,6 @@ describe('Dashboard - Tests d\'intégration', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="dashboard-refresh-button"]').attributes('disabled')).toBeUndefined();
-  });
-});
-
-describe('Dashboard - URL front-office lmelp dynamique (Issue #265)', () => {
-  let wrapper;
-  let router;
-  const originalLocation = window.location;
-
-  function setHostname(hostname) {
-    delete window.location;
-    window.location = { ...originalLocation, hostname };
-  }
-
-  const mockStatistics = {
-    totalEpisodes: 142,
-    maskedEpisodes: 5,
-    episodesWithCorrectedTitles: 37,
-    episodesWithCorrectedDescriptions: 45,
-    criticalReviews: 28,
-    lastUpdateDate: '2025-09-06T10:30:00Z'
-  };
-
-  const mockCollectionsStatistics = {
-    episodes_non_traites: 5,
-    couples_en_base: 42,
-    couples_suggested_pas_en_base: 12,
-    couples_not_found_pas_en_base: 8,
-    episodes_without_avis_critiques: 117,
-    avis_critiques_without_analysis: 0,
-    last_episode_date: '2024-12-10T20:00:00',
-    books_without_url_babelio: 5,
-    authors_without_url_babelio: 3
-  };
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-
-    axios.get.mockImplementation((url) => {
-      if (url === '/api/dashboard/stats') {
-        return Promise.resolve({
-          data: {
-            statistics: mockStatistics,
-            collections_statistics: mockCollectionsStatistics,
-            critiques_manquants_count: 0,
-            duplicate_books_count: 0,
-            duplicate_authors_count: 0,
-            orphaned_avis_count: 0
-          }
-        });
-      }
-      if (url === '/api/version') {
-        return Promise.resolve({ data: {} });
-      }
-      return Promise.reject(new Error(`URL non mockée: ${url}`));
-    });
-
-    router = createRouter({
-      history: createWebHistory(),
-      routes: [
-        { path: '/', component: Dashboard },
-        { path: '/episodes', component: { template: '<div>Episodes Page</div>' } }
-      ]
-    });
-
-    await router.push('/');
-  });
-
-  afterEach(() => {
-    if (wrapper) {
-      wrapper.unmount();
-    }
-    window.location = originalLocation;
-  });
-
-  it('pointe vers localhost:8501 quand le back-office est accédé via localhost', async () => {
-    setHostname('localhost');
-
-    wrapper = mount(Dashboard, {
-      global: {
-        plugins: [router]
-      }
-    });
-
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.vm.lmelpFrontOfficeUrl).toBe('http://localhost:8501/');
-  });
-
-  it('pointe vers le domaine front-office sans le suffixe -bo quand le back-office est accédé via un nom de domaine', async () => {
-    setHostname('lmelp-bo.ascot63.synology.me');
-
-    wrapper = mount(Dashboard, {
-      global: {
-        plugins: [router]
-      }
-    });
-
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.vm.lmelpFrontOfficeUrl).toBe('https://lmelp.ascot63.synology.me/');
   });
 });
 

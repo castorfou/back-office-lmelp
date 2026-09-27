@@ -493,14 +493,14 @@ const routes = [
     name: 'DuplicateBooks',
     component: DuplicateBooks,
     meta: {
-      title: 'Gestion des Doublons - Back-office LMELP'
+      title: 'Gestion des Doublons - lmelp'
     }
   }
 ];
 
 // Mise à jour du titre de page lors de la navigation
 router.afterEach((to) => {
-  document.title = to.meta.title || 'Back-office LMELP';
+  document.title = to.meta.title || 'lmelp';
 });
 ```
 

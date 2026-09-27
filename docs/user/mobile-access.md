@@ -1,6 +1,6 @@
-# Accès mobile à Back-office LMELP
+# Accès mobile à lmelp
 
-Ce guide explique comment accéder à l'application Back-office LMELP depuis votre téléphone ou tablette sur le même réseau local.
+Ce guide explique comment accéder à l'application lmelp depuis votre téléphone ou tablette sur le même réseau local.
 
 ## Prérequis
 
@@ -127,6 +127,19 @@ L'interface est optimisée pour mobile avec :
 - 🎨 **Interface tactile** : Boutons et zones de clic adaptés au touch
 - ⚡ **Performance optimisée** : Chargement rapide sur connexion mobile
 - 🧭 **Navigation intuitive** : Menu de navigation adapté mobile
+
+## Installer l'application sur le téléphone (PWA)
+
+lmelp est une application web installable (PWA) : une fois installée, elle apparaît sur l'écran d'accueil sous le nom **lmelp**, avec une icône verte (masque, plume et base de données) qui se distingue de celle, bleu nuit, de l'application Android [lmelp-mobile](https://github.com/castorfou/lmelp-mobile). Sur Android, l'icône remplit tout le cercle du lanceur.
+
+1. Ouvrir l'application dans Chrome depuis son adresse **HTTPS** (déploiement NAS, voir [Architecture Docker](../deployment/docker-setup.md)).
+2. Menu ⋮ → **Installer l'application**.
+
+!!! note "Adresse locale en HTTP"
+    Chrome n'installe une PWA que depuis une origine sécurisée (HTTPS ou `localhost`). Depuis `http://<IP>:5173`, il ne propose qu'un simple raccourci. Pour tester l'installation en développement : ajouter l'adresse au flag `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, ou ouvrir `http://localhost:5173` via la redirection de port de `chrome://inspect` (téléphone relié en USB).
+
+!!! tip "Chrome propose « Ouvrir » alors que l'application a été désinstallée"
+    Chrome → Paramètres → Paramètres des sites → Tous les sites → l'adresse de l'application → **Effacer et réinitialiser**, puis fermer complètement Chrome avant de réessayer.
 
 ## Sécurité
 

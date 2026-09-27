@@ -1,6 +1,6 @@
 # Sécurité
 
-Cette section couvre les aspects de sécurité du back-office LMELP.
+Cette section couvre les aspects de sécurité de lmelp.
 
 ## Mesures de sécurité
 

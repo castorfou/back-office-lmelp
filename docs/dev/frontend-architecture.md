@@ -1,4 +1,4 @@
-# Architecture Frontend - Back-office LMELP
+# Architecture Frontend - lmelp
 
 ## Vue d'ensemble
 
@@ -56,13 +56,13 @@ const routes = [
     path: '/',
     name: 'Dashboard',
     component: Dashboard,
-    meta: { title: 'Accueil - Back-office LMELP' }
+    meta: { title: 'Accueil - lmelp' }
   },
   {
     path: '/episodes',
     name: 'Episodes',
     component: EpisodePage,
-    meta: { title: 'Gestion des Épisodes - Back-office LMELP' }
+    meta: { title: 'Gestion des Épisodes - lmelp' }
   }
 ]
 ```
@@ -148,6 +148,27 @@ Tous les composants sont optimisés pour les écrans mobiles :
 - **Breakpoints** : 768px (tablettes), 480px (mobiles)
 - **Layout** : Grilles flexibles avec `grid-template-columns: repeat(auto-fit, minmax(...))`
 - **Navigation** : Adaptation automatique sur petits écrans
+
+## PWA : manifest et icônes
+
+`frontend/public/site.webmanifest` déclare l'application **lmelp** (`name`, `short_name`) et deux jeux d'icônes :
+
+| Fichiers | `purpose` | Rendu |
+|---|---|---|
+| `android-chrome-192x192.png`, `android-chrome-512x512.png` | `any` | carré vert arrondi, masque + plume + base de données |
+| `maskable-icon-192x192.png`, `maskable-icon-512x512.png` | `maskable` | fond vert plein bord à bord, motif dans la safe zone |
+
+Une icône maskable est découpée par le lanceur Android (cercle, squircle…) : elle doit être entièrement opaque et son motif doit tenir dans le disque central de 80 % du côté. Sans elle, Android pose l'icône `any` réduite dans un disque blanc.
+
+Toutes les icônes (favicons, `apple-touch-icon.png`, `favicon.ico` compris) sont **générées**, jamais retouchées à la main :
+
+```bash
+python scripts/generate_favicons.py
+```
+
+Le script compose deux sources alignées de `frontend/public/gimp_favicon/` : le masque et la plume de `favicon.png` (icône verte historique de lmelp) et la base de données de `favicon_back-office-lmelp.png`, sur le vert `#0FAE63`. `tests/test_generate_favicons.py` vérifie l'opacité, la safe zone et la présence de la base de données, sur la sortie du script comme sur les fichiers commités ; `frontend/tests/unit/appBranding.test.js` vérifie le manifest et les titres.
+
+Aucun script ne doit être placé sous `frontend/public/` : son contenu est copié tel quel dans le build publié.
 
 ## Tests
 

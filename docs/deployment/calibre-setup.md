@@ -4,6 +4,10 @@
 
 L'intégration Calibre permet d'accéder à votre bibliothèque Calibre existante depuis l'application back-office-lmelp. L'application lit directement la base de données SQLite de Calibre (`metadata.db`) sans nécessiter l'installation de Calibre dans le conteneur Docker.
 
+!!! note "Nom du conteneur backend"
+    Les commandes ci-dessous utilisent `lmelp-backend` (déploiement autonome). Dans la stack
+    docker-lmelp du NAS, le conteneur s'appelle `lmelp-backoffice-backend`.
+
 ## Prérequis
 
 - Une bibliothèque Calibre existante sur votre système hôte

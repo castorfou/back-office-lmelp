@@ -1,6 +1,6 @@
-# Back-Office LMELP - Documentation
+# lmelp - Documentation
 
-Bienvenue dans la documentation du Back-Office LMELP, une application web pour la gestion et l'édition des descriptions d'épisodes de podcast.
+Bienvenue dans la documentation de lmelp, une application web pour la gestion et l'édition des descriptions d'épisodes de podcast.
 
 ## Vue d'ensemble
 

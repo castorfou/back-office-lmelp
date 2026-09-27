@@ -9,7 +9,7 @@ class TestSimpleEndpoints:
     def test_app_creates_successfully(self):
         """Test que l'app FastAPI se crée sans erreur."""
         assert app is not None
-        assert app.title == "Back-office LMELP"
+        assert app.title == "lmelp"
 
     def test_app_has_cors_middleware(self):
         """Test que l'app a bien le middleware CORS configuré."""

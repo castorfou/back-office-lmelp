@@ -63,7 +63,7 @@ def log_startup_info() -> None:
     - Chemins sys.path
     """
     print("=" * 50)
-    print("🚀 DÉMARRAGE BACK-OFFICE LMELP")
+    print("🚀 DÉMARRAGE LMELP")
     print("=" * 50)
 
     # Version (Issue #205)

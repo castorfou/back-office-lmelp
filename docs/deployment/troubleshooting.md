@@ -1,5 +1,12 @@
 # Troubleshooting - Diagnostic et résolution de problèmes
 
+!!! info "Déploiement autonome"
+    Ce guide concerne le déploiement **autonome** de `docker/deployment/docker-compose.yml`
+    (conteneurs `lmelp-backend` / `lmelp-frontend`, MongoDB existant). En production sur le
+    NAS, lmelp tourne dans la stack [docker-lmelp](https://github.com/castorfou/docker-lmelp)
+    (conteneurs `lmelp-backoffice-backend` / `lmelp-backoffice-frontend`, frontend sur 8081) :
+    voir [Architecture Docker](docker-setup.md).
+
 ## Outils de diagnostic
 
 ### Accès aux logs
@@ -367,20 +374,23 @@ Configurer la rotation des logs :
 sudo systemctl restart docker
 ```
 
-### Application inaccessible depuis Internet
+### Application inaccessible via `lmelp.ascot63.synology.me`
 
 #### Symptôme
-Application fonctionne en local mais pas via `lmelp.ascot63.synology.me`
+Application accessible sur `http://<nas-ip>:<FRONTEND_PORT>` mais pas via `https://lmelp.ascot63.synology.me`
 
 #### Diagnostic
 
 ```bash
-# Tester en local
-curl http://<nas-ip>:8080
+# Tester l'accès direct au frontend (8081 sur le NAS)
+curl http://<nas-ip>:8081
 
-# Tester depuis Internet (depuis un autre réseau)
+# Tester via le reverse proxy, depuis le réseau local
 curl https://lmelp.ascot63.synology.me
 ```
+
+La règle de reverse proxy est restreinte au **réseau local** (profil de contrôle
+d'accès) : un échec depuis un autre réseau est le comportement attendu.
 
 #### Solutions
 
@@ -388,9 +398,10 @@ curl https://lmelp.ascot63.synology.me
 
 Vérifier dans DSM :
 - **Control Panel** → **Login Portal** → **Advanced** → **Reverse Proxy**
-- Créer une règle :
-  - Source : `lmelp.ascot63.synology.me`, port 443
-  - Destination : `localhost`, port 8080
+- Règle **lmelp** :
+  - Source : HTTPS, `lmelp.ascot63.synology.me`, port 443, profil « réseau local »
+  - Destination : HTTP, `localhost`, port du frontend (`FRONTEND_PORT` : 8081 sur le NAS)
+- Aucune autre règle ne doit utiliser le même nom d'hôte source
 
 **2. Certificat SSL invalide**
 
@@ -409,7 +420,7 @@ Vérifier dans DSM :
 Vérifier la résolution DNS :
 ```bash
 nslookup lmelp.ascot63.synology.me
-# Doit retourner l'IP publique du NAS
+# Doit retourner l'IP du NAS sur le réseau local
 ```
 
 ### Erreurs MongoDB
