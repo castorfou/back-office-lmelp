@@ -166,6 +166,9 @@ Vérifier :
 
 ## Étape 4 : Configurer le webhook Portainer
 
+!!! warning "Remplacé par Watchtower"
+    Le workflow `docker-publish.yml` n'appelle plus le webhook Portainer. Après chaque push sur `main`, il déclenche la mise à jour via l'API HTTP de Watchtower (secret `WATCHTOWER_TOKEN`, voir [castorfou/dockers](https://github.com/castorfou/dockers)). Le webhook ne sert plus que pour un redéploiement manuel de la stack.
+
 Le webhook permet le déploiement automatique après chaque push sur GitHub.
 
 ### Créer le webhook
