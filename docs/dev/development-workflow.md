@@ -208,18 +208,17 @@ git push origin --delete feature/ma-nouvelle-fonctionnalite
 
 ## Configuration Portainer auto-update
 
-### Via webhook Portainer
+Après chaque push sur `main`, le workflow `.github/workflows/docker-publish.yml` publie l'image, puis appelle l'API HTTP de Watchtower sur le NAS :
+`POST https://watchtower.ascot63.synology.me/v1/update?image=ghcr.io/castorfou/lmelp-backend,ghcr.io/castorfou/lmelp-frontend`.
+Watchtower pull la nouvelle image et redémarre les conteneurs concernés en moins d'une minute.
 
-**Pour des updates instantanées (recommandé) :**
+Prérequis :
 
-1. Dans Portainer : **Stacks** → **lmelp-back-office** → **Webhooks** → **Create webhook**
-2. Copier l'URL du webhook
-3. Dans GitHub : **Settings** → **Secrets** → **Actions** → **New secret**
-   - Name: `PORTAINER_WEBHOOK_URL`
-   - Value: URL copiée
-4. Le workflow GitHub Actions triggera automatiquement le webhook après chaque build
+- conteneurs labellisés `com.centurylinklabs.watchtower.enable=true` (stack `lmelp-stack`) ;
+- secret GitHub `WATCHTOWER_TOKEN` : le token de l'API Watchtower (configuration dans [castorfou/dockers](https://github.com/castorfou/dockers)).
 
-Le webhook est configuré dans `.github/workflows/docker-publish.yml` (à la racine du projet).
+Le job échoue si le token est refusé (401), si aucun conteneur n'utilise l'image (`scanned=0`) ou si la mise à jour échoue.
+Sans appel CI, Watchtower vérifie les images une fois par semaine.
 
 ## Troubleshooting
 
@@ -259,7 +258,7 @@ docker ps | grep mongo
 
 **Causes possibles :**
 
-1. **Webhook non configuré** : Vérifier `PORTAINER_WEBHOOK_URL` dans GitHub Secrets
+1. **Étape Watchtower en échec** : voir le job dans l'onglet Actions (401 : `WATCHTOWER_TOKEN` invalide ; `scanned=0` : conteneur non labellisé ou nom d'image différent)
 2. **Erreur GitHub Actions** : Vérifier les logs dans l'onglet Actions
 3. **Image tag incorrect** : Vérifier que le compose utilise `:latest`
 

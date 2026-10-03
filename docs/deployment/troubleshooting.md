@@ -240,6 +240,9 @@ proxy_read_timeout 120s;
 
 ### Webhook Portainer ne fonctionne pas
 
+!!! warning "Remplacé par Watchtower"
+    Le workflow `docker-publish.yml` n'appelle plus le webhook Portainer. Après chaque push sur `main`, il déclenche la mise à jour via l'API HTTP de Watchtower (secret `WATCHTOWER_TOKEN`, voir [castorfou/dockers](https://github.com/castorfou/dockers)). Le webhook ne sert plus que pour un redéploiement manuel de la stack.
+
 #### Symptôme
 Push sur GitHub mais pas de redéploiement automatique
 
