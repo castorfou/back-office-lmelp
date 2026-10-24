@@ -228,7 +228,21 @@ docker network inspect bridge
 docker exec lmelp-frontend ping backend
 ```
 
-**3. Timeout nginx**
+**3. Backend recréé avec une nouvelle IP**
+
+Symptôme dans les logs du frontend : `connect() failed (111: Connection refused) while
+connecting to upstream` vers une IP qui n'est plus celle du backend.
+
+Le frontend re-résout le nom `backend` via le DNS Docker (`resolver 127.0.0.11 valid=10s`
+dans `nginx.conf`) : le proxy se recale tout seul en quelques secondes après la recréation
+du backend. Si l'erreur persiste, vérifier que l'image frontend est à jour (une image
+antérieure à ce mécanisme fige l'IP au démarrage et nécessite un redémarrage du frontend) :
+
+```bash
+docker exec lmelp-frontend grep resolver /etc/nginx/conf.d/default.conf
+```
+
+**4. Timeout nginx**
 
 Si les requêtes sont lentes, augmenter les timeouts dans `nginx.conf` :
 

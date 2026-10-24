@@ -1090,6 +1090,26 @@ don't assume it's covered by an existing `curl`/`gosu`-only install line.
 Issue #310: `pgx_service.py` shipped in #302 without this, so the entire
 PGX pipeline failed with this exact error on first NAS deployment.
 
+### nginx Frontend Proxy — Dynamic Backend Resolution
+
+**CRITICAL**: in `docker/build/frontend/nginx.conf`, never write a static hostname in
+`proxy_pass` (`proxy_pass http://backend:8000/api/;`). nginx resolves it **once, at
+startup**; when the `backend` container is recreated (Watchtower, NAS reboot) with a new
+IP, nginx keeps hitting the old one → 502 until the frontend restarts.
+
+```nginx
+resolver 127.0.0.11 valid=10s ipv6=off;   # Docker embedded DNS
+set $backend backend:8000;
+
+location /api/      { proxy_pass http://$backend; }   # ✅ no path: original URI kept
+location = /api     { proxy_pass http://$backend/; }  # exact match: /api → /
+# ❌ proxy_pass http://$backend/api/;  → with a variable, a path REPLACES the whole URI
+```
+
+**Guard**: the frontend `Dockerfile` runs `nginx -t`, which fails on a static hostname not
+resolvable at build time (`host not found in upstream`). `tests/test_docker_frontend_config.py`
+checks the config statically (Issue #318).
+
 ### Dynamic URL Configuration with Health Checks
 
 **Pattern**: Multi-tier fallback for external service URLs that change frequently.

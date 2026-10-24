@@ -29,6 +29,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration
 COPY docker/build/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Valide la configuration nginx (échoue aussi si un proxy_pass vise un hôte
+# en dur, non résolvable au build)
+RUN nginx -t
+
 # Expose port
 EXPOSE 80
 
