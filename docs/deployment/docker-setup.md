@@ -55,6 +55,12 @@ Services de la stack utilisés par lmelp :
 | `pgx-keys-watchdog` | `lmelp-pgx-keys-watchdog` | `alpine` | — |
 | `lmelp-export` | `lmelp-export` | `ghcr.io/castorfou/lmelp-mobile-export:latest` | — |
 
+!!! note "Résolution du nom `backend` par le frontend"
+    nginx (`docker/build/frontend/nginx.conf`) ne fige pas l'IP du backend au démarrage :
+    il re-résout le nom `backend` via le DNS interne de Docker (`127.0.0.11`, cache de
+    10 s). Une recréation du conteneur backend (mise à jour Watchtower, reboot du NAS) ne
+    nécessite donc pas de redémarrer le frontend, même si l'IP du backend change.
+
 !!! note "Port du frontend"
     La valeur par défaut de `FRONTEND_PORT` est 8080, mais ce port est souvent déjà pris
     sur un NAS Synology : le NAS utilise **8081** (`.env.nas.example` de docker-lmelp).
