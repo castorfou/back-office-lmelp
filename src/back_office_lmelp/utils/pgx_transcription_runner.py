@@ -198,6 +198,30 @@ class PgxTranscriptionRunner:
         self.next_attempt_at = None
         return False
 
+    async def _has_orphan_mp3(
+        self,
+        local_audio_path: str,
+        remote_mp3_path: str,
+        remote_txt_path: str,
+        *,
+        host: str,
+        user: str,
+        key_path: str,
+    ) -> bool:
+        """Détecte un mp3 converti resté sur PGX sans transcription (Issue #320).
+
+        Whisper saute la conversion quand le mp3 existe : renvoyer le m4a ne crée
+        alors aucun job de transcription. Un audio déjà en .mp3 n'est pas concerné,
+        son renvoi crée un job.
+        """
+        if local_audio_path.endswith(".mp3"):
+            return False
+        return await pgx_service.remote_file_exists(
+            remote_mp3_path, host=host, user=user, key_path=key_path
+        ) and not await pgx_service.remote_file_exists(
+            remote_txt_path, host=host, user=user, key_path=key_path
+        )
+
     @staticmethod
     def _format_episode_date(episode_date: datetime) -> str:
         """Formate la date d'un épisode pour affichage (dd/mm/yy)."""
@@ -331,24 +355,44 @@ class PgxTranscriptionRunner:
                                     break
                             pgx_reachability_checked = True
 
-                        self._log(
-                            f"[{index + 1}/{len(self.episode_ids)}] {titre}: envoi…"
-                        )
                         remote_audio_dir = f"{remote_audio_root}/{year}"
+                        remote_txt_path = (
+                            f"{remote_transcription_root}/{year}/{stem}.txt"
+                        )
 
-                        await pgx_service.send_audio_to_pgx(
+                        if await self._has_orphan_mp3(
                             mp3_fullpath,
-                            remote_audio_dir,
+                            f"{remote_audio_dir}/{stem}.mp3",
+                            remote_txt_path,
                             host=host,
                             user=user,
                             key_path=key_path,
-                        )
+                        ):
+                            self._log(
+                                f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
+                                "mp3 déjà sur PGX sans transcription, relance…"
+                            )
+                            await pgx_service.requeue_pgx_audio(
+                                f"{settings.pgx_container_audio_root}/{year}/{stem}.mp3",
+                                container=settings.pgx_whisper_container,
+                                host=host,
+                                user=user,
+                                key_path=key_path,
+                            )
+                        else:
+                            self._log(
+                                f"[{index + 1}/{len(self.episode_ids)}] {titre}: envoi…"
+                            )
+                            await pgx_service.send_audio_to_pgx(
+                                mp3_fullpath,
+                                remote_audio_dir,
+                                host=host,
+                                user=user,
+                                key_path=key_path,
+                            )
 
                         self._log(
                             f"[{index + 1}/{len(self.episode_ids)}] {titre}: attente…"
-                        )
-                        remote_txt_path = (
-                            f"{remote_transcription_root}/{year}/{stem}.txt"
                         )
                         if not await pgx_service.wait_for_pgx_transcription(
                             remote_txt_path,

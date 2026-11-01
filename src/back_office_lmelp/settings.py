@@ -171,6 +171,17 @@ class Settings:
         return float(os.environ.get("PGX_POLL_INTERVAL_S", "10"))
 
     @property
+    def pgx_whisper_container(self) -> str:
+        """Nom du conteneur whisper sur PGX (PGX_WHISPER_CONTAINER, défaut whisper-arm64)."""
+        return os.environ.get("PGX_WHISPER_CONTAINER", "whisper-arm64")
+
+    @property
+    def pgx_container_audio_root(self) -> str:
+        """Racine des audios vue depuis le conteneur whisper (PGX_CONTAINER_AUDIO_ROOT,
+        défaut /data/audios)."""
+        return os.environ.get("PGX_CONTAINER_AUDIO_ROOT", "/data/audios")
+
+    @property
     def pgx_transcription_retry_interval_hours(self) -> float:
         """Intervalle entre deux tentatives de reprise si PGX est injoignable au
         déclenchement via l'API (PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS, défaut 1h,
