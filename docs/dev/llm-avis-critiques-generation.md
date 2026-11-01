@@ -522,6 +522,8 @@ if not validation["valid"]:
     raise ValueError("Format markdown invalide: ...")
 ```
 
+`_validate_markdown_format()` rejette aussi tout résumé dont une entrée de critique de la Section 1 serait ignorée par l'extraction des avis (`**Nom** :`, `**Nom:**`). Il s'appuie sur `AvisExtractionService.find_unparsable_section1_entries()`, qui utilise le parseur de l'extraction : les deux ne peuvent pas diverger. Il n'y a pas de seuil, une seule entrée illisible suffit. Le rejet déclenche le retry en Phase 1 et le repli sur la Phase 1 en Phase 2.
+
 ### Erreurs API
 
 **Episode non trouvé** : HTTP 404

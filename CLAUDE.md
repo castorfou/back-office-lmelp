@@ -1301,6 +1301,8 @@ if response.choices[0].finish_reason == "length":
 
 **Measure a generation parameter or prompt change against the consumer, not only the validator**: `frequency_penalty` stopped the space runaway and passed `_validate_markdown_format`, but turned `**Nom**:` into `**Nom** :`, which `AvisExtractionService` ignores — about half the reviews lost, with no error. Count extracted reviews on real output before keeping such a change (Issue #322).
 
+**Validate with the consumer's own parser, not a second regex**: `_validate_markdown_format()` calls `AvisExtractionService.find_unparsable_section1_entries()`, so the validator cannot drift from what extraction really reads.
+
 **Real Azure calls in tests**: pytest loads `.env`, so `skip_if_no_azure` does not skip locally and `test_generate_summary_episode_2017_04_09_should_succeed` makes a billed call. Exclude it with `-k "not 2017_04_09"` when budget matters.
 
 **Example**: `src/back_office_lmelp/services/avis_critiques_generation_service.py` — full details in [docs/dev/llm-avis-critiques-generation.md](docs/dev/llm-avis-critiques-generation.md)

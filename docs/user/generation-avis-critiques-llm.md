@@ -287,6 +287,14 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 
 **Solution** : Cliquez sur "Régénérer". Si l'échec persiste, vérifiez la transcription de l'épisode : un passage dans une autre langue ou un texte répété peut provoquer ce comportement
 
+### Avis illisibles par l'extraction
+
+**Symptôme** : Message d'erreur "avis illisible(s) par l'extraction", avec le format attendu et l'entrée concernée
+
+**Cause** : Le modèle n'a pas respecté le format `**Nom**: avis. Note: X`. Ces avis auraient été perdus lors de l'extraction, le résumé est donc refusé après un second essai automatique, et rien n'est enregistré
+
+**Solution** : Cliquez sur "Régénérer"
+
 ## Questions fréquentes
 
 ### Pourquoi deux phases au lieu d'une seule ?

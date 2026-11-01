@@ -33,6 +33,12 @@ Fichier : `src/back_office_lmelp/services/avis_critiques_generation_service.py`
 - `PHASE1_ATTEMPT_TEMPERATURES = (0.1, 0.3)` : le retry change la température.
 - `MAX_OUTPUT_TOKENS = 8000` conservé : le plus long des 186 résumés locaux fait 7 528
   caractères.
+- Check 7 de `_validate_markdown_format` : rejet si une entrée de critique de la Section 1
+  est illisible, via `AvisExtractionService.find_unparsable_section1_entries()`
+  (`src/back_office_lmelp/services/avis_extraction_service.py`). Le découpage est partagé
+  avec l'extraction par `_iter_section1_entries()`. Tolérance zéro : sur 187 résumés réels,
+  3 532 entrées sur 3 533 sont lisibles, la seule exception n'étant pas un avis. Les 3
+  sorties dérivées mesurées sont rejetées (12, 8 et 10 entrées).
 
 Tests : classe `TestTruncatedLlmResponse` dans
 `tests/test_avis_critiques_generation_service.py`, mocks construits avec le vrai type
@@ -70,8 +76,6 @@ Test utilisateur complet en local après restauration d'un dump de prod : Phases
 
 ## Risques restants
 
-- `_validate_markdown_format` ne vérifie pas le format `**Nom**:` : une dérive de format
-  passe la validation et l'extraction perd ces avis sans erreur.
 - La consigne réduit le risque de débordement sans le supprimer. Le rejet par
   `finish_reason` garantit alors une erreur explicite plutôt qu'un résumé tronqué.
 - La Phase 2 peut retirer tous les espaces autour des `|` (`|Auteur|Titre|`) : sans effet,
