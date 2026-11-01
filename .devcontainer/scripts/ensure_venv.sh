@@ -26,7 +26,7 @@ sync=false
 if [ ! -x "$VENV_HOME/bin/python" ]; then
     echo "Création de l'environnement virtuel dans $VENV_HOME (Python $PYTHON_VERSION)"
     # --python explicite : UV_PYTHON pointe sur l'interpréteur du venv, absent ici
-    uv venv "$VENV_HOME" --python "$PYTHON_VERSION" || fail "Création du venv impossible"
+    uv venv "$VENV_HOME" --python "$PYTHON_VERSION" --managed-python || fail "Création du venv impossible"
     sync=true
 fi
 
