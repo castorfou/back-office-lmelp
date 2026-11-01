@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from collections.abc import Iterator
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -57,10 +58,56 @@ class AvisExtractionService:
         Returns:
             Liste des avis extraits de la Section 1
         """
-        if not summary:
-            return []
-
         avis_list: list[dict[str, Any]] = []
+
+        for auteur, titre, editeur, entry in self._iter_section1_entries(summary):
+            parsed = self._parse_section1_critic_entry(entry)
+            if parsed:
+                avis_list.append(
+                    {
+                        "emission_oid": emission_oid,
+                        "section": "programme",
+                        "livre_titre_extrait": titre,
+                        "auteur_nom_extrait": auteur,
+                        "editeur_extrait": editeur,
+                        "critique_nom_extrait": parsed["critique_nom_extrait"],
+                        "commentaire": parsed["commentaire"],
+                        "note": parsed["note"],
+                    }
+                )
+
+        return avis_list
+
+    def find_unparsable_section1_entries(self, summary: str) -> list[str]:
+        """
+        Retourne les entrées de critiques de la Section 1 que l'extraction ignorerait.
+
+        Args:
+            summary: Le contenu markdown
+
+        Returns:
+            Liste des entrées illisibles, vide si toutes sont exploitables
+        """
+        return [
+            entry
+            for _, _, _, entry in self._iter_section1_entries(summary)
+            if self._parse_section1_critic_entry(entry) is None
+        ]
+
+    def _iter_section1_entries(
+        self, summary: str
+    ) -> Iterator[tuple[str, str, str, str]]:
+        """
+        Parcourt les entrées de critiques de la Section 1.
+
+        Args:
+            summary: Le contenu markdown
+
+        Yields:
+            Tuples (auteur, titre, éditeur, entrée de critique brute)
+        """
+        if not summary:
+            return
 
         # Trouver la Section 1
         section1_match = re.search(
@@ -69,7 +116,7 @@ class AvisExtractionService:
             re.DOTALL | re.IGNORECASE,
         )
         if not section1_match:
-            return []
+            return
 
         section1_content = section1_match.group(1)
 
@@ -103,24 +150,7 @@ class AvisExtractionService:
                         if not entry:
                             continue
 
-                        parsed = self._parse_section1_critic_entry(entry)
-                        if parsed:
-                            avis_list.append(
-                                {
-                                    "emission_oid": emission_oid,
-                                    "section": "programme",
-                                    "livre_titre_extrait": titre,
-                                    "auteur_nom_extrait": auteur,
-                                    "editeur_extrait": editeur,
-                                    "critique_nom_extrait": parsed[
-                                        "critique_nom_extrait"
-                                    ],
-                                    "commentaire": parsed["commentaire"],
-                                    "note": parsed["note"],
-                                }
-                            )
-
-        return avis_list
+                        yield auteur, titre, editeur, entry
 
     def _extract_section2_avis(
         self, summary: str, emission_oid: str

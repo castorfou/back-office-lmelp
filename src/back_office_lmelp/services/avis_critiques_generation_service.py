@@ -9,6 +9,8 @@ from typing import Any
 
 import openai
 
+from .avis_extraction_service import AvisExtractionService
+
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +450,14 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
         if len(summary) > 50000:
             errors.append(
                 f"Contenu anormalement long: {len(summary)} caractères (maximum: 50000)"
+            )
+
+        # Check 7: Entrées de critiques que l'extraction des avis ignorerait
+        unparsable = AvisExtractionService().find_unparsable_section1_entries(summary)
+        if unparsable:
+            errors.append(
+                f"{len(unparsable)} avis illisible(s) par l'extraction, format "
+                f"attendu '**Nom**: avis. Note: X': {unparsable[0][:80]}"
             )
 
         return {

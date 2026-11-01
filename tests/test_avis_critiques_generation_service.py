@@ -252,6 +252,81 @@ class TestTruncatedLlmResponse:
         assert "N'aligne JAMAIS les colonnes" in phase2
 
 
+def _summary_with_critic_entry(entry: str) -> str:
+    """Résumé bien formé dont seule l'entrée de critique varie."""
+    return (
+        "## 1. LIVRES DISCUTÉS AU PROGRAMME du 1 novembre 2026\n\n"
+        "| Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne "
+        "| Nb critiques | Coup de cœur | Chef d'œuvre |\n"
+        "|--------|-------|---------|------------------------------|--------------"
+        "|-------------|-------------|-------------|\n"
+        "| Sonia Devillers | Le fabuleux piano | Robert Laffont | "
+        "**Clémentine Golzal**: Bouleversant, forme et fond dialoguent. Note: 9 <br>"
+        f"{entry} | 8.5 | 2 | | |\n"
+    )
+
+
+class TestValidateCriticEntries:
+    """Une entrée illisible par l'extraction serait perdue sans erreur (Issue #322)."""
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "**Philippe Tretiak** : Démarrage difficile, images fortes. Note: 8",
+            "**Jean-Marc Proust:** Très long à lire, univers kafkaïen. Note: 8",
+        ],
+    )
+    def test_rejects_entries_the_extraction_cannot_read(self, entry):
+        """Variantes réellement produites par le LLM."""
+        service = AvisCritiquesGenerationService()
+
+        result = service._validate_markdown_format(_summary_with_critic_entry(entry))
+
+        assert result["valid"] is False
+        assert any(entry[:30] in error for error in result["errors"])
+
+    def test_accepts_expected_critic_format(self):
+        service = AvisCritiquesGenerationService()
+        entry = "**Philippe Tretiak**: Démarrage difficile, images fortes. Note: 8"
+
+        result = service._validate_markdown_format(_summary_with_critic_entry(entry))
+
+        assert result["valid"] is True
+
+    @pytest.mark.asyncio
+    async def test_phase1_retries_when_entries_are_unreadable(self):
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        drifted = _summary_with_critic_entry("**Jean-Marc Proust:** Trop long. Note: 8")
+        create = service.client.chat.completions.create
+        create.side_effect = [
+            _chat_completion(drifted),
+            _chat_completion(EXPECTED_SUMMARY_PHASE1_SAMPLE_1),
+        ]
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            result = await service.generate_summary_phase1(
+                "transcription", "2026-11-01"
+            )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+        assert create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_phase2_keeps_phase1_when_entries_become_unreadable(self):
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            _summary_with_critic_entry("**Jean-Marc Proust:** Trop long. Note: 8")
+        )
+
+        result = await service.enhance_summary_phase2(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1, {"critiques": ["Jean-Marc Proust"]}
+        )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+
+
 class TestValidateMarkdownFormat:
     """Tests pour la validation du format markdown."""
 
