@@ -2,9 +2,11 @@
 
 import asyncio
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice
 
 from back_office_lmelp.services.avis_critiques_generation_service import (
     AvisCritiquesGenerationService,
@@ -149,6 +151,180 @@ class TestGenerateSummaryPhase1:
 
         # CRITICAL: Should NOT return "no books" message (incorrect prompt)
         assert "Aucun livre discuté" not in result
+
+
+def _chat_completion(content: str, finish_reason: str = "stop") -> ChatCompletion:
+    """Construit une réponse avec le type réel du SDK OpenAI."""
+    return ChatCompletion(
+        id="chatcmpl-test",
+        object="chat.completion",
+        created=1,
+        model="gpt-4.1",
+        choices=[
+            Choice(
+                index=0,
+                finish_reason=finish_reason,
+                message=ChatCompletionMessage(role="assistant", content=content),
+            )
+        ],
+    )
+
+
+class TestTruncatedLlmResponse:
+    """Une réponse coupée par max_tokens n'est jamais acceptée (Issue #322)."""
+
+    @pytest.mark.asyncio
+    async def test_phase1_rejects_truncated_response_with_valid_format(self):
+        """Un tableau coupé mais bien formé ne doit pas être enregistré."""
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1, finish_reason="length"
+        )
+
+        with (
+            patch("asyncio.sleep", new=AsyncMock()),
+            pytest.raises(ValueError, match="tronquée"),
+        ):
+            await service.generate_summary_phase1("transcription", "2026-11-01")
+
+    @pytest.mark.asyncio
+    async def test_phase1_error_locates_space_runaway(self):
+        """L'erreur indique la taille et la ligne du débordement d'espaces."""
+        padded = "## 1. LIVRES DISCUTÉS AU PROGRAMME\n| Auteur" + " " * 1000
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            padded, finish_reason="length"
+        )
+
+        with (
+            patch("asyncio.sleep", new=AsyncMock()),
+            pytest.raises(ValueError, match="1000 en ligne 2"),
+        ):
+            await service.generate_summary_phase1("transcription", "2026-11-01")
+
+    @pytest.mark.asyncio
+    async def test_phase2_truncated_response_falls_back_to_phase1(self):
+        """Une correction coupée ne doit pas remplacer le résumé de Phase 1."""
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1 + " corrigé", finish_reason="length"
+        )
+
+        result = await service.enhance_summary_phase2(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1, {"critiques": ["Elisabeth Philippe"]}
+        )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+
+    @pytest.mark.asyncio
+    async def test_phase1_retry_changes_generation_parameters(self):
+        """À paramètres identiques, le retry reproduirait le même débordement."""
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        create = service.client.chat.completions.create
+        create.side_effect = [
+            _chat_completion("| Auteur" + " " * 1000, finish_reason="length"),
+            _chat_completion(EXPECTED_SUMMARY_PHASE1_SAMPLE_1),
+        ]
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            result = await service.generate_summary_phase1(
+                "transcription", "2026-11-01"
+            )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+        first, second = (call.kwargs for call in create.call_args_list)
+        assert second["temperature"] > first["temperature"]
+        # frequency_penalty déforme "**Nom**: ... Note: X", lu par l'extraction des avis
+        assert "frequency_penalty" not in second
+
+    def test_prompts_forbid_column_alignment(self):
+        """L'alignement des colonnes est le déclencheur du débordement."""
+        service = AvisCritiquesGenerationService()
+
+        phase1 = service._get_phase1_prompt("transcription", "")
+        phase2 = service._get_phase2_prompt("résumé", {"critiques": ["X"]})
+
+        assert "N'aligne JAMAIS les colonnes" in phase1
+        assert "N'aligne JAMAIS les colonnes" in phase2
+
+
+def _summary_with_critic_entry(entry: str) -> str:
+    """Résumé bien formé dont seule l'entrée de critique varie."""
+    return (
+        "## 1. LIVRES DISCUTÉS AU PROGRAMME du 1 novembre 2026\n\n"
+        "| Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne "
+        "| Nb critiques | Coup de cœur | Chef d'œuvre |\n"
+        "|--------|-------|---------|------------------------------|--------------"
+        "|-------------|-------------|-------------|\n"
+        "| Sonia Devillers | Le fabuleux piano | Robert Laffont | "
+        "**Clémentine Golzal**: Bouleversant, forme et fond dialoguent. Note: 9 <br>"
+        f"{entry} | 8.5 | 2 | | |\n"
+    )
+
+
+class TestValidateCriticEntries:
+    """Une entrée illisible par l'extraction serait perdue sans erreur (Issue #322)."""
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "**Philippe Tretiak** : Démarrage difficile, images fortes. Note: 8",
+            "**Jean-Marc Proust:** Très long à lire, univers kafkaïen. Note: 8",
+        ],
+    )
+    def test_rejects_entries_the_extraction_cannot_read(self, entry):
+        """Variantes réellement produites par le LLM."""
+        service = AvisCritiquesGenerationService()
+
+        result = service._validate_markdown_format(_summary_with_critic_entry(entry))
+
+        assert result["valid"] is False
+        assert any(entry[:30] in error for error in result["errors"])
+
+    def test_accepts_expected_critic_format(self):
+        service = AvisCritiquesGenerationService()
+        entry = "**Philippe Tretiak**: Démarrage difficile, images fortes. Note: 8"
+
+        result = service._validate_markdown_format(_summary_with_critic_entry(entry))
+
+        assert result["valid"] is True
+
+    @pytest.mark.asyncio
+    async def test_phase1_retries_when_entries_are_unreadable(self):
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        drifted = _summary_with_critic_entry("**Jean-Marc Proust:** Trop long. Note: 8")
+        create = service.client.chat.completions.create
+        create.side_effect = [
+            _chat_completion(drifted),
+            _chat_completion(EXPECTED_SUMMARY_PHASE1_SAMPLE_1),
+        ]
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            result = await service.generate_summary_phase1(
+                "transcription", "2026-11-01"
+            )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+        assert create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_phase2_keeps_phase1_when_entries_become_unreadable(self):
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            _summary_with_critic_entry("**Jean-Marc Proust:** Trop long. Note: 8")
+        )
+
+        result = await service.enhance_summary_phase2(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1, {"critiques": ["Jean-Marc Proust"]}
+        )
+
+        assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
 
 
 class TestValidateMarkdownFormat:
