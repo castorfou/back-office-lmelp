@@ -45,10 +45,16 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v2
 
+    - name: Check uv.lock is up to date
+      run: uv lock --check
+
     - name: Install dependencies
       run: uv sync --extra dev
 
     - name: Run pre-commit checks (lint, format, types)
+      # En CI, `uv sync` crée .venv à la racine : c'est attendu, hors devcontainer
+      env:
+        SKIP: no-venv-at-root
       run: uv run pre-commit run --all-files
 
     - name: Run tests

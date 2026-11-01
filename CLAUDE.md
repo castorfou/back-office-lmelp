@@ -19,12 +19,12 @@ the decommissioned Streamlit `lmelp` app; `back-office-lmelp` is only the repo n
 **IMPORTANT**: Activate the Python virtual environment once per bash session:
 
 ```bash
-source /home/vscode/.venv/bin/activate
+source /tmp/venv/bin/activate
 ```
 
 This enables direct use of tools like `ruff`, `mypy`, `pytest`, `mkdocs` without the `uv run` prefix.
 
-**CRITICAL** : les versions de `ruff`/`mypy` installées dans `.venv` peuvent différer de celles épinglées par pre-commit (`.pre-commit-config.yaml`) — un `mypy src/` ou `ruff check` direct peut donc passer localement puis échouer au commit (ou l'inverse), avec des messages d'erreur différents pour le même fichier. Avant de committer, déclencher ruff/mypy **via pre-commit** (pas les binaires `.venv`), en ciblant le hook précis plutôt que toute la suite :
+**CRITICAL** : les versions de `ruff`/`mypy` installées dans le venv peuvent différer de celles épinglées par pre-commit (`.pre-commit-config.yaml`) — un `mypy src/` ou `ruff check` direct peut donc passer localement puis échouer au commit (ou l'inverse), avec des messages d'erreur différents pour le même fichier. Avant de committer, déclencher ruff/mypy **via pre-commit** (pas les binaires du venv), en ciblant le hook précis plutôt que toute la suite :
 
 ```bash
 # Un hook précis (id exact dans .pre-commit-config.yaml : ruff, ruff-format, mypy)
@@ -48,6 +48,10 @@ pre-commit install
 
 # Add a new dependency (updates pyproject.toml AND installs simultaneously)
 uv add --active <package-name>
+
+# After editing pyproject.toml by hand: update and commit uv.lock
+# (the devcontainer installs uv.lock untouched, CI checks it is up to date)
+uv lock
 
 # Run backend (automatic port selection)
 PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
@@ -151,7 +155,9 @@ mkdocs build --strict
 ├── tests/                      # Backend tests (pytest)
 ├── docs/                       # Documentation (MkDocs)
 ├── scripts/                    # Development scripts
-└── .claude/                    # Auto-discovery scripts
+├── .claude/                    # Auto-discovery scripts, commands, skills
+├── docs/agents/                # Matt Pocock skills config (issues, labels, domain)
+└── TEMPLATE_VERSION            # PyFoundry version (updated by cruft update)
 ```
 
 ## Code Quality Standards
@@ -1398,6 +1404,20 @@ pre-commit install
 - **Documentation**: MkDocs build and GitHub Pages deployment
 - **Security scan**: detect-secrets on all files
 - **Quality gate**: All test suites must pass before deployment
+
+**GitHub Pages** : la source doit rester « GitHub Actions » (`gh api "repos/{owner}/{repo}/pages" --jq .build_type` affiche `workflow`). `docs.yml` se lance aussi depuis une autre branche (`gh workflow run docs.yml --ref <branche>`) si elle est autorisée dans l'environnement `github-pages` ; la doc publiée remplace alors celle de `main` jusqu'au prochain déploiement depuis `main` (voir `docs/cheatsheets/mkdocs.md`).
+
+## Template Update
+
+La skill `/cruft-update` (`.claude/skills/cruft-update/`) applique les évolutions de PyFoundry : `cruft update`, lecture du CHANGELOG et des migrations, résolution des rejets (`.rej`, marqueurs de conflit) selon le propriétaire de chaque fichier, vérifications, commit. Elle vient du template : ne la modifie pas ici, la prochaine mise à jour l'écraserait.
+
+## Agent Skills
+
+Le plugin [mattpocock-skills](https://github.com/mattpocock/skills) est activé dans `.claude/settings.json`. Ce réglage ne le télécharge pas : chaque utilisateur l'installe une fois sur sa machine (`/plugins` → **Plugins** → `mattpocock-skills` → **Install for this project**).
+
+- **Issue tracker** : GitHub Issues (`castorfou/back-office-lmelp`), via `gh`. See `docs/agents/issue-tracker.md`.
+- **Triage labels** : `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+- **Domain docs** : contexte unique, `CONTEXT.md` et `docs/adr/` à la racine, créés au besoin. See `docs/agents/domain.md`.
 
 ## Git Best Practices
 

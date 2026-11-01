@@ -75,7 +75,7 @@ This project uses a two-tier documentation approach for Claude Code:
 **CRITICAL**: Activate the Python virtual environment once per bash session before running any Python tools:
 
 ```bash
-source /workspaces/back-office-lmelp/.venv/bin/activate
+source /tmp/venv/bin/activate
 ```
 
 **Why this matters:**
@@ -98,7 +98,7 @@ uv run mypy src/
 **With activation:**
 ```bash
 # ✅ Works directly after activation
-source /workspaces/back-office-lmelp/.venv/bin/activate
+source /tmp/venv/bin/activate
 ruff check .
 mypy src/
 ```
