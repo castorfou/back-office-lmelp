@@ -93,27 +93,37 @@ async def generate_full_summary(
 **Paramètres LLM** :
 ```python
 model=self.deployment_name,  # gpt-4o
-max_tokens=8000,
-temperature=0.1,  # Faible pour consistance
+max_tokens=MAX_OUTPUT_TOKENS,  # 8000
+temperature=temperature,  # PHASE1_ATTEMPT_TEMPERATURES : 0.1 puis 0.3
 timeout=120  # 2 minutes
 ```
 
 **Retry logic** :
+
+Deux tentatives au total, à température différente : une requête identique reproduit le même échec. Le retry se déclenche sur timeout, sur réponse tronquée et sur format invalide.
+
 ```python
-max_retries = 1  # 2 tentatives au total
-for attempt in range(max_retries + 1):
+for attempt, temperature in enumerate(PHASE1_ATTEMPT_TEMPERATURES):
     try:
         response = await asyncio.wait_for(
             asyncio.to_thread(self.client.chat.completions.create, ...),
             timeout=120
         )
-        return response.choices[0].message.content
-    except TimeoutError:
+        if response.choices[0].finish_reason == "length":
+            raise ValueError("Réponse LLM tronquée: ...")
+        ...
+    except (TimeoutError, ValueError):
         if attempt < max_retries:
             await asyncio.sleep(2)  # Attente avant retry
             continue
         raise
 ```
+
+**Format compact des tableaux** :
+
+`TABLE_FORMAT_RULE`, présent dans les prompts des deux phases, interdit d'aligner les colonnes. Sans cette consigne, le modèle peut remplir une cellule d'en-tête avec plus d'un million d'espaces jusqu'à épuiser `max_tokens` : la réponse est alors tronquée avant la première ligne du tableau, et il n'y a rien à récupérer en retirant les espaces.
+
+**Ne pas utiliser `frequency_penalty`** : il limite aussi ce débordement, mais déforme le format `**Nom**: ... Note: X` (`**Nom** :`, `**Nom:**`). Le résumé passe la validation, et `AvisExtractionService` perd ces avis sans erreur.
 
 **Format de sortie attendu** :
 
@@ -195,9 +205,15 @@ timeout=60  # 1 minute
 **Validation préservation structure** :
 
 ```python
+# Une correction tronquée reste souvent du markdown valide
+if response.choices[0].finish_reason == "length":
+    logger.warning("Phase 2 tronquée, retour à Phase 1")
+    return summary_phase1
+
 # Phase 2 doit préserver format markdown Phase 1
-if not self._is_valid_markdown_format(summary_phase2):
-    logger.warning("Phase 2 a cassé la structure, fallback Phase 1")
+validation = self._validate_markdown_format(summary_phase2)
+if not validation["valid"]:
+    logger.warning("Phase 2 a cassé le format, retour à Phase 1")
     return summary_phase1
 ```
 
@@ -489,10 +505,21 @@ if not self.client:
     raise ValueError("Client Azure OpenAI non configuré")
 ```
 
+**Réponse tronquée** :
+
+`finish_reason == "length"` signifie que le modèle a atteint `max_tokens`. La réponse est rejetée même si son format est valide, car un tableau coupé serait enregistré comme complet. L'erreur et les logs indiquent, sans mode debug, ce que renvoie `_describe_llm_output()` :
+
+```text
+Réponse LLM tronquée: limite de 8000 tokens atteinte (1019294 caractères, plus longue suite d'espaces: 1019136 en ligne 3). Si l'échec persiste, vérifier la transcription de l'épisode.
+```
+
+Cette limite n'est pas atteinte par un résumé légitime : ils font quelques milliers de caractères.
+
 **Validation format échouée** :
 ```python
-if not self._is_valid_markdown_format(summary):
-    raise ValueError("Format markdown invalide")
+validation = self._validate_markdown_format(summary)
+if not validation["valid"]:
+    raise ValueError("Format markdown invalide: ...")
 ```
 
 ### Erreurs API

@@ -1282,6 +1282,29 @@ async saveSummary() {
 - ✅ Consistency: Same validation logic both sides
 - ✅ UX: Clear error messages with HTTP 400
 
+### LLM Output — Check `finish_reason` and the Downstream Parser
+
+**CRITICAL**: a valid-looking LLM response is not proof of a usable one.
+
+```python
+# ❌ WRONG - a response cut off by max_tokens is often well-formed markdown
+summary = response.choices[0].message.content
+if self._validate_markdown_format(summary)["valid"]:
+    return summary
+
+# ✅ CORRECT - reject truncation before validating the format
+if response.choices[0].finish_reason == "length":
+    raise ValueError("Réponse LLM tronquée: ...")
+```
+
+**A retry needs a different request**: at low temperature, resending the same request reproduces the same failure (`PHASE1_ATTEMPT_TEMPERATURES`).
+
+**Measure a generation parameter or prompt change against the consumer, not only the validator**: `frequency_penalty` stopped the space runaway and passed `_validate_markdown_format`, but turned `**Nom**:` into `**Nom** :`, which `AvisExtractionService` ignores — about half the reviews lost, with no error. Count extracted reviews on real output before keeping such a change (Issue #322).
+
+**Real Azure calls in tests**: pytest loads `.env`, so `skip_if_no_azure` does not skip locally and `test_generate_summary_episode_2017_04_09_should_succeed` makes a billed call. Exclude it with `-k "not 2017_04_09"` when budget matters.
+
+**Example**: `src/back_office_lmelp/services/avis_critiques_generation_service.py` — full details in [docs/dev/llm-avis-critiques-generation.md](docs/dev/llm-avis-critiques-generation.md)
+
 ### Debug Logging Strategy
 
 **Pattern recommandé** : Conserver les logs debug dans le code et les contrôler via variables d'environnement.

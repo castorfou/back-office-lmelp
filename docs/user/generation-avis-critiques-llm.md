@@ -279,6 +279,14 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 
 **Solution** : Cliquez sur "Régénérer" pour génération propre
 
+### Réponse LLM tronquée
+
+**Symptôme** : Message d'erreur "Réponse LLM tronquée: limite de 8000 tokens atteinte", avec la taille de la réponse et la plus longue suite d'espaces
+
+**Cause** : Le modèle a atteint sa limite de longueur avant de terminer les tableaux, le plus souvent en produisant une longue suite d'espaces. Un second essai automatique a déjà eu lieu, et rien n'est enregistré
+
+**Solution** : Cliquez sur "Régénérer". Si l'échec persiste, vérifiez la transcription de l'épisode : un passage dans une autre langue ou un texte répété peut provoquer ce comportement
+
 ## Questions fréquentes
 
 ### Pourquoi deux phases au lieu d'une seule ?
