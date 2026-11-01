@@ -33,7 +33,8 @@ Pour chaque épisode de la file (traités **séquentiellement**, une seule machi
      injoignable).
    - Envoi du fichier audio par `scp` (`send_audio_to_pgx`, qui crée d'abord le
      répertoire distant `<remote_audio_root>/<année>/` via `ssh mkdir -p` — `scp` ne
-     crée pas les répertoires manquants).
+     crée pas les répertoires manquants), ou relance si un mp3 orphelin est détecté
+     (voir [Relance d'un mp3 orphelin](#relance-dun-mp3-orphelin)).
    - Attente de la transcription générée par le watcher PGX
      (`wait_for_pgx_transcription`, poll SSH `test -f`, timeout
      `PGX_TRANSCRIPTION_TIMEOUT_S`).
@@ -49,6 +50,30 @@ Un échec (`PgxError`) sur un épisode n'interrompt **pas** le traitement des su
 la file — sauf l'échec de joignabilité initial (avant tout épisode traité), qui arrête
 toute la file immédiatement (un nouvel essai réseau par épisode ne résoudrait rien tant
 que PGX reste éteinte).
+
+## Relance d'un mp3 orphelin
+
+Le service whisper convertit un `.m4a` en `.mp3` à côté du fichier reçu, et c'est
+l'écriture de ce `.mp3` qui crée le job de transcription. Si la transcription échoue, le
+`.mp3` reste sur PGX sans `.txt`. Un nouvel envoi du `.m4a` n'a alors aucun effet : la
+conversion est sautée car le `.mp3` existe, et aucun job n'est créé.
+
+Avant chaque envoi, `_has_orphan_mp3()` (`pgx_transcription_runner.py`) vérifie via
+`remote_file_exists()` que le `.mp3` existe et que le `.txt` est absent. Dans ce cas,
+`requeue_pgx_audio()` (`pgx_service.py`) remplace l'envoi :
+
+```bash
+docker exec <PGX_WHISPER_CONTAINER> python3 -m whisper_docker.queue_manager enqueue <chemin>
+```
+
+- `<chemin>` est le chemin vu depuis le conteneur, construit à partir de
+  `PGX_CONTAINER_AUDIO_ROOT`, pas de `PGX_REMOTE_AUDIO_ROOT`.
+- La commande `retry <job_id>` ne convient pas : elle vise les jobs `failed`, alors qu'un
+  plantage de `whisper-cli` laisse le job en `completed`.
+- Un job déjà en attente ou en cours pour ce fichier (« déjà en queue ») n'est pas une
+  erreur. Tout autre échec lève `PgxError` et ne concerne que cet épisode.
+- Un audio déjà en `.mp3` n'est pas concerné : son renvoi crée un job.
+- L'utilisateur SSH doit avoir le droit d'exécuter `docker` sur PGX.
 
 ## Diagnostics
 

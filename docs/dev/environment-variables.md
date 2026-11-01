@@ -168,6 +168,8 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 | `PGX_REMOTE_TRANSCRIPTION_ROOT` | Répertoire distant racine des transcriptions sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/transcriptions` |
 | `PGX_TRANSCRIPTION_TIMEOUT_S` | Délai max d'attente (secondes) d'une transcription générée par le watcher PGX | `1800` (30 min) | `3600` |
 | `PGX_POLL_INTERVAL_S` | Intervalle de poll SSH (secondes) pendant l'attente d'une transcription | `10` | `5` |
+| `PGX_WHISPER_CONTAINER` | Nom du conteneur whisper sur PGX, utilisé pour relancer une transcription | `whisper-arm64` | `whisper-dev` |
+| `PGX_CONTAINER_AUDIO_ROOT` | Racine des audios vue depuis le conteneur whisper (différente de `PGX_REMOTE_AUDIO_ROOT`, vue depuis l'hôte PGX) | `/data/audios` | `/mnt/audios` |
 | `PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS` | Intervalle entre deux tentatives de reprise si PGX est injoignable au déclenchement via l'API (`trigger="api"` uniquement, Issue #309) | `1` (1h) | `2` |
 | `PGX_TRANSCRIPTION_RETRY_MAX_HOURS` | Durée max cumulée de retry avant abandon définitif du cycle (`status: "pgx_unreachable_abandoned"`) | `24` (24h) | `48` |
 
