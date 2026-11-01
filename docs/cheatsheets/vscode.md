@@ -8,6 +8,7 @@ selection de ces lignes puis `Shift-Alt-i`
 
 ## cacher un repertoire du workspace (par exemple __pycache__)
 ouvrir settings.json : `Ctrl-Shift-p` et taper Preferences: Open Settings (JSON) ⚙️
+
 ajouter une entree dans __`files.exclude`__ ➕
 
 ```

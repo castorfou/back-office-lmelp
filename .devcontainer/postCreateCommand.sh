@@ -41,6 +41,35 @@ update_system() {
     echo "Système mis à jour"
 }
 
+# Fuseau de l'hôte : son /etc/localtime est monté sur /etc/localtime.host (issue #65).
+# Monté directement sur /etc/localtime, lien vers zoneinfo/Etc/UTC, il écraserait Etc/UTC :
+# UTC deviendrait l'heure locale et la mise à jour de tzdata échouerait.
+# On fait pointer /etc/localtime vers la zone de même contenu, pour garder son nom.
+setup_timezone() {
+    local host_tz="${HOST_LOCALTIME:-/etc/localtime.host}"
+    local zoneinfo="${ZONEINFO_DIR:-/usr/share/zoneinfo}"
+    local etc_dir="${ETC_DIR:-/etc}"
+
+    if [ ! -s "$host_tz" ]; then
+        echo "⚠️  Fuseau de l'hôte introuvable ($host_tz) : le conteneur reste en UTC"
+        return 0
+    fi
+
+    local zone
+    zone=$(cd "$zoneinfo" && find . -type f ! -path './posix/*' ! -path './right/*' \
+        -exec cmp -s "$host_tz" {} \; -print -quit)
+    zone="${zone#./}"
+
+    if [ -n "$zone" ]; then
+        sudo ln -sfn "$zoneinfo/$zone" "$etc_dir/localtime"
+        echo "$zone" | sudo tee "$etc_dir/timezone" > /dev/null
+        echo "✅ Fuseau horaire : $zone"
+    else
+        sudo ln -sfn "$host_tz" "$etc_dir/localtime"
+        echo "✅ Fuseau horaire : celui de l'hôte (zone non identifiée)"
+    fi
+}
+
 # outil pour ajouter une ligne dans .zshrc si elle n'existe pas déjà
 ensure_zshrc_line() {
     local line="$1"
@@ -53,6 +82,26 @@ ensure_zshrc_line() {
     fi
 }
 
+
+# Active le venv dans chaque terminal, s'il existe : un terminal peut s'ouvrir avant que
+# postStartCommand l'ait recréé (issue #86). Le HOME est persistant : on retire la ligne
+# non protégée des versions précédentes.
+setup_venv_activation() {
+    local zshrc="$HOME/.zshrc"
+    if [ -f "$zshrc" ]; then
+        sed -i '\#^source /tmp/venv/bin/activate$#d' "$zshrc"
+    fi
+    ensure_zshrc_line '[[ ! -f /tmp/venv/bin/activate ]] || source /tmp/venv/bin/activate'
+}
+
+# Le HOME est un dossier de l'hôte monté sur /home/vscode : il masque celui de l'image.
+# On recopie les fichiers par défaut (.bashrc, .profile...) sans écraser l'existant.
+seed_home() {
+    echo "Initialisation du HOME persistant..."
+    # "|| true" : certaines versions de coreutils renvoient une erreur quand des fichiers existent déjà
+    cp -rn /etc/skel/. "$HOME" || true
+    echo "✅ HOME initialisé"
+}
 
 # Vérification et installation d'uv (priorité: devcontainer feature, fallback: installation manuelle)
 ensure_uv() {
@@ -70,23 +119,11 @@ ensure_uv() {
 # Création de l'environnement Python
 create_python_environment() {
     echo "Configuration de l'environnement Python $PYTHON_VERSION ..."
-
-    echo "Création de l'environnement virtuel dans /home/vscode/.venv"
-    VENV_HOME="/home/vscode/.venv"
-    if [ -d "$VENV_HOME" ]; then
-        echo "Un venv existe déjà à $VENV_HOME, je l'utilise."
-    else
-        uv venv "$VENV_HOME" --python $PYTHON_VERSION
-    fi
-
-    # Activer l'environnement créé dans $HOME/.venv
-    source "$VENV_HOME/bin/activate"
-    echo "Installation des dépendances..."
-    # Utiliser --active pour cibler l'environnement virtuel activé (hors du dossier projet)
-    uv sync --active --all-extras
-
-    echo "Environnement Python configuré"
-
+    # Hors du HOME persistant, dans /tmp/venv : recréé à chaque rebuild, et au démarrage
+    # par postStartCommand s'il manque (scripts/ensure_venv.sh, issue #86)
+    PYTHON_VERSION="$PYTHON_VERSION" bash .devcontainer/scripts/ensure_venv.sh --sync
+    # Les étapes suivantes (pre-commit...) utilisent les outils du venv
+    source /tmp/venv/bin/activate
 }
 
 # Installation de Calibre
@@ -164,25 +201,46 @@ EOF
 
 
 # Configuration Git
+# git commit, y compris sans identité : au premier build, le HOME est neuf et
+# l'identité de l'hôte n'arrive qu'après postCreateCommand. Identité ponctuelle
+# pour ce seul commit, jamais écrite dans .git/config où elle masquerait la
+# globale (#94, #102). Arguments : ceux de git commit.
+git_commit_with_fallback() {
+    if [ -n "$(git config user.email)" ]; then
+        git commit "$@"
+        return
+    fi
+    local name="${GITHUB_USERNAME:-PyFoundry}"
+    local email="${GITHUB_USERNAME:-pyfoundry}@users.noreply.github.com"
+    git -c user.name="$name" -c user.email="$email" commit "$@" || return
+    if [ -z "${IDENTITY_WARNED:-}" ]; then
+        IDENTITY_WARNED=1
+        echo "⚠️  Identité Git non configurée : commits faits sous $name <$email>"
+        echo "    Configurez la vôtre avec :"
+        echo "    git config --global user.name \"Prénom Nom\""
+        echo "    git config --global user.email \"vous@exemple.com\""
+    fi
+}
+
 setup_git() {
     echo "Configuration Git..."
     if [ ! -d ".git" ]; then
         echo "Initialisation du dépôt Git..."
         git init
         git branch -M main
-
-        # Configuration de l'utilisateur si non défini (pour éviter l'échec du commit)
-        if [ -z "$(git config --global user.email)" ]; then
-            echo "Configuration d'un utilisateur Git par défaut..."
-            git config user.email "default@michelin.com"
-            git config user.name "Default User"
-        fi
-
         git add .
-        git commit -m "Initial commit"
+        git_commit_with_fallback -m "Initial commit"
         echo "✅ Dépôt Git initialisé et premier commit effectué"
     else
         echo "Dépôt Git déjà existant"
+        # Ancienne identité par défaut écrite dans .git/config par les versions
+        # précédentes : elle masque l'identité globale de l'utilisateur (#94)
+        if [ "$(git config --local user.email)" = "default@michelin.com" ] \
+            && [ "$(git config --local user.name)" = "Default User" ]; then
+            git config --local --unset user.email
+            git config --local --unset user.name
+            echo "✅ Identité Git par défaut (Default User) retirée de .git/config"
+        fi
     fi
 }
 
@@ -202,17 +260,12 @@ setup_pre-commit() {
             # Force l'installation des environnements maintenant pour éviter les délais futurs
             pre-commit install-hooks
 
-            # Commiter les changements de pre-commit autoupdate + corrections formatage
-            if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-                echo "Commit des mises à jour et corrections pre-commit..."
-                git add .pre-commit-config.yaml
-
-                # Correction du formatage par les hooks peut générer des changements
-                if ! git commit -m "chore: update pre-commit hooks to latest versions" 2>/dev/null; then
-                    # Si le commit échoue à cause des hooks, ajouter les corrections
-                    echo "Ajout des corrections de formatage..."
-                    git add .
-                    git commit -m "chore: update pre-commit hooks and fix formatting" || true
+            # Commiter la seule config mise à jour par autoupdate : `git commit -- fichier`
+            # laisse intacts l'index et le travail en cours (pas de `git add .`)
+            if ! git diff --quiet -- .pre-commit-config.yaml; then
+                echo "Commit de la mise à jour des hooks pre-commit..."
+                if ! git_commit_with_fallback -m "chore: update pre-commit hooks to latest versions" -- .pre-commit-config.yaml; then
+                    echo "⚠️  Commit impossible : .pre-commit-config.yaml mis à jour mais non commité"
                 fi
             fi
 
@@ -223,6 +276,16 @@ setup_pre-commit() {
     fi
 }
 
+
+# Git délègue l'authentification HTTPS GitHub à gh (config locale au projet).
+# Configuré même sans token : il peut venir plus tard ou d'un autre devcontainer,
+# la config gh étant partagée.
+setup_gh_credential_helper() {
+    command -v gh &> /dev/null || return 0
+    git config credential.helper ""
+    git config credential."https://github.com".helper "!gh auth git-credential"
+    echo "✅ Credential helper Git configuré (gh)"
+}
 
 # Configuration GitHub
 setup_github() {
@@ -249,28 +312,14 @@ setup_github() {
         # Configuration automatique des upstream pour futures branches (local au projet)
         git config push.autoSetupRemote true
 
-        # Configuration de l'authentification GitHub avec gh CLI
+        # Authentification GitHub : pas de login interactif ici, le navigateur ne peut pas
+        # s'ouvrir. Elle est proposée au premier terminal zsh (scripts/gh_login.sh).
         if command -v gh &> /dev/null; then
-            echo "Configuration de l'authentification GitHub..."
-            if ! gh auth status &>/dev/null; then
-                echo "🔐 Authentification GitHub requise pour push/pull"
-                echo "Lancement de l'authentification..."
-                echo ""
-                echo "ℹ️  Note : Vous devrez appuyer sur Entrée pour 'ouvrir' le navigateur."
-                echo "   Le navigateur ne s'ouvrira pas (limitation devcontainer connue)."
-                echo "   → Entrez manuellement l'URL et le code dans votre navigateur host."
-                echo ""
-                gh auth login --git-protocol https --web
-
-                # Configuration du credential helper après authentification (local au projet)
-                if gh auth status &>/dev/null; then
-                    echo "Configuration du credential helper Git..."
-                    git config credential.helper ""
-                    git config credential."https://github.com".helper "!gh auth git-credential"
-                    echo "✅ Credential helper configuré"
-                fi
-            else
+            setup_gh_credential_helper
+            if gh auth token &>/dev/null; then
                 echo "✅ Déjà authentifié sur GitHub"
+            else
+                echo "🔐 Authentification GitHub : ouvrez un terminal, elle y sera proposée"
             fi
         fi
 
@@ -281,17 +330,6 @@ setup_github() {
 }
 
 # Helper: update MkDocs repo_url from Git remote
-run_mkdocs_repo_url_update() {
-    if [ -f "${WORKSPACE_FOLDER}/.devcontainer/scripts/update_mkdocs_repo_url.sh" ]; then
-        chmod +x "${WORKSPACE_FOLDER}/.devcontainer/scripts/update_mkdocs_repo_url.sh" || true
-        ( cd "${WORKSPACE_FOLDER}" && ./.devcontainer/scripts/update_mkdocs_repo_url.sh ) \
-            || echo "[postCreate] update_mkdocs_repo_url.sh exited with non-zero status"
-        echo "✅ mkdocs_repo_url configurée"
-    else
-        echo "[postCreate] ${WORKSPACE_FOLDER}/.devcontainer/scripts/update_mkdocs_repo_url.sh not found"
-    fi
-}
-
 # config zsh
 config_zsh() {
     echo "Configuration de zsh..."
@@ -325,14 +363,19 @@ config_zsh() {
 
     ensure_zshrc_line 'export PATH="$HOME/.local/bin:$PATH"'
 
-    ensure_zshrc_line 'source /home/vscode/.venv/bin/activate'
+    setup_venv_activation
+
+    # Propose l'authentification gh tant qu'elle manque (terminal VS Code : $BROWSER ouvre l'hôte)
+    ensure_zshrc_line 'bash "$WORKSPACE_FOLDER/.devcontainer/scripts/gh_login.sh"'
 
     echo "✅ zsh configuré"
 }
 
 
 # Exécution des étapes
+seed_home
 update_system
+setup_timezone
 ensure_uv
 # install_calibre
 create_python_environment
@@ -342,7 +385,6 @@ setup_git
 setup_github
 setup_pre-commit
 config_zsh
-run_mkdocs_repo_url_update
 
 echo ""
 echo "=================================================================="

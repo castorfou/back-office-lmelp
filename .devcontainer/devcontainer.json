@@ -17,12 +17,15 @@
         "PROJECT_SLUG": "back-office-lmelp",
         "GITHUB_USERNAME": "castor_fou",
         "PYTHON_VERSION": "3.11",
+        "WORKSPACE_FOLDER": "/workspaces/back-office-lmelp",
         "PYTHONPATH": "/workspaces/back-office-lmelp/src",
         "UV_VENV_CLEAR": "1",
         "UV_LINK_MODE": "copy",
-        "UV_PYTHON": "/home/vscode/.venv/bin/python",
-        "TZ": "${localEnv:TZ}",
-        "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
+        "UV_PYTHON": "/tmp/venv/bin/python",
+        "UV_PROJECT_ENVIRONMENT": "/tmp/venv",
+        "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+        // Config Claude Code partagée (montée sur ~/.claude) : y place aussi .claude.json
+        "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
     },
     "customizations": {
         "vscode": {
@@ -32,7 +35,6 @@
                 "ms-toolsai.jupyter-renderers",
                 "ms-toolsai.vscode-jupyter-slideshow",
                 "ms-toolsai.jupyter-keymap",
-                "ms-python.isort",
                 "ms-python.debugpy",
                 "ms-python.python",
                 "github.vscode-github-actions",
@@ -53,13 +55,13 @@
             ],
             "settings": {
                 // Configuration Python
-                "python.defaultInterpreterPath": "/home/vscode/.venv/bin/python",
-                "python.venvPath": "/home/vscode",
+                "python.defaultInterpreterPath": "/tmp/venv/bin/python",
+                "python.venvPath": "/tmp",
                 "python.analysis.autoImportCompletions": true,
                 "python.analysis.typeCheckingMode": "basic",
                 "terminal.integrated.env.linux": {
-                    "VIRTUAL_ENV": "/home/vscode/.venv",
-                    "PATH": "/home/vscode/.venv/bin:${env:PATH}"
+                    "VIRTUAL_ENV": "/tmp/venv",
+                    "PATH": "/tmp/venv/bin:${env:PATH}"
                 },
                 // Configuration générale
                 "editor.minimap.enabled": true,
@@ -97,19 +99,32 @@
             "installYarnUsingApt": false
         }
     },
-    // Montages pour hériter de la config git du host et de la timezone
+    // Montages : HOME persistant propre au projet (survit aux rebuilds), cache pre-commit,
+    // authentification gh et config Claude Code partagés entre devcontainers (sauf les verrous IDE,
+    // propres au projet), clés SSH, cache uv, timezone de l'hôte (appliquée par setup_timezone :
+    // un montage direct sur /etc/localtime écraserait Etc/UTC) et bibliothèque Calibre
     "mounts": [
-        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
+        "source=${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId},target=/home/vscode,type=bind",
+        "source=${localEnv:HOME}/.cache/pre-commit-devcontainers,target=/home/vscode/.cache/pre-commit,type=bind",
+        "source=${localEnv:HOME}/.config/gh-devcontainers,target=/home/vscode/.config/gh,type=bind",
+        "source=${localEnv:HOME}/.config/claude-devcontainers,target=/home/vscode/.claude,type=bind",
+        "source=${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.claude-ide,target=/home/vscode/.claude/ide,type=bind",
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
         "source=${localEnv:HOME}/.cache/uv,target=/home/vscode/.cache/uv,type=bind,consistency=cached",
-        "source=/etc/localtime,target=/etc/localtime,type=bind,consistency=cached,readonly",
+        "source=/etc/localtime,target=/etc/localtime.host,type=bind,consistency=cached,readonly",
         "source=${localEnv:HOME}/Calibre Library,target=/calibre,type=bind,consistency=cached,readonly"
     ],
+    // Exécuté sur l'hôte avant le montage : crée les sources et les points de montage imbriqués
+    // dans le HOME (sinon Docker les crée en root), recopie l'historique Claude Code de l'ancien
+    // HOME du projet, puis vérifie chaque montage
+    "initializeCommand": "mkdir -p \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.ssh\" \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.cache/pre-commit\" \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.cache/uv\" \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.config/gh\" \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.claude\" \"${localEnv:HOME}/.cache/pre-commit-devcontainers\" \"${localEnv:HOME}/.cache/uv\" && mkdir -p -m 700 \"${localEnv:HOME}/.ssh\" \"${localEnv:HOME}/.config/gh-devcontainers\" \"${localEnv:HOME}/.config/claude-devcontainers\" \"${localEnv:HOME}/.config/claude-devcontainers/ide\" \"${localEnv:HOME}/.devcontainer/homes/${localWorkspaceFolderBasename}-${devcontainerId}/.claude-ide\" && DEVCONTAINER_WORKSPACE_FOLDER_BASENAME=\"${localWorkspaceFolderBasename}\" DEVCONTAINER_ID=\"${devcontainerId}\" bash \"${localWorkspaceFolder}/.devcontainer/scripts/migrate_claude_history.sh\" && (cd \"${localWorkspaceFolder}\" && DEVCONTAINER_WORKSPACE_FOLDER_BASENAME=\"${localWorkspaceFolderBasename}\" DEVCONTAINER_ID=\"${devcontainerId}\" bash .devcontainer/scripts/check_mounts.sh --host)",
     // Configuration du shell et de l'environnement
     "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
-    "postStartCommand": "echo '🚀 back-office lmelp - Environnement prêt!'",
+    // À chaque démarrage : recrée /tmp/venv s'il manque (/tmp peut être un tmpfs vidé au démarrage)
+    "postStartCommand": "bash .devcontainer/scripts/ensure_venv.sh && echo '🚀 back-office lmelp - Environnement prêt!'",
     // Utilisateur non-root pour la sécurité
     "remoteUser": "vscode",
-    // Optimisations de performance
-    "shutdownAction": "none"
+    // Fermer la fenêtre VS Code arrête le conteneur, sinon il tourne jusqu'au prochain
+    // docker stop (#92). Un VS Code tué ou planté le laisse actif : voir troubleshooting
+    "shutdownAction": "stopContainer"
 }

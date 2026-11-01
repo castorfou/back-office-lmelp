@@ -1,4 +1,7 @@
 {
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": true
+  },
   "permissions": {
     "allow": [
       "mcp__playwright__browser_navigate",

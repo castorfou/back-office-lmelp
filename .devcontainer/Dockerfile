@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
+FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
 
 # Supprimer la source Yarn cassée héritée de l'image de base
 RUN rm -f /etc/apt/sources.list.d/yarn.list \

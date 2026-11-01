@@ -20,6 +20,8 @@ gh extension upgrade --all
 
 Config file is not in workspace but is in the home directory.
 
+In a PyFoundry devcontainer, `~/.config/gh` is shared by all devcontainers (host folder `~/.config/gh-devcontainers`): authenticate once. The first zsh terminal offers to log in and opens the host browser; run `gh auth login` from a VS Code terminal, not from a `postCreateCommand`.
+
 #### add user and token
 
 Authenticate with your GitHub account:

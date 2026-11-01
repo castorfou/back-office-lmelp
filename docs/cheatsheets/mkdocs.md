@@ -106,11 +106,52 @@ Voici le détail des extensions activées dans `mkdocs.yml` :
 
 ## Doc et CICD
 
-On a 3 activités automatisés en CICD:
+Le workflow `.github/workflows/docs.yml` automatise trois choses :
 
-- build --strict: à chaque commit on fait un `mkdocs build --strict`, permet de capter les erreurs de strcture au plus tôt
-- deploy automatisé vers pages: à chaque commit sur branch main
-- deploy manuel vers pages: à chaque commit sur branch, on peut déclencher manuellement la publication de la doc depuis le pipeline gitlab
+- **build --strict** : à chaque push touchant la doc, `mkdocs build --strict` capte les erreurs de structure au plus tôt.
+- **Déploiement automatique sur GitHub Pages** : à chaque push sur `main`.
+- **Déploiement manuel depuis une branche** : on lance le workflow à la main pour publier la doc d'une autre branche.
+
+### Activer GitHub Pages (une fois par projet)
+
+`docs.yml` publie avec GitHub Actions : dans **Settings → Pages → Build and deployment**, choisir **Source : GitHub Actions** (et non « Deploy from a branch »). Ce réglage du dépôt ne figure dans aucun fichier :
+
+```bash
+# Pages pas encore activé
+gh api -X POST "repos/{owner}/{repo}/pages" -f build_type=workflow
+# Pages déjà activé avec la mauvaise source
+gh api -X PUT "repos/{owner}/{repo}/pages" -f build_type=workflow
+# Vérifier : doit afficher workflow
+gh api "repos/{owner}/{repo}/pages" --jq .build_type
+```
+
+Avec « Deploy from a branch », la doc semble publiée, mais GitHub lance à chaque push un run `pages build and deployment` qui échoue à l'étape « Build with Jekyll ».
+
+### Publier la doc d'une branche
+
+Une seule fois par projet, autoriser les branches à déployer. L'environnement GitHub `github-pages` n'accepte par défaut que la branche par défaut. Ce réglage du dépôt ne figure dans aucun fichier :
+
+```bash
+gh api -X POST "repos/{owner}/{repo}/environments/github-pages/deployment-branch-policies" -f name='*'
+```
+
+Copier la commande telle quelle, depuis le dossier du projet : `gh` remplace lui-même `{owner}` et `{repo}`. Une réponse `Not Found (HTTP 404)` signale le plus souvent un propriétaire ou un nom de dépôt mal saisi.
+
+Ou dans l'interface : **Settings → Environments → github-pages → Deployment branches and tags → Add deployment branch or tag rule**, motif `*`.
+
+Puis, pour chaque publication :
+
+```bash
+gh workflow run docs.yml --ref ma-branche
+gh run watch
+```
+
+Ou dans l'interface : **Actions → 📚 Deploy Documentation → Run workflow**, en choisissant la branche.
+
+!!! warning "Une seule doc en ligne"
+    La doc de la branche remplace celle de `main` jusqu'au prochain déploiement depuis `main` (prochain push touchant la doc, ou `gh workflow run docs.yml --ref main`).
+
+Sans l'autorisation, le job `deploy` échoue avec `Branch "ma-branche" is not allowed to deploy to github-pages due to environment protection rules`.
 
 ## Liens relatifs
 
