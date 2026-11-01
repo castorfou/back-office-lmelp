@@ -12,6 +12,19 @@ import openai
 
 logger = logging.getLogger(__name__)
 
+MAX_OUTPUT_TOKENS = 8000
+
+TABLE_FORMAT_RULE = (
+    "⚠️ TABLEAUX COMPACTS: N'aligne JAMAIS les colonnes. Mets un seul espace de "
+    'chaque côté de chaque "|", sans aucun espace de remplissage dans les cellules '
+    "ni dans les en-têtes, même si les colonnes ne sont plus alignées."
+)
+
+# Un retry à température identique reproduit le même débordement d'espaces.
+# Ne pas utiliser frequency_penalty: il déforme "**Nom**: ... Note: X", et
+# l'extraction des avis perd alors ces critiques sans erreur.
+PHASE1_ATTEMPT_TEMPERATURES = (0.1, 0.3)
+
 
 class AvisCritiquesGenerationService:
     """Service pour générer avis critiques en 2 phases LLM."""
@@ -115,10 +128,10 @@ class AvisCritiquesGenerationService:
         prompt = self._get_phase1_prompt(transcription, date_str)
 
         # Retry logic
-        max_retries = 1
+        max_retries = len(PHASE1_ATTEMPT_TEMPERATURES) - 1
         timeout = 120  # 2 minutes
 
-        for attempt in range(max_retries + 1):
+        for attempt, temperature in enumerate(PHASE1_ATTEMPT_TEMPERATURES):
             try:
                 if self._debug_log_enabled:
                     logger.info(
@@ -130,13 +143,14 @@ class AvisCritiquesGenerationService:
                         self.client.chat.completions.create,
                         model=self.deployment_name,
                         messages=[{"role": "user", "content": prompt}],
-                        max_tokens=8000,
-                        temperature=0.1,
+                        max_tokens=MAX_OUTPUT_TOKENS,
+                        temperature=temperature,
                     ),
                     timeout=timeout,
                 )
 
                 summary = response.choices[0].message.content
+                finish_reason = response.choices[0].finish_reason
 
                 # Log raw output BEFORE validation (for diagnosis)
                 if self._debug_log_enabled:
@@ -158,6 +172,16 @@ class AvisCritiquesGenerationService:
                     logger.info(f"   Has tables: {'|' in summary}")
                     logger.info(f"   📁 Fichier debug: {debug_file}")
                     logger.info("=" * 80)
+
+                # Une réponse coupée reste souvent un markdown bien formé
+                if finish_reason == "length":
+                    diagnostic = self._describe_llm_output(summary)
+                    logger.error(f"❌ PHASE 1 - RÉPONSE TRONQUÉE: {diagnostic}")
+                    raise ValueError(
+                        f"Réponse LLM tronquée: limite de {MAX_OUTPUT_TOKENS} tokens "
+                        f"atteinte ({diagnostic}). Si l'échec persiste, vérifier la "
+                        "transcription de l'épisode."
+                    )
 
                 # Validation format markdown
                 validation = self._validate_markdown_format(summary)
@@ -261,6 +285,8 @@ Tu DOIS lire la transcription JUSQU'À LA FIN pour capturer tous les livres, y c
 
 Format de tableau markdown OBLIGATOIRE avec HTML pour les couleurs:
 
+{TABLE_FORMAT_RULE}
+
 | Auteur | Titre | Éditeur | Avis détaillés des critiques | Note moyenne | Nb critiques | Coup de cœur | Chef d'œuvre |
 |--------|-------|---------|------------------------------|--------------|-------------|-------------|-------------|
 | [Nom auteur] | [Titre livre] | [Éditeur] | **[Nom COMPLET critique 1]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 2]**: [avis détaillé]. Note: X <br>**[Nom COMPLET critique 3]**: [avis détaillé]. Note: X | [Note colorée] | [Nombre] | [Noms si note ≥9] | [Noms si note=10] |
@@ -362,6 +388,19 @@ RAPPEL FINAL:
 
 Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiques, et TOUS les avis individuels."""
 
+    def _describe_llm_output(self, summary: str) -> str:
+        """Décrit une sortie LLM rejetée: taille et plus longue suite d'espaces."""
+        longest = max(
+            re.finditer(r" +", summary), key=lambda m: len(m[0]), default=None
+        )
+        if longest is None:
+            return f"{len(summary)} caractères, aucune suite d'espaces"
+        line = summary.count("\n", 0, longest.start()) + 1
+        return (
+            f"{len(summary)} caractères, plus longue suite d'espaces: "
+            f"{len(longest[0])} en ligne {line}"
+        )
+
     def _validate_markdown_format(self, summary: str) -> dict[str, Any]:
         """
         Valide le format markdown avec diagnostic détaillé.
@@ -462,13 +501,18 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
                         },
                         {"role": "user", "content": prompt},
                     ],
-                    max_tokens=8000,
+                    max_tokens=MAX_OUTPUT_TOKENS,
                     temperature=0.1,
                 ),
                 timeout=60,  # 1 minute
             )
 
             summary_phase2 = response.choices[0].message.content
+
+            if response.choices[0].finish_reason == "length":
+                diagnostic = self._describe_llm_output(summary_phase2)
+                logger.warning(f"⚠️  Phase 2 tronquée, retour à Phase 1: {diagnostic}")
+                return summary_phase1
 
             # Validation: structure préservée
             validation = self._validate_markdown_format(summary_phase2)
@@ -546,6 +590,8 @@ PRÉSERVE EXACTEMENT:
 Retourne UNIQUEMENT les 2 tableaux markdown:
 1. "## 1. LIVRES DISCUTÉS AU PROGRAMME" (tableau complet avec tous les livres)
 2. "## 2. COUPS DE CŒUR DES CRITIQUES" (tableau avec coups de cœur)
+
+{TABLE_FORMAT_RULE}
 
 N'AJOUTE AUCUN texte explicatif, aucune phrase introductive, aucun commentaire.
 COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le dernier tableau."""
