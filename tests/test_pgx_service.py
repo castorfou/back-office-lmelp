@@ -16,6 +16,8 @@ from back_office_lmelp.services.pgx_service import (
     fetch_transcription_from_pgx,
     get_pgx_config_missing_vars,
     pgx_fully_configured,
+    remote_file_exists,
+    requeue_pgx_audio,
     run_pgx_diagnostics,
     send_audio_to_pgx,
     wait_for_pgx_reachable,
@@ -428,6 +430,113 @@ class TestWaitForPgxTranscription:
             )
 
         assert result is False
+
+
+class TestRemoteFileExists:
+    """Tests de remote_file_exists() — test ponctuel d'un fichier sur PGX (Issue #320)."""
+
+    @pytest.mark.asyncio
+    async def test_should_return_true_when_file_exists(self):
+        exec_mock = AsyncMock(return_value=_make_subprocess_mock(returncode=0))
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            exec_mock,
+        ):
+            result = await remote_file_exists(
+                "/data/audios/2026/episode.mp3",
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+            )
+
+        assert result is True
+        assert "test -f '/data/audios/2026/episode.mp3'" in exec_mock.call_args.args
+
+    @pytest.mark.asyncio
+    async def test_should_return_false_when_file_is_missing(self):
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            AsyncMock(return_value=_make_subprocess_mock(returncode=1)),
+        ):
+            result = await remote_file_exists(
+                "/data/audios/2026/episode.mp3",
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+            )
+
+        assert result is False
+
+
+class TestRequeuePgxAudio:
+    """Tests de requeue_pgx_audio() — relance via la file de whisper (Issue #320)."""
+
+    @staticmethod
+    async def _requeue() -> None:
+        await requeue_pgx_audio(
+            "/data/audios/2026/episode.mp3",
+            container="whisper-arm64",
+            host="192.168.50.151",
+            user="pgxuser",
+            key_path="/keys/pgx_ed25519",
+        )
+
+    @pytest.mark.asyncio
+    async def test_should_enqueue_audio_in_whisper_container(self):
+        exec_mock = AsyncMock(return_value=_make_subprocess_mock(returncode=0))
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            exec_mock,
+        ):
+            await self._requeue()
+
+        assert exec_mock.call_args.args[-1] == (
+            "docker exec 'whisper-arm64' python3 -m whisper_docker.queue_manager "
+            "enqueue '/data/audios/2026/episode.mp3'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_should_accept_audio_already_in_queue(self):
+        """Un job déjà pending/running n'est pas une erreur : il va aboutir."""
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            AsyncMock(
+                return_value=_make_subprocess_mock(
+                    returncode=1,
+                    stderr=b"Fichier d\xc3\xa9j\xc3\xa0 en queue: /data/x.mp3",
+                )
+            ),
+        ):
+            await self._requeue()
+
+    @pytest.mark.asyncio
+    async def test_should_detect_already_queued_message_on_stdout(self):
+        """Le message passe par le logger de whisper : son flux n'est pas garanti."""
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            AsyncMock(
+                return_value=_make_subprocess_mock(
+                    returncode=1,
+                    stdout=b"Fichier d\xc3\xa9j\xc3\xa0 en queue: /data/x.mp3",
+                )
+            ),
+        ):
+            await self._requeue()
+
+    @pytest.mark.asyncio
+    async def test_should_raise_pgx_error_when_enqueue_fails(self):
+        with (
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                AsyncMock(
+                    return_value=_make_subprocess_mock(
+                        returncode=1, stderr=b"No such container: whisper-arm64"
+                    )
+                ),
+            ),
+            pytest.raises(PgxError, match="No such container"),
+        ):
+            await self._requeue()
 
 
 class TestFetchTranscriptionFromPgx:

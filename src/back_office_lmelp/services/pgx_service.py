@@ -174,6 +174,32 @@ async def send_audio_to_pgx(
         raise PgxError(f"Échec de l'envoi du fichier audio vers PGX: {stderr}")
 
 
+async def remote_file_exists(
+    remote_path: str, *, host: str, user: str, key_path: str
+) -> bool:
+    """Teste (via ssh) la présence d'un fichier sur PGX."""
+    command = _ssh_base_command(user, host, key_path) + [f"test -f '{remote_path}'"]
+    returncode, _, _ = await _run_command(command)
+    return returncode == 0
+
+
+async def requeue_pgx_audio(
+    container_audio_path: str, *, container: str, host: str, user: str, key_path: str
+) -> None:
+    """Remet un audio déjà présent sur PGX dans la file de whisper (Issue #320).
+
+    `container_audio_path` est le chemin vu depuis le conteneur whisper. Un job
+    déjà en attente ou en cours pour ce fichier n'est pas une erreur.
+    """
+    command = _ssh_base_command(user, host, key_path) + [
+        f"docker exec '{container}' python3 -m whisper_docker.queue_manager "
+        f"enqueue '{container_audio_path}'"
+    ]
+    returncode, stdout, stderr = await _run_command(command)
+    if returncode != 0 and "déjà en queue" not in stdout + stderr:
+        raise PgxError(f"Échec de la relance de la transcription sur PGX: {stderr}")
+
+
 async def wait_for_pgx_transcription(
     remote_txt_path: str,
     *,

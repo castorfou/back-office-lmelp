@@ -1443,3 +1443,130 @@ class TestPgxNtfyNotifications:
             await runner.start_transcription()
 
         mock_notify.assert_not_called()
+
+
+class TestOrphanMp3Requeue:
+    """Relance d'un mp3 resté sur PGX sans transcription (Issue #320).
+
+    Après un plantage de whisper, le mp3 converti reste sur PGX : un renvoi du
+    m4a est alors sans effet (la conversion est sautée, aucun job n'est créé).
+    """
+
+    AUDIO_REL = "2026/episode.m4a"
+    REMOTE_MP3 = "/data/audios/2026/episode.mp3"
+    REMOTE_TXT = "/data/transcriptions/2026/episode.txt"
+
+    @staticmethod
+    def _configure_settings(mock_settings, tmp_path) -> None:
+        mock_settings.pgx_host = "192.168.50.151"
+        mock_settings.pgx_user = "pgxuser"
+        mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+        mock_settings.pgx_remote_audio_root = "/data/audios"
+        mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+        mock_settings.pgx_transcription_timeout_s = 1800.0
+        mock_settings.pgx_poll_interval_s = 10.0
+        mock_settings.pgx_whisper_container = "whisper-arm64"
+        mock_settings.pgx_container_audio_root = "/container/audios"
+        mock_settings.audio_storage_path = str(tmp_path)
+
+    async def _run_with_remote_files(
+        self,
+        tmp_path,
+        remote_files: set[str],
+        audio_rel: str = AUDIO_REL,
+        requeue_error: PgxError | None = None,
+    ) -> MagicMock:
+        """Exécute le runner avec les fichiers donnés présents sur PGX."""
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+
+        episode = _make_episode(EP1_ID)
+        episode["audio_rel_filename"] = audio_rel
+
+        async def remote_file_exists(path, **_kwargs):
+            return path in remote_files
+
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"
+            ) as mock_mongo,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+            patch.object(runner, "_send_notification", AsyncMock()),
+        ):
+            mock_mongo.get_episode_by_id = MagicMock(return_value=episode)
+            mock_mongo.episodes_collection.update_one = MagicMock()
+            self._configure_settings(mock_settings, tmp_path)
+
+            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.remote_file_exists = AsyncMock(side_effect=remote_file_exists)
+            mock_pgx.requeue_pgx_audio = AsyncMock(side_effect=requeue_error)
+            mock_pgx.send_audio_to_pgx = AsyncMock()
+            mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_transcription_from_pgx = AsyncMock(
+                return_value="Transcription relancée"
+            )
+
+            await runner._run()
+
+        return mock_pgx
+
+    @pytest.mark.asyncio
+    async def test_should_requeue_orphan_mp3_instead_of_resending_m4a(self, tmp_path):
+        mock_pgx = await self._run_with_remote_files(tmp_path, {self.REMOTE_MP3})
+
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+        mock_pgx.requeue_pgx_audio.assert_called_once_with(
+            "/container/audios/2026/episode.mp3",
+            container="whisper-arm64",
+            host="192.168.50.151",
+            user="pgxuser",
+            key_path="/keys/pgx_ed25519",
+        )
+        mock_pgx.wait_for_pgx_transcription.assert_called_once()
+        runner = PgxTranscriptionRunner.get_instance()
+        assert runner.processed[0]["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_should_send_audio_when_mp3_is_absent_from_pgx(self, tmp_path):
+        mock_pgx = await self._run_with_remote_files(tmp_path, set())
+
+        mock_pgx.send_audio_to_pgx.assert_called_once()
+        mock_pgx.requeue_pgx_audio.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_should_not_requeue_when_transcription_already_exists(self, tmp_path):
+        mock_pgx = await self._run_with_remote_files(
+            tmp_path, {self.REMOTE_MP3, self.REMOTE_TXT}
+        )
+
+        mock_pgx.requeue_pgx_audio.assert_not_called()
+        mock_pgx.send_audio_to_pgx.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_should_send_mp3_episode_without_checking_orphan(self, tmp_path):
+        """Renvoyer un .mp3 déclenche un job : la relance ne le concerne pas."""
+        mock_pgx = await self._run_with_remote_files(
+            tmp_path, {self.REMOTE_MP3}, audio_rel="2026/episode.mp3"
+        )
+
+        mock_pgx.remote_file_exists.assert_not_called()
+        mock_pgx.requeue_pgx_audio.assert_not_called()
+        mock_pgx.send_audio_to_pgx.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_should_mark_episode_failed_when_requeue_fails(self, tmp_path):
+        await self._run_with_remote_files(
+            tmp_path,
+            {self.REMOTE_MP3},
+            requeue_error=PgxError("Échec de la relance"),
+        )
+
+        runner = PgxTranscriptionRunner.get_instance()
+        assert runner.processed[0]["success"] is False
+        assert runner.processed[0]["error"] == "Échec de la relance"

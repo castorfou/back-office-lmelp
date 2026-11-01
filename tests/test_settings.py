@@ -66,6 +66,8 @@ class TestPgxSettings:
         "PGX_POLL_INTERVAL_S",
         "PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS",
         "PGX_TRANSCRIPTION_RETRY_MAX_HOURS",
+        "PGX_WHISPER_CONTAINER",
+        "PGX_CONTAINER_AUDIO_ROOT",
     )
 
     def teardown_method(self):
@@ -170,6 +172,34 @@ class TestPgxSettings:
         settings = Settings()
 
         assert settings.pgx_poll_interval_s == 10.0
+
+    def test_pgx_whisper_container_should_return_env_value_when_set(self):
+        """pgx_whisper_container retourne la valeur de PGX_WHISPER_CONTAINER."""
+        os.environ["PGX_WHISPER_CONTAINER"] = "whisper-dev"
+
+        settings = Settings()
+
+        assert settings.pgx_whisper_container == "whisper-dev"
+
+    def test_pgx_whisper_container_should_return_default_when_not_set(self):
+        """pgx_whisper_container retourne whisper-arm64 par défaut."""
+        settings = Settings()
+
+        assert settings.pgx_whisper_container == "whisper-arm64"
+
+    def test_pgx_container_audio_root_should_return_env_value_when_set(self):
+        """pgx_container_audio_root retourne la valeur de PGX_CONTAINER_AUDIO_ROOT."""
+        os.environ["PGX_CONTAINER_AUDIO_ROOT"] = "/mnt/audios"
+
+        settings = Settings()
+
+        assert settings.pgx_container_audio_root == "/mnt/audios"
+
+    def test_pgx_container_audio_root_should_return_default_when_not_set(self):
+        """pgx_container_audio_root retourne /data/audios par défaut."""
+        settings = Settings()
+
+        assert settings.pgx_container_audio_root == "/data/audios"
 
     def test_pgx_transcription_retry_interval_hours_should_return_env_value_when_set(
         self,

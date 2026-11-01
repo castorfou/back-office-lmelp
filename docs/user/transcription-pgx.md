@@ -177,6 +177,14 @@ d'une tout autre cause :
   le répertoire audio configuré.
 - Pour un épisode particulièrement long, augmentez `PGX_TRANSCRIPTION_TIMEOUT_S` (voir
   `docs/dev/environment-variables.md`).
+- Le service de transcription peut échouer sans le signaler, par exemple faute de mémoire
+  GPU disponible : aucun fichier de transcription n'apparaît et l'attente va jusqu'au
+  délai maximal. Consultez sur PGX le log de l'épisode, dans le répertoire `logs` du
+  service, et libérez le GPU si besoin.
+- Relancez ensuite la transcription depuis la page : si le fichier converti est resté sur
+  PGX, le journal affiche `mp3 déjà sur PGX sans transcription, relance…` et la
+  transcription repart sans nouvel envoi. L'utilisateur SSH doit pouvoir exécuter `docker`
+  sur PGX.
 
 ### Erreur `[Errno 2] No such file or directory` dans les logs backend
 
