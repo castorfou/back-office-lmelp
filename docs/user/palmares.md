@@ -26,8 +26,7 @@ Le tableau présente les colonnes suivantes :
 | **Auteur** | Nom de l'auteur (lien cliquable vers la page détail) |
 | **Note** | Note moyenne avec badge coloré |
 | **Avis** | Nombre d'avis critiques |
-| **Calibre** | Statut de lecture et note Calibre |
-| **Liens** | Liens vers Calibre et Anna's Archive |
+| **📚** | Possession : statut Calibre, ou lien de téléchargement |
 
 ### Badge de note
 
@@ -38,21 +37,19 @@ Les notes sont affichées avec un code couleur :
 - **Jaune** (5-6.9) : Moyen
 - **Rouge** (< 5) : Faible
 
-### Colonne Calibre
+### Colonne 📚 (possession / téléchargement)
 
-Pour chaque livre présent dans la bibliothèque Calibre :
+La même colonne figure dans [Mes Recommandations](recommandation-livres.md#le-tableau-de-resultats).
+
+Livre présent dans la bibliothèque Calibre :
 
 - **✓ Lu** : Le livre a été marqué comme lu
 - **◯** : Le livre est dans Calibre mais pas encore lu
 - **X/10** : Note Calibre (affichée uniquement pour les livres lus)
-- **—** : Le livre n'est pas dans la bibliothèque Calibre
 
-### Liens rapides
+Le symbole ✓ Lu / ◯ est cliquable : il ouvre la page Calibre avec le titre pré-rempli dans la recherche.
 
-Chaque ligne propose deux liens :
-
-- **Icône Calibre** : Ouvre la page Calibre avec le titre pré-rempli dans la recherche
-- **Icône Anna's Archive** : Recherche le livre sur Anna's Archive (titre + auteur)
+Livre absent de Calibre : l'**icône Anna's Archive** lance la recherche du livre (titre + auteur) dans un nouvel onglet.
 
 ## Filtres interactifs
 

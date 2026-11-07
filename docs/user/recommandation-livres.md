@@ -20,6 +20,7 @@ Depuis le **Dashboard**, cliquez sur la carte **⭐ Mes Recommandations** dans l
 | **#** | Rang (1 = meilleure recommandation) |
 | **Titre** | Lien vers la fiche livre |
 | **Auteur** | Lien vers la fiche auteur |
+| **📚** | Possession : ◯ si le livre est dans Calibre (cliquable vers la recherche Calibre), sinon icône Anna's Archive pour le chercher |
 | **Score** | Score hybride final (0.7×SVD + 0.3×Masque) |
 | **SVD** | Prédiction brute du modèle |
 | **Masque** | Moyenne des avis du Masque & la Plume |
@@ -35,6 +36,8 @@ Depuis le **Dashboard**, cliquez sur la carte **⭐ Mes Recommandations** dans l
 
 1. Vous avez noté au moins un livre dans Calibre (pour calibrer le modèle)
 2. Le livre n'est pas déjà dans votre bibliothèque Calibre avec une note
+
+Un livre présent dans Calibre mais **non noté** peut donc être recommandé : il apparaît avec ◯ dans la colonne 📚. Un livre affiché **✓ Lu** est lu mais pas noté : lui attribuer une note dans Calibre le retire des recommandations.
 3. Le livre a été noté par au moins 2 critiques du Masque
 
 > **Note expérimentale** : Le Hit Rate @20 est ~1.4% (contre 1.2% pour une sélection aléatoire). Les résultats sont indicatifs, non définitifs.

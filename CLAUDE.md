@@ -194,8 +194,14 @@ PYTHONPATH=/workspaces/back-office-lmelp/src uv run pytest tests/ -v
 
 ### Frontend Tests
 ```bash
-cd /workspaces/back-office-lmelp/frontend && npm test -- --run
+cd /workspaces/back-office-lmelp/frontend && TZ=UTC NODE_OPTIONS="--no-experimental-webstorage" npm test -- --run
 ```
+
+**Why both variables** (the CI runs neither issue): Node 26 exposes a native,
+experimental `localStorage` that shadows jsdom's — every component reading
+`localStorage` then fails with `Cannot read properties of undefined (reading
+'getItem')` (~180 failures, also on `main`). `TZ=UTC` matches the CI timezone,
+which some date-formatting tests assume.
 
 ## Development Workflow
 

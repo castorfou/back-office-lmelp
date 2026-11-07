@@ -1517,7 +1517,11 @@ Le calcul est effectué en temps réel (~5–10 secondes) : entraînement SVD su
     "score_hybride": 8.421,
     "svd_predict": 8.710,
     "masque_mean": 7.50,
-    "masque_count": 4
+    "masque_count": 4,
+    "calibre_in_library": false,
+    "calibre_read": null,
+    "calibre_rating": null,
+    "calibre_current_tags": null
   }
 ]
 ```
@@ -1535,6 +1539,12 @@ Le calcul est effectué en temps réel (~5–10 secondes) : entraînement SVD su
 | `svd_predict` | float | Prédiction brute SVD (échelle 1–10) |
 | `masque_mean` | float | Moyenne des notes Masque & la Plume |
 | `masque_count` | int | Nombre de critiques ayant noté ce livre |
+| `calibre_in_library` | bool | Livre présent dans la bibliothèque Calibre (matching par titre normalisé) |
+| `calibre_read` | bool \| null | Statut lu dans Calibre (`null` si absent) |
+| `calibre_rating` | int \| null | Note Calibre, renseignée uniquement si le livre est lu |
+| `calibre_current_tags` | list \| null | Tags Calibre actuels du livre |
+
+Les champs `calibre_*` sont calculés comme sur `GET /api/livre/{livre_id}` (`get_calibre_index()` + `enrich_palmares_item()`). Si Calibre est indisponible, `calibre_in_library` vaut `false` pour tous les livres et la liste est quand même retournée.
 
 **Cas particuliers** :
 
