@@ -15,7 +15,7 @@ PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 fail() {
     echo "❌ $1"
     echo "   Pour le recréer à la main :"
-    echo "   uv venv $VENV_HOME --python $PYTHON_VERSION && uv sync --frozen --active --all-extras"
+    echo "   uv venv $VENV_HOME --python $PYTHON_VERSION --managed-python && uv sync --frozen --active --all-extras"
     exit 1
 }
 
@@ -25,8 +25,11 @@ sync=false
 # On teste l'interpréteur, pas le dossier : un venv à moitié créé est refait
 if [ ! -x "$VENV_HOME/bin/python" ]; then
     echo "Création de l'environnement virtuel dans $VENV_HOME (Python $PYTHON_VERSION)"
-    # --python explicite : UV_PYTHON pointe sur l'interpréteur du venv, absent ici
-    uv venv "$VENV_HOME" --python "$PYTHON_VERSION" --managed-python || fail "Création du venv impossible"
+    # --python explicite : UV_PYTHON pointe sur l'interpréteur du venv, absent ici.
+    # --managed-python : le Python Debian de l'image n'a pas Python.h, une dépendance
+    # sans wheel ne compilerait pas
+    uv venv "$VENV_HOME" --python "$PYTHON_VERSION" --managed-python \
+        || fail "Création du venv impossible"
     sync=true
 fi
 

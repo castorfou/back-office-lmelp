@@ -39,7 +39,7 @@ _WRITE_COMMAND_NAMES = frozenset(
 )
 
 
-class DashboardStatsInvalidationListener(monitoring.CommandListener):  # type: ignore[misc]
+class DashboardStatsInvalidationListener(monitoring.CommandListener):
     """Invalide le cache dashboard sur toute écriture d'une collection surveillée."""
 
     def __init__(self, invalidate_fn: Callable[[], None]) -> None:

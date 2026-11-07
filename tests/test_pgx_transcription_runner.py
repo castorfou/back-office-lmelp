@@ -7,6 +7,7 @@ Aucun test ne touche au réseau réel : pgx_service est entièrement mocké.
 
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1457,7 +1458,7 @@ class TestOrphanMp3Requeue:
     REMOTE_TXT = "/data/transcriptions/2026/episode.txt"
 
     @staticmethod
-    def _configure_settings(mock_settings, tmp_path) -> None:
+    def _configure_settings(mock_settings: MagicMock, tmp_path: Path) -> None:
         mock_settings.pgx_host = "192.168.50.151"
         mock_settings.pgx_user = "pgxuser"
         mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
@@ -1471,7 +1472,7 @@ class TestOrphanMp3Requeue:
 
     async def _run_with_remote_files(
         self,
-        tmp_path,
+        tmp_path: Path,
         remote_files: set[str],
         audio_rel: str = AUDIO_REL,
         requeue_error: PgxError | None = None,

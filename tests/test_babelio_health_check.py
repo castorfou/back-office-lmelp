@@ -16,7 +16,7 @@ from back_office_lmelp.services.babelio_service import (
 )
 
 
-def _mock_session_ctx(status: int, text: str = "<html>OK</html>"):
+def _mock_session_ctx(status: int, text: str = "<html>OK</html>") -> Mock:
     """Construit un mock aiohttp.ClientSession context manager pour un GET donné."""
     mock_response = Mock()
     mock_response.status = status

@@ -175,7 +175,7 @@ setup_node() {
         # Création d'un package.json basique s'il n'existe pas
         if [ ! -f "package.json" ]; then
             echo "Création du fichier package.json..."
-            cat > package.json << EOF
+            cat > package.json << 'EOF'
 {
   "name": "back-office-lmelp",
   "version": "1.0.0",
@@ -367,6 +367,9 @@ config_zsh() {
 
     # Propose l'authentification gh tant qu'elle manque (terminal VS Code : $BROWSER ouvre l'hôte)
     ensure_zshrc_line 'bash "$WORKSPACE_FOLDER/.devcontainer/scripts/gh_login.sh"'
+
+    # Active GitHub Pages (source GitHub Actions) sur un dépôt public, une fois gh authentifié
+    ensure_zshrc_line 'bash "$WORKSPACE_FOLDER/.devcontainer/scripts/enable_pages.sh"'
 
     echo "✅ zsh configuré"
 }

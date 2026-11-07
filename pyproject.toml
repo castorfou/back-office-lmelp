@@ -57,6 +57,10 @@ dev = [
     "httpx>=0.24.0",
     "ruff",
     "mypy",
+    "pandas-stubs<3",          # Types pour pandas (lus par mypy dans le venv), alignés sur pandas<3
+    "types-python-dateutil",
+    "types-requests",
+    "types-PyYAML",
     "types-psutil",
     "types-beautifulsoup4",
     "pillow",
@@ -77,9 +81,6 @@ Homepage = "https://github.com/castor_fou/back-office-lmelp"
 Documentation = "https://castor_fou.github.io/back-office-lmelp"
 Repository = "https://github.com/castor_fou/back-office-lmelp.git"
 Issues = "https://github.com/castor_fou/back-office-lmelp/issues"
-
-[project.scripts]
-back_office_lmelp_setup = "scripts.setup:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -178,8 +179,8 @@ python_version = "3.11"
 platform = "linux"
 plugins = ["pydantic.mypy"]
 
-# Chemins à analyser : exclure src/ car déjà dans sys.path via editable install
-files = ["tests"]
+# Chemins à analyser : `mypy` seul vérifie le code et les tests, comme le hook et la CI
+files = ["src", "tests"]
 
 # Ne pas chercher de namespace packages pour éviter la détection en double
 namespace_packages = false
@@ -244,6 +245,10 @@ ignore_errors = true
 module = [
     "tests.*",
     "pytest",
+    # Imports legacy des tests, résolus par pytest (pythonpath = ".") mais pas par mypy
+    "src.*",
+    "scripts.*",
+    "fixtures.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false

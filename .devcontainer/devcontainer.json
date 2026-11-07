@@ -121,7 +121,7 @@
     // Configuration du shell et de l'environnement
     "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
     // À chaque démarrage : recrée /tmp/venv s'il manque (/tmp peut être un tmpfs vidé au démarrage)
-    "postStartCommand": "bash .devcontainer/scripts/ensure_venv.sh && echo '🚀 back-office lmelp - Environnement prêt!'",
+    "postStartCommand": "bash .devcontainer/scripts/ensure_venv.sh && echo \"🚀 $PROJECT_NAME - Environnement prêt!\"",
     // Utilisateur non-root pour la sécurité
     "remoteUser": "vscode",
     // Fermer la fenêtre VS Code arrête le conteneur, sinon il tourne jusqu'au prochain
