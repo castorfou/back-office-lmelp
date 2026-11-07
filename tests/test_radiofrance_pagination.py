@@ -7,6 +7,7 @@ la pagination chronologique (?p=N) pour trouver l'épisode exact par date.
 """
 
 from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -204,7 +205,7 @@ def _make_response(html: str) -> Mock:
     return r
 
 
-def _make_session(get_side_effect) -> Mock:
+def _make_session(get_side_effect: Any) -> Mock:
     """Construit un mock de aiohttp.ClientSession avec un side_effect pour .get()."""
     s = Mock()
     s.get = Mock(side_effect=get_side_effect)

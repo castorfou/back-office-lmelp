@@ -6,6 +6,7 @@ et son remplacement ne sont observables qu'avec un vrai fichier.
 """
 
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,7 +38,7 @@ def client():
     return TestClient(app)
 
 
-def serve(service: CalibreService):
+def serve(service: CalibreService) -> Any:
     """Branche le service sur l'app et sur le service de correspondance."""
     return patch.multiple(
         "back_office_lmelp.app",
@@ -155,7 +156,7 @@ class TestReadRetryDuringReplacement:
         garbage = tmp_path / "en-cours-de-remplacement.db"
         garbage.write_bytes(b"pas une base sqlite " * 100)
 
-        def make(failures: int):
+        def make(failures: int) -> Any:
             calls = {"n": 0}
 
             def connect(database, *args, **kwargs):

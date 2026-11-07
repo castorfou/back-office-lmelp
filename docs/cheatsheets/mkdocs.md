@@ -114,7 +114,11 @@ Le workflow `.github/workflows/docs.yml` automatise trois choses :
 
 ### Activer GitHub Pages (une fois par projet)
 
-`docs.yml` publie avec GitHub Actions : dans **Settings → Pages → Build and deployment**, choisir **Source : GitHub Actions** (et non « Deploy from a branch »). Ce réglage du dépôt ne figure dans aucun fichier :
+`docs.yml` publie avec GitHub Actions : GitHub Pages doit être activé avec **Source : GitHub Actions** (et non « Deploy from a branch »). Ce réglage du dépôt ne figure dans aucun fichier. Sans lui, `docs.yml` échoue à `Setup Pages` (`Get Pages site failed`).
+
+**Activation automatique** : à l'ouverture d'un terminal, `.devcontainer/scripts/enable_pages.sh` active Pages avec la source GitHub Actions, une fois `gh` authentifié et le dépôt créé sur GitHub. Il ne le fait que sur un dépôt public dont vous êtes admin, et ne modifie jamais une source « Deploy from a branch ». Dans ces cas, il affiche une ligne qui renvoie ici. Une fois le dépôt réglé, il ne fait plus d'appel réseau.
+
+**À la main** : dans **Settings → Pages → Build and deployment**, ou avec `gh` :
 
 ```bash
 # Pages pas encore activé

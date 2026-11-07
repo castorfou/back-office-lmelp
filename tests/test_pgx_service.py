@@ -36,7 +36,7 @@ PGX_TEST_CONFIG = {
 
 def _make_subprocess_mock(
     returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
-):
+) -> AsyncMock:
     """Construit un mock d'asyncio.subprocess.Process."""
     process_mock = AsyncMock()
     process_mock.returncode = returncode

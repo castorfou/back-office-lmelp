@@ -10,8 +10,8 @@ ABS_PATH_PATTERNS = [
 ]
 
 
-def find_absolute_paths_in_file(path: Path):
-    matches = []
+def find_absolute_paths_in_file(path: Path) -> list[tuple[int, str]]:
+    matches: list[tuple[int, str]] = []
     try:
         text = path.read_text(encoding="utf-8")
     except Exception:

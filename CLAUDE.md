@@ -24,7 +24,7 @@ source /tmp/venv/bin/activate
 
 This enables direct use of tools like `ruff`, `mypy`, `pytest`, `mkdocs` without the `uv run` prefix.
 
-**CRITICAL** : les versions de `ruff`/`mypy` installées dans le venv peuvent différer de celles épinglées par pre-commit (`.pre-commit-config.yaml`) — un `mypy src/` ou `ruff check` direct peut donc passer localement puis échouer au commit (ou l'inverse), avec des messages d'erreur différents pour le même fichier. Avant de committer, déclencher ruff/mypy **via pre-commit** (pas les binaires du venv), en ciblant le hook précis plutôt que toute la suite :
+**CRITICAL** : la version de `ruff` installée dans le venv peut différer de celle épinglée par pre-commit (`.pre-commit-config.yaml`) — un `ruff check` direct peut donc passer localement puis échouer au commit (ou l'inverse). Le hook mypy, lui, tourne dans le venv (`uv run --active mypy`, version de `uv.lock`) et vérifie tout le périmètre `[tool.mypy] files` (`src/` et `tests/`) quels que soient les fichiers passés ; `mypy` lancé seul vérifie le même périmètre. Avant de committer, déclencher les hooks **via pre-commit**, en ciblant le hook précis plutôt que toute la suite :
 
 ```bash
 # Un hook précis (id exact dans .pre-commit-config.yaml : ruff, ruff-format, mypy)
@@ -59,7 +59,7 @@ PYTHONPATH=/workspaces/back-office-lmelp/src python -m back_office_lmelp.app
 # Linting and formatting
 ruff check . --output-format=github
 ruff format .
-mypy src/
+mypy
 
 # Tests
 PYTHONPATH=/workspaces/back-office-lmelp/src pytest tests/ -v --cov=src --cov-report=term-missing
@@ -1454,7 +1454,7 @@ pre-commit install
 - **Security scan**: detect-secrets on all files
 - **Quality gate**: All test suites must pass before deployment
 
-**GitHub Pages** : la source doit rester « GitHub Actions » (`gh api "repos/{owner}/{repo}/pages" --jq .build_type` affiche `workflow`). `docs.yml` se lance aussi depuis une autre branche (`gh workflow run docs.yml --ref <branche>`) si elle est autorisée dans l'environnement `github-pages` ; la doc publiée remplace alors celle de `main` jusqu'au prochain déploiement depuis `main` (voir `docs/cheatsheets/mkdocs.md`).
+**GitHub Pages** : la source doit rester « GitHub Actions » (`gh api "repos/{owner}/{repo}/pages" --jq .build_type` affiche `workflow`). Sur un dépôt public dont on est admin, `.devcontainer/scripts/enable_pages.sh` l'active tout seul à l'ouverture d'un terminal (une fois `gh` authentifié) ; sinon il affiche une ligne et le réglage se fait à la main (`docs/cheatsheets/mkdocs.md`, section « Activer GitHub Pages »). `docs.yml` se lance aussi depuis une autre branche (`gh workflow run docs.yml --ref <branche>`) si elle est autorisée dans l'environnement `github-pages` ; la doc publiée remplace alors celle de `main` jusqu'au prochain déploiement depuis `main` (voir `docs/cheatsheets/mkdocs.md`).
 
 ## Template Update
 

@@ -53,22 +53,16 @@ repos:
         types_or: [python, pyi, jupyter]
 
   # MyPy - Vérification de types statique
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.4.1
+  # Tourne dans le venv du projet : il voit les dépendances de uv.lock (stubs compris).
+  # Le périmètre vient de [tool.mypy] files dans pyproject.toml, comme pour `mypy` et la CI.
+  - repo: local
     hooks:
       - id: mypy
         name: mypy (type check)
-        files: ^src/.*\.py$           # Seulement le code source, pas les notebooks
-        additional_dependencies:
-          - types-python-dateutil     # Types pour dateutil
-          - types-requests           # Types pour requests
-          - types-PyYAML             # Types pour yaml
-          - types-psutil             # Types pour psutil
-          - pydantic                 # Types inline pour pydantic
-          - fastapi                  # Types inline pour fastapi
-          - starlette                # Types inline pour starlette
-          - types-beautifulsoup4     # Types pour bs4
-        args: [--config-file=pyproject.toml]
+        entry: uv run --active mypy
+        language: system
+        types: [python]
+        pass_filenames: false
 
   # Sécurité - Détection de secrets et vulnérabilités
   - repo: https://github.com/Yelp/detect-secrets
