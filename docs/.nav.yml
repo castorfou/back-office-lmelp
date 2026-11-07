@@ -3,5 +3,6 @@ nav:
   - Guides utilisateurs: user/
   - Guides développeurs: dev/
   - Guides deploiement: deployment/
+  - Décisions (ADR): adr/
   - Cheatsheets: cheatsheets/
 ignore: "bonnes_pratiques.md"
