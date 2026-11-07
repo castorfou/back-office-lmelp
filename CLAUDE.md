@@ -1214,7 +1214,7 @@ class DynamicUrlService:
 ```python
 from pymongo import monitoring
 
-class DashboardStatsInvalidationListener(monitoring.CommandListener):  # type: ignore[misc]
+class DashboardStatsInvalidationListener(monitoring.CommandListener):
     def __init__(self, invalidate_fn):
         self._invalidate_fn = invalidate_fn
 
@@ -1236,7 +1236,7 @@ self.client = MongoClient(self.mongo_url, event_listeners=[listener])
 
 **Why not patch each call site**: this project has ~59 direct write call sites across 5 files (no `MongoDBService` method wraps them all). Patching each one is fragile and doesn't cover code added later.
 
-**mypy caveat**: pymongo ships no typed stub for `CommandListener`, so subclassing it triggers `Class cannot subclass "CommandListener" (has type "Any")` — silence with `# type: ignore[misc]` on the class declaration.
+**mypy**: pymongo is typed (`py.typed`) and mypy runs in the project venv, so `CommandListener` subclasses cleanly — no `# type: ignore` needed (an unused one fails the hook with `warn_unused_ignores`).
 
 **Example**: `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py` (Issue #279) — full details in [docs/dev/dashboard-stats-cache.md](docs/dev/dashboard-stats-cache.md)
 
