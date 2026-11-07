@@ -71,6 +71,9 @@
               <th class="col-rank">#</th>
               <th class="col-title">Titre</th>
               <th class="col-author">Auteur</th>
+              <th class="col-possession" title="Possession / Téléchargement">
+                <span aria-label="Possession / Téléchargement">📚</span>
+              </th>
               <th class="col-score">Score</th>
               <th class="col-svd">SVD</th>
               <th class="col-masque">Masque</th>
@@ -105,6 +108,12 @@
                 </router-link>
                 <span v-else>{{ item.auteur_nom || '—' }}</span>
               </td>
+              <td class="col-possession" data-test="possession-cell">
+                <CalibrePossessionCell
+                  :item="item"
+                  :annas-archive-base-url="annasArchiveBaseUrl"
+                />
+              </td>
               <td class="col-score">
                 <span class="score-badge" :class="scoreBadgeClass(item.score_hybride)">
                   {{ item.score_hybride.toFixed(2) }}
@@ -124,12 +133,13 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import CalibrePossessionCell from '../components/CalibrePossessionCell.vue';
 
 const RECOMMENDATIONS_TIMEOUT = 60000; // 60 secondes pour calcul SVD
 
 export default {
   name: 'Recommendations',
-  components: { Navigation },
+  components: { Navigation, CalibrePossessionCell },
 
   data() {
     return {
@@ -137,14 +147,24 @@ export default {
       loading: true,
       error: null,
       showAlgoDetails: false,
+      annasArchiveBaseUrl: 'https://fr.annas-archive.li', // Fallback si l'API échoue
     };
   },
 
   async mounted() {
-    await this.loadRecommendations();
+    await Promise.all([this.loadRecommendations(), this.loadAnnasArchiveUrl()]);
   },
 
   methods: {
+    async loadAnnasArchiveUrl() {
+      try {
+        const response = await axios.get('/api/config/annas-archive-url');
+        this.annasArchiveBaseUrl = response.data.url;
+      } catch (err) {
+        console.warn('Failed to load Anna\'s Archive URL, using default:', err);
+      }
+    },
+
     async loadRecommendations() {
       this.loading = true;
       this.error = null;
@@ -323,6 +343,13 @@ export default {
 .col-count {
   text-align: center;
   width: 6rem;
+}
+
+/* Possession / téléchargement */
+.col-possession,
+.recommendations-table th.col-possession {
+  width: 4rem;
+  text-align: center;
 }
 
 /* Liens */

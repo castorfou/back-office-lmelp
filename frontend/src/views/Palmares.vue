@@ -62,8 +62,9 @@
               <th class="col-author">Auteur</th>
               <th class="col-note">Note</th>
               <th class="col-avis">Avis</th>
-              <th class="col-calibre">Calibre</th>
-              <th class="col-links">Liens</th>
+              <th class="col-possession" title="Possession / Téléchargement">
+                <span aria-label="Possession / Téléchargement">📚</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -106,54 +107,11 @@
               <td class="col-avis">
                 {{ item.nombre_avis }}
               </td>
-              <td class="col-calibre" data-test="calibre-info">
-                <div v-if="item.calibre_in_library" class="calibre-info">
-                  <span class="calibre-badge in-library" title="Dans la bibliothèque Calibre">
-                    {{ item.calibre_read ? '✓ Lu' : '◯' }}
-                  </span>
-                  <span
-                    v-if="item.calibre_rating != null"
-                    class="calibre-note"
-                    :title="`Note Calibre: ${item.calibre_rating}/10`"
-                  >
-                    {{ item.calibre_rating }}/10
-                  </span>
-                </div>
-                <span v-else class="calibre-badge not-in-library" title="Pas dans Calibre">
-                  —
-                </span>
-              </td>
-              <td class="col-links">
-                <div class="links-container">
-                  <!-- Lien Calibre -->
-                  <router-link
-                    :to="getCalibreUrl(item)"
-                    class="external-link"
-                    title="Rechercher dans Calibre"
-                    data-test="calibre-link"
-                  >
-                    <img
-                      :src="calibreIcon"
-                      alt="Calibre"
-                      class="link-icon"
-                    />
-                  </router-link>
-                  <!-- Lien Anna's Archive -->
-                  <a
-                    :href="getAnnasArchiveUrl(item)"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="external-link"
-                    title="Rechercher sur Anna's Archive"
-                    data-test="annas-archive-link"
-                  >
-                    <img
-                      src="@/assets/annas-archive-icon.svg"
-                      alt="Anna's Archive"
-                      class="link-icon"
-                    />
-                  </a>
-                </div>
+              <td class="col-possession" data-test="possession-cell">
+                <CalibrePossessionCell
+                  :item="item"
+                  :annas-archive-base-url="annasArchiveBaseUrl"
+                />
               </td>
             </tr>
           </tbody>
@@ -184,13 +142,14 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
-import calibreIcon from '../assets/calibre_logo.png';
+import CalibrePossessionCell from '../components/CalibrePossessionCell.vue';
 
 export default {
   name: 'Palmares',
 
   components: {
     Navigation,
+    CalibrePossessionCell,
   },
 
   data() {
@@ -212,7 +171,6 @@ export default {
       loading: false,
       error: null,
       annasArchiveBaseUrl: 'https://fr.annas-archive.li',
-      calibreIcon: calibreIcon,
       observer: null,
       filterRead: saved?.filterRead ?? true,
       filterUnread: saved?.filterUnread ?? true,
@@ -333,11 +291,6 @@ export default {
       return 'note-poor';
     },
 
-    getCalibreUrl(item) {
-      const searchQuery = item.titre || '';
-      return `/calibre?search=${encodeURIComponent(searchQuery)}`;
-    },
-
     saveFilters() {
       try {
         localStorage.setItem('palmares-filters', JSON.stringify({
@@ -348,19 +301,6 @@ export default {
       } catch {
         // localStorage not available
       }
-    },
-
-    getAnnasArchiveUrl(item) {
-      const titre = item.titre || '';
-      const auteur = item.auteur_nom || '';
-      const searchQuery = `${titre} - ${auteur}`;
-
-      const encodedQuery = encodeURIComponent(searchQuery)
-        .replace(/%20/g, '+')
-        .replace(/'/g, '%27')
-        .replace(/!/g, '%21');
-
-      return `${this.annasArchiveBaseUrl}/search?index=&page=1&sort=&display=&q=${encodedQuery}`;
     },
   },
 };
@@ -491,13 +431,9 @@ export default {
   font-size: 0.9rem;
 }
 
-.col-calibre {
+.col-possession,
+.palmares-table th.col-possession {
   width: 90px;
-  text-align: center;
-}
-
-.col-links {
-  width: 80px;
   text-align: center;
 }
 
@@ -516,55 +452,6 @@ export default {
   text-decoration: underline;
 }
 
-.links-container {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  align-items: center;
-}
-
-.external-link {
-  display: flex;
-  align-items: center;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.external-link:hover {
-  opacity: 1;
-}
-
-.link-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-
-/* Calibre info */
-.calibre-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.calibre-badge {
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.calibre-badge.in-library {
-  color: #00C851;
-}
-
-.calibre-badge.not-in-library {
-  color: #ccc;
-}
-
-.calibre-note {
-  font-size: 0.75rem;
-  color: #888;
-}
 
 /* Note badges */
 .note-badge {

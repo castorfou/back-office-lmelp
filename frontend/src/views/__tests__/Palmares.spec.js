@@ -216,12 +216,30 @@ describe('Palmares.vue', () => {
       expect(annaLink.attributes('href')).toContain('annas-archive.li');
     });
 
-    it('should have Calibre search link', async () => {
+    it('should have Calibre search link on owned books only (Issue #325)', async () => {
+      const owned = { ...mockPalmaresData.items[0], calibre_in_library: true, calibre_read: false };
+      const notOwned = { ...mockPalmaresData.items[1], calibre_in_library: false };
+      await mountPalmares({ ...mockPalmaresData, items: [owned, notOwned] });
+
+      const cells = wrapper.findAll('[data-test="possession-cell"]');
+      expect(cells).toHaveLength(2);
+
+      const calibreLink = cells[0].find('[data-test="calibre-link"]');
+      expect(calibreLink.text()).toBe('◯');
+      expect(calibreLink.attributes('href')).toBe('/calibre?search=Le%20Lambeau');
+      expect(cells[0].find('[data-test="annas-archive-link"]').exists()).toBe(false);
+
+      expect(cells[1].find('[data-test="calibre-link"]').exists()).toBe(false);
+      expect(cells[1].find('[data-test="annas-archive-link"]').exists()).toBe(true);
+    });
+
+    it('should merge Calibre and Liens into a single last column (Issue #325)', async () => {
       await mountPalmares();
 
-      const calibreLink = wrapper.find('[data-test="calibre-link"]');
-      expect(calibreLink.exists()).toBe(true);
-      expect(calibreLink.attributes('href')).toContain('/calibre');
+      const classes = wrapper.findAll('thead th').map((th) => th.classes()[0]);
+      expect(classes).not.toContain('col-calibre');
+      expect(classes).not.toContain('col-links');
+      expect(classes[classes.length - 1]).toBe('col-possession');
     });
   });
 
