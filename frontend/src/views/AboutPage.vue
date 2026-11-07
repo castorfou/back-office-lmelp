@@ -37,6 +37,34 @@
         </div>
       </section>
 
+      <!-- Fraîcheur Calibre (Issue #327) -->
+      <section class="version-section" v-if="calibreStatus" data-test="calibre-section">
+        <h2>Calibre</h2>
+        <div class="version-card">
+          <template v-if="calibreStatus.available">
+            <div class="version-detail" v-if="calibreStatus.metadata_updated_at">
+              <span class="version-label">Copie Calibre :</span>
+              <span
+                class="calibre-sync-age"
+                :class="{ stale: isCalibreStale }"
+                :title="formatDateTime(calibreStatus.metadata_updated_at)"
+                data-test="calibre-sync-age"
+              >mise à jour {{ relativeAge(calibreStatus.metadata_updated_at) }}</span>
+            </div>
+            <div class="version-detail" v-if="calibreStatus.latest_book_change">
+              <span class="version-label">Dernière modif :</span>
+              <span data-test="calibre-latest-change">
+                {{ calibreStatus.latest_book_change.title }},
+                {{ formatDateTime(calibreStatus.latest_book_change.last_modified) }}
+              </span>
+            </div>
+          </template>
+          <div v-else class="version-detail calibre-unavailable">
+            Calibre indisponible<span v-if="calibreStatus.error"> : {{ calibreStatus.error }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Changelog -->
       <section class="changelog-section">
         <h2>Historique des modifications</h2>
@@ -86,6 +114,9 @@ import Navigation from '../components/Navigation.vue';
 
 const GITHUB_REPO_URL = 'https://github.com/castorfou/back-office-lmelp';
 
+// Au-delà, la copie Calibre est signalée comme en retard (Issue #327)
+const CALIBRE_STALE_SECONDS = 3600;
+
 export default {
   name: 'AboutPage',
 
@@ -97,14 +128,24 @@ export default {
     return {
       versionInfo: null,
       changelog: [],
+      calibreStatus: null,
       loading: true,
     };
+  },
+
+  computed: {
+    isCalibreStale() {
+      const updatedAt = this.calibreStatus?.metadata_updated_at;
+      if (!updatedAt) return false;
+      return (Date.now() - new Date(updatedAt).getTime()) / 1000 > CALIBRE_STALE_SECONDS;
+    },
   },
 
   async mounted() {
     await Promise.all([
       this.loadVersionInfo(),
       this.loadChangelog(),
+      this.loadCalibreStatus(),
     ]);
     this.loading = false;
   },
@@ -126,6 +167,33 @@ export default {
       } catch (error) {
         console.error('Erreur lors du chargement du changelog:', error);
       }
+    },
+
+    async loadCalibreStatus() {
+      try {
+        const response = await axios.get('/api/calibre/status');
+        this.calibreStatus = response.data;
+      } catch (error) {
+        console.error('Erreur lors du chargement du statut Calibre:', error);
+      }
+    },
+
+    relativeAge(isoDate) {
+      const seconds = Math.max(0, (Date.now() - new Date(isoDate).getTime()) / 1000);
+      if (seconds < 60) return "à l'instant";
+      if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
+      if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)} h`;
+      return `il y a ${Math.floor(seconds / 86400)} j`;
+    },
+
+    formatDateTime(isoDate) {
+      return new Date(isoDate).toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     },
 
     formatDate(dateStr) {
@@ -197,6 +265,15 @@ export default {
   gap: 0.5rem;
 }
 
+.calibre-sync-age.stale {
+  color: #e67e22;
+  font-weight: 600;
+}
+
+.calibre-unavailable {
+  color: #888;
+}
+
 .version-detail {
   display: flex;
   align-items: center;
@@ -206,7 +283,7 @@ export default {
 .version-label {
   font-weight: 600;
   color: #555;
-  min-width: 120px;
+  min-width: 135px;
 }
 
 .commit-link {
@@ -319,7 +396,16 @@ export default {
     width: 80px;
   }
 
-  .version-detail {
+  .calibre-sync-age.stale {
+  color: #e67e22;
+  font-weight: 600;
+}
+
+.calibre-unavailable {
+  color: #888;
+}
+
+.version-detail {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.2rem;
