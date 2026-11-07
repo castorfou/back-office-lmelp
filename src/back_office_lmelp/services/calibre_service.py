@@ -17,6 +17,8 @@ Documentation:
 
 import logging
 import sqlite3
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,7 @@ from ..models.calibre_models import (
     CalibreAuthor,
     CalibreBook,
     CalibreBookList,
+    CalibreLatestChange,
     CalibreStatistics,
     CalibreStatus,
 )
@@ -31,6 +34,10 @@ from ..settings import settings
 
 
 logger = logging.getLogger(__name__)
+
+# Relance de l'ouverture de metadata.db pendant son remplacement (Issue #327)
+OPEN_ATTEMPTS = 3
+OPEN_RETRY_DELAY_SECONDS = 0.2
 
 
 class CalibreService:
@@ -105,8 +112,8 @@ class CalibreService:
 
         # Tester la connexion
         try:
-            # Connexion directe sans passer par _get_connection (éviter récursion)
-            conn = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
+            # Pas _get_connection() : _available n'est pas encore positionné
+            conn = self._open_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM books")
             count = cursor.fetchone()[0]
@@ -140,10 +147,35 @@ class CalibreService:
         if not self._available or not self._db_path:
             raise RuntimeError("Calibre n'est pas disponible")
 
-        # Connexion en lecture seule (URI mode)
-        conn = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
-        conn.row_factory = sqlite3.Row  # Accès par nom de colonne
-        return conn
+        return self._open_connection()
+
+    def _open_connection(self) -> sqlite3.Connection:
+        """
+        Ouvre metadata.db en lecture seule, en relançant une ouverture ratée.
+
+        La copie servie peut être remplacée par Synology Drive pendant une lecture
+        (Issue #327). En lecture seule, SQLite n'échoue qu'à la première requête :
+        chaque essai ouvre donc la base ET exécute une requête de contrôle.
+
+        Raises:
+            sqlite3.DatabaseError: si la base reste illisible après tous les essais
+        """
+        for attempt in range(1, OPEN_ATTEMPTS + 1):
+            conn = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
+            try:
+                conn.execute("SELECT 1 FROM books LIMIT 1").fetchall()
+            except sqlite3.DatabaseError as e:
+                conn.close()
+                if attempt == OPEN_ATTEMPTS:
+                    raise
+                logger.warning(
+                    f"metadata.db illisible (essai {attempt}/{OPEN_ATTEMPTS}): {e}"
+                )
+                time.sleep(OPEN_RETRY_DELAY_SECONDS)
+                continue
+            conn.row_factory = sqlite3.Row  # Accès par nom de colonne
+            return conn
+        raise RuntimeError("unreachable")  # pragma: no cover
 
     def _load_custom_columns_map(self) -> None:
         """
@@ -217,13 +249,57 @@ class CalibreService:
                 f"Erreur récupération colonnes personnalisées: {e}", exc_info=True
             )
 
+        mtime = self.get_metadata_mtime()
+
         return CalibreStatus(
             available=True,
             library_path=str(self._library_path),
             total_books=total_books,
             virtual_library_tag=self._virtual_library_tag,
             custom_columns=custom_columns,
+            metadata_updated_at=(
+                datetime.fromtimestamp(mtime, tz=UTC) if mtime is not None else None
+            ),
+            latest_book_change=self._get_latest_book_change(),
         )
+
+    def get_metadata_mtime(self) -> float | None:
+        """Date de modification de metadata.db (fraîcheur Calibre), ou None."""
+        if not self._db_path:
+            return None
+        try:
+            return self._db_path.stat().st_mtime
+        except OSError as e:
+            logger.warning(f"Impossible de lire la date de metadata.db: {e}")
+            return None
+
+    def _get_latest_book_change(self) -> CalibreLatestChange | None:
+        """Livre au last_modified le plus récent (bibliothèque virtuelle incluse)."""
+        query = "SELECT b.title, b.last_modified FROM books b"
+        params: list[Any] = []
+        if self._virtual_library_tag:
+            query += """
+                JOIN books_tags_link btl ON b.id = btl.book
+                JOIN tags t ON btl.tag = t.id
+                WHERE t.name = ?
+            """
+            params.append(self._virtual_library_tag)
+        query += " ORDER BY b.last_modified DESC LIMIT 1"
+
+        try:
+            conn = self._get_connection()
+            try:
+                row = conn.execute(query, params).fetchone()
+            finally:
+                conn.close()
+            if row is None:
+                return None
+            return CalibreLatestChange(
+                title=row["title"], last_modified=row["last_modified"]
+            )
+        except Exception as e:
+            logger.error(f"Erreur lecture dernière modification: {e}", exc_info=True)
+            return None
 
     def count_books(self, read_filter: bool | None = None) -> int:
         """
