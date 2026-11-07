@@ -16,30 +16,25 @@ L'intégration Calibre permet d'accéder à votre bibliothèque Calibre existant
 
 ## Architecture
 
+Sur le NAS, la bibliothèque Calibre existe en deux copies. lmelp (back-office et `lmelp-export`) lit la **copie Drive**, mise à jour en quelques secondes par Synology Drive. La **bibliothèque CWA** n'est rafraîchie qu'une fois par nuit et reste réservée à Calibre-Web-Automated.
+
+```mermaid
+flowchart LR
+    S["Bibliothèque source<br/>Calibre, laptop"]
+    D["Copie Drive<br/>/volume1/homes/guillaume/Backup/framework/<br/>home/guillaume/Calibre Library/"]
+    C["Bibliothèque CWA<br/>/volume1/docker/calibre-web-automated/books/"]
+    B["lmelp back-office"]
+    E["lmelp-export<br/>→ app mobile"]
+    W["Calibre-Web-Automated"]
+
+    S -->|"Synchronisation Drive<br/>continue, quelques secondes"| D
+    D -->|"Synchronisation nocturne<br/>nightly-sync.sh, 00:05"| C
+    D -->|"CALIBRE_HOST_PATH<br/>bind :ro → /calibre"| B
+    D -->|"CALIBRE_HOST_PATH<br/>bind :ro → /calibre"| E
+    C --- W
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    NAS Synology (ou PC)                     │
-│                                                             │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │  Bibliothèque Calibre (sur l'hôte)                 │   │
-│  │  /volume1/books/Calibre Library/                   │   │
-│  │    ├── metadata.db (SQLite)                        │   │
-│  │    ├── metadata_db_prefs_backup.json               │   │
-│  │    └── Author/                                     │   │
-│  │         └── Book Title (ID)/                       │   │
-│  │              ├── cover.jpg                         │   │
-│  │              └── Book Title - Author.epub          │   │
-│  └──────────────────┬─────────────────────────────────┘   │
-│                     │ Montage volume Docker (:ro)          │
-│                     ▼                                       │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │  Backend Container (FastAPI)                        │   │
-│  │  /calibre/ (lecture seule)                         │   │
-│  │    ├── metadata.db ← Lecture directe via SQLite    │   │
-│  │    └── ...                                         │   │
-│  └────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
+
+Le backend lit `/calibre/metadata.db` (SQLite) en lecture seule, à chaque requête. Le pourquoi de ce choix, et les options écartées, sont dans l'[ADR 0001](../adr/0001-lmelp-lit-la-copie-drive.md).
 
 ## Configuration
 
@@ -73,8 +68,8 @@ ls -l "/mnt/c/Users/username/Calibre Library/metadata.db"
 Éditez le fichier `.env` (ou uploadez-le dans Portainer) et décommentez/modifiez les lignes Calibre :
 
 ```bash
-# Exemple pour NAS Synology
-CALIBRE_HOST_PATH=/volume1/books/Calibre Library
+# NAS Synology : la copie Drive (voir Architecture)
+CALIBRE_HOST_PATH=/volume1/homes/guillaume/Backup/framework/home/guillaume/Calibre Library
 
 # Optionnel : Tag de bibliothèque virtuelle pour filtrer les livres
 CALIBRE_VIRTUAL_LIBRARY_TAG=guillaume
@@ -264,7 +259,21 @@ Il est **sûr** d'utiliser Calibre et back-office-lmelp en même temps :
 - Calibre peut continuer à ajouter/modifier des livres
 - SQLite gère automatiquement les lectures concurrentes
 
-**Note** : Les modifications faites dans Calibre apparaîtront après actualisation de la page web.
+**Note** : Les modifications faites dans Calibre apparaîtront après actualisation de la page web, dès que la copie montée sur `/calibre` a été mise à jour.
+
+### Remplacement de `metadata.db` pendant une lecture
+
+Synology Drive peut remplacer `metadata.db` au moment où lmelp le lit. Une ouverture qui tombe sur un fichier illisible est relancée (3 essais espacés de 0,2 s) avant de considérer Calibre indisponible. Cela vaut aussi au démarrage du backend.
+
+### Fraîcheur Calibre
+
+La page **À propos** affiche l'âge de la copie lue (date de modification de `metadata.db`), en orange au-delà d'une heure, et le dernier livre modifié vu. La même information est disponible dans l'API :
+
+```bash
+curl -s https://lmelp.ascot63.synology.me/api/calibre/status | jq '{metadata_updated_at, latest_book_change}'
+```
+
+Une copie de plus d'une heure signale une synchronisation Drive arrêtée (laptop éteint, client Drive en pause) ou un montage qui pointe encore vers la bibliothèque CWA.
 
 ## Limitations
 

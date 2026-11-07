@@ -264,6 +264,7 @@ export BABELIO_CACHE_LOG=1
 - 🔐 **Lecture seule** : Accès sécurisé sans modification de votre bibliothèque
 - 🎯 **Bibliothèque virtuelle** : Support des tags pour filtrage (ex: afficher uniquement tag "guillaume")
 - 📖 **Métadonnées complètes** : Auteurs, éditeur, ISBN, note, tags, colonnes personnalisées (#read, #paper, #text)
+- 🕒 **Fraîcheur Calibre** : la page « À propos » indique l'âge de la copie Calibre lue (orange au-delà d'1 h) et la dernière modification de livre vue
 
 #### Corrections Calibre
 - 🔗 **Matching MongoDB-Calibre** : Algorithme à 3 niveaux (exact, containment, validation auteur)
@@ -363,7 +364,7 @@ POST /api/critiques/merge         # Fusionner deux critiques doublons (source �
 GET /api/palmares                 # Classement des livres par note moyenne (pagination)
 
 # Calibre (Issue #119)
-GET /api/calibre/status           # Statut de l'intégration Calibre
+GET /api/calibre/status           # Statut de l'intégration Calibre (+ fraîcheur)
 GET /api/calibre/statistics       # Statistiques de la bibliothèque
 GET /api/calibre/books            # Liste des livres (pagination, tri, filtres)
 GET /api/calibre/matching         # Matching MongoDB-Calibre (3 niveaux)
