@@ -572,6 +572,24 @@ def auto_process_verified_books(self):
 
 **How to verify**: for a collection with a status/state field, confirm the write side (`create_*`, `update_*`) and every read side (`get_*_by_*status*`) all reference the *same* field name before adding a new consumer.
 
+### Calibre SQLite File: Retry on Open, Cache on mtime, Test on a Real File
+
+The served Calibre library (`metadata.db`) is a file that Synology Drive can replace at any
+moment (see `docs/adr/0001-lmelp-lit-la-copie-drive.md`, vocabulary in `CONTEXT.md`).
+
+- **Retry the open, not the `connect`**: in `mode=ro`, `sqlite3.connect()` succeeds on a
+  half-written file; the error only surfaces on the first query. `CalibreService._open_connection()`
+  retries "connect + `SELECT 1 FROM books LIMIT 1`" on `sqlite3.DatabaseError`. Every path that
+  opens the DB goes through it, **including `_check_availability()` at startup** (otherwise one
+  unlucky startup disables Calibre until the next restart).
+- **Key Calibre-derived caches on the file's mtime** (`CalibreService.get_metadata_mtime()`), not
+  only on a TTL: `CalibreMatchingService._get_data()` reloads as soon as `metadata.db` changes and
+  keeps its 5-min TTL only as a safety net for the MongoDB side.
+- **Test with a real library on disk** when the file itself matters (mtime, replacement):
+  `tests/fixtures/calibre_library.py` builds a minimal real `metadata.db` (Calibre's table DDL, no
+  triggers). Writing to it changes its mtime: reset it with `set_mtime()` to simulate "nothing
+  arrived". Mocking `sqlite3.connect` cannot catch these bugs.
+
 ### MongoDB Cursor Handling
 
 **CRITICAL**: Never mix sync cursors with async iteration

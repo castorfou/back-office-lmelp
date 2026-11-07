@@ -602,6 +602,26 @@ onMounted(async () => {
 </script>
 ```
 
+## Lecture de `metadata.db` et fraîcheur
+
+La copie montée sur `/calibre` peut être remplacée par Synology Drive à tout moment ([ADR 0001](../adr/0001-lmelp-lit-la-copie-drive.md), vocabulaire dans `CONTEXT.md` à la racine du dépôt).
+
+- **Ouverture relancée** : `CalibreService._open_connection()` fait jusqu'à 3 essais (`OPEN_ATTEMPTS`, `OPEN_RETRY_DELAY_SECONDS`) de « connexion en lecture seule + `SELECT 1 FROM books LIMIT 1` ». En `mode=ro`, `sqlite3.connect()` réussit même sur un fichier incomplet : l'erreur n'apparaît qu'à la première requête, d'où la requête de contrôle. `_get_connection()` et `_check_availability()` (démarrage) passent tous deux par cette méthode.
+- **Fraîcheur** : `get_status()` renvoie `metadata_updated_at` (date de modification de `metadata.db`, UTC) et `latest_book_change` (`title`, `last_modified` du livre modifié le plus récemment, dans la bibliothèque virtuelle si un tag est configuré). Les deux valent `null` si Calibre est indisponible.
+
+```json
+{
+  "available": true,
+  "total_books": 573,
+  "metadata_updated_at": "2026-11-07T14:01:16.374143Z",
+  "latest_book_change": {"title": "Hamnet", "last_modified": "2026-11-07T14:01:08.889976Z"}
+}
+```
+
+- **Cache de correspondance** : `CalibreMatchingService._get_data()` recharge ses données dès que `get_metadata_mtime()` change. Le TTL de 5 min ne sert plus qu'aux changements côté MongoDB. `POST /api/calibre/cache/invalidate` force toujours le rechargement.
+
+**Tests** : `tests/fixtures/calibre_library.py` crée une vraie bibliothèque Calibre minimale sur disque. Elle sert à tester ce qu'un mock de `sqlite3.connect` ne peut pas montrer : la date du fichier et son remplacement (`tests/test_calibre_freshness.py`). Écrire dans la base modifie sa date : `set_mtime()` la remet en place.
+
 ## Tests
 
 ### Tests Backend

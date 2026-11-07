@@ -118,6 +118,13 @@ class CalibreBookList(BaseModel):
     )
 
 
+class CalibreLatestChange(BaseModel):
+    """Livre modifié le plus récemment dans la copie servie (Issue #327)."""
+
+    title: str = Field(..., description="Titre du livre")
+    last_modified: datetime = Field(..., description="Date de modification Calibre")
+
+
 class CalibreStatus(BaseModel):
     """Statut de l'intégration Calibre."""
 
@@ -131,6 +138,13 @@ class CalibreStatus(BaseModel):
         default_factory=dict, description="Colonnes personnalisées disponibles"
     )
     error: str | None = Field(None, description="Message d'erreur si non disponible")
+    metadata_updated_at: datetime | None = Field(
+        None,
+        description="Date de modification de metadata.db (fraîcheur Calibre, UTC)",
+    )
+    latest_book_change: CalibreLatestChange | None = Field(
+        None, description="Livre modifié le plus récemment"
+    )
 
 
 class CalibreStatistics(BaseModel):

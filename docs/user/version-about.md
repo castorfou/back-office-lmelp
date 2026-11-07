@@ -37,6 +37,19 @@ La section supérieure affiche :
 | **Environnement** | `docker` (production) ou `development` (dev local) |
 | **Date de build** | Date de construction de l'image Docker |
 
+### Calibre
+
+Cette section indique si les données Calibre affichées par lmelp sont à jour.
+
+| Ligne | Description |
+|-------|-------------|
+| **Copie Calibre** | Âge de la copie Calibre lue par lmelp (« mise à jour il y a 3 min »). La date exacte s'affiche au survol. En **orange** au-delà d'une heure. |
+| **Dernière modif** | Titre et date du dernier livre modifié dans Calibre, tel que lmelp le voit. |
+
+Pour vérifier qu'une modification faite dans Calibre est arrivée, rechargez la page : le livre modifié doit apparaître en « Dernière modif ».
+
+Une copie en orange signifie que la synchronisation de Calibre vers le NAS est arrêtée (laptop éteint, client Synology Drive en pause). Si Calibre n'est pas accessible, la section affiche « Calibre indisponible » et la raison.
+
 ### Historique des modifications (Changelog)
 
 Le tableau principal liste tous les commits qui référencent une issue ou une Pull Request (`#XXX`), classés du plus récent au plus ancien.

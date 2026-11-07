@@ -44,7 +44,10 @@ class CalibreMatchingService:
         self._virtual_library_tag = virtual_library_tag
         self._cache: dict[str, Any] | None = None
         self._cache_timestamp: float = 0
+        # TTL : filet pour les changements côté MongoDB. Côté Calibre, le cache est
+        # rechargé dès que metadata.db change (Issue #327).
         self._cache_ttl: float = 300  # 5 minutes
+        self._cache_calibre_mtime: float | None = None
 
     def invalidate_cache(self) -> None:
         """Invalide le cache des données de matching."""
@@ -119,7 +122,12 @@ class CalibreMatchingService:
             Tuple (calibre_books, mongo_livres, authors_by_id)
         """
         now = time.time()
-        if self._cache and (now - self._cache_timestamp) < self._cache_ttl:
+        calibre_mtime = self._calibre_service.get_metadata_mtime()
+        if (
+            self._cache
+            and (now - self._cache_timestamp) < self._cache_ttl
+            and calibre_mtime == self._cache_calibre_mtime
+        ):
             return (
                 self._cache["calibre_books"],
                 self._cache["mongo_livres"],
@@ -140,6 +148,7 @@ class CalibreMatchingService:
             "authors_by_id": authors_by_id,
         }
         self._cache_timestamp = now
+        self._cache_calibre_mtime = calibre_mtime
 
         return calibre_books, mongo_livres, authors_by_id
 
