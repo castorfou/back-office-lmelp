@@ -290,7 +290,8 @@ export BABELIO_CACHE_LOG=1
 - 📖 **Intégration Calibre** : Statut de lecture et note Calibre pour chaque livre
 - 🏷️ **Filtres interactifs** : Lus / Non lus / Dans Calibre (persistés dans localStorage)
 - ∞ **Infinite scroll** : Chargement progressif par pages de 30
-- 🔗 **Liens rapides** : Accès direct à la fiche livre, fiche auteur, Calibre et Anna's Archive
+- 📚 **Colonne possession** : ◯ / ✓ Lu (+ note) cliquable vers Calibre si le livre est possédé, sinon lien de recherche Anna's Archive
+- 🔗 **Liens rapides** : Accès direct à la fiche livre et à la fiche auteur
 
 #### Pages de Détail Auteur et Livre
 - 👤 **Page auteur** : `/auteur/:id` - Vue détaillée d'un auteur avec tous ses livres triés alphabétiquement

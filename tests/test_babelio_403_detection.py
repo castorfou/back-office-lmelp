@@ -196,6 +196,14 @@ async def test_verify_book_returns_blocked_403_when_scraping_blocked(service):
 
     with (
         patch.object(service, "search", new=AsyncMock(return_value=[book_result])),
+        # verify_book() scrape aussi éditeur et titre complet avant l'URL
+        # auteur : sans ces mocks, vraies requêtes HTTP vers Babelio (timeout CI)
+        patch.object(
+            service, "fetch_publisher_from_url", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            service, "fetch_full_title_from_url", new=AsyncMock(return_value=None)
+        ),
         patch.object(
             service,
             "fetch_author_url_from_page",

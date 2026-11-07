@@ -3176,15 +3176,32 @@ async def get_recommendations(
 
     Returns:
         Liste de dicts avec rank, livre_id, titre, auteur_id, auteur_nom,
-        score_hybride, svd_predict, masque_mean, masque_count.
+        score_hybride, svd_predict, masque_mean, masque_count, plus le statut
+        Calibre (calibre_in_library, calibre_read, calibre_rating,
+        calibre_current_tags).
     """
     try:
-        return recommendation_service.get_recommendations(
+        recommendations = recommendation_service.get_recommendations(
             top_n=top_n, min_critiques_per_livre=min_critiques
         )
     except Exception as e:
         logger.error(f"Error getting recommendations: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # Issue #325: statut de possession Calibre (◯ / ✓ Lu / lien Anna's Archive)
+    try:
+        calibre_index = calibre_matching_service.get_calibre_index()
+        for item in recommendations:
+            calibre_matching_service.enrich_palmares_item(item, calibre_index)
+    except Exception as e:
+        logger.warning(f"Enrichissement Calibre des recommandations impossible: {e}")
+        for item in recommendations:
+            item["calibre_in_library"] = False
+            item["calibre_read"] = None
+            item["calibre_rating"] = None
+            item["calibre_current_tags"] = None
+
+    return recommendations
 
 
 # Endpoint pour la configuration Anna's Archive (Issue #188)
