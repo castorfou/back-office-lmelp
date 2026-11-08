@@ -165,7 +165,11 @@ L'endpoint `/api/calibre/books` (page Bibliothèque Calibre, `CalibreLibrary.vue
 
 L'enrichissement est fait dans `app.py::get_calibre_books()`, pas dans `calibre_service`, car `CalibreService` n'a pas de dépendance vers MongoDB — seul `CalibreMatchingService` connaît les deux sources.
 
-**Volumétrie** : Contrairement à OnKindle (~15 livres taggés), cet endpoint traite l'ensemble de la bibliothèque (~568 livres). Le cache existant de `CalibreMatchingService` évite un recalcul du matching à chaque requête.
+**Volumétrie** : Contrairement à OnKindle (~15 livres taggés), cet endpoint traite l'ensemble de la bibliothèque (~570 livres, ≈ 1 Mo de JSON : `CalibreLibrary.vue` demande `limit: 10000`). Le cache existant de `CalibreMatchingService` évite un recalcul du matching à chaque requête.
+
+**Lecture par lot** : `CalibreService._build_books_from_rows()` complète un lot de livres avec une requête par relation (auteurs, tags, éditeur, série, note, ISBN, commentaire, langues, colonnes personnalisées) en `WHERE book IN (...)`. Les ids sont découpés en paquets de `BATCH_SIZE` (500) pour rester sous la limite de variables SQLite. Le nombre de requêtes ne dépend donc pas du nombre de livres. `get_books()` et `get_book()` passent par cette méthode.
+
+**Endpoint synchrone** : `get_calibre_books()` est déclaré en `def`, pas en `async def`. Son travail (SQLite puis matching MongoDB) est entièrement synchrone : FastAPI l'exécute dans son threadpool, et les autres requêtes du backend restent servies pendant le chargement de la bibliothèque, y compris lors d'un rechargement du cache de matching.
 
 ## API Calibre Python
 
@@ -620,7 +624,10 @@ La copie montée sur `/calibre` peut être remplacée par Synology Drive à tout
 
 - **Cache de correspondance** : `CalibreMatchingService._get_data()` recharge ses données dès que `get_metadata_mtime()` change. Le TTL de 5 min ne sert plus qu'aux changements côté MongoDB. `POST /api/calibre/cache/invalidate` force toujours le rechargement.
 
-**Tests** : `tests/fixtures/calibre_library.py` crée une vraie bibliothèque Calibre minimale sur disque. Elle sert à tester ce qu'un mock de `sqlite3.connect` ne peut pas montrer : la date du fichier et son remplacement (`tests/test_calibre_freshness.py`). Écrire dans la base modifie sa date : `set_mtime()` la remet en place.
+**Tests** : `tests/fixtures/calibre_library.py` crée une vraie bibliothèque Calibre minimale sur disque (schéma Calibre récent, sans colonne `books.isbn`, avec les colonnes personnalisées `read`, `paper`, `text` et KOReader). Elle sert à tester ce qu'un mock de `sqlite3.connect` ne peut pas montrer :
+
+- la date du fichier et son remplacement (`tests/test_calibre_freshness.py`). Écrire dans la base modifie sa date : `set_mtime()` la remet en place ;
+- le nombre de requêtes et les valeurs relues par lot (`tests/test_calibre_books_batch.py`). `add_details()` complète un livre (co-auteurs, éditeur, ISBN, langues, colonnes personnalisées). Les requêtes sont comptées avec `conn.set_trace_callback`.
 
 ## Tests
 
