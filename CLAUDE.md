@@ -1454,6 +1454,8 @@ pre-commit install
 - **Security scan**: detect-secrets on all files
 - **Quality gate**: All test suites must pass before deployment
 
+**Versions des actions GitHub** : chaque action des workflows doit tourner sous Node 24. `tests/test_github_actions.py` impose une majeure minimale par action (`MIN_MAJOR`) et refuse une action absente de cette table. Pour ajouter ou monter une action, lire le `runs.using` de son `action.yml` au tag visé (`gh api "repos/<owner>/<action>/contents/action.yml?ref=<tag>"`), puis compléter `MIN_MAJOR`. `astral-sh/setup-uv` ne publie plus de tag flottant : tag exact `vX.Y.Z`. Dans un bloc `tags: |` de `docker/metadata-action` (v6+), un `# ...` en fin de ligne fait partie de la valeur : pas de `# pragma` dans ces lignes. Pas de Dependabot : une PR sur `docs.yml` (fichier du template) créerait des rejets au `cruft update` suivant.
+
 **GitHub Pages** : la source doit rester « GitHub Actions » (`gh api "repos/{owner}/{repo}/pages" --jq .build_type` affiche `workflow`). Sur un dépôt public dont on est admin, `.devcontainer/scripts/enable_pages.sh` l'active tout seul à l'ouverture d'un terminal (une fois `gh` authentifié) ; sinon il affiche une ligne et le réglage se fait à la main (`docs/cheatsheets/mkdocs.md`, section « Activer GitHub Pages »). `docs.yml` se lance aussi depuis une autre branche (`gh workflow run docs.yml --ref <branche>`) si elle est autorisée dans l'environnement `github-pages` ; la doc publiée remplace alors celle de `main` jusqu'au prochain déploiement depuis `main` (voir `docs/cheatsheets/mkdocs.md`).
 
 ## Template Update

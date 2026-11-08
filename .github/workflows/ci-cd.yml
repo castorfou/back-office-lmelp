@@ -35,15 +35,15 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v2
+      uses: astral-sh/setup-uv@v10.3.3
 
     - name: Check uv.lock is up to date
       run: uv lock --check
@@ -58,34 +58,24 @@ jobs:
       run: uv run pre-commit run --all-files
 
     - name: Run tests
-      run: uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
+      run: uv run pytest tests/ -v --cov=src --cov-report=term-missing
       env:
         MONGODB_URL: mongodb://localhost:27017
         PYTHONPATH: ${{ github.workspace }}/src
-
-    - name: Upload coverage to Codecov
-      if: matrix.python-version == '3.11'
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
-        verbose: true
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   security:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v2
+      uses: astral-sh/setup-uv@v10.3.3
 
     - name: Install dependencies
       run: uv sync --extra dev
@@ -97,10 +87,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v7
       with:
         node-version: '18'
         cache: 'npm'
