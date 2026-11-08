@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 # Relance de l'ouverture de metadata.db pendant son remplacement (Issue #327)
 OPEN_ATTEMPTS = 3
 OPEN_RETRY_DELAY_SECONDS = 0.2
+# Ids par requête « IN (...) » : sous la limite de variables des vieux SQLite (999)
+BATCH_SIZE = 500
 
 
 class CalibreService:
@@ -394,7 +396,7 @@ class CalibreService:
 
         # Construire la requête
         # Note: On récupère les données de base, les relations seront complétées
-        # dans _build_book_from_row
+        # dans _build_books_from_rows
         query = """
             SELECT DISTINCT
                 b.id,
@@ -458,7 +460,7 @@ class CalibreService:
         rows = cursor.fetchall()
 
         # Construire les objets CalibreBook
-        books = [self._build_book_from_row(row, conn) for row in rows]
+        books = self._build_books_from_rows(rows, conn)
 
         conn.close()
 
@@ -507,7 +509,7 @@ class CalibreService:
             return None
 
         # Construire l'objet complet
-        book = self._build_book_from_row(row, conn)
+        book = self._build_books_from_rows([row], conn)[0]
         conn.close()
 
         return book
@@ -727,226 +729,144 @@ class CalibreService:
         conn.close()
         return result
 
-    def _build_book_from_row(
-        self, row: sqlite3.Row, conn: sqlite3.Connection
-    ) -> CalibreBook:
+    def _build_books_from_rows(
+        self, rows: list[sqlite3.Row], conn: sqlite3.Connection
+    ) -> list[CalibreBook]:
         """
-        Construit un objet CalibreBook à partir d'une ligne SQL.
+        Construit les objets CalibreBook d'un lot de lignes SQL.
 
-        Cette méthode complète les données de base avec les relations
-        (auteurs, tags, etc.) via des requêtes supplémentaires.
+        Les relations (auteurs, tags, éditeur, colonnes personnalisées…) sont
+        lues par une requête par relation pour tout le lot, et non par livre :
+        le nombre de requêtes ne dépend pas du nombre de livres.
 
         Args:
-            row: Ligne SQL avec les données de base
+            rows: Lignes SQL avec les données de base (table books)
             conn: Connexion active pour les requêtes complémentaires
 
         Returns:
-            Objet CalibreBook complet
+            Livres complets, dans l'ordre des lignes
         """
-        book_id = row["id"]
-        cursor = conn.cursor()
+        book_ids = [row["id"] for row in rows]
 
-        # Auteurs
-        cursor.execute(
+        def values_by_book(query: str) -> dict[int, list[Any]]:
+            """Exécute `query` (2 colonnes : book, value) sur tout le lot.
+
+            `query` contient un `{ids}` remplacé par les marqueurs du lot,
+            découpé en paquets pour rester sous la limite de variables SQLite.
+            L'ordre des valeurs d'un livre est celui de la requête.
             """
-            SELECT a.name
-            FROM authors a
-            JOIN books_authors_link bal ON a.id = bal.author
-            WHERE bal.book = ?
-            ORDER BY bal.id
-        """,
-            (book_id,),
-        )
-        authors = [r["name"] for r in cursor.fetchall()]
+            grouped: dict[int, list[Any]] = {}
+            for start in range(0, len(book_ids), BATCH_SIZE):
+                chunk = book_ids[start : start + BATCH_SIZE]
+                placeholders = ",".join("?" * len(chunk))
+                for book, value in conn.execute(
+                    query.format(ids=placeholders), chunk
+                ).fetchall():
+                    grouped.setdefault(book, []).append(value)
+            return grouped
 
-        # Tags
-        cursor.execute(
-            """
-            SELECT t.name
-            FROM tags t
-            JOIN books_tags_link btl ON t.id = btl.tag
-            WHERE btl.book = ?
-            ORDER BY t.name
-        """,
-            (book_id,),
-        )
-        tags = [r["name"] for r in cursor.fetchall()]
+        def first_by_book(query: str) -> dict[int, Any]:
+            return {book: values[0] for book, values in values_by_book(query).items()}
 
-        # Éditeur
-        cursor.execute(
-            """
-            SELECT p.name
-            FROM publishers p
-            JOIN books_publishers_link bpl ON p.id = bpl.publisher
-            WHERE bpl.book = ?
-        """,
-            (book_id,),
-        )
-        publisher_row = cursor.fetchone()
-        publisher = publisher_row["name"] if publisher_row else None
-
-        # Série
-        cursor.execute(
-            """
-            SELECT s.name
-            FROM series s
-            JOIN books_series_link bsl ON s.id = bsl.series
-            WHERE bsl.book = ?
-        """,
-            (book_id,),
-        )
-        series_row = cursor.fetchone()
-        series = series_row["name"] if series_row else None
-
-        # Note
-        cursor.execute(
-            """
-            SELECT r.rating
-            FROM ratings r
-            JOIN books_ratings_link brl ON r.id = brl.rating
-            WHERE brl.book = ?
-        """,
-            (book_id,),
-        )
-        rating_row = cursor.fetchone()
-        rating = rating_row["rating"] if rating_row else None
-
-        # ISBN (dans la table identifiers uniquement)
-        cursor.execute(
-            """
-            SELECT val FROM identifiers
-            WHERE book = ? AND type = 'isbn'
-            LIMIT 1
-        """,
-            (book_id,),
-        )
-        isbn_row = cursor.fetchone()
-        isbn = isbn_row["val"] if isbn_row else None
-
-        # Commentaires
-        cursor.execute("SELECT text FROM comments WHERE book = ?", (book_id,))
-        comments_row = cursor.fetchone()
-        comments = comments_row["text"] if comments_row else None
-
-        # Langues
-        cursor.execute(
-            """
-            SELECT l.lang_code
-            FROM languages l
-            JOIN books_languages_link bll ON l.id = bll.lang_code
-            WHERE bll.book = ?
-        """,
-            (book_id,),
-        )
-        languages = [r["lang_code"] for r in cursor.fetchall()]
-
-        # Colonnes personnalisées
-        read = None
-        paper = None
-        personal_comments = None
-
-        read_col_id = self._custom_columns_map.get("read")
-        if read_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{read_col_id} WHERE book = ?",
-                (book_id,),
+        def custom_column(label: str) -> dict[int, Any]:
+            col_id = self._custom_columns_map.get(label)
+            if not col_id:
+                return {}
+            return first_by_book(
+                f"SELECT book, value FROM custom_column_{col_id} "
+                "WHERE book IN ({ids}) ORDER BY id"
             )
-            read_row = cursor.fetchone()
-            read = bool(read_row["value"]) if read_row else None
 
-        paper_col_id = self._custom_columns_map.get("paper")
-        if paper_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{paper_col_id} WHERE book = ?",
-                (book_id,),
-            )
-            paper_row = cursor.fetchone()
-            paper = bool(paper_row["value"]) if paper_row else None
+        authors = values_by_book(
+            """SELECT bal.book, a.name FROM authors a
+               JOIN books_authors_link bal ON a.id = bal.author
+               WHERE bal.book IN ({ids}) ORDER BY bal.id"""
+        )
+        tags = values_by_book(
+            """SELECT btl.book, t.name FROM tags t
+               JOIN books_tags_link btl ON t.id = btl.tag
+               WHERE btl.book IN ({ids}) ORDER BY t.name"""
+        )
+        publishers = first_by_book(
+            """SELECT bpl.book, p.name FROM publishers p
+               JOIN books_publishers_link bpl ON p.id = bpl.publisher
+               WHERE bpl.book IN ({ids}) ORDER BY bpl.id"""
+        )
+        series = first_by_book(
+            """SELECT bsl.book, s.name FROM series s
+               JOIN books_series_link bsl ON s.id = bsl.series
+               WHERE bsl.book IN ({ids}) ORDER BY bsl.id"""
+        )
+        ratings = first_by_book(
+            """SELECT brl.book, r.rating FROM ratings r
+               JOIN books_ratings_link brl ON r.id = brl.rating
+               WHERE brl.book IN ({ids}) ORDER BY brl.id"""
+        )
+        # ISBN : dans la table identifiers uniquement
+        isbns = first_by_book(
+            """SELECT book, val FROM identifiers
+               WHERE type = 'isbn' AND book IN ({ids}) ORDER BY id"""
+        )
+        comments = first_by_book(
+            "SELECT book, text FROM comments WHERE book IN ({ids}) ORDER BY id"
+        )
+        languages = values_by_book(
+            """SELECT bll.book, l.lang_code FROM languages l
+               JOIN books_languages_link bll ON l.id = bll.lang_code
+               WHERE bll.book IN ({ids}) ORDER BY bll.item_order, bll.id"""
+        )
 
-        text_col_id = self._custom_columns_map.get("text")
-        if text_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{text_col_id} WHERE book = ?",
-                (book_id,),
-            )
-            text_row = cursor.fetchone()
-            personal_comments = text_row["value"] if text_row else None
+        reads = custom_column("read")
+        papers = custom_column("paper")
+        personal_comments = custom_column("text")
+        ko_progresses = custom_column("ko_progfloat")
+        ko_starts = custom_column("ko_start")
+        ko_finishes = custom_column("ko_finish")
 
-        # Get KOReader progress (custom column simple: id, book, value)
-        ko_progress = None
-        ko_progfloat_col_id = self._custom_columns_map.get("ko_progfloat")
-        if ko_progfloat_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{ko_progfloat_col_id} WHERE book = ?",
-                (book_id,),
-            )
-            progress_row = cursor.fetchone()
-            ko_progress = progress_row["value"] if progress_row else None
-
-        # Get KOReader status (enum column with link table, like tags)
-        ko_status = None
+        # KOReader status : colonne énumérée avec table de lien, comme les tags
+        ko_statuses: dict[int, Any] = {}
         ko_status_col_id = self._custom_columns_map.get("ko_status")
         if ko_status_col_id:
-            cursor.execute(
-                f"""SELECT ccv.value
+            ko_statuses = first_by_book(
+                f"""SELECT ccl.book, ccv.value
                     FROM books_custom_column_{ko_status_col_id}_link ccl
                     JOIN custom_column_{ko_status_col_id} ccv ON ccl.value = ccv.id
-                    WHERE ccl.book = ?""",
-                (book_id,),
+                    WHERE ccl.book IN ({{ids}}) ORDER BY ccl.id"""
             )
-            status_row = cursor.fetchone()
-            ko_status = status_row["value"] if status_row else None
 
-        # Get KOReader start date
-        ko_date_started = None
-        ko_start_col_id = self._custom_columns_map.get("ko_start")
-        if ko_start_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{ko_start_col_id} WHERE book = ?",
-                (book_id,),
+        def as_bool(values: dict[int, Any], book_id: int) -> bool | None:
+            return bool(values[book_id]) if book_id in values else None
+
+        return [
+            CalibreBook(
+                id=row["id"],
+                title=row["title"],
+                sort=row["sort"],
+                isbn=isbns.get(row["id"]),
+                timestamp=row["timestamp"],
+                pubdate=row["pubdate"],
+                last_modified=row["last_modified"],
+                path=row["path"],
+                uuid=row["uuid"],
+                has_cover=bool(row["has_cover"]),
+                series_index=row["series_index"],
+                authors=authors.get(row["id"], []),
+                tags=tags.get(row["id"], []),
+                publisher=publishers.get(row["id"]),
+                series=series.get(row["id"]),
+                rating=ratings.get(row["id"]),
+                comments=comments.get(row["id"]),
+                languages=languages.get(row["id"], []),
+                read=as_bool(reads, row["id"]),
+                paper=as_bool(papers, row["id"]),
+                personal_comments=personal_comments.get(row["id"]),
+                ko_progress=ko_progresses.get(row["id"]),
+                ko_status=ko_statuses.get(row["id"]),
+                ko_date_started=ko_starts.get(row["id"]),
+                ko_date_finished=ko_finishes.get(row["id"]),
             )
-            start_row = cursor.fetchone()
-            ko_date_started = start_row["value"] if start_row else None
-
-        # Get KOReader finish date
-        ko_date_finished = None
-        ko_finish_col_id = self._custom_columns_map.get("ko_finish")
-        if ko_finish_col_id:
-            cursor.execute(
-                f"SELECT value FROM custom_column_{ko_finish_col_id} WHERE book = ?",
-                (book_id,),
-            )
-            finish_row = cursor.fetchone()
-            ko_date_finished = finish_row["value"] if finish_row else None
-
-        # Construire l'objet
-        return CalibreBook(
-            id=row["id"],
-            title=row["title"],
-            sort=row["sort"],
-            isbn=isbn,
-            timestamp=row["timestamp"],
-            pubdate=row["pubdate"],
-            last_modified=row["last_modified"],
-            path=row["path"],
-            uuid=row["uuid"],
-            has_cover=bool(row["has_cover"]),
-            series_index=row["series_index"],
-            authors=authors,
-            tags=tags,
-            publisher=publisher,
-            series=series,
-            rating=rating,
-            comments=comments,
-            languages=languages,
-            read=read,
-            paper=paper,
-            personal_comments=personal_comments,
-            ko_progress=ko_progress,
-            ko_status=ko_status,
-            ko_date_started=ko_date_started,
-            ko_date_finished=ko_date_finished,
-        )
+            for row in rows
+        ]
 
     def get_authors(self, limit: int = 100, offset: int = 0) -> list[CalibreAuthor]:
         """
