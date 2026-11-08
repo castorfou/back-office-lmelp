@@ -6,7 +6,6 @@ Cette section couvre les aspects de sécurité de lmelp.
 
 ### Analyse automatique
 - **detect-secrets** : Détection de secrets dans le code
-- **Dependabot** : Mise à jour automatique des dépendances
 - **CI/CD** : Vérifications de sécurité à chaque commit
 
 ### Configuration sécurisée
