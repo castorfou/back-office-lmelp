@@ -71,6 +71,28 @@ INSERT INTO custom_columns (id, label, name, datatype, normalized)
     VALUES (1, 'read', 'Read', 'bool', 0);
 CREATE TABLE custom_column_1( id INTEGER PRIMARY KEY AUTOINCREMENT,
     book INTEGER, value BOOL NOT NULL, UNIQUE(book));
+INSERT INTO custom_columns (id, label, name, datatype, normalized) VALUES
+    (2, 'paper', 'paper', 'bool', 0),
+    (3, 'text', 'Commentaire', 'comments', 0),
+    (4, 'ko_progfloat', 'KOReader Precise Progress', 'float', 0),
+    (5, 'ko_status', 'KOReader Book Status', 'text', 1),
+    (7, 'ko_start', 'Date KOReader Started', 'datetime', 0),
+    (8, 'ko_finish', 'Date KOReader Finished', 'datetime', 0);
+CREATE TABLE custom_column_2( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER, value BOOL NOT NULL, UNIQUE(book));
+CREATE TABLE custom_column_3( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER, value TEXT NOT NULL COLLATE NOCASE, UNIQUE(book));
+CREATE TABLE custom_column_4( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER, value REAL NOT NULL, UNIQUE(book));
+CREATE TABLE custom_column_5( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT "",
+    UNIQUE(value));
+CREATE TABLE books_custom_column_5_link( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER NOT NULL, value INTEGER NOT NULL, UNIQUE(book, value));
+CREATE TABLE custom_column_7( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER, value timestamp NOT NULL, UNIQUE(book));
+CREATE TABLE custom_column_8( id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER, value timestamp NOT NULL, UNIQUE(book));
 """
 
 
@@ -125,6 +147,104 @@ class CalibreLibrary:
                 )
         assert book_id is not None
         return book_id
+
+    def add_details(
+        self,
+        book_id: int,
+        coauthors: list[str] | None = None,
+        publisher: str | None = None,
+        series: str | None = None,
+        rating: int | None = None,
+        isbn: str | None = None,
+        comment: str | None = None,
+        languages: list[str] | None = None,
+        paper: bool | None = None,
+        personal_comment: str | None = None,
+        ko_progress: float | None = None,
+        ko_status: str | None = None,
+        ko_start: str | None = None,
+        ko_finish: str | None = None,
+    ) -> None:
+        """Complète un livre avec les métadonnées que lit `CalibreService`."""
+        with self._connect() as conn:
+            for author in coauthors or []:
+                conn.execute(
+                    "INSERT OR IGNORE INTO authors (name) VALUES (?)", (author,)
+                )
+                (author_id,) = conn.execute(
+                    "SELECT id FROM authors WHERE name = ?", (author,)
+                ).fetchone()
+                conn.execute(
+                    "INSERT INTO books_authors_link (book, author) VALUES (?, ?)",
+                    (book_id, author_id),
+                )
+            for table, column, value in (
+                ("publishers", "publisher", publisher),
+                ("series", "series", series),
+                ("ratings", "rating", rating),
+            ):
+                if value is None:
+                    continue
+                name_col = "rating" if table == "ratings" else "name"
+                conn.execute(
+                    f"INSERT OR IGNORE INTO {table} ({name_col}) VALUES (?)", (value,)
+                )
+                (item_id,) = conn.execute(
+                    f"SELECT id FROM {table} WHERE {name_col} = ?", (value,)
+                ).fetchone()
+                conn.execute(
+                    f"INSERT INTO books_{table}_link (book, {column}) VALUES (?, ?)",
+                    (book_id, item_id),
+                )
+            if isbn is not None:
+                conn.execute(
+                    "INSERT INTO identifiers (book, type, val) VALUES (?, 'isbn', ?)",
+                    (book_id, isbn),
+                )
+            if comment is not None:
+                conn.execute(
+                    "INSERT INTO comments (book, text) VALUES (?, ?)",
+                    (book_id, comment),
+                )
+            for order, lang in enumerate(languages or []):
+                conn.execute(
+                    "INSERT OR IGNORE INTO languages (lang_code) VALUES (?)", (lang,)
+                )
+                (lang_id,) = conn.execute(
+                    "SELECT id FROM languages WHERE lang_code = ?", (lang,)
+                ).fetchone()
+                conn.execute(
+                    "INSERT INTO books_languages_link (book, lang_code, item_order) "
+                    "VALUES (?, ?, ?)",
+                    (book_id, lang_id, order),
+                )
+            custom_values: tuple[tuple[int, str | float | None], ...] = (
+                (2, None if paper is None else int(paper)),
+                (3, personal_comment),
+                (4, ko_progress),
+                (7, ko_start),
+                (8, ko_finish),
+            )
+            for col_id, col_value in custom_values:
+                if col_value is not None:
+                    conn.execute(
+                        f"INSERT INTO custom_column_{col_id} (book, value) "
+                        "VALUES (?, ?)",
+                        (book_id, col_value),
+                    )
+            if ko_status is not None:
+                conn.execute(
+                    "INSERT OR IGNORE INTO custom_column_5 (value) VALUES (?)",
+                    (ko_status,),
+                )
+                (status_id,) = conn.execute(
+                    "SELECT id FROM custom_column_5 WHERE value = ?", (ko_status,)
+                ).fetchone()
+                conn.execute(
+                    "INSERT INTO books_custom_column_5_link (book, value) "
+                    "VALUES (?, ?)",
+                    (book_id, status_id),
+                )
 
     def rename_book(self, book_id: int, title: str, last_modified: str) -> None:
         """Modifie le titre d'un livre, comme une édition dans Calibre."""

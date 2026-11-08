@@ -868,13 +868,17 @@ async def get_calibre_status() -> dict[str, Any]:
 
 
 @app.get("/api/calibre/books")
-async def get_calibre_books(
+def get_calibre_books(
     limit: int = 50,
     offset: int = 0,
     read_filter: bool | None = None,
     search: str | None = None,
 ) -> dict[str, Any]:
-    """Récupère la liste des livres Calibre."""
+    """Récupère la liste des livres Calibre.
+
+    Synchrone : FastAPI l'exécute dans son threadpool, la lecture SQLite et le
+    matching MongoDB ne bloquent pas la boucle asyncio (Issue #328).
+    """
     try:
         books_list = calibre_service.get_books(
             limit=limit, offset=offset, read_filter=read_filter, search=search

@@ -589,6 +589,13 @@ moment (see `docs/adr/0001-lmelp-lit-la-copie-drive.md`, vocabulary in `CONTEXT.
   `tests/fixtures/calibre_library.py` builds a minimal real `metadata.db` (Calibre's table DDL, no
   triggers). Writing to it changes its mtime: reset it with `set_mtime()` to simulate "nothing
   arrived". Mocking `sqlite3.connect` cannot catch these bugs.
+- **Read books in batches, never one query per book**: `CalibreService._build_books_from_rows()`
+  runs one `WHERE book IN (...)` query per relation for the whole page (chunks of `BATCH_SIZE`).
+  `tests/test_calibre_books_batch.py` counts queries with `conn.set_trace_callback` on the real
+  file, so a per-book query added later fails the test.
+- **An endpoint whose body has no `await` is a `def`, not an `async def`**: FastAPI then runs it in
+  its threadpool. `async def get_calibre_books()` ran SQLite + Mongo matching on the event loop and
+  froze every other request meanwhile.
 
 ### MongoDB Cursor Handling
 
