@@ -20,7 +20,7 @@ Chaque synchronisation :
 ### Depuis le tableau de bord
 
 1. Ouvrez le **Dashboard** (page d'accueil)
-2. Localisez la section **"RSS Masque Et La Plume"**
+2. Localisez la section **"Podcast Masque Et La Plume"**
 3. Cliquez sur la tuile **"Monitoring Downloads"**
 
 La tuile **"Dernière mise à jour"** de la section "Informations générales" mène également à cette page.
@@ -59,5 +59,6 @@ Si configurées (voir `docs/dev/environment-variables.md`), des notifications so
 
 ## Voir aussi
 
+- [Ajouter une émission](ajout-emission.md) : pour une émission trop ancienne pour le flux RSS
 - `docs/dev/rss-sync.md` (détail technique du service de synchronisation)
 - `docs/user/transcription-pgx.md` — page dédiée `/transcription-pgx`, accessible depuis la même section "Podcast Masque Et La Plume" du tableau de bord
