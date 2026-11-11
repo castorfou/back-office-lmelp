@@ -965,4 +965,41 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
 
     expect(push).toHaveBeenCalledWith('/transcription-pgx');
   });
+
+  it('place la tuile Ajouter une émission entre Monitoring Downloads et Transcriptions PGX (Issue #334)', async () => {
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const card = wrapper.find('[data-testid="function-ajout-emission"]');
+    expect(card.exists()).toBe(true);
+    expect(card.text()).toContain('Ajouter une émission');
+
+    const podcastCards = card.element.parentElement.querySelectorAll('[data-testid]');
+    expect([...podcastCards].map((el) => el.dataset.testid)).toEqual([
+      'function-rss-monitoring',
+      'function-ajout-emission',
+      'function-pgx-transcription',
+    ]);
+  });
+
+  it('navigue vers /ajout-emission au clic sur la tuile Ajouter une émission (Issue #334)', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="function-ajout-emission"]').trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/ajout-emission');
+  });
 });

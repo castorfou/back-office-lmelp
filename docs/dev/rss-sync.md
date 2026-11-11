@@ -26,7 +26,7 @@ Deux endpoints exposent la synchronisation :
 
 1. **Niveau 1 (filtrage RSS)** : `RssSyncService.filter_new_candidate_entries()` ne retient que les entries dont `entry.published` est postérieure à la date la plus récente entre `mongodb_service.get_last_episode_date()` (dernier épisode réellement inséré, consulté en temps réel dans `episodes`) et `mongodb_service.get_last_processed_episode_date()` (dernier épisode `"skipped_not_book"` déjà vu, via une agrégation sur `rss_download_logs`). Évite de retraiter tout le flux à chaque run.
 2. **Niveau 2 (avant insertion)** : `mongodb_service.find_episode_by_titre_and_date()` vérifie l'existence exacte (titre, date) avant tout téléchargement/insertion.
-3. **Niveau 3 (fichier audio)** : `download_audio()` vérifie que le fichier n'existe pas déjà sur disque avant de le télécharger (idempotence, même si un même épisode passait les deux niveaux précédents).
+3. **Niveau 3 (fichier audio)** : `download_audio()` vérifie que le fichier n'existe pas déjà sur disque avant de le télécharger (idempotence, même si un même épisode passait les deux niveaux précédents). Le téléchargement vérifie le statut HTTP et passe par un fichier `<nom>.part` renommé une fois complet : un fichier présent sous son nom final est toujours complet.
 
 **Piège corrigé (détecté par test manuel)** : se baser uniquement sur `get_last_episode_date()` pour le niveau 1 est insuffisant, car cette méthode ne voit que les épisodes **réellement insérés** dans `episodes` — un épisode `"skipped_not_book"` (film, théâtre) n'y apparaît jamais. Sans `get_last_processed_episode_date()`, un tel épisode resterait indéfiniment un candidat re-classifié par le LLM et re-notifié via ntfy.sh à chaque run, tant qu'aucun nouvel épisode "livres" n'est inséré après lui dans le flux.
 
@@ -102,3 +102,4 @@ Voir `docs/dev/environment-variables.md` pour le détail des variables `RSS_MASQ
 - `src/back_office_lmelp/services/mongodb_service.py` (méthodes de dédup et de gestion des logs RSS)
 - `frontend/src/views/RssMonitoring.vue`
 - `docs/user/rss-monitoring.md` (documentation utilisateur)
+- `docs/dev/ajout-emission.md` (ajout d'une émission trop ancienne pour le flux, depuis sa page radiofrance.fr)

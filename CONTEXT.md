@@ -48,3 +48,21 @@ _Avoid_: dernière synchro, date de synchro
 Le temps entre l'enregistrement d'une modification dans la bibliothèque source et son
 affichage dans lmelp.
 _Avoid_: latence, retard de synchro
+
+### Émissions du Masque et la Plume
+
+**Épisode**:
+Un enregistrement du Masque et la Plume consacré aux livres, entré dans la base avec son
+audio (par le flux RSS ou par un ajout depuis sa page radiofrance.fr), en attente ou non de
+transcription.
+_Avoid_: émission (tant que les avis critiques ne sont pas générés)
+
+**Émission**:
+Un épisode dont les avis critiques ont été générés : il apparaît alors dans la page
+Émissions, avec ses livres et ses critiques.
+_Avoid_: épisode (une fois structuré)
+
+**Séquence**:
+Un extrait de quelques minutes d'une émission, consacré à un seul livre, publié séparément
+sur radiofrance.fr ; ce n'est jamais un épisode.
+_Avoid_: clip, extrait audio

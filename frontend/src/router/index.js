@@ -219,6 +219,14 @@ const routes = [
     }
   },
   {
+    path: '/ajout-emission',
+    name: 'AjoutEmission',
+    component: () => import('../views/AjoutEmission.vue'),
+    meta: {
+      title: 'Ajouter une émission - lmelp'
+    }
+  },
+  {
     path: '/transcription-pgx',
     name: 'PgxTranscription',
     component: PgxTranscription,

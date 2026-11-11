@@ -18,6 +18,7 @@ nav:
   - Calibre db schema: calibre-db-schema.md
   - Cache statistiques dashboard: dashboard-stats-cache.md
   - Synchronisation RSS: rss-sync.md
+  - Ajout d'une émission hors RSS: ajout-emission.md
   - Transcription PGX: pgx-transcription.md
   - "Automatisch : transcription PGX": automatisch-pgx-transcription.md
   - Variables d'environnement: environment-variables.md

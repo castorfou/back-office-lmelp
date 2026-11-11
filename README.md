@@ -223,6 +223,7 @@ export BABELIO_CACHE_LOG=1
 - 🔌 **Déclenchement flexible** : Bouton manuel sur `/rss-monitoring` ou appel API REST (`POST /api/rss/sync`) pour une automatisation externe (n8n, Automatisch)
 - 🔔 **Notifications ntfy.sh** : Alerte configurable en fin de synchronisation (épisode téléchargé ou non retenu)
 - 📋 **Monitoring dédié** : Page `/rss-monitoring` avec historique horodaté des synchronisations et détail par épisode
+- ➕ **Émission absente du flux** : Page `/ajout-emission` (`POST /api/episodes/from-radiofrance-page`) qui ajoute une émission trop ancienne pour le flux RSS à partir de sa page radiofrance.fr (audio complet lu dans le JSON-LD, refus des séquences de moins de 30 min et des doublons du jour), puis enchaîne notification ntfy et transcription PGX comme un épisode RSS
 
 #### Transcription PGX
 - 🖥️ **Station GPU dédiée** : Pipeline de transcription automatisée via SSH/SCP vers la station GPU PGX (portage complet depuis lmelp, Issue #302)

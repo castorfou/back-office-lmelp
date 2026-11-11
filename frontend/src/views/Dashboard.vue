@@ -407,6 +407,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-ajout-emission"
+            @click="navigateToAjoutEmission"
+          >
+            <div class="function-icon">➕</div>
+            <h3>Ajouter une émission</h3>
+            <p>Ajouter une émission absente du flux RSS à partir de sa page radiofrance.fr</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-pgx-transcription"
             @click="navigateToPgxTranscription"
           >
@@ -719,6 +730,9 @@ export default {
       this.$router.push('/babelio-migration#covers');
     },
 
+    navigateToAjoutEmission() {
+      this.$router.push('/ajout-emission');
+    },
     navigateToPgxTranscription() {
       this.$router.push('/transcription-pgx');
     },

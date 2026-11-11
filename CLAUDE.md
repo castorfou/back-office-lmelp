@@ -819,6 +819,24 @@ async def search_with_pagination(query: str, target_date: str) -> str | None:
 - ❌ Without empty check: Unnecessary requests beyond last page
 - ❌ Without timeout: Hanging requests can block entire process
 
+### Downloading a File to Disk — Status, Temp File, Real Server in Tests
+
+`RssSyncService.download_audio()` (shared by the RSS sync and the manual episode
+addition) skips any file already on disk. That makes two mistakes silent and permanent:
+
+- **Check the HTTP status** (`session.get(url, raise_for_status=True)`): otherwise a
+  404 page is saved under the audio name.
+- **Stream into `<name>.part`, then `os.replace()`**, removing the `.part` in a
+  `finally`: a download cut halfway must never leave a file under the final name, or
+  the next attempt takes it as "already downloaded". Stream with `iter_chunked()`
+  rather than `read()`: a full episode is ~70 MB.
+
+**Test against a real local server** (`aiohttp.test_utils.TestServer`), not a mocked
+`response.read()`: a mock sees neither the status, nor the chunked reads, nor a
+connection dropped mid-body (`StreamResponse` with a larger `content_length`, then
+`request.transport.close()`). Example: `TestDownloadAudio` in
+`tests/test_rss_sync_service.py` (Issue #334).
+
 ### Retry Scheduling as a Wrapper, Never a Reimplementation of the Loop It Retries
 
 **CRITICAL**: When adding automatic retry to an existing sequential
