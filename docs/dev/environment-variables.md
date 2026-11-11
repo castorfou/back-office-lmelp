@@ -161,7 +161,7 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
-| `PGX_HOST` | IP directe de la station PGX (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement) | Aucune (requis pour activer PGX) | `192.168.50.151` |
+| `PGX_HOST` | IP directe de la station PGX : IP locale, ou IP VPN quand PGX est cliente du VPN du NAS (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement) | Aucune (requis pour activer PGX) | `192.168.50.151` |
 | `PGX_USER` | Utilisateur SSH sur PGX | Aucune (requis) | `f279814` |
 | `PGX_SSH_KEY_PATH` | Chemin de la clé privée SSH dédiée à PGX (générée automatiquement si absente à ce chemin, via `ensure_pgx_ssh_key()`) | Aucune (requis) | `/app/keys/pgx_ed25519` |
 | `PGX_REMOTE_AUDIO_ROOT` | Répertoire distant racine des audios sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/audios` |

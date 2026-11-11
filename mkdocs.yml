@@ -9,6 +9,7 @@ repo_url: https://github.com/castorfou/back-office-lmelp
 # Exclude internal directories from documentation
 exclude_docs: |
   claude/
+  runbooks/
 
 theme:
   name: material

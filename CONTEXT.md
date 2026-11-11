@@ -62,6 +62,11 @@ Un épisode dont les avis critiques ont été générés : il apparaît alors da
 Émissions, avec ses livres et ses critiques.
 _Avoid_: épisode (une fois structuré)
 
+**PGX**:
+La station GPU personnelle qui transcrit les épisodes ; elle se déplace entre la maison
+d'été et les quartiers d'hiver, et lmelp doit la joindre où qu'elle soit.
+_Avoid_: serveur de transcription, machine locale
+
 **Séquence**:
 Un extrait de quelques minutes d'une émission, consacré à un seul livre, publié séparément
 sur radiofrance.fr ; ce n'est jamais un épisode.
