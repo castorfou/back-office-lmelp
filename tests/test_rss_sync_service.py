@@ -19,6 +19,7 @@ import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from bson import ObjectId
 
@@ -362,42 +363,106 @@ class TestClassifyEpisodeType:
 class TestDownloadAudio:
     """Tests unitaires pour le téléchargement audio (idempotent)."""
 
-    @pytest.mark.asyncio
-    async def test_download_audio_writes_file_and_returns_rel_filename(self, tmp_path):
+    """Téléchargement contre un vrai serveur HTTP local (Issue #334) : un
+    mock de `response.read()` ne voit ni le streaming par morceaux, ni un
+    statut HTTP d'erreur, ni une connexion coupée en cours de route."""
+
+    @staticmethod
+    def _make_service(tmp_path):
         mock_settings = MagicMock()
         mock_settings.audio_storage_path = str(tmp_path)
         mock_settings.rss_debug_log = False
-        service = RssSyncService(mongodb_service=MagicMock(), settings=mock_settings)
+        return RssSyncService(mongodb_service=MagicMock(), settings=mock_settings)
 
-        class MockResponse:
-            async def read(self):
-                return b"fake-audio-content"
+    @staticmethod
+    async def _serve(handler):
+        from aiohttp import web
+        from aiohttp.test_utils import TestServer
 
-            async def __aenter__(self):
-                return self
+        app = web.Application()
+        app.router.add_get("/podcast/episode.m4a", handler)
+        server = TestServer(app)
+        await server.start_server()
+        return server
 
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                return None
+    @pytest.mark.asyncio
+    async def test_download_audio_writes_file_and_returns_rel_filename(self, tmp_path):
+        from aiohttp import web
 
-        class MockSession:
-            def get(self, *args, **kwargs):
-                return MockResponse()
+        content = b"fake-audio-content" * 100_000  # ~1,8 Mo : plusieurs morceaux
 
-            async def __aenter__(self):
-                return self
+        async def handler(request):
+            return web.Response(body=content, content_type="audio/mp4")
 
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                return None
-
-        episode_date = datetime(2026, 9, 6, tzinfo=UTC)
-        audio_url = "https://proxycast.radiofrance.fr/xxx/episode.m4a"
-
-        with patch("aiohttp.ClientSession", return_value=MockSession()):
-            result = await service.download_audio(audio_url, episode_date)
+        server = await self._serve(handler)
+        try:
+            result = await self._make_service(tmp_path).download_audio(
+                str(server.make_url("/podcast/episode.m4a")),
+                datetime(2026, 9, 6, tzinfo=UTC),
+            )
+        finally:
+            await server.close()
 
         assert result == "2026/episode.m4a"
-        written_file = tmp_path / "2026" / "episode.m4a"
-        assert written_file.read_bytes() == b"fake-audio-content"
+        assert (tmp_path / "2026" / "episode.m4a").read_bytes() == content
+        assert sorted(p.name for p in (tmp_path / "2026").iterdir()) == ["episode.m4a"]
+
+    @pytest.mark.asyncio
+    async def test_download_audio_raises_and_writes_nothing_on_http_error(
+        self, tmp_path
+    ):
+        """Une page 404 ne doit jamais être enregistrée comme fichier audio."""
+        from aiohttp import web
+
+        async def handler(request):
+            return web.Response(status=404, text="Not Found")
+
+        server = await self._serve(handler)
+        try:
+            with pytest.raises(aiohttp.ClientResponseError):
+                await self._make_service(tmp_path).download_audio(
+                    str(server.make_url("/podcast/episode.m4a")),
+                    datetime(2026, 9, 6, tzinfo=UTC),
+                )
+        finally:
+            await server.close()
+
+        assert list((tmp_path / "2026").iterdir()) == []
+
+    @pytest.mark.asyncio
+    async def test_interrupted_download_leaves_no_file_and_is_retried(self, tmp_path):
+        """Connexion coupée en cours de route : aucun fichier final (sinon il
+        serait pris pour « déjà présent »), et l'essai suivant télécharge."""
+        from aiohttp import web
+
+        content = b"x" * 200_000
+        calls = {"n": 0}
+
+        async def handler(request):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                response = web.StreamResponse()
+                response.content_length = len(content)
+                await response.prepare(request)
+                await response.write(content[:50_000])
+                request.transport.close()
+                return response
+            return web.Response(body=content, content_type="audio/mp4")
+
+        server = await self._serve(handler)
+        service = self._make_service(tmp_path)
+        url = str(server.make_url("/podcast/episode.m4a"))
+        try:
+            with pytest.raises(aiohttp.ClientError):
+                await service.download_audio(url, datetime(2026, 9, 6, tzinfo=UTC))
+            assert list((tmp_path / "2026").iterdir()) == []
+
+            await service.download_audio(url, datetime(2026, 9, 6, tzinfo=UTC))
+        finally:
+            await server.close()
+
+        assert calls["n"] == 2
+        assert (tmp_path / "2026" / "episode.m4a").read_bytes() == content
 
     @pytest.mark.asyncio
     async def test_download_audio_is_idempotent_when_file_exists(self, tmp_path):

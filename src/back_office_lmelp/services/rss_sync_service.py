@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 RSS_DATE_FORMAT = "%a, %d %b %Y %H:%M:%S %z"
 AUDIO_LINK_TYPES = {"audio/mpeg", "audio/x-m4a", "audio/mp4", "audio/aac"}
+AUDIO_DOWNLOAD_TIMEOUT_SECONDS = 600
+AUDIO_DOWNLOAD_CHUNK_SIZE = 1024 * 1024
 
 
 class RssSyncService:
@@ -186,14 +188,28 @@ Description: {description}"""
         if os.path.exists(full_filename):
             return audio_rel_filename
 
-        timeout = aiohttp.ClientTimeout(total=60)
-        async with (
-            aiohttp.ClientSession(timeout=timeout) as session,
-            session.get(audio_url) as response,
-        ):
-            content = await response.read()
-        with open(full_filename, "wb") as f:
-            f.write(content)
+        # Écriture par morceaux dans un fichier temporaire renommé à la fin :
+        # une émission complète pèse jusqu'à ~70 Mo, et un fichier tronqué
+        # laissé sous le nom final serait pris pour « déjà présent » au
+        # prochain essai (Issue #334).
+        partial_filename = f"{full_filename}.part"
+        timeout = aiohttp.ClientTimeout(
+            total=AUDIO_DOWNLOAD_TIMEOUT_SECONDS, sock_read=60
+        )
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=timeout) as session,
+                session.get(audio_url, raise_for_status=True) as response,
+            ):
+                with open(partial_filename, "wb") as f:
+                    async for chunk in response.content.iter_chunked(
+                        AUDIO_DOWNLOAD_CHUNK_SIZE
+                    ):
+                        f.write(chunk)
+            os.replace(partial_filename, full_filename)
+        finally:
+            if os.path.exists(partial_filename):
+                os.remove(partial_filename)
 
         return audio_rel_filename
 
