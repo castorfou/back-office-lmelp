@@ -98,3 +98,36 @@ class TestSendNtfyNotification:
             await send_ntfy_notification(
                 "https://ntfy.sh", "lmelp-pgx", "title", "message"
             )
+
+
+class TestNtfyTitlePrefix:
+    """Préfixe du titre paramétrable (Issue #334) : « PGX » par défaut,
+    « Ajout manuel » pour l'ajout d'une émission hors flux RSS."""
+
+    @pytest.mark.asyncio
+    async def test_custom_prefix_replaces_pgx(self):
+        from aiohttp import web
+        from aiohttp.test_utils import TestServer
+
+        received = {}
+
+        async def handler(request):
+            received["title"] = request.headers["Title"]
+            return web.Response(text="ok")
+
+        app = web.Application()
+        app.router.add_post("/lmelp", handler)
+        server = TestServer(app)
+        await server.start_server()
+        try:
+            await send_ntfy_notification(
+                str(server.make_url("")),
+                "lmelp",
+                "Nouvel épisode",
+                "message",
+                prefix="Ajout manuel",
+            )
+        finally:
+            await server.close()
+
+        assert received["title"] == "Ajout manuel - Nouvel épisode"

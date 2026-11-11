@@ -20,12 +20,17 @@ async def send_ntfy_notification(
     title: str,
     message: str,
     tags: list[str] | None = None,
+    prefix: str = "PGX",
 ) -> None:
-    """Envoie une notification ntfy.sh (no-op si server_url/topic absent)."""
+    """Envoie une notification ntfy.sh (no-op si server_url/topic absent).
+
+    Le titre est préfixé par `prefix` (« PGX - … » par défaut) pour
+    distinguer la source de la notification sur le téléphone.
+    """
     if not server_url or not topic:
         return
 
-    title = f"PGX - {title}"
+    title = f"{prefix} - {title}"
     url = f"{server_url.rstrip('/')}/{topic}"
     headers = {"Title": title}
     if tags:
