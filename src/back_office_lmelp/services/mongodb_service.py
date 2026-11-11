@@ -2,7 +2,7 @@
 
 import contextlib
 import os
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from bson import ObjectId
@@ -321,6 +321,21 @@ class MongoDBService:
         if self.episodes_collection is None:
             raise Exception("Connexion MongoDB non établie")
         doc = self.episodes_collection.find_one({"titre": titre, "date": date})
+        return dict(doc) if doc is not None else None
+
+    def find_episode_on_same_day(self, date: datetime) -> dict[str, Any] | None:
+        """Retourne un épisode du même jour calendaire UTC, quel que soit son
+        titre ou son heure (doublon de l'ajout manuel, Issue #334)."""
+        if self.episodes_collection is None:
+            raise Exception("Connexion MongoDB non établie")
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=UTC)
+        day_start = date.astimezone(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        doc = self.episodes_collection.find_one(
+            {"date": {"$gte": day_start, "$lt": day_start + timedelta(days=1)}}
+        )
         return dict(doc) if doc is not None else None
 
     def get_last_episode_date(self) -> datetime | None:

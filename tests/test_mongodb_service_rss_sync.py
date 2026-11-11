@@ -172,3 +172,47 @@ class TestRssDownloadLogs:
         )
 
         assert result is None
+
+
+class TestFindEpisodeOnSameDay:
+    """Doublon de l'ajout manuel (Issue #334) : même jour calendaire UTC,
+    quel que soit le titre ou l'heure. En base, un épisode ancien est daté
+    à minuit (datetime(2024, 8, 4)) et un épisode RSS à l'heure de
+    publication (datetime(2026, 11, 1, 9, 12, 40)) : datetimes naïfs UTC."""
+
+    def test_queries_the_whole_utc_day_of_the_given_datetime(self):
+        from datetime import UTC
+
+        service = MongoDBService()
+        service.episodes_collection = MagicMock()
+        legacy = {
+            "_id": ObjectId("678cce6ca414f229887780bf"),  # pragma: allowlist secret
+            "titre": "Lectures d'été",
+            "date": datetime(2024, 7, 21),
+        }
+        service.episodes_collection.find_one.return_value = legacy
+
+        result = service.find_episode_on_same_day(
+            datetime(2024, 7, 21, 8, 11, 50, tzinfo=UTC)
+        )
+
+        assert result == legacy
+        service.episodes_collection.find_one.assert_called_once_with(
+            {
+                "date": {
+                    "$gte": datetime(2024, 7, 21, tzinfo=UTC),
+                    "$lt": datetime(2024, 7, 22, tzinfo=UTC),
+                }
+            }
+        )
+
+    def test_returns_none_when_day_is_free(self):
+        from datetime import UTC
+
+        service = MongoDBService()
+        service.episodes_collection = MagicMock()
+        service.episodes_collection.find_one.return_value = None
+
+        assert (
+            service.find_episode_on_same_day(datetime(2024, 7, 21, tzinfo=UTC)) is None
+        )

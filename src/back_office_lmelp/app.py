@@ -62,6 +62,7 @@ from .services.dashboard_stats_cache_service import dashboard_stats_cache_servic
 from .services.duplicate_books_service import DuplicateBooksService
 from .services.fixture_updater import FixtureUpdaterService
 from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
+from .services.manual_episode_service import manual_episode_service
 from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
 from .services.radiofrance_service import RadioFranceService
@@ -278,6 +279,12 @@ class TriggerRssSyncRequest(BaseModel):
     """Modèle pour déclencher une synchronisation RSS (Issue #295)."""
 
     trigger: str = "api"  # "manual" (bouton UI) | "api" (appel externe n8n)
+
+
+class AddEpisodeFromRadiofrancePageRequest(BaseModel):
+    """Ajout manuel d'une émission depuis sa page radiofrance.fr (Issue #334)."""
+
+    url: str
 
 
 class TriggerPgxTranscriptionRequest(BaseModel):
@@ -3549,6 +3556,28 @@ async def get_rss_sync_log_detail(log_id: str) -> dict[str, Any]:
     if not log:
         raise HTTPException(status_code=404, detail="Log non trouvé")
     return log
+
+
+@app.post("/api/episodes/from-radiofrance-page")
+async def add_episode_from_radiofrance_page(
+    request: AddEpisodeFromRadiofrancePageRequest,
+) -> dict[str, Any]:
+    """Ajoute une émission absente du flux RSS depuis sa page radiofrance.fr.
+
+    Synchrone : lit la page, vérifie durée et doublon, télécharge l'audio,
+    puis insère l'épisode. Les refus gardent leur statut (400 URL invalide,
+    409 doublon, 422 séquence trop courte, 502 page ou audio inaccessible).
+    """
+    try:
+        return await manual_episode_service.add_from_radiofrance_page(request.url)
+    except Exception as e:
+        # Comparaison par nom : voir CLAUDE.md, imports `src.` vs sans préfixe
+        if type(e).__name__ == "ManualEpisodeError":
+            raise HTTPException(
+                status_code=e.status_code,  # type: ignore[attr-defined]
+                detail=e.message,  # type: ignore[attr-defined]
+            ) from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
 # ── End of RSS Masque Et La Plume sync endpoints ──────────────────────────────
