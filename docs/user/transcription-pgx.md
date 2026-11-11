@@ -110,6 +110,10 @@ se trouver n'importe où, du moment que le NAS la joint. Quand PGX n'est pas sur
 local du NAS, elle se connecte en **cliente du serveur VPN OpenVPN du NAS** ; le NAS — y
 compris le conteneur backend — joint alors PGX par son IP VPN.
 
+Pas à pas complet (vérifications, pare-feu, retour sur le réseau local) :
+[`docs/runbooks/pgx-vpn-client.md`](https://github.com/castorfou/back-office-lmelp/blob/main/docs/runbooks/pgx-vpn-client.md)
+dans le dépôt.
+
 Configuration côté PGX :
 
 1. Placer le profil `.ovpn` exporté depuis Synology VPN Server dans
