@@ -1,7 +1,8 @@
 # Transcription automatisée via PGX
 
 back-office-lmelp transcrit les épisodes audio en s'appuyant sur une station GPU dédiée
-sur le réseau local (surnommée **PGX**). Un service de transcription tourne en permanence
+(surnommée **PGX**), que le NAS joint en SSH — sur le réseau local ou à distance via le VPN
+du NAS (voir [PGX hors du réseau local](#pgx-hors-du-reseau-local)). Un service de transcription tourne en permanence
 sur cette station : il surveille un répertoire, transcrit automatiquement tout fichier
 audio qui y est déposé, et écrit le résultat dans un répertoire de sortie.
 
@@ -102,6 +103,37 @@ Cette section reste visible même si le reste de la configuration (`PGX_HOST`, `
 répertoires distants) est encore incomplet — la clé doit pouvoir être déployée sur PGX en
 amont, avant que les autres variables ne soient renseignées.
 
+## PGX hors du réseau local {#pgx-hors-du-reseau-local}
+
+C'est toujours le backend (sur le NAS) qui ouvre la connexion SSH vers PGX : PGX peut donc
+se trouver n'importe où, du moment que le NAS la joint. Quand PGX n'est pas sur le réseau
+local du NAS, elle se connecte en **cliente du serveur VPN OpenVPN du NAS** ; le NAS — y
+compris le conteneur backend — joint alors PGX par son IP VPN.
+
+Configuration côté PGX :
+
+1. Placer le profil `.ovpn` exporté depuis Synology VPN Server dans
+   `/etc/openvpn/client/nas.conf`, en y ajoutant :
+   ```
+   pull-filter ignore redirect-gateway
+   auth-user-pass /etc/openvpn/client/nas.auth
+   ```
+   - `pull-filter ignore redirect-gateway` (split tunnel) : seul le trafic vers les réseaux
+     du NAS passe par le VPN ; le reste du trafic de PGX (mises à jour, images Docker,
+     modèles) sort directement par sa connexion locale.
+   - `nas.auth` contient l'identifiant VPN sur la première ligne et le mot de passe sur la
+     seconde (`chmod 600`) : indispensable pour une connexion sans saisie.
+2. `sudo systemctl enable --now openvpn-client@nas` : PGX rejoint le VPN à chaque démarrage
+   et se reconnecte après une coupure.
+3. Relever l'IP VPN de PGX (`ip -4 addr show tun0`), la renseigner dans `PGX_HOST`, puis
+   redémarrer le conteneur backend.
+
+!!! warning "L'IP VPN n'est pas réservée"
+    Synology VPN Server attribue les IP OpenVPN dynamiquement : celle de PGX peut changer
+    d'une connexion à l'autre. Si la checklist affiche « Machine joignable » en 🔴 alors que
+    PGX est allumée et connectée au VPN, comparer son IP `tun0` avec `PGX_HOST`. Au retour
+    de PGX sur le réseau local, remettre son IP locale dans `PGX_HOST`.
+
 ## Déclenchement automatique et historique
 
 En plus du bouton manuel, la transcription peut être déclenchée par un outil
@@ -143,6 +175,9 @@ prochaine tentative.
 
 - Vérifiez que PGX est bien sous tension et sur le réseau — aucun réveil automatique n'est
   tenté, elle doit être allumée manuellement au préalable.
+- PGX hors du réseau local : vérifiez qu'elle est connectée au VPN du NAS et que son IP
+  `tun0` correspond toujours à `PGX_HOST` (voir
+  [PGX hors du réseau local](#pgx-hors-du-reseau-local)).
 - Consultez la checklist de diagnostic sur `/transcription-pgx` pour un état rapide.
 
 ### "Authentification SSH (clé dédiée)" échoue malgré une clé bien déployée
