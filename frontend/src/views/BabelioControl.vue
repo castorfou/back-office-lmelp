@@ -24,7 +24,7 @@
           <div class="stat-row">
             <span
               class="stat-label stat-label-help"
-              title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Il se referme automatiquement dès qu'un cookie valide est enregistré ci-dessous."
+              title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping) ou n'aboutit pas (ban IP : connexion qui expire), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Il se referme automatiquement dès qu'un cookie valide est enregistré ci-dessous."
             >Circuit breaker :</span>
             <span class="stat-value">
               <span v-if="status.circuit_open" class="badge badge-expired">🚫 Ouvert — requêtes bloquées</span>
@@ -287,7 +287,8 @@ export default {
   },
 
   mounted() {
-    this.syncCookieToServer();
+    // Pas de renvoi du cookie du navigateur au serveur : souvent périmé, il
+    // refermait le circuit breaker et provoquait un 403 Babelio (→ ban IP).
     this.loadAll();
     this.pollInterval = setInterval(() => this.loadStatus(), 30000);
   },
@@ -300,13 +301,6 @@ export default {
   },
 
   methods: {
-    syncCookieToServer() {
-      const stored = localStorage.getItem('babelio_cookies');
-      if (stored) {
-        axios.post('/api/babelio/cookie', { cookie: stored }).catch(() => {});
-      }
-    },
-
     async loadAll() {
       await Promise.all([
         this.loadStatus(),

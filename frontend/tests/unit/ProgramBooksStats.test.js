@@ -139,4 +139,27 @@ describe('ProgramBooksValidationStats - TDD', () => {
     expect(text).toContain('1 traités');
     expect(text).toContain('1 suggested');
   });
+
+  it('should count books without any status as "à valider", not "not found"', async () => {
+    // La validation Babelio n'est plus automatique : un livre sans statut n'a
+    // simplement pas encore été vérifié.
+    const mockBooks = [
+      { auteur: 'Emma Marsantes', titre: "N'efface pas mes cercles", programme: true },
+      { auteur: 'A2', titre: 'T2', programme: true, status: 'extracted' },
+    ];
+
+    wrapper = mount(LivresAuteurs, {
+      global: { plugins: [router] }
+    });
+    wrapper.vm.selectedEpisodeId = '123';
+    wrapper.vm.books = mockBooks;
+    wrapper.vm.loading = false;
+    wrapper.vm.error = null;
+    await wrapper.vm.$nextTick();
+
+    const stats = wrapper.vm.programBooksValidationStats;
+    expect(stats.a_valider).toBe(1);
+    expect(stats.not_found).toBe(1);
+    expect(wrapper.find('.validation-stats').text()).toContain('1 à valider');
+  });
 });

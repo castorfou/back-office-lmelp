@@ -249,7 +249,9 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       title: 'Les Particules élémentaires',
       publisher: 'Flammarion',
       episodeId: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
-      bookKey: '6865f995a1418e3d7c63d076-Michel Houellebecq-Les Particules élémentaires'
+      bookKey: '6865f995a1418e3d7c63d076-Michel Houellebecq-Les Particules élémentaires',
+      storedStatus: null,
+      storedSuggestion: null
     });
   });
 

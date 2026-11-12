@@ -643,13 +643,12 @@ export default {
     };
   },
   mounted() {
-    // Synchroniser le cookie localStorage vers le serveur (survit aux redémarrages backend)
-    const storedCookie = localStorage.getItem('babelio_cookies');
-    if (storedCookie) {
-      axios.post('/api/babelio/cookie', { cookie: storedCookie })
-        .then(() => { this.serverCookieActive = true; })
-        .catch(() => {});
-    }
+    // Lire l'état du cookie côté serveur, sans jamais le réécrire : renvoyer le
+    // cookie du navigateur (souvent périmé) refermait le circuit breaker et
+    // provoquait un 403 Babelio, que Babelio transforme en ban IP.
+    axios.get('/api/babelio/status')
+      .then((response) => { this.serverCookieActive = !!response?.data?.cookie_active; })
+      .catch(() => {});
     this.loadData();
     this.checkMigrationProgress();
   },
