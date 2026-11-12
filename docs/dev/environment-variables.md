@@ -32,6 +32,11 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `BABELIO_MIN_INTERVAL` | Délai minimum (en secondes) entre deux requêtes HTTP vers babelio.com. S'applique à **toutes** les requêtes (scraping titre, éditeur, auteur, couverture). | `2.0` | `5.0` |
+| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `300` | `240` |
+
+### Usage `BABELIO_COOKIE_MAX_AGE_SEC`
+
+Babelio répond 403 à un cookie `jstsToken` expiré, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
 
 ### Usage `BABELIO_MIN_INTERVAL`
 

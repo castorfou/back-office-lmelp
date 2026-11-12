@@ -149,6 +149,15 @@ Une confirmation "✓ Cookie enregistré" s'affiche brièvement, et le statut pa
 
 **Durée de validité** : Le cookie `jstsToken` expire après 5 minutes. Passé ce délai, un badge **⏰ probablement expiré** remplace le ✓ configuré — pensez à rafraîchir le cookie avant de relancer un traitement long.
 
+**Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (300 s par défaut), refuse d'appeler Babelio plutôt que de risquer un 403. Les pages ne renvoient pas non plus d'elles-mêmes le cookie gardé dans le navigateur : seul le bouton **Enregistrer** le transmet au serveur.
+
+!!! warning "Un 403 Babelio devient un ban IP"
+    Quelques minutes après un 403, Babelio ignore toute connexion venant de l'IP
+    (aucune réponse, même pas une erreur) pendant environ 24 h. Le serveur
+    traite un tel timeout de connexion comme un blocage : le circuit breaker
+    s'ouvre et plus aucune requête ne part jusqu'à l'enregistrement d'un
+    nouveau cookie. Pendant un ban, inutile d'insister : attendre la levée.
+
 **Détection automatique des blocages** : Si Babelio renvoie malgré tout une erreur 403 (cookie expiré en cours de traitement, par exemple), le système le détecte désormais explicitement :
 - Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page
 - Sur **Liaison Babelio des livres** : le message d'erreur du popup contient "403"
