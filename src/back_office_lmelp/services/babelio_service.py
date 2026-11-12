@@ -95,6 +95,11 @@ class BabelioService:
         self._recent_requests: deque[dict[str, Any]] = deque(maxlen=50)
         # Cookie stocké côté serveur (jstsToken) — posé via set_cookie(), utilisé partout
         self._stored_cookie: str | None = None
+        # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
+        # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
+        # jstsToken expiré, et ses 403 se transforment en ban IP d'environ 24 h).
+        self._cookie_set_at: float | None = None
+        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "300"))
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
         # Contrôle des logs temporaires pour le cache disque (utile en dev)
@@ -162,11 +167,41 @@ class BabelioService:
     def set_cookie(self, cookie: str | None) -> None:
         """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
         self._stored_cookie = cookie.strip() if cookie else None
+        self._cookie_set_at = time.time() if self._stored_cookie else None
         if self._stored_cookie:
             self._circuit_open = False
             logger.info("🔑 Cookie Babelio mis à jour — circuit breaker réinitialisé")
         else:
             logger.info("🔑 Cookie Babelio effacé")
+
+    def _ensure_cookie_fresh(self) -> None:
+        """Lève BabelioBlockedError si le cookie stocké est périmé.
+
+        Appelée juste avant chaque requête HTTP (après l'attente du rate
+        limiter, pendant laquelle le cookie a pu vieillir) : un cookie périmé
+        provoque un 403, que Babelio transforme en ban IP.
+        """
+        if self._stored_cookie is None or self._cookie_set_at is None:
+            return
+        age = time.time() - self._cookie_set_at
+        if age >= self.cookie_max_age_sec:
+            raise BabelioBlockedError(
+                f"Cookie Babelio périmé ({age:.0f}s, max "
+                f"{self.cookie_max_age_sec:.0f}s) — collez un cookie frais"
+            )
+
+    def _open_circuit_on_connection_timeout(self) -> None:
+        """Ouvre le circuit breaker après un timeout de connexion.
+
+        Un ban IP de Babelio est un blocage pare-feu : la connexion TCP
+        n'aboutit jamais, sans 403 ni captcha. Insister ne fait qu'attendre
+        10 s par requête pour rien.
+        """
+        self._circuit_open = True
+        logger.warning(
+            "Babelio injoignable (timeout de connexion, ban IP probable) — "
+            "circuit breaker ouvert"
+        )
 
     def get_cookie(self) -> str | None:
         """Retourne le cookie stocké côté serveur."""
@@ -286,7 +321,7 @@ class BabelioService:
 
         if self._circuit_open:
             raise BabelioBlockedError(
-                "Circuit breaker ouvert (403 précédent) — configurez un cookie"
+                "Circuit breaker ouvert (403 ou ban IP précédent) — configurez un cookie frais"
             )
 
         # Cache hit: bypass rate limiter and HTTP request entirely
@@ -304,48 +339,60 @@ class BabelioService:
                 wait_time = self.min_interval - time_since_last
                 logger.debug(f"Rate limiting (page): attente de {wait_time:.1f}s")
                 await asyncio.sleep(wait_time)
+            self._ensure_cookie_fresh()
             self.last_request_time = time.time()
 
             effective_cookie = self._stored_cookie or babelio_cookies
             page_headers = self._get_page_headers(effective_cookie)
             timeout = aiohttp.ClientTimeout(total=30, connect=10)
-            async with (
-                aiohttp.ClientSession(
-                    headers=page_headers, timeout=timeout
-                ) as tmp_session,
-                tmp_session.get(url) as response,
-            ):
-                if response.status == 403:
-                    logger.warning(
-                        f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
-                    )
-                    self._circuit_open = True
-                    self._log_request(
-                        "page", url, 403, False, (time.time() - t0) * 1000
-                    )
-                    raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping page: {url}"
-                    )
-                    self._log_request(
-                        "page", url, response.status, False, (time.time() - t0) * 1000
-                    )
-                    return None
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                html = str(await response.text(encoding="cp1252"))
-                # Detect captcha page (HTTP 200 but challenge content)
-                if self._is_captcha_page(html):
-                    logger.warning(f"Babelio captcha détecté pour: {url}")
+            try:
+                async with (
+                    aiohttp.ClientSession(
+                        headers=page_headers, timeout=timeout
+                    ) as tmp_session,
+                    tmp_session.get(url) as response,
+                ):
+                    if response.status == 403:
+                        logger.warning(
+                            f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
+                        )
+                        self._circuit_open = True
+                        self._log_request(
+                            "page", url, 403, False, (time.time() - t0) * 1000
+                        )
+                        raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
+                    if response.status != 200:
+                        logger.warning(
+                            f"Babelio HTTP {response.status} pour scraping page: {url}"
+                        )
+                        self._log_request(
+                            "page",
+                            url,
+                            response.status,
+                            False,
+                            (time.time() - t0) * 1000,
+                        )
+                        return None
+                    # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+                    # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+                    html = str(await response.text(encoding="cp1252"))
+                    # Detect captcha page (HTTP 200 but challenge content)
+                    if self._is_captcha_page(html):
+                        logger.warning(f"Babelio captcha détecté pour: {url}")
+                        self._log_request(
+                            "page", url, 200, False, (time.time() - t0) * 1000
+                        )
+                        raise BabelioCaptchaError(f"Babelio captcha: {url}")
+                    if self.cache_service is not None:
+                        self.cache_service.set_cached(url, html, search_type="page")
                     self._log_request(
                         "page", url, 200, False, (time.time() - t0) * 1000
                     )
-                    raise BabelioCaptchaError(f"Babelio captcha: {url}")
-                if self.cache_service is not None:
-                    self.cache_service.set_cached(url, html, search_type="page")
-                self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
-                return html
+                    return html
+            except aiohttp.ConnectionTimeoutError:
+                self._open_circuit_on_connection_timeout()
+                self._log_request("page", url, 0, False, (time.time() - t0) * 1000)
+                raise
 
     async def health_check(self) -> dict[str, Any]:
         """Effectue une requête légère à la demande pour connaître l'état réel de Babelio.
@@ -495,7 +542,7 @@ class BabelioService:
 
         if self._circuit_open:
             raise BabelioBlockedError(
-                "Circuit breaker ouvert (403 précédent) — configurez un cookie"
+                "Circuit breaker ouvert (403 ou ban IP précédent) — configurez un cookie frais"
             )
 
         # Vérifier le cache disque/in-memory d'abord
@@ -574,6 +621,8 @@ class BabelioService:
                 logger.debug(f"Rate limiting: attente de {wait_time:.1f}s")
                 await asyncio.sleep(wait_time)
 
+            self._ensure_cookie_fresh()
+
             self.last_request_time = time.time()
             session = await self._get_session()
             url = f"{self.base_url}{self.search_endpoint}"
@@ -620,6 +669,8 @@ class BabelioService:
                 raise
             except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
+                if isinstance(e, aiohttp.ConnectionTimeoutError):
+                    self._open_circuit_on_connection_timeout()
                 self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 raise TimeoutError(
                     f"Timeout lors de la recherche Babelio: {term}"
@@ -1216,6 +1267,10 @@ class BabelioService:
             logger.debug(f"Couverture non trouvée pour {babelio_url}")
             return None
 
+        except BabelioBlockedError:
+            # Blocage (403, cookie périmé, circuit ouvert) : à signaler, pas à
+            # confondre avec « pas de couverture »
+            raise
         except Exception as e:
             logger.error(f"Erreur scraping couverture pour {babelio_url}: {e}")
             return None

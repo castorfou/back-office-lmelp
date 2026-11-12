@@ -118,7 +118,10 @@ class TestBabelioEnrichmentEndToEnd:
             mock_cleanup.return_value = {"corrected": 0, "skipped": 0}
 
             # Act: Appeler l'API - le VRAI CODE s'exécute
-            response = self.client.get(f"/api/livres-auteurs?episode_oid={episode_oid}")
+            # enrich_babelio=true : geste explicite « Valider avec Babelio »
+            response = self.client.get(
+                f"/api/livres-auteurs?episode_oid={episode_oid}&enrich_babelio=true"
+            )
 
             # Assert: Vérifier la réponse HTTP
             assert response.status_code == 200

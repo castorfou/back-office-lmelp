@@ -46,15 +46,19 @@ class BooksExtractionService:
             self.client = None
 
     async def extract_books_from_reviews(
-        self, avis_critiques: list[dict[str, Any]]
+        self, avis_critiques: list[dict[str, Any]], enrich_babelio: bool = False
     ) -> list[dict[str, Any]]:
         """
         Extrait les informations bibliographiques depuis les tableaux markdown des avis critiques.
         Parse les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES CRITIQUES".
-        Enrichit automatiquement chaque livre avec Babelio (babelio_url, babelio_publisher).
+        Enrichit chaque livre avec Babelio (babelio_url, babelio_publisher) seulement
+        si enrich_babelio est vrai : chaque livre coûte des requêtes Babelio, et les
+        403 de Babelio se transforment en ban IP. Réservé au geste explicite
+        « Valider avec Babelio ».
 
         Args:
             avis_critiques: Liste des avis critiques avec leurs summaries
+            enrich_babelio: Interroger Babelio pour enrichir chaque livre
 
         Returns:
             Liste des livres extraits avec métadonnées (auteur/titre/éditeur + enrichissement Babelio)
@@ -98,10 +102,10 @@ class BooksExtractionService:
                     # Autres erreurs, continuer sans fallback
                     continue
 
-        # Enrichir automatiquement chaque livre avec Babelio (Option 1: enrichissement en temps réel)
-        enriched_books = await self._enrich_books_with_babelio(all_extracted_books)
+        if not enrich_babelio:
+            return all_extracted_books
 
-        return enriched_books
+        return await self._enrich_books_with_babelio(all_extracted_books)
 
     async def _extract_books_from_single_review(
         self, avis_critique: dict[str, Any]

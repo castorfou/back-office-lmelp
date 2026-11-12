@@ -66,7 +66,9 @@ class TestBabelioCacheEnrichment:
             )
 
             # ACT
-            books = await service.extract_books_from_reviews([avis_critique])
+            books = await service.extract_books_from_reviews(
+                [avis_critique], enrich_babelio=True
+            )
 
             # ASSERT
             assert len(books) == 1
@@ -138,7 +140,9 @@ class TestBabelioCacheEnrichment:
             )
 
             # ACT
-            books = await service.extract_books_from_reviews([avis_critique])
+            books = await service.extract_books_from_reviews(
+                [avis_critique], enrich_babelio=True
+            )
 
             # ASSERT
             assert len(books) == 1
@@ -230,7 +234,9 @@ class TestBabelioCacheEnrichment:
             )
 
             # ACT
-            books = await service.extract_books_from_reviews([avis_critique])
+            books = await service.extract_books_from_reviews(
+                [avis_critique], enrich_babelio=True
+            )
 
             # ASSERT
             assert len(books) == 3
@@ -294,7 +300,9 @@ class TestBabelioCacheEnrichment:
             )
 
             # ACT
-            books = await service.extract_books_from_reviews([avis_critique])
+            books = await service.extract_books_from_reviews(
+                [avis_critique], enrich_babelio=True
+            )
 
             # ASSERT
             assert len(books) == 1
@@ -358,7 +366,9 @@ class TestBabelioCacheEnrichment:
             )
 
             # ACT
-            books = await service.extract_books_from_reviews([avis_critique])
+            books = await service.extract_books_from_reviews(
+                [avis_critique], enrich_babelio=True
+            )
 
             # ASSERT
             assert len(books) == 1

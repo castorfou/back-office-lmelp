@@ -39,6 +39,7 @@ services:
       # Répertoire externe pour persister le cache Babelio entre les redémarrages
       BABELIO_CACHE_DIR: /cache/babelio
       BABELIO_FAIR_SEC: ${BABELIO_FAIR_SEC:-2.0}
+      BABELIO_COOKIE_MAX_AGE_SEC: ${BABELIO_COOKIE_MAX_AGE_SEC:-300}
       BABELIO_CACHE_DAY: ${BABELIO_CACHE_DAY:-1.0}
 
       # Propriétaire des fichiers écrits sur le volume de cache (Issue #258)
