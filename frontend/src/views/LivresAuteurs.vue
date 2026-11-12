@@ -63,6 +63,19 @@
           </div>
         </div>
 
+      <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
+      <div v-if="selectedEpisodeId && !loading && booksNeedValidation" class="babelio-validate-bar">
+        <span>Des livres de cet épisode ne sont pas encore validés avec Babelio.</span>
+        <button
+          @click="validateWithBabelio"
+          :disabled="validatingWithBabelio"
+          class="btn-validate-babelio"
+          data-test="validate-babelio-button"
+        >
+          {{ babelioValidationLabel }}
+        </button>
+      </div>
+
       <!-- Alerte blocage Babelio 403 (Issue #251) -->
       <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
         ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
@@ -188,7 +201,7 @@
       <!-- Section simplifiée : nombre de livres extraits seulement -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="stats-section">
         <div class="simple-stats">
-          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span><span v-if="programBooksValidationStats.total > 0" class="validation-stats"> — au programme : {{ programBooksValidationStats.traites }} traités, {{ programBooksValidationStats.suggested }} suggested, {{ programBooksValidationStats.not_found }} not found</span>
+          <span class="books-count">{{ books.length }} livre(s) extrait(s)</span><span v-if="programBooksValidationStats.total > 0" class="validation-stats"> — au programme : {{ programBooksValidationStats.traites }} traités, {{ programBooksValidationStats.suggested }} suggested, {{ programBooksValidationStats.not_found }} not found<template v-if="programBooksValidationStats.a_valider > 0">, {{ programBooksValidationStats.a_valider }} à valider</template></span>
         </div>
       </section>
 
@@ -354,6 +367,8 @@
                     :publisher="book.editeur || ''"
                     :episode-id="selectedEpisodeId"
                     :book-key="getBookKey(book)"
+                    :stored-status="book.status || null"
+                    :stored-suggestion="getStoredSuggestion(book)"
                     @validation-status-change="handleValidationStatusChange"
                   />
                   <span v-else class="mongo-status">✅ Traité</span>
@@ -774,6 +789,10 @@ export default {
   babelioCookieInput: localStorage.getItem('babelio_cookies') || '',
   babelioCookieStored: !!localStorage.getItem('babelio_cookies'),
   serverCookieActive: false,
+  validatingWithBabelio: false,
+  // Phase en cours de « Valider avec Babelio » : null, { phase: 'enrich' }
+  // ou { phase: 'validate', index, total, titre }
+  babelioValidationProgress: null,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
   babelioBlocked: false,
   // Issue #304: ouvre automatiquement le panneau cookie quand un blocage est détecté
@@ -786,6 +805,18 @@ export default {
   },
 
   computed: {
+    babelioValidationLabel() {
+      const progress = this.babelioValidationProgress;
+      if (!this.validatingWithBabelio || !progress) return '🔍 Valider avec Babelio';
+      if (progress.phase === 'enrich') return '⏳ Enrichissement Babelio…';
+      return `⏳ Validation ${progress.index}/${progress.total} — ${progress.titre}`;
+    },
+    booksNeedValidation() {
+      return (this.books || []).some(book =>
+        !book.status ||
+        !['verified', 'suggested', 'mongo', 'not_found'].includes(book.status)
+      );
+    },
     babelioCookieLikelyExpired() {
       if (!this.babelioCookieSavedAt) return false;
       return (Date.now() - this.babelioCookieSavedAt) > 5 * 60 * 1000;
@@ -836,6 +867,7 @@ export default {
         traites: 0,
         suggested: 0,
         not_found: 0,
+        a_valider: 0,
         total: programBooks.length
       };
 
@@ -843,6 +875,9 @@ export default {
         if (book.status === 'mongo') {
           // Livre traité (déjà en MongoDB)
           stats.traites++;
+        } else if (!book.status) {
+          // Pas encore vérifié sur Babelio (validation sur demande uniquement)
+          stats.a_valider++;
         } else if (book.suggested_author || book.suggested_title) {
           // Livre avec suggestion Babelio (pas encore traité)
           stats.suggested++;
@@ -925,13 +960,12 @@ export default {
   },
 
   async mounted() {
-    // Synchroniser le cookie localStorage vers le serveur (survit aux redémarrages backend)
-    const storedCookie = localStorage.getItem('babelio_cookies');
-    if (storedCookie) {
-      axios.post('/api/babelio/cookie', { cookie: storedCookie })
-        .then(() => { this.serverCookieActive = true; })
-        .catch(() => {});
-    }
+    // Lire l'état du cookie côté serveur, sans jamais le réécrire : renvoyer le
+    // cookie du navigateur (souvent périmé) refermait le circuit breaker et
+    // provoquait un 403 Babelio, que Babelio transforme en ban IP.
+    axios.get('/api/babelio/status')
+      .then((response) => { this.serverCookieActive = !!response?.data?.cookie_active; })
+      .catch(() => {});
 
     await this.loadEpisodesWithReviews();
 
@@ -1195,21 +1229,8 @@ export default {
         // Récupérer SEULEMENT les livres de cet épisode (cache ou extraction)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
 
-        // Si pas de statuts ou statuts temporaires → validation biblio + rechargement
-        const needsValidation = this.books.some(book =>
-          !book.status ||
-          !['verified', 'suggested', 'mongo', 'not_found'].includes(book.status)
-        );
-
-        if (needsValidation) {
-          // Auto-validation des livres avec BiblioValidationService et envoi au backend
-          await this.autoValidateAndSendResults();
-
-          // RECHARGER les livres depuis le cache avec les vrais statuts
-          // CRITIQUE: Sans ce reload, this.books garde les anciens objets avec statuts temporaires
-          // ce qui déclenche des re-validations en cascade dans BiblioValidationCell (cause mémoire)
-          this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
-        }
+        // Pas de validation Babelio automatique : elle se lance avec le bouton
+        // « Valider avec Babelio » (validateWithBabelio).
 
         // Auto-processing automatique des livres verified en arrière-plan (non-bloquant)
         Promise.resolve().then(async () => {
@@ -1224,6 +1245,44 @@ export default {
         console.error('Erreur lors du chargement des livres/auteurs:', error);
       } finally {
         this.loading = false;
+      }
+    },
+
+    /**
+     * Suggestion enregistrée en cache pour un livre au statut « suggested ».
+     */
+    getStoredSuggestion(book) {
+      if (!book.suggested_author && !book.suggested_title) return null;
+      return {
+        author: book.suggested_author || book.auteur,
+        title: book.suggested_title || book.titre,
+      };
+    },
+
+    /**
+     * Valide avec Babelio les livres pas encore validés, puis recharge les statuts.
+     * Seul point d'entrée de la validation Babelio sur cette page (geste explicite).
+     */
+    async validateWithBabelio() {
+      if (!this.selectedEpisodeId || this.validatingWithBabelio) return;
+      this.validatingWithBabelio = true;
+      this.babelioValidationProgress = { phase: 'enrich' };
+      try {
+        // Recharger les livres enrichis par Babelio (babelio_url, babelio_publisher) :
+        // pour un épisode sans cache, l'extraction ne les enrichit que sur demande
+        this.books = await livresAuteursService.getLivresAuteurs({
+          episode_oid: this.selectedEpisodeId,
+          enrich_babelio: true,
+        });
+        await this.autoValidateAndSendResults();
+        // Recharger les livres depuis le cache avec les vrais statuts
+        this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
+      } catch (error) {
+        this.error = error.message;
+        console.error('Erreur lors de la validation Babelio:', error);
+      } finally {
+        this.babelioValidationProgress = null;
+        this.validatingWithBabelio = false;
       }
     },
 
@@ -1336,8 +1395,12 @@ export default {
 
         await livresAuteursService.deleteCacheByEpisode(this.selectedEpisodeId);
 
-        // Recharger les données après suppression du cache
+        // Recharger les données après suppression du cache, puis revalider :
+        // le bouton 🔄 « Relancer la validation Biblio » est un geste explicite
         await this.loadBooksForEpisode();
+        if (this.booksNeedValidation) {
+          await this.validateWithBabelio();
+        }
       } catch (error) {
         console.error('Erreur lors de la suppression du cache:', error);
         this.error = 'Erreur lors du rafraîchissement du cache';
@@ -1663,6 +1726,10 @@ export default {
         }
       } catch (error) {
         const errorMsg = error.response?.data?.message || error.message || 'Erreur lors de l\'extraction';
+        // Babelio bloqué (cookie périmé, 403, circuit ouvert) : ouvrir le panneau cookie
+        if (error.response?.status === 403) {
+          this.babelioBlocked = true;
+        }
         if (isValidation) {
           this.validationUrlError = errorMsg;
         } else {
@@ -1796,7 +1863,16 @@ export default {
         const validatedBooks = [];
 
         // Valider chaque livre avec BiblioValidationService
-        for (const book of this.books) {
+        const booksToValidate = this.books;
+        for (const [index, book] of booksToValidate.entries()) {
+          if (this.validatingWithBabelio) {
+            this.babelioValidationProgress = {
+              phase: 'validate',
+              index: index + 1,
+              total: booksToValidate.length,
+              titre: book.titre,
+            };
+          }
           try {
             const validationResult = await BiblioValidationService.validateBiblio(
               book.auteur,
@@ -3195,6 +3271,51 @@ export default {
 }
 
 /* Issue #247: Cookie Babelio section */
+.babelio-validate-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.5rem 1rem;
+  padding: 0.6rem 1rem;
+  background: #fff8e1;
+  border: 1px solid #ffe08a;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #664d03;
+}
+
+.btn-validate-babelio {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 14px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-validate-babelio:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .babelio-validate-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-validate-babelio {
+    max-width: 100%;
+  }
+}
+
 .babelio-cookie-section {
   margin: 0.5rem 1rem;
   border: 1px solid #dee2e6;

@@ -45,6 +45,7 @@ describe('Debug: Real data structure', () => {
     expect(stats.total).toBe(1);
     expect(stats.traites).toBe(0); // No status field
     expect(stats.suggested).toBe(0); // No suggested_* fields
-    expect(stats.not_found).toBe(1); // No status, no suggestions = not_found
+    expect(stats.not_found).toBe(0);
+    expect(stats.a_valider).toBe(1); // No status = pas encore vérifié sur Babelio
   });
 });

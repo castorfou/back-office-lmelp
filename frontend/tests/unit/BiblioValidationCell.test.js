@@ -14,6 +14,13 @@ vi.mock('../../src/services/BiblioValidationService.js', () => ({
   }))
 }));
 
+// La cellule n'appelle plus Babelio à l'affichage (ses 403 se transforment en
+// ban IP) : la validation part sur clic du bouton ↻ « À valider ».
+async function startValidationByClick(wrapper) {
+  const button = wrapper.find('[data-testid="validate-button"]');
+  if (button.exists()) await button.trigger('click');
+}
+
 describe('BiblioValidationCell', () => {
   let wrapper;
 
@@ -54,6 +61,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       // Wait for component to mount and start validation
       await wrapper.vm.$nextTick();
@@ -62,7 +70,7 @@ describe('BiblioValidationCell', () => {
       expect(wrapper.text()).toContain('Vérification...');
     });
 
-    it('should show validation starting automatically on mount', async () => {
+    it('should not call Babelio on mount, only on click', async () => {
       const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
 
       const mockService = {
@@ -79,18 +87,40 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
-
-      // Wait for mounted lifecycle
-      await wrapper.vm.$nextTick();
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Should start validation on mount
+      expect(mockService.validateBiblio).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="validation-pending"]').exists()).toBe(true);
+
+      await startValidationByClick(wrapper);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       expect(mockService.validateBiblio).toHaveBeenCalledWith(
         'Michel Houellebecq',
         'Les Particules élémentaires',
         'Flammarion',
         null
       );
+    });
+
+    it('should display the stored status without calling Babelio', async () => {
+      const { BiblioValidationService } = await import('../../src/services/BiblioValidationService.js');
+
+      const mockService = { validateBiblio: vi.fn() };
+      BiblioValidationService.mockImplementation(() => mockService);
+
+      wrapper = mount(BiblioValidationCell, {
+        props: {
+          ...defaultProps,
+          storedStatus: 'suggested',
+          storedSuggestion: { author: 'Michel Houellebecq', title: 'Les Particules élémentaires' }
+        }
+      });
+      await wrapper.vm.$nextTick();
+
+      expect(mockService.validateBiblio).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-testid="validation-suggestion"]').exists()).toBe(true);
+      expect(wrapper.emitted('validation-status-change')[0][0].status).toBe('corrected');
     });
   });
 
@@ -117,6 +147,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       // Wait for validation to complete
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -157,6 +188,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: { ...defaultProps, author: 'Michel Houellebeck' }
       });
+      await startValidationByClick(wrapper);
 
       // Wait for validation to complete
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -190,6 +222,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: { ...defaultProps, author: 'Auteur Inexistant', title: 'Titre Inexistant' }
       });
+      await startValidationByClick(wrapper);
 
       // Wait for validation to complete
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -215,6 +248,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       // Wait for validation to complete
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -245,6 +279,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       // Wait for initial error
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -300,6 +335,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       await new Promise(resolve => setTimeout(resolve, 50));
       await wrapper.vm.$nextTick();
@@ -326,6 +362,7 @@ describe('BiblioValidationCell', () => {
       wrapper = mount(BiblioValidationCell, {
         props: defaultProps
       });
+      await startValidationByClick(wrapper);
 
       await new Promise(resolve => setTimeout(resolve, 50));
       await wrapper.vm.$nextTick();
@@ -419,6 +456,7 @@ describe('BiblioValidationCell', () => {
           publisher: 'Some Publisher'
         }
       });
+      await startValidationByClick(wrapper);
 
       expect(wrapper.exists()).toBe(true);
 
@@ -457,6 +495,7 @@ describe('BiblioValidationCell', () => {
             publisher: 'Éditeur'
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();
@@ -512,6 +551,7 @@ describe('BiblioValidationCell', () => {
             publisher: 'Seuil'
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();
@@ -567,6 +607,7 @@ describe('BiblioValidationCell', () => {
             episodeId: '68bd9ed3582cf994fb66f1d6'  // pragma: allowlist secret
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();
@@ -607,6 +648,7 @@ describe('BiblioValidationCell', () => {
             publisher: 'Éditeur'
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();
@@ -664,6 +706,7 @@ describe('BiblioValidationCell', () => {
             publisher: 'Éditeur'
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();
@@ -719,6 +762,7 @@ describe('BiblioValidationCell', () => {
             publisher: 'Seuil'
           }
         });
+        await startValidationByClick(wrapper);
 
         await new Promise(resolve => setTimeout(resolve, 50));
         await wrapper.vm.$nextTick();

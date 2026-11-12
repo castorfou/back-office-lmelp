@@ -8,6 +8,24 @@
       <span class="status-text">N/A</span>
     </div>
 
+    <!-- Pas encore validé : aucune requête Babelio à l'affichage -->
+    <div v-else-if="!isLoading && !hasError && !validationResult"
+         class="validation-status pending"
+         data-testid="validation-pending">
+      <span class="status-icon">○</span>
+      <div class="status-content">
+        <span class="status-text">À valider</span>
+        <button
+          @click="startValidation"
+          class="retry-button"
+          data-testid="validate-button"
+          title="Valider ce livre avec Babelio"
+        >
+          ↻
+        </button>
+      </div>
+    </div>
+
     <!-- Loading state -->
     <div v-else-if="isLoading" class="validation-status loading" data-testid="validation-loading">
       <span class="status-icon">⏳</span>
@@ -116,6 +134,17 @@ export default {
     bookKey: {
       type: String,
       required: false
+    },
+    // Statut déjà enregistré en cache (verified / suggested / not_found).
+    // La cellule l'affiche tel quel : Babelio n'est appelé que sur clic (↻),
+    // car ses 403 se transforment en ban IP.
+    storedStatus: {
+      type: String,
+      default: null
+    },
+    storedSuggestion: {
+      type: Object,
+      default: null
     }
   },
 
@@ -123,7 +152,7 @@ export default {
 
   data() {
     return {
-      isLoading: true, // Start with loading state
+      isLoading: false,
       hasError: false,
       errorMessage: '',
       validationResult: null,
@@ -150,16 +179,36 @@ export default {
   },
 
   mounted() {
-    if (this.hasValidProps) {
-      // Start validation immediately
-      this.startValidation();
-    } else {
-      // If no valid props, stop loading
-      this.isLoading = false;
+    this.showStoredStatus();
+  },
+
+  watch: {
+    storedStatus() {
+      this.showStoredStatus();
     }
   },
 
   methods: {
+    showStoredStatus() {
+      const status = this.mapStoredStatus(this.storedStatus);
+      if (!this.hasValidProps || !status) return;
+      this.validationResult = {
+        status,
+        original: { author: this.author, title: this.title },
+        suggested: status === 'corrected' ? this.storedSuggestion : null
+      };
+      this.emitValidationStatusChange();
+    },
+
+    mapStoredStatus(storedStatus) {
+      switch (storedStatus) {
+        case 'verified': return 'verified';
+        case 'suggested': return 'corrected';
+        case 'not_found': return 'not_found';
+        default: return null;
+      }
+    },
+
     async startValidation() {
       if (!this.hasValidProps) {
         this.isLoading = false;

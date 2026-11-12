@@ -85,7 +85,7 @@ La recherche est instantanée et insensible à la casse.
 ## Validation Babelio
 
 ### Vue d'ensemble
-Chaque ligne du tableau dispose d'une colonne "Validation Babelio" qui vérifie automatiquement l'orthographe et l'exactitude des informations d'auteur en temps réel via l'API de Babelio.com.
+Chaque ligne du tableau dispose d'une colonne "Validation Babelio" qui affiche le résultat de la vérification de l'auteur et du titre sur Babelio.com.
 
 ### Indicateurs visuels
 
@@ -96,11 +96,16 @@ La validation affiche différents statuts :
 - **❓ Non trouvé** : Aucune correspondance trouvée sur Babelio
 - **⚠️ Erreur** : Problème technique (possibilité de réessayer avec le bouton ↻)
 - **⏳ Vérification...** : Validation en cours
+- **○ À valider** : Livre pas encore vérifié sur Babelio (bouton ↻ pour le vérifier seul)
 
-### Fonctionnement automatique
+### Validation sur demande
 
-- **Validation immédiate** : Dès l'affichage du tableau, chaque auteur est vérifié
-- **Rate limiting** : Respect de la limite de 1 requête/seconde vers Babelio
+Ouvrir la page ou changer d'épisode **n'envoie aucune requête à Babelio** : chaque cellule affiche le statut déjà enregistré. Babelio transforme ses refus (403) en ban de l'IP pendant environ 24 h, donc chaque appel doit venir d'un geste explicite :
+
+- **🔍 Valider avec Babelio** : affiché quand des livres de l'épisode ne sont pas encore validés ; enrichit les livres (URL et éditeur Babelio) puis les valide
+- **🔄 Relancer la validation Biblio** : vide le cache de l'épisode puis relance la validation
+- **↻** dans une cellule : vérifie ce seul livre
+- **Rate limiting** : le serveur espace les requêtes vers Babelio (`BABELIO_FAIR_SEC`)
 - **Suggestions** : Affichage des corrections proposées à côté des données originales
 - **Retry** : Possibilité de relancer une vérification en cas d'erreur
 
@@ -248,7 +253,7 @@ Pour les livres non identifiés par Babelio :
 
 #### Workflow de traitement des livres
 1. **Extraction** : Utiliser la fonctionnalité d'extraction pour identifier les livres d'un épisode
-2. **Validation Babelio** : Attendre la validation automatique via l'API Babelio
+2. **Validation Babelio** : Cliquer sur « 🔍 Valider avec Babelio » (après avoir collé un cookie frais)
 3. **Traitement automatique** : Cliquer sur "Traiter automatiquement" pour les livres vérifiés
 4. **Validation manuelle** : Traiter individuellement les suggestions Babelio
 5. **Saisie manuelle** : Compléter les informations des livres non trouvés
