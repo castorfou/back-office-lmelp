@@ -150,6 +150,8 @@ class TestRunSequentialProcessing:
             mock_settings.audio_storage_path = "/app/audios"
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -213,6 +215,8 @@ class TestRunSequentialProcessing:
             mock_settings.audio_storage_path = "/app/audios"
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(
                 side_effect=[PgxError("scp failed"), None]
             )
@@ -393,6 +397,8 @@ class TestLocalCacheFirst:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock()
             mock_pgx.fetch_transcription_from_pgx = AsyncMock()
@@ -512,6 +518,8 @@ class TestLocalCacheFirst:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -690,6 +698,8 @@ class TestTriggerParameter:
             mock_settings.pgx_transcription_retry_max_hours = 24.0
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(side_effect=[False, True])
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -969,6 +979,8 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -1027,6 +1039,8 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -1079,6 +1093,8 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError("scp failed"))
 
             await runner._run("manual")
@@ -1134,6 +1150,8 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(
                 side_effect=[PgxError("scp failed"), None]
             )
@@ -1316,6 +1334,8 @@ class TestPgxNtfyNotifications:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
@@ -1364,6 +1384,8 @@ class TestPgxNtfyNotifications:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError("scp failed"))
 
             await runner._run("manual")
@@ -1419,6 +1441,8 @@ class TestPgxNtfyNotifications:
             mock_settings.audio_storage_path = str(tmp_path)
 
             mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            # Transcription absente de PGX : envoi normal (Issue #337)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError(raw_ssh_error))
 
             await runner._run("manual")
@@ -1476,6 +1500,7 @@ class TestOrphanMp3Requeue:
         remote_files: set[str],
         audio_rel: str = AUDIO_REL,
         requeue_error: PgxError | None = None,
+        episode_date: datetime | None = None,
     ) -> MagicMock:
         """Exécute le runner avec les fichiers donnés présents sur PGX."""
         runner = PgxTranscriptionRunner.get_instance()
@@ -1484,6 +1509,8 @@ class TestOrphanMp3Requeue:
 
         episode = _make_episode(EP1_ID)
         episode["audio_rel_filename"] = audio_rel
+        if episode_date is not None:
+            episode["date"] = episode_date
 
         async def remote_file_exists(path, **_kwargs):
             return path in remote_files
@@ -1547,7 +1574,9 @@ class TestOrphanMp3Requeue:
         )
 
         mock_pgx.requeue_pgx_audio.assert_not_called()
-        mock_pgx.send_audio_to_pgx.assert_called_once()
+        # Issue #337 : la transcription déjà présente est rapatriée, sans renvoi
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+        mock_pgx.fetch_transcription_from_pgx.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_should_send_mp3_episode_without_checking_orphan(self, tmp_path):
@@ -1556,7 +1585,9 @@ class TestOrphanMp3Requeue:
             tmp_path, {self.REMOTE_MP3}, audio_rel="2026/episode.mp3"
         )
 
-        mock_pgx.remote_file_exists.assert_not_called()
+        # Seule la transcription est cherchée sur PGX (Issue #337), pas le mp3
+        mock_pgx.remote_file_exists.assert_called_once()
+        assert mock_pgx.remote_file_exists.call_args.args[0] == self.REMOTE_TXT
         mock_pgx.requeue_pgx_audio.assert_not_called()
         mock_pgx.send_audio_to_pgx.assert_called_once()
 
@@ -1571,3 +1602,45 @@ class TestOrphanMp3Requeue:
         runner = PgxTranscriptionRunner.get_instance()
         assert runner.processed[0]["success"] is False
         assert runner.processed[0]["error"] == "Échec de la relance"
+
+
+class TestResumeTranscriptionAlreadyOnPgx:
+    """Reprendre une transcription déjà calculée sur PGX (Issue #337).
+
+    Cas réel du 11/11/2026 : l'épisode du 21/07/24 (ajouté à la main, audio
+    .m4a) a été envoyé et transcrit sur PGX, mais le cycle est resté bloqué
+    avant le rapatriement. Une relance renvoyait l'audio au lieu de récupérer
+    la transcription déjà présente dans transcriptions/2024/.
+    """
+
+    AUDIO_REL = "2024/14007-21.07.2024-ITEMA_23808923-2024F4007S0203-27.m4a"
+    REMOTE_MP3 = (
+        "/data/audios/2024/14007-21.07.2024-ITEMA_23808923-2024F4007S0203-27.mp3"
+    )
+    REMOTE_TXT = (
+        "/data/transcriptions/2024/"
+        "14007-21.07.2024-ITEMA_23808923-2024F4007S0203-27.txt"
+    )
+
+    @pytest.mark.asyncio
+    async def test_should_fetch_existing_transcription_without_resending_audio(
+        self, tmp_path
+    ):
+        # Même outillage que la relance d'un mp3 orphelin (Issue #320)
+        mock_pgx = await TestOrphanMp3Requeue()._run_with_remote_files(
+            tmp_path,
+            {self.REMOTE_MP3, self.REMOTE_TXT},
+            audio_rel=self.AUDIO_REL,
+            episode_date=datetime(2024, 7, 21, 8, 11, 50),  # date réelle en base
+        )
+
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+        mock_pgx.requeue_pgx_audio.assert_not_called()
+        mock_pgx.wait_for_pgx_transcription.assert_not_called()
+        mock_pgx.fetch_transcription_from_pgx.assert_called_once()
+        assert (
+            mock_pgx.fetch_transcription_from_pgx.call_args.args[0] == self.REMOTE_TXT
+        )
+        runner = PgxTranscriptionRunner.get_instance()
+        assert runner.processed[0]["success"] is True
+        assert any("déjà présente sur PGX" in line for line in runner.logs)
