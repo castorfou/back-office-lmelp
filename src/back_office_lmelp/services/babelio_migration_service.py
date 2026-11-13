@@ -61,6 +61,33 @@ class BabelioMigrationService:
         # Compter les cas problématiques par type
         problematic_collection = self.mongodb_service.db["babelio_problematic_cases"]
         problematic_count = problematic_collection.count_documents({"type": "livre"})
+
+        # Un livre lié (ou marqué absent) depuis son classement en cas
+        # problématique — par la validation dans Livres et Auteurs, par
+        # exemple — garde son entrée ici. get_problematic_cases() l'ignore
+        # déjà : le compteur aussi, sinon « En attente de liaison » devient
+        # négatif (Issue #341). livre_id est une String, livres._id un ObjectId.
+        livre_case_ids = [
+            ObjectId(str(livre_id))
+            for livre_id in problematic_collection.distinct(
+                "livre_id", {"type": "livre"}
+            )
+            if livre_id and ObjectId.is_valid(str(livre_id))
+        ]
+        if livre_case_ids:
+            resolved = list(
+                livres_collection.find(
+                    {
+                        "_id": {"$in": livre_case_ids},
+                        "$or": [
+                            {"url_babelio": {"$exists": True, "$ne": None}},
+                            {"babelio_not_found": True},
+                        ],
+                    },
+                    {"_id": 1},
+                )
+            )
+            problematic_count -= len(resolved)
         problematic_authors_count = problematic_collection.count_documents(
             {"type": "auteur"}
         )
