@@ -4,6 +4,7 @@
  */
 
 import { fixtureCaptureService } from './FixtureCaptureService.js';
+import { removeAccents } from '../utils/textUtils.js';
 
 export class BiblioValidationService {
   constructor(dependencies = {}) {
@@ -143,6 +144,7 @@ export class BiblioValidationService {
                     },
                     source: 'babelio_phase0_confirmed',
                     confidence_score: 1.0,
+                    babelio_url: confirmationValidation.babelio_url || bookValidation.babelio_url || null,
                     corrections: {
                       author: original.author !== suggestedAuthor,
                       title: original.title !== suggestedTitle
@@ -171,6 +173,7 @@ export class BiblioValidationService {
             },
             source: 'babelio_phase0',
             confidence_score: bookValidation.confidence_score || 1.0,
+            babelio_url: bookValidation.babelio_url || null,
             corrections: {
               author: false,
               title: false
@@ -210,6 +213,7 @@ export class BiblioValidationService {
                   },
                   source: 'babelio_phase0_author_correction',
                   confidence_score: 1.0,
+                  babelio_url: bookWithCorrectedAuthor.babelio_url || null,
                   corrections: {
                     author: true,  // Auteur corrigé
                     title: false
@@ -510,7 +514,8 @@ export class BiblioValidationService {
           confidence_score: Math.min(
             authorValidation.confidence_score || 1.0,
             bookValidation.confidence_score || 1.0
-          )
+          ),
+          babelio_url: bookValidation.babelio_url || null
         }
       };
     }
@@ -993,7 +998,9 @@ export class BiblioValidationService {
                 author: original.author !== ((authorValidation && authorValidation.babelio_suggestion) || (initialBookValidation && initialBookValidation.babelio_suggestion_author) || groundTruthSuggestion.author)
               },
               source: 'ground_truth',
-              confidence_score: 0.75
+              confidence_score: 0.75,
+              // Issue #341: URL du livre Babelio seulement si c'est bien ce livre
+              babelio_url: this._babelioUrlIfSameTitle(initialBookValidation, groundTruthSuggestion.title)
             }
         };
       }
@@ -1049,6 +1056,22 @@ export class BiblioValidationService {
       }
       throw error;
     }
+  }
+
+  /**
+   * URL Babelio d'une validation si le livre trouvé porte le titre attendu
+   * (casse, accents et apostrophe typographique ignorés), sinon null.
+   * Évite de lier un homonyme (« L'Héritage » de Paolini pour celui de Littell).
+   * @private
+   */
+  _babelioUrlIfSameTitle(bookValidation, expectedTitle) {
+    if (!bookValidation?.babelio_url || !bookValidation.babelio_suggestion_title || !expectedTitle) {
+      return null;
+    }
+    const normalize = (t) => removeAccents(t.toLowerCase()).replace(/’/g, "'").trim();
+    return normalize(bookValidation.babelio_suggestion_title) === normalize(expectedTitle)
+      ? bookValidation.babelio_url
+      : null;
   }
 
   /**

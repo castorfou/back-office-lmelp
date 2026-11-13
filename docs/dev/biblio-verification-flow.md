@@ -580,12 +580,23 @@ cache_service.mark_as_processed(
 - Backend : `livres_auteurs_cache_service.py::mark_as_processed()` (accepte metadata supplémentaires)
 - Frontend : `EpisodeEditor.vue` (envoie `babelio_publisher` dans validation)
 
+#### Recherche de repli « titre + auteur » (`verify_book`)
+
+`BabelioService.verify_book()` cherche d'abord le **titre seul**, puis `_find_best_book_match()` garde les livres dont l'auteur ressemble à l'auteur attendu (similarité > 0.7). Pour un titre courant, Babelio ne renvoie que les homonymes les plus populaires. Exemple : « L'héritage » donne Paolini, Grisham, Berry et Ragde, sans le livre de Jonathan Littell.
+
+Quand aucun livre de l'auteur n'est trouvé et qu'un auteur est fourni, `verify_book` fait **une** recherche de repli `"{titre} {auteur}"` :
+- l'apostrophe typographique est remplacée par l'apostrophe droite, car Babelio écrit `L'Héritage` ;
+- elle passe par `search()`, donc par le cache disque (24 h, clé en minuscules), le rate limiter et le circuit breaker ;
+- un livre trouvé dès la recherche par titre ne déclenche aucune requête supplémentaire.
+
+`verify_book` sert à la validation frontend (`/api/verify-babelio`), à l'enrichissement à l'extraction et à la Liaison Babelio : le repli s'applique aux trois.
+
 #### Chaîne de l'URL Babelio jusqu'à `livres.url_babelio`
 
 Un livre validé avec son URL Babelio n'a plus à passer par la page Liaison Babelio. Cela évite de nouvelles requêtes Babelio. L'URL traverse cinq étapes ; chacune doit la conserver.
 
 1. **Validation frontend** (`BiblioValidationService.js`) : tout résultat `suggestion` ou `verified` adossé à un livre Babelio porte `data.babelio_url` (branches suggestion Babelio, cohérence auteur, `ground_truth+babelio`, titre seul).
-    - La branche `ground_truth` seule (confiance 0.75) n'en a pas : aucun livre Babelio n'y est confirmé.
+    - La branche `ground_truth` seule (confiance 0.75) ne garde l'URL que si le titre trouvé par Babelio correspond à la suggestion du résumé (`_babelioUrlIfSameTitle()` : casse, accents et apostrophe typographique ignorés). Un homonyme n'est jamais lié.
 2. **Cache** (`buildBookDataForBackend.js`) : `babelio_url = book.babelio_url || validationResult.data.babelio_url`.
     - L'URL de l'enrichissement à l'extraction (confiance ≥ 0.90) est prioritaire.
     - La suggestion couvre les cas sous ce seuil, par exemple des co-auteurs.

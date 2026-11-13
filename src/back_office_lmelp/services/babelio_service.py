@@ -817,6 +817,23 @@ class BabelioService:
             # Chercher le meilleur match livre
             best_book = self._find_best_book_match(results, title, author)
 
+            # Titre courant (Issue #341) : aucun livre de cet auteur dans la
+            # recherche par titre (homonymes populaires en tête, ex.
+            # « L'héritage » → Paolini, Grisham…). Une seule recherche de repli
+            # « titre + auteur » remonte le bon livre. Babelio écrit ses titres
+            # avec l'apostrophe droite : « L’Héritage » → « L'Héritage ».
+            if best_book is None and author:
+                fallback_term = f"{title} {author}".replace("’", "'")
+                if self._debug_log_enabled:
+                    logger.info(
+                        f"🔍 [DEBUG] verify_book: aucun livre de '{author}' — "
+                        f"repli sur '{fallback_term}'"
+                    )
+                fallback_results = await self.search(
+                    fallback_term, babelio_cookies=babelio_cookies
+                )
+                best_book = self._find_best_book_match(fallback_results, title, author)
+
             if self._debug_log_enabled:
                 if best_book:
                     logger.info(
