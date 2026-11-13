@@ -18,6 +18,31 @@ class PgxError(RuntimeError):
     """Erreur levée lorsqu'une étape du pipeline de transcription PGX échoue."""
 
 
+class PgxTimeoutError(PgxError, TimeoutError):
+    """Une commande ssh/scp vers PGX n'a pas rendu la main à temps.
+
+    Hérite des deux : le pipeline la traite comme l'échec d'un épisode
+    (PgxError), et les appelants qui attendaient un TimeoutError la reçoivent.
+    """
+
+
+# Délai maximal d'une commande ssh/scp courte (test, mkdir, enqueue, rapatriement
+# d'un .txt) : une commande sans borne bloquait tout le pipeline (Issue #337).
+SSH_COMMAND_TIMEOUT_S = 60.0
+
+# Jamais d'invite interactive, connexion bornée, connexion morte coupée en ~45 s
+_SSH_SAFETY_OPTIONS = [
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "ServerAliveInterval=15",
+    "-o",
+    "ServerAliveCountMax=3",
+]
+
+
 async def ensure_pgx_ssh_key(key_path: str) -> str:
     """Génère la paire de clés SSH dédiée à PGX si elle n'existe pas encore.
 
@@ -100,6 +125,7 @@ def _ssh_base_command(user: str, host: str, key_path: str) -> list[str]:
         f"UserKnownHostsFile={_known_hosts_path()}",
         "-o",
         "StrictHostKeyChecking=accept-new",
+        *_SSH_SAFETY_OPTIONS,
         f"{user}@{host}",
     ]
 
@@ -115,27 +141,41 @@ def _scp_base_command(key_path: str) -> list[str]:
         f"UserKnownHostsFile={_known_hosts_path()}",
         "-o",
         "StrictHostKeyChecking=accept-new",
+        *_SSH_SAFETY_OPTIONS,
     ]
 
 
 async def _run_command(
-    command: list[str], *, timeout_s: float | None = None
+    command: list[str], *, timeout_s: float | None = None, unbounded: bool = False
 ) -> tuple[int, str, str]:
-    """Exécute une commande subprocess et retourne (returncode, stdout, stderr)."""
+    """Exécute une commande subprocess et retourne (returncode, stdout, stderr).
+
+    Sans `timeout_s`, la commande est bornée par SSH_COMMAND_TIMEOUT_S ;
+    `unbounded=True` lève la borne (transfert long, protégé par le keepalive ssh).
+    Lève PgxTimeoutError si la commande ne rend pas la main à temps.
+    """
+    effective_timeout = (
+        None
+        if unbounded
+        else (timeout_s if timeout_s is not None else SSH_COMMAND_TIMEOUT_S)
+    )
     process = await asyncio.create_subprocess_exec(
         *command,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     try:
         stdout, stderr = await asyncio.wait_for(
-            process.communicate(), timeout=timeout_s
+            process.communicate(), timeout=effective_timeout
         )
     except TimeoutError as exc:
         with contextlib.suppress(ProcessLookupError):
             process.kill()
             await process.wait()
-        raise TimeoutError from exc
+        raise PgxTimeoutError(
+            f"PGX ne répond pas (commande ssh/scp > {effective_timeout}s)"
+        ) from exc
     return process.returncode or 0, stdout.decode(), stderr.decode()
 
 
@@ -167,7 +207,9 @@ async def send_audio_to_pgx(
         f"{user}@{host}:{remote_dir}/",
     ]
     try:
-        returncode, _, stderr = await _run_command(command, timeout_s=timeout_s)
+        returncode, _, stderr = await _run_command(
+            command, timeout_s=timeout_s, unbounded=timeout_s is None
+        )
     except TimeoutError as exc:
         raise PgxError("Timeout lors de l'envoi du fichier audio vers PGX") from exc
     if returncode != 0:
@@ -208,12 +250,21 @@ async def wait_for_pgx_transcription(
     key_path: str,
     timeout_s: float = 1800,
     poll_interval_s: float = 10,
+    command_timeout_s: float | None = None,
 ) -> bool:
-    """Poll (via ssh) l'apparition du fichier de transcription sur PGX."""
+    """Poll (via ssh) l'apparition du fichier de transcription sur PGX.
+
+    Chaque vérification est bornée (`command_timeout_s`, SSH_COMMAND_TIMEOUT_S
+    par défaut) : une vérification qui ne rend pas la main compte comme « pas
+    encore là », et le délai global `timeout_s` reste respecté (Issue #337).
+    """
     command = _ssh_base_command(user, host, key_path) + [f"test -f '{remote_txt_path}'"]
     deadline = asyncio.get_event_loop().time() + timeout_s
     while True:
-        returncode, _, _ = await _run_command(command)
+        try:
+            returncode, _, _ = await _run_command(command, timeout_s=command_timeout_s)
+        except PgxTimeoutError:
+            returncode = -1
         if returncode == 0:
             return True
         if asyncio.get_event_loop().time() >= deadline:
