@@ -819,9 +819,18 @@ Valide manuellement une suggestion d'auteur/livre avec corrections utilisateur.
   "titre": "Les Particules élémentaires",
   "user_validated_author": "Michel Houellebecq",
   "user_validated_title": "Les Particules élémentaires",
-  "editeur": "Flammarion"
+  "editeur": "Flammarion",
+  "babelio_url": "https://www.babelio.com/livres/Houellebecq-Les-Particules-elementaires/2190"
 }
 ```
+
+`babelio_url` (optionnel) : URL Babelio du livre, prise dans la suggestion ou collée dans la
+modale. Quand elle est présente :
+
+- le livre est créé avec `url_babelio`, ou mis à jour s'il existait déjà ;
+- la couverture (`url_cover`, seulement si absente) et l'URL Babelio de l'auteur sont récupérées
+  depuis la page du livre (cache disque Babelio) ;
+- un échec de cette récupération est logué, sans faire échouer la validation.
 
 #### Réponse
 

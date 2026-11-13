@@ -30,6 +30,16 @@ Dans le tableau des livres, la colonne **"Validation Biblio"** affiche l'un des 
 
 **Action** : Cliquez sur l'indicateur pour voir les détails de la suggestion (original → corrigé).
 
+**Valider une suggestion** : quand Babelio a trouvé le livre suggéré, le champ **URL Babelio** de la
+modale « Valider la suggestion » est déjà rempli. Titre, auteur et éditeur sont alors repris de la
+page Babelio, et vous voyez ce que vous validez. Si le champ est vide (livre non trouvé sur Babelio,
+suggestion venant uniquement du résumé des avis), collez vous-même l'URL de la page Babelio du livre :
+l'extraction se déclenche de la même façon.
+
+Le livre est créé avec cette URL Babelio, sa couverture et l'URL Babelio de l'auteur. Il n'apparaît
+donc pas dans **Liaison Babelio des livres**. Il en va de même pour l'ajout manuel d'un livre
+« Non trouvé » avec une URL collée.
+
 ### ❓ Non trouvé
 **Signification** : Aucune correspondance fiable n'a été trouvée sur Babelio.
 
@@ -160,7 +170,11 @@ Une confirmation "✓ Cookie enregistré" s'affiche brièvement, et le statut pa
 
 **Détection automatique des blocages** : Si Babelio renvoie malgré tout une erreur 403 (cookie expiré en cours de traitement, par exemple), le système le détecte désormais explicitement :
 - Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page
-- Sur **Liaison Babelio des livres** : le message d'erreur du popup contient "403"
+- Sur **Liaison Babelio des livres** : un bandeau rouge 🚫 « Babelio bloque les requêtes (403) »
+  s'affiche en haut de page tant que le circuit breaker est ouvert, ou que le dernier appel a reçu
+  un 403 sans cookie actif. Il disparaît dès qu'un cookie frais est enregistré. La dernière liaison
+  arrêtée par un 403 s'intitule « 🚫 Dernière liaison interrompue : Babelio bloqué (403) » et le
+  livre concerné est marqué « 🚫 403 ». Dans le popup de saisie d'URL, le message d'erreur contient "403".
 
 Dans les deux cas, la solution est la même : rafraîchir le cookie et relancer.
 

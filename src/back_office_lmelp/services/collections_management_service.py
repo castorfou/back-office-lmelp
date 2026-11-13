@@ -245,6 +245,9 @@ class CollectionsManagementService:
                 or book_data.get("editeur", "")
             )
 
+            # URL Babelio du livre : suggestion enrichie ou URL saisie dans la modale
+            babelio_url = book_data.get("babelio_url") or None
+
             book_info = {
                 "titre": book_title,
                 "auteur_id": author_id,
@@ -256,7 +259,16 @@ class CollectionsManagementService:
                 if book_data.get("avis_critique_id")
                 else [],
             }
+            if babelio_url:
+                book_info["url_babelio"] = babelio_url
             book_id = self.mongodb_service.create_book_if_not_exists(book_info)
+
+            # Le livre existait peut-être déjà (autre épisode) : create_book_if_not_exists
+            # ne touche pas à url_babelio, on la pose explicitement (comme le chemin verified)
+            if babelio_url:
+                self.mongodb_service.update_livre_from_refresh(
+                    str(book_id), {"url_babelio": babelio_url}
+                )
 
             # Mettre à jour le cache avec le statut "mongo" et les références si un cache_id existe
             from bson import ObjectId

@@ -1734,6 +1734,48 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
+async def _enrich_livre_from_babelio_page(
+    book_id: str,
+    author_id: str,
+    babelio_url: str,
+    expected_title: str,
+) -> None:
+    """Récupère la couverture du livre et l'URL de l'auteur depuis la page Babelio.
+
+    Utilisé quand un livre arrive en base avec son URL Babelio (livre verified,
+    suggestion validée, ajout manuel avec URL). La page livre a déjà été lue
+    (enrichissement ou extract-from-url) : elle est servie par le cache disque.
+
+    Chaque étape est indépendante et ne lève jamais : le livre est déjà créé
+    avec url_babelio, un échec ici ne doit pas faire échouer la validation.
+    """
+    try:
+        existing_livre = mongodb_service.get_livre_with_episodes(book_id)
+        if existing_livre and not existing_livre.get("url_cover"):
+            cover_url = await babelio_service.fetch_cover_url_from_babelio_page(
+                babelio_url, expected_title=expected_title
+            )
+            if cover_url and not cover_url.startswith("TITLE_MISMATCH"):
+                mongodb_service.update_livre_from_refresh(
+                    book_id, {"url_cover": cover_url}
+                )
+                logger.info(
+                    f"🖼️ Couverture téléchargée pour {expected_title}: {cover_url}"
+                )
+    except Exception as e:
+        logger.warning(f"Couverture non récupérée pour {babelio_url}: {e}")
+
+    try:
+        author_url = await babelio_service.fetch_author_url_from_page(babelio_url)
+        if author_url:
+            mongodb_service.update_auteur_name_and_url(
+                author_id, url_babelio=author_url
+            )
+            logger.info(f"👤 URL auteur mise à jour: {author_url}")
+    except Exception as e:
+        logger.warning(f"URL auteur non récupérée pour {babelio_url}: {e}")
+
+
 @app.post("/api/set-validation-results", response_model=dict[str, Any])
 async def set_validation_results(request: ValidationResultsRequest) -> dict[str, Any]:
     """Reçoit les résultats de validation biblio du frontend et les stocke."""
@@ -1837,36 +1879,14 @@ async def set_validation_results(request: ValidationResultsRequest) -> dict[str,
                             str(book_id), update_fields
                         )
 
-                    # Télécharger la couverture si url_babelio disponible et pas encore de couverture
-                    if book_result.babelio_url and book_id:
-                        existing_livre = mongodb_service.get_livre_with_episodes(
-                            str(book_id)
+                    # Couverture et URL auteur depuis la page livre (déjà en cache)
+                    if book_result.babelio_url:
+                        await _enrich_livre_from_babelio_page(
+                            str(book_id),
+                            str(author_id),
+                            book_result.babelio_url,
+                            expected_title=validated_title,
                         )
-                        if existing_livre and not existing_livre.get("url_cover"):
-                            cover_url = (
-                                await babelio_service.fetch_cover_url_from_babelio_page(
-                                    book_result.babelio_url,
-                                    expected_title=validated_title,
-                                )
-                            )
-                            if cover_url and not cover_url.startswith("TITLE_MISMATCH"):
-                                mongodb_service.update_livre_from_refresh(
-                                    str(book_id), {"url_cover": cover_url}
-                                )
-                                logger.info(
-                                    f"🖼️ Couverture téléchargée pour {validated_title}: {cover_url}"
-                                )
-
-                    # Récupérer l'URL auteur depuis la page livre (cache hit — page déjà scrapée)
-                    if book_result.babelio_url and author_id:
-                        author_url = await babelio_service.fetch_author_url_from_page(
-                            book_result.babelio_url
-                        )
-                        if author_url:
-                            mongodb_service.update_auteur_name_and_url(
-                                str(author_id), url_babelio=author_url
-                            )
-                            logger.info(f"👤 URL auteur mise à jour: {author_url}")
 
                     # Issue #85: Passer babelio_publisher en metadata pour écraser editeur dans le cache
                     # C'est la source la plus fiable (enrichissement Babelio)
@@ -2907,6 +2927,14 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
         result = collections_management_service.handle_book_validation(
             request.model_dump()
         )
+        # Comme le chemin verified : couverture et URL auteur (page en cache)
+        if request.babelio_url and result.get("book_id") and result.get("author_id"):
+            await _enrich_livre_from_babelio_page(
+                result["book_id"],
+                result["author_id"],
+                request.babelio_url,
+                expected_title=request.user_validated_title,
+            )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e

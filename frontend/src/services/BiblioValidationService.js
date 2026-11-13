@@ -970,7 +970,8 @@ export class BiblioValidationService {
               author: original.author !== groundTruthSuggestion.author
             },
             source: 'ground_truth+babelio',
-            confidence_score: initialBookValidation.confidence_score || 1.0
+            confidence_score: initialBookValidation.confidence_score || 1.0,
+            babelio_url: initialBookValidation.babelio_url || null
           }
         };
       }
@@ -1022,7 +1023,8 @@ export class BiblioValidationService {
               author: original.author !== groundTruthSuggestion.author
             },
             source: 'ground_truth+babelio',
-            confidence_score: groundTruthBookValidation.confidence_score || 1.0
+            confidence_score: groundTruthBookValidation.confidence_score || 1.0,
+            babelio_url: groundTruthBookValidation.babelio_url || null
           }
         };
       }
@@ -1119,7 +1121,9 @@ export class BiblioValidationService {
             author: original.author !== suggestedAuthor
           },
           source: 'babelio',
-          confidence_score: bookValidation.confidence_score || (authorValidation && authorValidation.confidence_score) || 0
+          confidence_score: bookValidation.confidence_score || (authorValidation && authorValidation.confidence_score) || 0,
+          // Issue #339: URL du livre suggéré, pré-remplie dans la modale de validation
+          babelio_url: bookValidation.babelio_url || null
         }
       };
     }
@@ -1171,7 +1175,8 @@ export class BiblioValidationService {
             confidence_score: Math.min(
               authorValidation.confidence_score || 0,
               coherenceCheck.confidence_score || 1.0
-            )
+            ),
+            babelio_url: coherenceCheck.babelio_url || null
           }
         };
       } catch (error) {

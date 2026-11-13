@@ -18,6 +18,14 @@
         </router-link>
       </div>
 
+      <!-- Issue #339: Babelio bloqué (403, cookie absent/expiré, disjoncteur ouvert) -->
+      <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
+        🚫 Babelio bloque les requêtes (403) : le cookie est absent ou expiré, et aucune
+        requête ne part tant qu'il n'est pas renouvelé. Collez un cookie frais dans
+        « 🔑 Cookie Babelio » ci-dessous (ou dans
+        <router-link to="/babelio-control">Contrôle Babelio</router-link>), puis relancez la liaison.
+      </div>
+
       <!-- Cookie Babelio -->
       <div class="cookie-section">
         <details>
@@ -284,7 +292,7 @@
       <div v-if="migrationProgress.is_running || (migrationProgress.book_logs && migrationProgress.book_logs.length > 0)" class="migration-progress-panel">
         <div class="progress-header">
           <h3>
-            {{ migrationProgress.is_running ? '⚙️ Liaison en cours' : '✅ Dernière liaison' }}
+            {{ migrationProgressTitle }}
           </h3>
 
           <!-- Progress bar -->
@@ -632,6 +640,7 @@ export default {
       babelioCookieJustSaved: false,
       babelioCookieSavedAt: null,
       serverCookieActive: false,
+      babelioServiceStatus: null, // GET /api/babelio/status (Issue #339)
       babelioCookieSavedConfirmationTimeout: null,
       showCookieHelp: false,
       // Popup pour entrer URL Babelio
@@ -646,9 +655,7 @@ export default {
     // Lire l'état du cookie côté serveur, sans jamais le réécrire : renvoyer le
     // cookie du navigateur (souvent périmé) refermait le circuit breaker et
     // provoquait un 403 Babelio, que Babelio transforme en ban IP.
-    axios.get('/api/babelio/status')
-      .then((response) => { this.serverCookieActive = !!response?.data?.cookie_active; })
-      .catch(() => {});
+    this.loadBabelioServiceStatus();
     this.loadData();
     this.checkMigrationProgress();
   },
@@ -684,6 +691,26 @@ export default {
     // Issue #304: compte les cas problématiques bloqués par un 403 Babelio
     // transitoire (cookie expiré au moment du run), à distinguer des vrais
     // cas not_found qui nécessitent un traitement manuel.
+    // Issue #339: Babelio bloqué = disjoncteur ouvert, ou dernier appel en 403
+    // sans cookie actif. `overall` décrit la dernière requête réelle : il reste
+    // à blocked_403 après l'enregistrement d'un cookie frais (qui referme le
+    // disjoncteur) jusqu'à la requête suivante — il ne suffit pas seul.
+    babelioBlocked() {
+      const st = this.babelioServiceStatus;
+      if (!st) return false;
+      if (st.circuit_open === true) return true;
+      return st.overall === 'blocked_403' && !st.cookie_active;
+    },
+    lastRunBlocked403() {
+      return (this.migrationProgress.book_logs || []).some(
+        (log) => log.livre_status === 'blocked_403'
+      );
+    },
+    migrationProgressTitle() {
+      if (this.migrationProgress.is_running) return '⚙️ Liaison en cours';
+      if (this.lastRunBlocked403) return '🚫 Dernière liaison interrompue : Babelio bloqué (403)';
+      return '✅ Dernière liaison';
+    },
     blocked403CasesCount() {
       return this.problematicCases.filter(
         (cas) => cas.raison && cas.raison.includes('blocked_403')
@@ -701,6 +728,19 @@ export default {
       setTimeout(() => {
         this.toast = null;
       }, 3000); // Disparaît après 3 secondes
+    },
+
+    // Lire l'état du cookie et du disjoncteur côté serveur, sans jamais le
+    // réécrire : renvoyer le cookie du navigateur (souvent périmé) refermait le
+    // circuit breaker et provoquait un 403 Babelio, que Babelio transforme en ban IP.
+    async loadBabelioServiceStatus() {
+      try {
+        const response = await axios.get('/api/babelio/status');
+        this.babelioServiceStatus = response?.data || null;
+        this.serverCookieActive = !!response?.data?.cookie_active;
+      } catch {
+        // Statut indisponible : pas de bandeau plutôt qu'un faux blocage
+      }
     },
 
     async loadData() {
@@ -1006,7 +1046,7 @@ export default {
         // Si la migration vient de se terminer, arrêter le polling et recharger les données
         if (!response.data.is_running && this.pollInterval) {
           this.stopPolling();
-          await this.loadData();
+          await Promise.all([this.loadData(), this.loadBabelioServiceStatus()]);
         }
       } catch (err) {
         console.error('Error checking migration progress:', err);
@@ -1170,7 +1210,7 @@ export default {
 
         // Synchroniser côté serveur (service centralisé)
         axios.post('/api/babelio/cookie', { cookie: val })
-          .then(() => { this.serverCookieActive = true; })
+          .then(() => this.loadBabelioServiceStatus())
           .catch(() => {});
 
         this.babelioCookieJustSaved = true;
@@ -1225,6 +1265,7 @@ export default {
         'success': '✅',
         'error': '❌',
         'not_found': '❌',
+        'blocked_403': '🚫 403',
         'none': '❌'
       };
       return icons[status] || '❓';
@@ -1647,6 +1688,16 @@ h2 {
 }
 
 /* Error Message */
+.babelio-blocked-banner {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #f5c2c7;
+  border-radius: 6px;
+  background: #f8d7da;
+  color: #842029;
+  font-size: 0.95rem;
+}
+
 .error-message {
   background: #f8d7da;
   color: #721c24;

@@ -21,8 +21,6 @@
  * @returns {Object} Données formatées pour l'API backend
  */
 export function buildBookDataForBackend(book, validationResult, status) {
-  // TODO Issue #85: Implémenter la logique correcte
-  // Pour l'instant, version minimale qui reproduit le BUG
   const bookForBackend = {
     auteur: book.auteur,
     titre: book.titre,
@@ -42,8 +40,11 @@ export function buildBookDataForBackend(book, validationResult, status) {
   // Issue #85: Transmettre les enrichissements Babelio si disponibles
   // Ces champs sont ajoutés automatiquement par le backend lors de l'extraction
   // quand confidence >= 0.90 (Phase 0 ou Phase 2.5)
-  if (book.babelio_url) {
-    bookForBackend.babelio_url = book.babelio_url;
+  // Issue #339: à défaut, l'URL du livre trouvé par la validation (suggestion sous
+  // le seuil 0.90 de l'enrichissement), pour la pré-remplir dans la modale.
+  const babelioUrl = book.babelio_url || validationResult.data?.babelio_url;
+  if (babelioUrl) {
+    bookForBackend.babelio_url = babelioUrl;
   }
   if (book.babelio_publisher) {
     bookForBackend.babelio_publisher = book.babelio_publisher;

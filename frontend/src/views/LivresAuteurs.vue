@@ -1521,6 +1521,11 @@ export default {
         publisher: book.editeur || ''
       };
 
+      // Issue #339: une suggestion n'a pas d'éditeur Babelio (scrapé seulement à
+      // confiance >= 0.90). Pré-remplir l'URL déclenche extract-from-url (watcher),
+      // qui remplit titre/auteur/éditeur depuis la page Babelio, déjà en cache disque.
+      this.validationBabelioUrl = book.babelio_url || '';
+
       this.showValidationModal = true;
     },
 
@@ -1567,23 +1572,10 @@ export default {
           user_validated_publisher: this.validationForm.publisher
         };
 
-        // Issue #85: Transmettre babelio_url et babelio_publisher si le livre a été enrichi
-        console.log('🔍 [DEBUG Issue #85] Structure book COMPLETE:', JSON.stringify(book, null, 2));
-        if (book.babelio_url) {
-          validationData.babelio_url = book.babelio_url;
-          console.log('✅ babelio_url ajouté:', book.babelio_url);
-        } else {
-          console.log('❌ PAS de babelio_url dans book');
-        }
-        if (book.babelio_publisher) {
-          validationData.babelio_publisher = book.babelio_publisher;
-          console.log('✅ babelio_publisher ajouté:', book.babelio_publisher);
-        } else {
-          console.log('❌ PAS de babelio_publisher dans book');
-        }
+        // Issue #85/#339: URL Babelio (collée dans la modale ou issue de la suggestion)
+        this.addBabelioFields(validationData, book, this.validationBabelioUrl);
 
-        console.log('🚀 Données FINALES envoyées pour validation:', JSON.stringify(validationData, null, 2));
-        const result = await livresAuteursService.validateSuggestion(validationData);
+        await livresAuteursService.validateSuggestion(validationData);
 
         // Fermer le modal et recharger les données
         this.closeValidationModal();
@@ -1629,13 +1621,8 @@ export default {
           suggested_title: this.manualBookForm.title
         };
 
-        // Issue #85: Transmettre babelio_url et babelio_publisher si le livre a été enrichi
-        if (book.babelio_url) {
-          validationData.babelio_url = book.babelio_url;
-        }
-        if (book.babelio_publisher) {
-          validationData.babelio_publisher = book.babelio_publisher;
-        }
+        // Issue #85/#339: URL Babelio (collée dans la modale ou issue de l'enrichissement)
+        this.addBabelioFields(validationData, book, this.manualBabelioUrl);
 
         // Un seul appel unifié pour créer le livre ET mettre à jour le cache
         await livresAuteursService.validateSuggestion(validationData);
@@ -1647,6 +1634,23 @@ export default {
         await this.loadEpisodesWithReviews();
       } catch (error) {
         console.error('Erreur lors de l\'ajout manuel:', error);
+      }
+    },
+
+    /**
+     * Ajoute babelio_url / babelio_publisher aux données envoyées à validate-suggestion
+     * (Issue #339). L'URL collée dans la modale est prioritaire : c'est le choix explicite
+     * de l'utilisateur. Si elle désigne un autre livre que la suggestion, l'éditeur Babelio
+     * de la suggestion ne s'applique plus (l'éditeur extrait est déjà dans le formulaire).
+     */
+    addBabelioFields(validationData, book, pastedUrl) {
+      const pasted = this.isValidBabelioUrl(pastedUrl) ? pastedUrl.trim() : null;
+      const babelioUrl = pasted || book.babelio_url;
+      if (babelioUrl) {
+        validationData.babelio_url = babelioUrl;
+      }
+      if (book.babelio_publisher && babelioUrl === book.babelio_url) {
+        validationData.babelio_publisher = book.babelio_publisher;
       }
     },
 
