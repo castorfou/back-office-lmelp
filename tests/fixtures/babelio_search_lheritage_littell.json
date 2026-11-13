@@ -1,0 +1,102 @@
+{
+  "L'héritage Jonathan Littell": [
+    {
+      "id_oeuvre": "2069632",
+      "titre": "L'Héritage",
+      "couverture": "/couv/cvt_Lheritage_2197.jpg",
+      "id_auteur": "3551",
+      "prenoms": "Jonathan",
+      "nom": "Littell",
+      "ca_copies": "163",
+      "tri": "163",
+      "ca_note": "3.21",
+      "type": "livres",
+      "url": "/livres/Littell-LHeritage/2069632"
+    },
+    {
+      "ca_occurences": 2,
+      "ca_oeuvres": 1,
+      "canonique": 1,
+      "id": "89846",
+      "libelle": "poids de l'héritage",
+      "type": "tags",
+      "url": "/livres-/poids-de-lheritage/89846",
+      "first_of_group": "first_of_group"
+    }
+  ],
+  "L'héritage": [
+    {
+      "id_oeuvre": "337198",
+      "titre": "L'Héritage",
+      "couverture": "/couv/sm_cvt_LHeritage-Tome-4--LHeritage_7474.jpg",
+      "id_auteur": "6755",
+      "prenoms": "Christopher",
+      "nom": "Paolini",
+      "ca_copies": "15189",
+      "tri": "16189",
+      "ca_note": "4.13",
+      "type": "livres",
+      "url": "/livres/Paolini-LHeritage/337198"
+    },
+    {
+      "id_oeuvre": "45291",
+      "titre": "L'Héritage des Templiers",
+      "couverture": "/couv/sm_CVT_HERITAGE-OCCULTE_1134.jpg",
+      "id_auteur": "9944",
+      "prenoms": "Steve",
+      "nom": "Berry",
+      "ca_copies": "2902",
+      "tri": "2902",
+      "ca_note": "3.83",
+      "type": "livres",
+      "url": "/livres/Berry-LHeritage-des-Templiers/45291"
+    },
+    {
+      "id_oeuvre": "5999",
+      "titre": "L'Héritage",
+      "couverture": "/couv/cvt_Lheritage_2679.jpg",
+      "id_auteur": "3548",
+      "prenoms": "John",
+      "nom": "Grisham",
+      "ca_copies": "1427",
+      "tri": "2427",
+      "ca_note": "3.43",
+      "type": "livres",
+      "url": "/livres/Grisham-LHeritage/5999"
+    },
+    {
+      "id_oeuvre": "183706",
+      "titre": "L'Héritage impossible",
+      "couverture": "/couv/cvt_Lheritage-impossible_7305.jpg",
+      "id_auteur": "118829",
+      "prenoms": "Anne B.",
+      "nom": "Ragde",
+      "ca_copies": "2122",
+      "tri": "2122",
+      "ca_note": "3.71",
+      "type": "livres",
+      "url": "/livres/Ragde-LHeritage-impossible/183706"
+    },
+    {
+      "id": "803879",
+      "prenoms": "",
+      "nom": "L'Héritage de la Zérolution",
+      "url_photo": "/users/avt_fd_803879.jpg",
+      "ca_oeuvres": "6",
+      "ca_membres": "2",
+      "type": "auteurs",
+      "url": "/auteur/-LHeritage-de-la-Zerolution/803879",
+      "first_of_group": "first_of_group"
+    },
+    {
+      "ca_occurences": 2,
+      "ca_oeuvres": 1,
+      "canonique": 1,
+      "id": "89846",
+      "libelle": "poids de l'héritage",
+      "type": "tags",
+      "url": "/livres-/poids-de-lheritage/89846",
+      "first_of_group": "first_of_group"
+    }
+  ]
+}
