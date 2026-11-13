@@ -580,6 +580,22 @@ cache_service.mark_as_processed(
 - Backend : `livres_auteurs_cache_service.py::mark_as_processed()` (accepte metadata supplémentaires)
 - Frontend : `EpisodeEditor.vue` (envoie `babelio_publisher` dans validation)
 
+#### Chaîne de l'URL Babelio jusqu'à `livres.url_babelio`
+
+Un livre validé avec son URL Babelio n'a plus à passer par la page Liaison Babelio. Cela évite de nouvelles requêtes Babelio. L'URL traverse cinq étapes ; chacune doit la conserver.
+
+1. **Validation frontend** (`BiblioValidationService.js`) : tout résultat `suggestion` ou `verified` adossé à un livre Babelio porte `data.babelio_url` (branches suggestion Babelio, cohérence auteur, `ground_truth+babelio`, titre seul).
+    - La branche `ground_truth` seule (confiance 0.75) n'en a pas : aucun livre Babelio n'y est confirmé.
+2. **Cache** (`buildBookDataForBackend.js`) : `babelio_url = book.babelio_url || validationResult.data.babelio_url`.
+    - L'URL de l'enrichissement à l'extraction (confiance ≥ 0.90) est prioritaire.
+    - La suggestion couvre les cas sous ce seuil, par exemple des co-auteurs.
+3. **Modale** (`LivresAuteurs.vue`) :
+    - `validateSuggestion()` pré-remplit `validationBabelioUrl` avec `book.babelio_url`. Le watcher débouncé appelle `POST /api/babelio/extract-from-url`, qui remplit titre, auteur et éditeur.
+    - `addBabelioFields()` envoie l'URL collée si elle est valide (`isValidBabelioUrl`), sinon celle du cache.
+    - `babelio_publisher` n'est envoyé que si l'URL envoyée est celle du cache.
+4. **Backend** (`handle_book_validation()`) : `url_babelio` est posée à la création. `update_livre_from_refresh()` la pose aussi sur un livre déjà existant, que `create_book_if_not_exists()` ne modifie pas.
+5. **Enrichissement** (`_enrich_livre_from_babelio_page()` dans `app.py`) : couverture et URL Babelio de l'auteur, comme pour le chemin `verified` de `set-validation-results`.
+
 ---
 
 ### Phase 1 : Ground Truth Fuzzy Search

@@ -355,7 +355,9 @@ localStorage.debug = '*'
 **Symptômes :**
 - Une bannière rouge ⚠️ "Babelio a bloqué les requêtes (403)" apparaît en haut de la page
   **Livres et Auteurs**
-- Sur la page **Liaison Babelio des livres**, le message d'erreur affiché contient "403"
+- Sur la page **Liaison Babelio des livres**, un bandeau rouge 🚫 « Babelio bloque les requêtes
+  (403) » apparaît en haut de page, la dernière liaison s'intitule « 🚫 Dernière liaison
+  interrompue : Babelio bloqué (403) » et le livre concerné est marqué « 🚫 403 »
 - Logs backend : `WARNING - Babelio HTTP 403 pour: {titre} - cookie requis`
 
 **Cause :** Babelio a détecté un accès automatique depuis l'IP du serveur et a activé une protection anti-bot.
