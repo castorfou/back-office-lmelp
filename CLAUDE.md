@@ -1124,6 +1124,14 @@ takes seconds).
 **Same reasoning for TCP reachability checks**: use `asyncio.open_connection()`
 wrapped in `asyncio.wait_for()`, not a blocking `socket.create_connection()`.
 
+**Never leave a remote command unbounded** (Issue #337): `wait_for(..., timeout=None)`
+waits forever. An `ssh` whose connection dies mid-command (PGX switching networks)
+never returns, so a poll loop never re-checks its own deadline and a runner's
+`is_running` stays `True` until the backend restarts. `pgx_service._run_command()`
+therefore bounds every command by default (`SSH_COMMAND_TIMEOUT_S`, `unbounded=True`
+only for the audio `scp`), passes `BatchMode=yes`, `ConnectTimeout` and
+`ServerAliveInterval` to ssh/scp, and gives the subprocess `stdin=DEVNULL`.
+
 **Example**: `src/back_office_lmelp/services/pgx_service.py` (Issue #302) —
 first service in this backend to talk to an external system tool (ssh/scp
 for the PGX transcription pipeline); ported from a synchronous

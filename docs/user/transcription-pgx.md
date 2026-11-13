@@ -225,6 +225,19 @@ d'une tout autre cause :
   transcription repart sans nouvel envoi. L'utilisateur SSH doit pouvoir exécuter `docker`
   sur PGX.
 
+### Reprendre une transcription déjà calculée
+
+Si un cycle s'est interrompu après la transcription (PGX déconnectée du réseau, backend
+redémarré…), le fichier de transcription reste sur PGX. Relancez simplement la
+transcription depuis la page : le journal affiche `transcription déjà présente sur PGX,
+rapatriement…` et la transcription est récupérée en quelques secondes, sans renvoyer
+l'audio ni relancer le calcul.
+
+Une commande vers PGX qui ne répond plus ne bloque pas la page : chaque commande ssh/scp
+courte est limitée à 60 secondes et une connexion perdue est coupée au bout d'environ
+45 secondes. L'épisode concerné passe en échec, les suivants sont traités, et le bouton
+**"▶️ Lancer"** redevient actif à la fin du cycle.
+
 ### Erreur `[Errno 2] No such file or directory` dans les logs backend
 
 Toutes les étapes de diagnostic échouent avec cette erreur (et non un message d'échec
