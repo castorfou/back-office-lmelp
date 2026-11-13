@@ -53,7 +53,7 @@ def create_book_log(
     Args:
         titre: Titre du livre
         auteur: Nom de l'auteur
-        livre_status: Statut du livre (success | error | not_found)
+        livre_status: Statut du livre (success | error | not_found | blocked_403)
         auteur_status: Statut de l'auteur (success | error | not_found | none)
         details: Liste des messages de log détaillés
 
@@ -64,7 +64,7 @@ def create_book_log(
         ValueError: Si un statut invalide est fourni
     """
     # Validation des statuts
-    valid_livre_statuses = {"success", "error", "not_found", "none"}
+    valid_livre_statuses = {"success", "error", "not_found", "blocked_403", "none"}
     valid_auteur_statuses = {"success", "error", "not_found", "none"}
 
     if livre_status not in valid_livre_statuses:
@@ -278,6 +278,10 @@ class MigrationRunner:
                     # Determine statuses
                     if status == "not_found":
                         livre_status = "not_found"
+                    elif status == "blocked_403":
+                        # Issue #339: blocage Babelio (cookie expiré), pas une
+                        # erreur du livre — la page doit le dire.
+                        livre_status = "blocked_403"
                     elif livre_updated:
                         livre_status = "success"
                     else:
@@ -289,7 +293,7 @@ class MigrationRunner:
                         auteur_status = "success"
                     elif auteur_already_linked:
                         auteur_status = "none"  # Déjà lié = pas besoin de migrer
-                    elif status == "not_found":
+                    elif status in ("not_found", "blocked_403"):
                         auteur_status = "none"
                     else:
                         auteur_status = "error" if not auteur_updated else "none"

@@ -184,3 +184,53 @@ class TestMigrationRunnerBlocked403:
             # Le singleton partagé ne doit JAMAIS être fermé par la migration
             # (il continue à vivre pour le reste de l'application)
             mock_close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_blocked_403_book_log_should_say_blocked_not_error(self):
+        """Test TDD (Issue #339): le journal de la page Liaison Babelio doit
+        distinguer un livre bloqué par un 403 d'une vraie erreur.
+
+        Problème business réel (L'Héritage, Jonathan Littell, 13/11/2026):
+        cookie Babelio expiré → verify_book renvoie blocked_403 → le journal
+        affichait « 📚 error - 👤 error » (❌❌ dans la page), sans aucune
+        indication que la cause était un blocage Babelio à lever en
+        renouvelant le cookie. L'auteur n'a pas été tenté : pas d'erreur.
+        """
+        from back_office_lmelp.utils.migration_runner import MigrationRunner
+
+        async def side_effect_migrate(*args, **kwargs):
+            return {
+                "livre_updated": False,
+                "auteur_updated": False,
+                "titre": "L’Héritage",
+                "auteur": "Jonathan Littell",
+                "status": "blocked_403",
+            }
+
+        real_sleep = asyncio.sleep
+
+        async def fast_sleep(_seconds):
+            await real_sleep(0)
+
+        with (
+            patch(
+                "back_office_lmelp.utils.migration_runner.migrate_one_book_and_author"
+            ) as mock_migrate,
+            patch(
+                "back_office_lmelp.utils.migration_runner.asyncio.sleep",
+                new=fast_sleep,
+            ),
+        ):
+            mock_migrate.side_effect = side_effect_migrate
+
+            runner = MigrationRunner()
+            await runner.start_migration()
+
+            for _ in range(50):
+                await real_sleep(0.01)
+                if not runner.is_running:
+                    break
+
+            book_log = runner.book_logs[0]
+            assert book_log["livre_status"] == "blocked_403"
+            assert book_log["auteur_status"] == "none"
