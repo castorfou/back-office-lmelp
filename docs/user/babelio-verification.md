@@ -63,6 +63,12 @@ Le système combine **plusieurs sources** pour maximiser la fiabilité :
 2. **Recherche dans les métadonnées d'épisode** : Recherche fuzzy dans titre/description de l'épisode
 3. **Validation croisée auteur + titre** : Vérification que l'auteur correspond bien au livre
 
+**Titres courants** : Babelio est d'abord interrogé sur le titre seul. Pour un titre porté par
+de nombreux livres (« L'Héritage »), les premiers résultats sont des homonymes populaires et le
+livre de l'auteur n'y figure pas forcément. Quand aucun résultat n'est de cet auteur, une seconde
+recherche « titre + auteur » est faite (une seule, mise en cache 24 h) : elle retrouve le bon livre
+et son URL Babelio.
+
 **Priorité** : Les données de l'épisode (vérifiées par l'éditeur France Inter) sont prioritaires sur les corrections Babelio quand elles sont fiables.
 
 ## Enrichissement automatique de l'éditeur
@@ -240,6 +246,10 @@ Certains livres ou auteurs nécessitent un traitement manuel :
 - **Accepter la suggestion** : Valider l'URL proposée malgré la différence de titre
 - **Marquer comme non trouvé** : Confirmer l'absence sur Babelio
 - **Supprimer du suivi** : Retirer des cas problématiques après traitement
+
+Un livre lié à Babelio par un autre chemin (validation dans **Livres et Auteurs**, par exemple) ou
+marqué absent de Babelio n'est plus compté dans « À traiter manuellement », ni affiché dans la liste,
+même si son cas problématique existait avant.
 
 ### Affichage des liens Babelio
 
