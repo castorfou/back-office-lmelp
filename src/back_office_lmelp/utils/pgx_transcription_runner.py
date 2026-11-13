@@ -360,7 +360,18 @@ class PgxTranscriptionRunner:
                             f"{remote_transcription_root}/{year}/{stem}.txt"
                         )
 
-                        if await self._has_orphan_mp3(
+                        # Reprise (Issue #337) : un cycle interrompu après la
+                        # transcription laisse le .txt sur PGX. Le rapatrier
+                        # directement, sans renvoyer l'audio ni attendre.
+                        transcription_on_pgx = await pgx_service.remote_file_exists(
+                            remote_txt_path, host=host, user=user, key_path=key_path
+                        )
+                        if transcription_on_pgx:
+                            self._log(
+                                f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
+                                "transcription déjà présente sur PGX, rapatriement…"
+                            )
+                        elif await self._has_orphan_mp3(
                             mp3_fullpath,
                             f"{remote_audio_dir}/{stem}.mp3",
                             remote_txt_path,
@@ -391,26 +402,28 @@ class PgxTranscriptionRunner:
                                 key_path=key_path,
                             )
 
-                        self._log(
-                            f"[{index + 1}/{len(self.episode_ids)}] {titre}: attente…"
-                        )
-                        if not await pgx_service.wait_for_pgx_transcription(
-                            remote_txt_path,
-                            host=host,
-                            user=user,
-                            key_path=key_path,
-                            timeout_s=transcription_timeout_s,
-                            poll_interval_s=poll_interval_s,
-                        ):
-                            raise PgxError(
-                                f"Timeout: transcription non disponible sur PGX "
-                                f"après {transcription_timeout_s}s"
+                        if not transcription_on_pgx:
+                            self._log(
+                                f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
+                                "attente…"
                             )
+                            if not await pgx_service.wait_for_pgx_transcription(
+                                remote_txt_path,
+                                host=host,
+                                user=user,
+                                key_path=key_path,
+                                timeout_s=transcription_timeout_s,
+                                poll_interval_s=poll_interval_s,
+                            ):
+                                raise PgxError(
+                                    f"Timeout: transcription non disponible sur "
+                                    f"PGX après {transcription_timeout_s}s"
+                                )
 
-                        self._log(
-                            f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
-                            "rapatriement…"
-                        )
+                            self._log(
+                                f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
+                                "rapatriement…"
+                            )
                         transcription_text = (
                             await pgx_service.fetch_transcription_from_pgx(
                                 remote_txt_path,

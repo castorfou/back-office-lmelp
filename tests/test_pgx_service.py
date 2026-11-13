@@ -721,3 +721,112 @@ class TestRunPgxDiagnostics:
 
         assert results[2]["status"] == "ok"
         assert results[3]["status"] == "fail"
+
+
+def _make_hanging_subprocess_mock() -> AsyncMock:
+    """Processus ssh qui ne rend jamais la main (connexion morte sans keepalive)."""
+
+    async def never_returns() -> tuple[bytes, bytes]:
+        await asyncio.Event().wait()
+        return b"", b""
+
+    process_mock = AsyncMock()
+    process_mock.returncode = None
+    process_mock.communicate = never_returns
+    process_mock.kill = lambda: None
+    process_mock.wait = AsyncMock(return_value=-9)
+    return process_mock
+
+
+class TestNoUnboundedSshCommand:
+    """Aucune commande ssh/scp ne peut bloquer le pipeline PGX (Issue #337).
+
+    Cas réel du 11/11/2026 : la transcription était sur PGX, mais le cycle est
+    resté sur « attente… » : une vérification `ssh test -f` lancée sans délai
+    ne rendait jamais la main, le délai global n'était donc jamais revérifié et
+    is_running restait True (bouton « Lancer » grisé jusqu'au redémarrage).
+    """
+
+    @pytest.mark.asyncio
+    async def test_wait_should_survive_a_hanging_check_and_find_the_file(self):
+        processes = [_make_hanging_subprocess_mock(), _make_subprocess_mock(0)]
+        with (
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                AsyncMock(side_effect=processes),
+            ),
+            patch("back_office_lmelp.services.pgx_service.asyncio.sleep", AsyncMock()),
+        ):
+            result = await wait_for_pgx_transcription(
+                "/data/transcriptions/2024/episode.txt",
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+                timeout_s=30,
+                poll_interval_s=1,
+                command_timeout_s=0.05,
+            )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_wait_should_respect_its_deadline_when_every_check_hangs(self):
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            AsyncMock(side_effect=lambda *a, **k: _make_hanging_subprocess_mock()),
+        ):
+            result = await asyncio.wait_for(
+                wait_for_pgx_transcription(
+                    "/data/transcriptions/2024/episode.txt",
+                    host="192.168.50.151",
+                    user="pgxuser",
+                    key_path="/keys/pgx_ed25519",
+                    timeout_s=0.2,
+                    poll_interval_s=0.01,
+                    command_timeout_s=0.05,
+                ),
+                timeout=5,
+            )
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_hanging_remote_check_should_fail_the_episode_not_hang(self):
+        """Une PgxError fait échouer l'épisode sans arrêter la file d'attente."""
+        with (
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                AsyncMock(return_value=_make_hanging_subprocess_mock()),
+            ),
+            patch("back_office_lmelp.services.pgx_service.SSH_COMMAND_TIMEOUT_S", 0.05),
+            pytest.raises(PgxError),
+        ):
+            await asyncio.wait_for(
+                remote_file_exists(
+                    "/data/transcriptions/2024/episode.txt",
+                    host="192.168.50.151",
+                    user="pgxuser",
+                    key_path="/keys/pgx_ed25519",
+                ),
+                timeout=5,
+            )
+
+    @pytest.mark.asyncio
+    async def test_ssh_should_never_prompt_nor_keep_a_dead_connection(self):
+        exec_mock = AsyncMock(return_value=_make_subprocess_mock(0))
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            exec_mock,
+        ):
+            await remote_file_exists(
+                "/data/transcriptions/2024/episode.txt",
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+            )
+
+        args = exec_mock.call_args.args
+        assert "BatchMode=yes" in args
+        assert any(a.startswith("ConnectTimeout=") for a in args)
+        assert any(a.startswith("ServerAliveInterval=") for a in args)
+        assert exec_mock.call_args.kwargs["stdin"] == asyncio.subprocess.DEVNULL
