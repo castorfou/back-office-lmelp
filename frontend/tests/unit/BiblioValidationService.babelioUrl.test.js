@@ -92,3 +92,92 @@ describe('buildBookDataForBackend - URL Babelio de la suggestion (Issue #339)', 
     expect(result.babelio_url).toBe('https://www.babelio.com/livres/Pedrosa-Nanbanjin/1234567');
   });
 });
+
+// Sortie réelle de verify_book("L'héritage", "Jonathan Littell") après le repli
+// « titre + auteur » (Issue #341), générée depuis les recherches Babelio capturées.
+const LITTELL_URL = 'https://www.babelio.com/livres/Littell-LHeritage/2069632';
+const littellVerifyBook = {
+  status: 'verified',
+  original_title: "L'héritage",
+  babelio_suggestion_title: "L'Héritage",
+  original_author: 'Jonathan Littell',
+  babelio_suggestion_author: 'Jonathan Littell',
+  confidence_score: 1.0,
+  babelio_data: {
+    id_oeuvre: '2069632',
+    titre: "L'Héritage",
+    prenoms: 'Jonathan',
+    nom: 'Littell',
+    type: 'livres',
+    url: '/livres/Littell-LHeritage/2069632',
+  },
+  babelio_url: LITTELL_URL,
+  babelio_author_url: null,
+  babelio_publisher: null,
+  error_message: null,
+};
+
+describe('BiblioValidationService - URL Babelio des livres trouvés (Issue #341)', () => {
+  let service;
+  const livresAuteursService = { getLivresAuteurs: vi.fn() };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    service = new BiblioValidationService({
+      fuzzySearchService: { searchEpisode: vi.fn() },
+      babelioService: mockBabelioService,
+      livresAuteursService,
+      localAuthorService: null,
+    });
+  });
+
+  it('un livre validé en phase 0 garde son URL Babelio', async () => {
+    // Document réel de livresauteurs_cache (épisode du 01/11/2026)
+    livresAuteursService.getLivresAuteurs.mockResolvedValue([
+      { auteur: 'Jonathan Littell', titre: "L'héritage" },
+    ]);
+    mockBabelioService.verifyBook.mockResolvedValue(littellVerifyBook);
+
+    const result = await service.validateBiblio(
+      'Jonathan Littell', "L'héritage", 'Gallimard', '6ae7497087efd8d343531f86' // pragma: allowlist secret
+    );
+
+    expect(result.status).toBe('verified');
+    expect(result.data.babelio_url).toBe(LITTELL_URL);
+  });
+
+  it('suggestion du résumé (ground truth) : URL gardée si Babelio a trouvé ce même livre', async () => {
+    vi.spyOn(service, '_hasDecentGroundTruthMatches').mockReturnValue(true);
+
+    const result = await service._validateGroundTruthSuggestion(
+      { author: 'Jonathan Littell', title: "L'héritage", publisher: 'Gallimard' },
+      { author: 'Jonathan Littell', title: 'L’Héritage' }, // suggested_title réel du cache
+      littellVerifyBook,
+      {},
+      null
+    );
+
+    expect(result.data.source).toBe('ground_truth');
+    expect(result.data.babelio_url).toBe(LITTELL_URL);
+  });
+
+  it('suggestion du résumé (ground truth) : pas d\'URL si Babelio a trouvé un homonyme', async () => {
+    vi.spyOn(service, '_hasDecentGroundTruthMatches').mockReturnValue(true);
+
+    const result = await service._validateGroundTruthSuggestion(
+      { author: 'Jonathan Littell', title: "L'héritage", publisher: 'Gallimard' },
+      { author: 'Jonathan Littell', title: 'L’Héritage' },
+      {
+        ...littellVerifyBook,
+        status: 'corrected',
+        babelio_suggestion_title: "L'Héritage des Templiers",
+        babelio_suggestion_author: 'Steve Berry',
+        babelio_url: 'https://www.babelio.com/livres/Berry-LHeritage-des-Templiers/45291',
+      },
+      {},
+      null
+    );
+
+    expect(result.data.babelio_url ?? null).toBeNull();
+  });
+});
