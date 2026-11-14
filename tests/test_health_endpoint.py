@@ -24,17 +24,23 @@ class TestHealthEndpoint:
         assert data["status"] == "ok"
 
     def test_health_endpoint_is_fast(self):
-        """Test que /health répond rapidement (< 100ms)."""
+        """Test que /health répond rapidement (médiane < 100ms)."""
+        import statistics
         import time
 
         client = TestClient(app)
-        start = time.time()
-        response = client.get("/health")
-        duration = time.time() - start
+        # La première requête paie l'initialisation du client de test
+        assert client.get("/health").status_code == 200
 
-        assert response.status_code == 200
-        # Le healthcheck doit être rapide (< 100ms même avec overhead test)
-        assert duration < 0.1
+        durations = []
+        for _ in range(5):
+            start = time.perf_counter()
+            response = client.get("/health")
+            durations.append(time.perf_counter() - start)
+            assert response.status_code == 200
+
+        # Médiane : une pause ponctuelle du runner CI ne fait pas échouer le test
+        assert statistics.median(durations) < 0.1
 
     def test_root_endpoint_still_works(self):
         """Test que l'endpoint / continue de fonctionner (backward compatibility)."""
