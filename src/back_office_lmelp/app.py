@@ -3502,6 +3502,10 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
     return {
         "overall": overall,
         "cookie_active": bool(babelio_service.get_cookie()),
+        "browser_user_agent": babelio_service.get_browser_identity()["user_agent"],
+        "browser_accept_language": babelio_service.get_browser_identity()[
+            "accept_language"
+        ],
         "circuit_open": bool(getattr(babelio_service, "_circuit_open", False)),
         "cache_entries": cache_entries,
         "recent_requests_count": len(recent),
@@ -3515,7 +3519,13 @@ async def set_babelio_cookie(request: Request) -> dict[str, Any]:
     """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
     body = await request.json()
     cookie = body.get("cookie") or None
-    babelio_service.set_cookie(cookie)
+    # Cette requête part du navigateur qui vient de récupérer le cookie : ses
+    # en-têtes sont ceux pour lesquels Babelio a émis le jstsToken.
+    babelio_service.set_cookie(
+        cookie,
+        user_agent=request.headers.get("user-agent"),
+        accept_language=request.headers.get("accept-language"),
+    )
     return {"ok": True, "cookie_active": bool(cookie)}
 
 

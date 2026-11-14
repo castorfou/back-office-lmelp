@@ -13,10 +13,11 @@ Solution :
   distincte de "livre non trouvé sur Babelio".
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import back_office_lmelp.services.babelio_service as babelio_module
 from back_office_lmelp.services.babelio_service import (
     BabelioBlockedError,
     BabelioService,
@@ -33,37 +34,18 @@ def service():
 # ============================================================
 
 
+def _send_returning(status: int) -> AsyncMock:
+    """Simule le point de sortie HTTP unique de BabelioService."""
+    return AsyncMock(
+        return_value=babelio_module.BabelioResponse(status=status, body=b"")
+    )
+
+
 @pytest.mark.asyncio
 async def test_search_raises_blocked_error_on_403(service):
     """search() doit lever BabelioBlockedError si Babelio renvoie 403."""
-
-    class FakeResponse:
-        status = 403
-
-        async def text(self, encoding=None):
-            return ""
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-    class FakeSession:
-        def post(self, url, **kwargs):
-            return FakeResponse()
-
-        async def close(self):
-            pass
-
-        @property
-        def closed(self):
-            return False
-
     with (
-        patch.object(
-            service, "_get_session", new=AsyncMock(return_value=FakeSession())
-        ),
+        patch.object(service, "_send", new=_send_returning(403)),
         pytest.raises(BabelioBlockedError),
     ):
         await service.search("Boualem Sansal")
@@ -72,33 +54,7 @@ async def test_search_raises_blocked_error_on_403(service):
 @pytest.mark.asyncio
 async def test_search_still_returns_empty_for_non_403_errors(service):
     """search() doit toujours retourner [] pour les erreurs non-403 (503, etc.)."""
-
-    class FakeResponse:
-        status = 503
-
-        async def text(self, encoding=None):
-            return ""
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-    class FakeSession:
-        def post(self, url, **kwargs):
-            return FakeResponse()
-
-        async def close(self):
-            pass
-
-        @property
-        def closed(self):
-            return False
-
-    with patch.object(
-        service, "_get_session", new=AsyncMock(return_value=FakeSession())
-    ):
+    with patch.object(service, "_send", new=_send_returning(503)):
         result = await service.search("Boualem Sansal")
 
     assert result == []
@@ -112,18 +68,8 @@ async def test_search_still_returns_empty_for_non_403_errors(service):
 @pytest.mark.asyncio
 async def test_fetch_page_raises_blocked_error_on_403(service):
     """_fetch_page doit lever BabelioBlockedError si Babelio renvoie 403."""
-    mock_response = MagicMock()
-    mock_response.status = 403
-
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
     with (
-        patch("aiohttp.ClientSession", return_value=mock_session),
+        patch.object(service, "_send", new=_send_returning(403)),
         pytest.raises(BabelioBlockedError),
     ):
         await service._fetch_page("https://www.babelio.com/livres/Test/1")
@@ -132,17 +78,7 @@ async def test_fetch_page_raises_blocked_error_on_403(service):
 @pytest.mark.asyncio
 async def test_fetch_page_still_returns_none_for_non_403_errors(service):
     """_fetch_page doit toujours retourner None pour les erreurs non-403."""
-    mock_response = MagicMock()
-    mock_response.status = 503
-
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(service, "_send", new=_send_returning(503)):
         result = await service._fetch_page("https://www.babelio.com/livres/Test/1")
 
     assert result is None

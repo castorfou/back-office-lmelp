@@ -43,6 +43,7 @@ dependencies = [
     "numpy<2",
     "brotli>=1.2.0",
     "feedparser>=6.0.14",
+    "curl-cffi>=0.17.0",
 ]
 
 [project.optional-dependencies]

@@ -23,7 +23,14 @@ from unittest.mock import AsyncMock, Mock, patch
 import aiohttp
 import pytest
 
-from back_office_lmelp.services.babelio_service import BabelioService
+from back_office_lmelp.services.babelio_service import BabelioResponse, BabelioService
+
+
+def _send_returning(status: int, body: str = "") -> AsyncMock:
+    """Simule le point de sortie HTTP unique de BabelioService."""
+    return AsyncMock(
+        return_value=BabelioResponse(status=status, body=body.encode("cp1252"))
+    )
 
 
 class TestBabelioService:
@@ -51,13 +58,14 @@ class TestBabelioService:
         """Test d'initialisation du service Babelio.
 
         Vérifie que tous les attributs nécessaires sont correctement initialisés :
-        - Session aiohttp pour les requêtes HTTP
         - Rate limiter asyncio.Semaphore(1) pour respecter 1 req/sec
+        - Délais de connexion et de réponse du point de sortie HTTP (_send)
         - URLs et endpoints Babelio corrects
         """
         assert babelio_service is not None
-        assert hasattr(babelio_service, "session")
         assert hasattr(babelio_service, "rate_limiter")
+        assert babelio_service.connect_timeout_sec > 0
+        assert babelio_service.request_timeout_sec > 0
         assert babelio_service.base_url == "https://www.babelio.com"
         assert babelio_service.search_endpoint == "/aj_recherche.php"
 
@@ -805,26 +813,13 @@ class TestBabelioFairSec:
 
         timestamps: list[float] = []
 
-        def make_mock_response():
-            mock_resp = Mock()
-            mock_resp.status = 200
-            mock_resp.text = AsyncMock(return_value="[]")
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
-            return mock_resp
-
-        mock_session = Mock()
-
-        def timed_post(url, **kwargs):
+        async def timed_send(*args, **kwargs):
             timestamps.append(time.time())
-            return make_mock_response()
+            return BabelioResponse(status=200, body=b"[]")
 
-        mock_session.post = timed_post
-        mock_session.closed = False
-        svc.session = mock_session
-
-        await svc.search("auteur-1")
-        await svc.search("auteur-2")
+        with patch.object(svc, "_send", new=AsyncMock(side_effect=timed_send)):
+            await svc.search("auteur-1")
+            await svc.search("auteur-2")
 
         assert len(timestamps) == 2, f"Expected 2 network calls, got {len(timestamps)}"
         gap = timestamps[1] - timestamps[0]
@@ -844,22 +839,8 @@ class TestBabelioCaptchaDetection:
             "<html><body>Please complete the captcha to continue</body></html>"
         )
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=captcha_html)
-
-        mock_ctx = Mock()
-        mock_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_ctx)
-        mock_session_ctx = Mock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-
         with (
-            patch("aiohttp.ClientSession", return_value=mock_session_ctx),
+            patch.object(svc, "_send", new=_send_returning(200, captcha_html)),
             pytest.raises(BabelioCaptchaError),
         ):
             await svc._fetch_page("https://www.babelio.com/livres/test/123")
@@ -870,21 +851,7 @@ class TestBabelioCaptchaDetection:
         svc = BabelioService()
         normal_html = "<html><body><h1>Mon livre</h1></body></html>"
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=normal_html)
-
-        mock_ctx = Mock()
-        mock_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_ctx)
-        mock_session_ctx = Mock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session_ctx):
+        with patch.object(svc, "_send", new=_send_returning(200, normal_html)):
             result = await svc._fetch_page("https://www.babelio.com/livres/test/123")
 
         assert result == normal_html
@@ -916,20 +883,9 @@ class TestBabelioRecentRequests:
     async def test_search_appends_to_recent_requests(self):
         """After a successful search(), get_recent_requests() contains one entry."""
         svc = BabelioService()
+        body = '[{"id":"2180","nom":"Houellebecq","type":"auteurs","url":"/auteur/test/2180"}]'
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(
-            return_value='[{"id":"2180","nom":"Houellebecq","type":"auteurs","url":"/auteur/test/2180"}]'
-        )
-        mock_post_ctx = Mock()
-        mock_post_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_post_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_post_ctx)
-
-        with patch.object(svc, "_get_session", AsyncMock(return_value=mock_session)):
+        with patch.object(svc, "_send", new=_send_returning(200, body)):
             await svc.search("Houellebecq")
 
         requests = svc.get_recent_requests()
@@ -1025,57 +981,26 @@ class TestBabelioServerSideCookie:
         """search() envoie le cookie serveur dans les headers de la requête HTTP."""
         svc = BabelioService()
         svc.set_cookie("jstsToken=SERVER_COOKIE; p=FR")
+        send = _send_returning(200, "[]")
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value="[]")
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-
-        def capture_post(url, **kwargs):
-            # capture headers from the session itself (passed at ClientSession creation)
-            return mock_response
-
-        mock_session.post = capture_post
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.closed = False
-
-        with patch("aiohttp.ClientSession") as mock_cls:
-            mock_cls.return_value = mock_session
-
+        with patch.object(svc, "_send", new=send):
             await svc.search("victor hugo", babelio_cookies="jstsToken=CLIENT_COOKIE")
 
-            # Verify ClientSession was created with the server cookie in headers
-            call_kwargs = mock_cls.call_args[1]
-            assert "Cookie" in call_kwargs.get("headers", {}), (
-                "Le cookie serveur doit être dans les headers de la session temporaire"
-            )
-            assert call_kwargs["headers"]["Cookie"] == "jstsToken=SERVER_COOKIE; p=FR"
+        headers = send.await_args.args[2]
+        assert headers["Cookie"] == "jstsToken=SERVER_COOKIE; p=FR"
 
     @pytest.mark.asyncio
-    async def test_search_without_cookie_uses_default_session(self):
-        """search() sans cookie utilise la session persistante (pas de session temporaire)."""
+    async def test_search_without_cookie_sends_default_cookies(self):
+        """search() sans cookie envoie les cookies génériques (pays, disclaimer)."""
         svc = BabelioService()
-        # No stored cookie
+        send = _send_returning(200, "[]")
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value="[]")
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_response)
-        mock_session.closed = False
-        svc.session = mock_session
-
-        with patch("aiohttp.ClientSession") as mock_cls:
+        with patch.object(svc, "_send", new=send):
             await svc.search("victor hugo")
-            # aiohttp.ClientSession should NOT be called for a new temp session
-            mock_cls.assert_not_called()
+
+        cookie = send.await_args.args[2]["Cookie"]
+        assert "p=FR" in cookie
+        assert "disclaimer=1" in cookie
 
     def test_no_in_memory_cache_dict(self):
         """Le cache mémoire _cache ne doit plus exister (remplacé par cache disque)."""
@@ -1093,16 +1018,12 @@ class TestBabelioSearchErrorLogging:
         """search() timeout → entrée dans recent_requests avec status_code=0."""
         svc = BabelioService()
 
-        mock_response = Mock()
-        mock_response.__aenter__ = AsyncMock(side_effect=TimeoutError("timeout"))
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_response)
-        mock_session.closed = False
-        svc.session = mock_session
-
-        with pytest.raises(TimeoutError):
+        with (
+            patch.object(
+                svc, "_send", new=AsyncMock(side_effect=TimeoutError("timeout"))
+            ),
+            pytest.raises(TimeoutError),
+        ):
             await svc.search("victor hugo")
 
         requests = svc.get_recent_requests()
@@ -1112,22 +1033,17 @@ class TestBabelioSearchErrorLogging:
         assert requests[0]["term_or_url"] == "victor hugo"
 
     @pytest.mark.asyncio
-    async def test_client_error_logs_request_with_status_0(self):  # noqa: E501
-        """search() ClientError → entrée dans recent_requests avec status_code=0."""
+    async def test_client_error_logs_request_with_status_0(self):
+        """search() erreur réseau → entrée dans recent_requests avec status_code=0."""
+        from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
+
         svc = BabelioService()
+        refused = AsyncMock(side_effect=CurlConnectionError("conn refused"))
 
-        mock_response = Mock()
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientError("conn refused")
-        )
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_response)
-        mock_session.closed = False
-        svc.session = mock_session
-
-        with pytest.raises(aiohttp.ClientError):
+        with (
+            patch.object(svc, "_send", new=refused),
+            pytest.raises(aiohttp.ClientError),
+        ):
             await svc.search("victor hugo")
 
         requests = svc.get_recent_requests()
@@ -1151,22 +1067,7 @@ class TestBabelioPageCache:
         html = "<html><body>Page Babelio</body></html>"
         url = "https://www.babelio.com/livres/Hugo-Les-Miserables/1234"
 
-        mock_response = Mock()
-        mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=html)
-
-        mock_get_ctx = Mock()
-        mock_get_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_get_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_get_ctx)
-
-        mock_session_ctx = Mock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session_ctx):
+        with patch.object(svc, "_send", new=_send_returning(200, html)):
             result = await svc._fetch_page(url)
 
         assert result == html
@@ -1188,9 +1089,9 @@ class TestBabelioPageCache:
         cache_svc.set_cached(url, "<html>cached</html>", search_type="page")
         svc.cache_service = cache_svc
 
-        with patch("aiohttp.ClientSession") as mock_cls:
+        with patch.object(svc, "_send", new=AsyncMock()) as send:
             result = await svc._fetch_page(url)
-            mock_cls.assert_not_called()
+            send.assert_not_awaited()
 
         assert result == "<html>cached</html>"
 
@@ -1205,7 +1106,7 @@ class TestBabelioPageCache:
         cache_svc.set_cached(url, "<html>cached</html>", search_type="page")
         svc.cache_service = cache_svc
 
-        with patch("aiohttp.ClientSession"):
+        with patch.object(svc, "_send", new=AsyncMock()):
             await svc._fetch_page(url)
 
         requests = svc.get_recent_requests()
@@ -1223,26 +1124,16 @@ class TestBabelioCircuitBreaker:
         from back_office_lmelp.services.babelio_service import BabelioBlockedError
 
         svc = BabelioService()
+        send = _send_returning(403)
 
-        # Simuler un 403 initial
-        mock_response_403 = Mock()
-        mock_response_403.status = 403
-        mock_response_403.__aenter__ = AsyncMock(return_value=mock_response_403)
-        mock_response_403.__aexit__ = AsyncMock(return_value=False)
+        with patch.object(svc, "_send", new=send):
+            with pytest.raises(BabelioBlockedError):
+                await svc.search("victor hugo")
+            # Deuxième appel: doit lever sans appel réseau
+            with pytest.raises(BabelioBlockedError):
+                await svc.search("zola")
 
-        mock_session = Mock()
-        mock_session.post = Mock(return_value=mock_response_403)
-        mock_session.closed = False
-        svc.session = mock_session
-
-        with pytest.raises(BabelioBlockedError):
-            await svc.search("victor hugo")
-
-        # Deuxième appel: doit lever sans appel réseau
-        call_count_before = mock_session.post.call_count
-        with pytest.raises(BabelioBlockedError):
-            await svc.search("zola")
-        assert mock_session.post.call_count == call_count_before  # aucun appel réseau
+        assert send.await_count == 1
 
     @pytest.mark.asyncio
     async def test_fetch_page_after_403_raises_without_network(self):
@@ -1250,33 +1141,16 @@ class TestBabelioCircuitBreaker:
         from back_office_lmelp.services.babelio_service import BabelioBlockedError
 
         svc = BabelioService()
+        send = _send_returning(403)
 
-        # Simuler un 403 initial sur _fetch_page
-        mock_response_403 = Mock()
-        mock_response_403.status = 403
-
-        mock_get_ctx = Mock()
-        mock_get_ctx.__aenter__ = AsyncMock(return_value=mock_response_403)
-        mock_get_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = Mock()
-        mock_session.get = Mock(return_value=mock_get_ctx)
-
-        mock_session_ctx = Mock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch("aiohttp.ClientSession", return_value=mock_session_ctx),
-            pytest.raises(BabelioBlockedError),
-        ):
-            await svc._fetch_page("https://www.babelio.com/livres/test/123")
-
-        # Deuxième appel: doit lever sans appel réseau
-        with patch("aiohttp.ClientSession") as mock_cls:
+        with patch.object(svc, "_send", new=send):
+            with pytest.raises(BabelioBlockedError):
+                await svc._fetch_page("https://www.babelio.com/livres/test/123")
+            # Deuxième appel: doit lever sans appel réseau
             with pytest.raises(BabelioBlockedError):
                 await svc._fetch_page("https://www.babelio.com/livres/other/456")
-            mock_cls.assert_not_called()
+
+        assert send.await_count == 1
 
     def test_set_cookie_resets_circuit_breaker(self):
         """set_cookie() doit réinitialiser l'état bloqué du circuit breaker."""
@@ -1297,32 +1171,8 @@ class TestBabelioCircuitBreaker:
         svc.set_cookie("jstsToken=newcookie")
         assert svc._circuit_open is False
 
-        # La prochaine requête doit passer (pas lever BabelioBlockedError immédiatement).
-        # search() avec cookie crée une session temporaire aiohttp.ClientSession directement
-        # (pas via svc.session) → on doit patcher aiohttp.ClientSession dans le module.
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value=[
-                {"id": "1", "prenoms": "Victor", "nom": "Hugo", "type": "auteurs"}
-            ]
-        )
-
-        mock_post_ctx = AsyncMock()
-        mock_post_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_post_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session_obj = AsyncMock()
-        mock_session_obj.post = Mock(return_value=mock_post_ctx)
-
-        mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session_obj)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-
-        with patch(
-            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
-            return_value=mock_session_ctx,
-        ):
+        body = '[{"id": "1", "prenoms": "Victor", "nom": "Hugo", "type": "auteurs"}]'
+        with patch.object(svc, "_send", new=_send_returning(200, body)):
             # Ne doit pas lever BabelioBlockedError
             result = await svc.search("victor hugo")
         assert isinstance(result, list)

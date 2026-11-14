@@ -6,9 +6,8 @@ un timeout de connexion. Continuer d'envoyer des requêtes pendant un ban ne ser
 à rien : la première ouvre le circuit, les suivantes ne partent plus.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import aiohttp
 import pytest
 
 import back_office_lmelp.services.babelio_service as babelio_module
@@ -17,41 +16,8 @@ import back_office_lmelp.services.babelio_service as babelio_module
 # Classes lues dans le module à l'exécution : tests/test_babelio_service.py
 # recharge ce module (importlib.reload), ce qui recrée BabelioBlockedError.
 
-
-class _TimingOutRequest:
-    """Requête aiohttp dont la connexion expire, comme lors d'un ban IP."""
-
-    async def __aenter__(self):
-        raise aiohttp.ConnectionTimeoutError("Connection timeout to host")
-
-    async def __aexit__(self, *args):
-        return False
-
-
-class _TimingOutSession:
-    def __init__(self, *args, **kwargs):
-        self.calls = 0
-
-    def post(self, url, **kwargs):
-        self.calls += 1
-        return _TimingOutRequest()
-
-    def get(self, url, **kwargs):
-        self.calls += 1
-        return _TimingOutRequest()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    @property
-    def closed(self):
-        return False
-
-    async def close(self):
-        pass
+# Adresse réservée à la documentation (RFC 5737) : la connexion n'aboutit jamais
+UNREACHABLE_URL = "http://192.0.2.1/livres/A/1"
 
 
 @pytest.fixture
@@ -61,27 +27,40 @@ def service():
     return service
 
 
+def _connect_timeout() -> AsyncMock:
+    return AsyncMock(
+        side_effect=babelio_module.BabelioConnectTimeoutError("Connection timed out")
+    )
+
+
 @pytest.mark.asyncio
 async def test_search_connection_timeout_blocks_following_requests(service):
-    session = _TimingOutSession()
-    with patch.object(service, "_get_session", new=AsyncMock(return_value=session)):
+    with patch.object(service, "_send", new=_connect_timeout()) as send:
         with pytest.raises(TimeoutError):
             await service.search("L'oiseau des Français")
         with pytest.raises(babelio_module.BabelioBlockedError):
             await service.search("Ni de lait, ni de laine")
-    assert session.calls == 1
+    assert send.await_count == 1
 
 
 @pytest.mark.asyncio
 async def test_fetch_page_connection_timeout_blocks_following_requests(service):
-    session = _TimingOutSession()
-    client_session = MagicMock(return_value=session)
-    with patch(
-        "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
-        client_session,
-    ):
+    with patch.object(service, "_send", new=_connect_timeout()) as send:
         with pytest.raises(TimeoutError):
             await service._fetch_page("https://www.babelio.com/livres/A/1")
         with pytest.raises(babelio_module.BabelioBlockedError):
             await service._fetch_page("https://www.babelio.com/livres/B/2")
-    assert session.calls == 1
+    assert send.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_real_transport_reports_connection_timeout(service):
+    """curl_cffi signale « Connection timed out » par un Timeout générique."""
+    service.connect_timeout_sec = 0.5
+    try:
+        await service._send("GET", UNREACHABLE_URL, headers={})
+    except babelio_module.BabelioConnectTimeoutError:
+        return
+    except Exception as e:  # réseau qui refuse au lieu d'ignorer (CI, sandbox)
+        pytest.skip(f"Adresse injoignable sans timeout dans cet environnement: {e}")
+    pytest.fail("La connexion vers une adresse muette aurait dû expirer")

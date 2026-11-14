@@ -17,11 +17,11 @@ Le problème (Issue #167):
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from back_office_lmelp.services.babelio_service import BabelioService
+from back_office_lmelp.services.babelio_service import BabelioResponse, BabelioService
 
 
 # Fixture: VRAIE réponse AJAX JSON de Babelio (curl -X POST .../aj_recherche.php)
@@ -93,17 +93,13 @@ async def test_search_ajax_preserves_special_characters():
     """
     service = BabelioService()
 
-    # Mock de la réponse HTTP avec la VRAIE fixture API
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=BABELIO_AJAX_RESPONSE_REAL)
+    # Babelio renvoie des octets Windows-1252 : la VRAIE fixture API, encodée
+    # comme sur le réseau, doit être décodée en cp1252 par le service
+    response = BabelioResponse(
+        status=200, body=BABELIO_AJAX_RESPONSE_REAL.encode("cp1252")
+    )
 
-    # Mock de la session
-    mock_session = MagicMock()
-    mock_session.post.return_value.__aenter__.return_value = mock_response
-    mock_session.post.return_value.__aexit__.return_value = None
-
-    with patch.object(service, "_get_session", return_value=mock_session):
+    with patch.object(service, "_send", new=AsyncMock(return_value=response)):
         results = await service.search("Leïla Slimani")
 
     # Vérifier que les caractères spéciaux sont préservés (VRAIES données)

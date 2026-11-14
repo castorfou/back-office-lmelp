@@ -24,6 +24,16 @@
           <div class="stat-row">
             <span
               class="stat-label stat-label-help"
+              title="Babelio émet le cookie pour le navigateur qui l'a obtenu : les requêtes partent avec le User-Agent de ce navigateur, transmis à l'enregistrement du cookie, et l'empreinte réseau d'un Firefox."
+            >Identité envoyée :</span>
+            <span class="stat-value stat-value-wrap" data-test="browser-identity">
+              <template v-if="status.browser_user_agent">{{ status.browser_user_agent }}</template>
+              <template v-else>Firefox par défaut (aucun navigateur enregistré)</template>
+            </span>
+          </div>
+          <div class="stat-row">
+            <span
+              class="stat-label stat-label-help"
               title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping) ou n'aboutit pas (ban IP : connexion qui expire), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Il se referme automatiquement dès qu'un cookie valide est enregistré ci-dessous."
             >Circuit breaker :</span>
             <span class="stat-value">
@@ -513,6 +523,13 @@ h2 {
 .stat-label { color: #666; flex: 0 0 280px; }
 .stat-label-help { cursor: help; border-bottom: 1px dotted #999; }
 .stat-value { font-weight: 600; }
+.stat-value-wrap { font-weight: 400; font-size: 0.85rem; overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .stat-row { flex-direction: column; gap: 0.2rem; }
+  .stat-label { flex: none; }
+  .stat-value { overflow-wrap: anywhere; }
+}
 
 .refresh-btn { margin-top: 1rem; }
 
