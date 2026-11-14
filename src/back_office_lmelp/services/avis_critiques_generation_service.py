@@ -9,6 +9,7 @@ from typing import Any
 
 import openai
 
+from ..utils.markdown_tables import ensure_table_separators
 from .avis_extraction_service import AvisExtractionService
 
 
@@ -185,6 +186,9 @@ class AvisCritiquesGenerationService:
                         "transcription de l'épisode."
                     )
 
+                # Le LLM omet parfois la ligne |---| : le tableau ne serait pas rendu
+                summary = ensure_table_separators(summary)
+
                 # Validation format markdown
                 validation = self._validate_markdown_format(summary)
 
@@ -206,7 +210,7 @@ class AvisCritiquesGenerationService:
                         f"✅ Phase 1 réussie: {len(summary)} caractères générés"
                     )
 
-                return summary  # type: ignore[no-any-return]
+                return summary
 
             except TimeoutError as e:
                 if attempt < max_retries:
@@ -524,6 +528,9 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
                 logger.warning(f"⚠️  Phase 2 tronquée, retour à Phase 1: {diagnostic}")
                 return summary_phase1
 
+            # La Phase 2 supprime parfois la ligne |---| en compactant les tableaux
+            summary_phase2 = ensure_table_separators(summary_phase2)
+
             # Validation: structure préservée
             validation = self._validate_markdown_format(summary_phase2)
 
@@ -537,7 +544,7 @@ Sois EXHAUSTIF et PRÉCIS. Capture TOUS les livres DU PROGRAMME, TOUS les critiq
                 # Log extrait Phase 2 pour debug (premiers 500 chars)
                 logger.info(f"📄 PHASE 2 OUTPUT (extrait):\n{summary_phase2[:500]}...")
 
-            return summary_phase2  # type: ignore[no-any-return]
+            return summary_phase2
 
         except Exception as e:
             logger.warning(f"Erreur Phase 2, fallback Phase 1: {e}")

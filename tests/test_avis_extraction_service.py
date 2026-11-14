@@ -15,8 +15,12 @@ from fixtures.avis_summary_samples import (
     SUMMARY_2025_10_26,
     SUMMARY_2025_12_21,
 )
+from fixtures.summary_without_table_separators import (
+    SUMMARY_WITHOUT_TABLE_SEPARATORS_20240721,
+)
 
 from back_office_lmelp.services.avis_extraction_service import AvisExtractionService
+from back_office_lmelp.utils.markdown_tables import ensure_table_separators
 
 
 class TestParseNoteFromText:
@@ -1588,3 +1592,28 @@ class TestMatchingLivreParLivre:
         # Le calcul du badge se fait au niveau de l'API, mais ici on vérifie
         # que la condition est remplie : aucun avis non matché
         assert len(unmatched) == 0  # → Badge 🟢
+
+
+class TestExtractionWithoutTableSeparators:
+    """L'extraction lit les tableaux avec et sans ligne |---| (Issue #347)."""
+
+    @pytest.mark.parametrize("repaired", [False, True])
+    def test_extracts_all_reviews_of_real_summary(self, repaired):
+        summary = SUMMARY_WITHOUT_TABLE_SEPARATORS_20240721
+        if repaired:
+            summary = ensure_table_separators(summary)
+
+        avis = AvisExtractionService().extract_avis_from_summary(summary, "emission")
+
+        programme = [a for a in avis if a["section"] == "programme"]
+        coups_de_coeur = [a for a in avis if a["section"] == "coup_de_coeur"]
+        assert {a["livre_titre_extrait"] for a in programme} == {
+            "L'Imposture",
+            "L'oiseau des Français",
+            "Ni de lait ni de laine",
+            "Bungalow",
+        }
+        assert len(programme) == 15
+        assert all(a["note"] is not None for a in programme)
+        assert len(coups_de_coeur) == 5
+        assert coups_de_coeur[0]["critique_nom_extrait"] == "Nelly Kaprielian"

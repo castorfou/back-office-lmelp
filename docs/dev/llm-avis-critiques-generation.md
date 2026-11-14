@@ -141,6 +141,13 @@ for attempt, temperature in enumerate(PHASE1_ATTEMPT_TEMPERATURES):
 | ... | ... | ... | Critique 1 | 9.0 | ... |
 ```
 
+**Réparation des tableaux** : le LLM omet parfois la ligne de séparation `|---|...|` sous l'en-tête d'un tableau (en Phase 2 surtout, quand il compacte les colonnes). Sans elle, le rendu markdown du frontend affiche le tableau en texte continu. Avant toute validation, Phase 1 et Phase 2 passent leur sortie à `ensure_table_separators()` (`utils/markdown_tables.py`) : sous chaque en-tête non suivi d'un séparateur, la fonction insère `|---|` répété autant de fois que l'en-tête a de colonnes. Elle n'appelle pas le LLM, est idempotente et laisse intacts les séparateurs existants (`|---|`, `|:-:|`, `---|---`). Une Phase 2 sans séparateur garde donc ses corrections de noms au lieu de retomber sur la Phase 1.
+
+```python
+summary = ensure_table_separators(summary)
+validation = self._validate_markdown_format(summary)
+```
+
 **Validation format** :
 ```python
 def _is_valid_markdown_format(summary: str) -> bool:
@@ -209,6 +216,9 @@ timeout=60  # 1 minute
 if response.choices[0].finish_reason == "length":
     logger.warning("Phase 2 tronquée, retour à Phase 1")
     return summary_phase1
+
+# Ligne |---| manquante sous un en-tête : réparée, pas rejetée
+summary_phase2 = ensure_table_separators(summary_phase2)
 
 # Phase 2 doit préserver format markdown Phase 1
 validation = self._validate_markdown_format(summary_phase2)
