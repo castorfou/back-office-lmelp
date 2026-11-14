@@ -1043,54 +1043,43 @@ if not result:
         result = scrape_from_author_page(result)
 ```
 
-### HTTP Gateway Bypass — Raw `session.get()` vs Centralized `_fetch_page()`
+### Babelio HTTP — One Gateway, a Firefox Fingerprint
 
-**CRITICAL**: When a service exposes a centralized HTTP gateway method
-(e.g. `BabelioService._fetch_page()`) that applies specific headers and an
-authentication cookie, never call `session.get(url)` directly via
-`_get_session()` elsewhere in the codebase — even for "just a quick HTTP
-200 check".
+**CRITICAL**: every request to babelio.com goes through `BabelioService._fetch_page()`
+(pages) or `search()` (AJAX), which both end in `_send()`, the single HTTP exit.
+Never reach babelio.com with `aiohttp`, `httpx` or a raw `curl_cffi` session elsewhere,
+even for "just a quick 200 check".
 
 ```python
-# ❌ WRONG - raw session bypasses page headers AND the stored auth cookie
-session = await babelio_service._get_session()
-async with session.get(url) as response:
-    if response.status != 200:
-        return None
-    html = await response.text()
+# ❌ WRONG - bypasses rate limiting, cookie age check, circuit breaker and cache,
+#    and presents a Python TLS fingerprint
+async with aiohttp.ClientSession() as session:
+    async with session.get(babelio_url) as response: ...
 
-# ✅ CORRECT - goes through the gateway that applies page headers + cookie
-html = await babelio_service._fetch_page(url)
+# ✅ CORRECT
+html = await babelio_service._fetch_page(babelio_url)
 if html is None:
     return None
 ```
 
-**Why this is dangerous**: `_get_session()` creates a session with a
-default header profile meant for API/AJAX calls (`Content-Type:
-application/json`, `X-Requested-With: XMLHttpRequest`) and without the
-site's stored auth cookie — only generic static cookies are set once at
-session creation. `_fetch_page()` uses a different header profile (real
-page navigation headers) and injects the stored cookie on every call. A
-site can accept the gateway's requests while silently blocking (403) the
-same URL fetched through a raw `session.get()` — even seconds after a
-successful `_fetch_page()` call to a nearly-identical URL, since the two
-code paths use completely different request fingerprints. This produces a
-confusing symptom: "authentication looks fine (cookie present, no ban),
-but this one specific check keeps failing."
+**Why**: Babelio's anti-bot checks the client's identity, not only its rate. A 403
+turns into a ~24 h firewall ban of the IP, and one request whose fingerprint differs
+from the browser that obtained the `jstsToken` is enough. `_send()` uses `curl_cffi`
+with `impersonate=IMPERSONATE_BROWSER` (Firefox TLS/JA4 + HTTP/2) and the browser's
+own `User-Agent` / `Accept-Language`, captured from the `POST /api/babelio/cookie`
+request (`set_cookie(..., user_agent=, accept_language=)`). aiohttp speaks HTTP/1.1
+with an OpenSSL fingerprint: distinguishable before any header is read.
 
-**How to find every occurrence**: grep the whole codebase for
-`_get_session()` (or the service's raw-session accessor) — one already-
-fixed call site is not proof the others were fixed too; each was
-introduced independently over time by different features/scripts reaching
-for "a quick way to hit this URL".
+**Find every occurrence**: grep for `babelio.com` and `ClientSession` together; each
+bypass was added independently by a feature reaching for "a quick way to hit this URL"
+(`fetch_author_name_from_url()` was one).
 
-**Testing implication**: a mock that stubs `_get_session()`/`session.get()`
-for such a function will keep passing after you migrate the function to
-`_fetch_page()` — because a full `AsyncMock()` auto-mocks the new method
-call too and returns a truthy non-`None` object. Update the test's mock to
-target `_fetch_page()` explicitly, and assert it was called with the
-expected URL, to actually verify the fix rather than accidentally keep
-testing the old code path.
+**Testing**: mock `_send()` (it returns a `BabelioResponse(status, body)`; encode
+real fixtures in `cp1252` like Babelio does), never `aiohttp.ClientSession`: such a
+patch no longer intercepts anything and the test silently opens a real connection
+(slow, and harmful from a banned IP). Check the headers actually sent against a real
+local server (`aiohttp.test_utils.TestServer`), as `tests/test_babelio_browser_identity.py`
+does.
 
 ### Subprocess Calls to External System Tools — asyncio, Never Blocking
 

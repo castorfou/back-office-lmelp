@@ -167,6 +167,8 @@ Une confirmation "✓ Cookie enregistré" s'affiche brièvement, et le statut pa
 
 **Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (300 s par défaut), refuse d'appeler Babelio plutôt que de risquer un 403. Les pages ne renvoient pas non plus d'elles-mêmes le cookie gardé dans le navigateur : seul le bouton **Enregistrer** le transmet au serveur.
 
+**Les requêtes portent l'identité de votre navigateur** : en cliquant sur **Enregistrer**, le navigateur transmet aussi son User-Agent et sa langue. Le serveur les reprend pour toutes les requêtes Babelio, avec l'empreinte réseau d'un Firefox (TLS et HTTP/2). Babelio émet le `jstsToken` pour le navigateur qui a résolu son défi anti-robots : présenté par un client différent, le jeton trahit un robot. Récupérez donc le cookie avec le navigateur depuis lequel vous utilisez lmelp. La page **Contrôle Babelio** (`GET /api/babelio/status`) affiche l'identité retenue.
+
 !!! warning "Un 403 Babelio devient un ban IP"
     Quelques minutes après un 403, Babelio ignore toute connexion venant de l'IP
     (aucune réponse, même pas une erreur) pendant environ 24 h. Le serveur
