@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +11,9 @@ from openai.types.chat.chat_completion import Choice
 
 from back_office_lmelp.services.avis_critiques_generation_service import (
     AvisCritiquesGenerationService,
+)
+from tests.fixtures.summary_without_table_separators import (
+    SUMMARY_WITHOUT_TABLE_SEPARATORS_20240721,
 )
 from tests.fixtures.transcription_samples import (
     EXPECTED_SUMMARY_PHASE1_SAMPLE_1,
@@ -325,6 +329,61 @@ class TestValidateCriticEntries:
         )
 
         assert result == EXPECTED_SUMMARY_PHASE1_SAMPLE_1
+
+
+def _table_headers_with_next_line(summary: str) -> list[tuple[str, str]]:
+    """Couples (en-tête de tableau, ligne suivante) du résumé."""
+    lines = summary.split("\n")
+    return [
+        (line, lines[i + 1] if i + 1 < len(lines) else "")
+        for i, line in enumerate(lines)
+        if line.strip().startswith("|")
+        and (i == 0 or not lines[i - 1].strip().startswith("|"))
+    ]
+
+
+def _column_count(row: str) -> int:
+    return len(row.strip().strip("|").split("|"))
+
+
+class TestTableSeparators:
+    """Un tableau sans ligne |---| n'est pas rendu comme tableau (Issue #347)."""
+
+    def _assert_tables_render(self, summary: str) -> None:
+        headers = _table_headers_with_next_line(summary)
+        assert [_column_count(header) for header, _ in headers] == [8, 6]
+        for header, next_line in headers:
+            assert re.fullmatch(r"\|(-{3,}\|)+", next_line.strip()), next_line[:80]
+            assert _column_count(next_line) == _column_count(header)
+
+    @pytest.mark.asyncio
+    async def test_phase2_output_without_separators_is_repaired(self):
+        """Cas réel du 21/07/2024 : la Phase 2 a supprimé les séparateurs."""
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            SUMMARY_WITHOUT_TABLE_SEPARATORS_20240721
+        )
+
+        result = await service.enhance_summary_phase2(
+            EXPECTED_SUMMARY_PHASE1_SAMPLE_1, {"critiques": ["Nelly Kaprielian"]}
+        )
+
+        # La correction des noms de la Phase 2 est conservée
+        assert "**Nelly Kaprielian**" in result
+        self._assert_tables_render(result)
+
+    @pytest.mark.asyncio
+    async def test_phase1_output_without_separators_is_repaired(self):
+        service = AvisCritiquesGenerationService()
+        service.client = MagicMock()
+        service.client.chat.completions.create.return_value = _chat_completion(
+            SUMMARY_WITHOUT_TABLE_SEPARATORS_20240721
+        )
+
+        result = await service.generate_summary_phase1("transcription", "2024-07-21")
+
+        self._assert_tables_render(result)
 
 
 class TestValidateMarkdownFormat:
