@@ -24,11 +24,11 @@ def test_babelio_service_uses_disk_cache(tmp_path):
     # attach the disk cache instance (integration point to implement)
     service.cache_service = cache
 
-    # prevent network usage: _get_session should not be called
+    # prevent network usage: _send should not be called
     async def _fail_network(*args, **kwargs):
         raise RuntimeError("network should not be called when cache hit")
 
-    service._get_session = _fail_network
+    service._send = _fail_network
 
     # call search synchronously via asyncio.run
     result = asyncio.run(service.search(term))

@@ -6,33 +6,22 @@ de refléter un état réellement à jour au lieu de dépendre du hasard des
 dernières requêtes applicatives.
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from back_office_lmelp.services.babelio_service import (
     BabelioBlockedError,
+    BabelioResponse,
     BabelioService,
 )
 
 
-def _mock_session_ctx(status: int, text: str = "<html>OK</html>") -> Mock:
-    """Construit un mock aiohttp.ClientSession context manager pour un GET donné."""
-    mock_response = Mock()
-    mock_response.status = status
-    mock_response.text = AsyncMock(return_value=text)
-
-    mock_get_ctx = Mock()
-    mock_get_ctx.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_get_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    mock_session = Mock()
-    mock_session.get = Mock(return_value=mock_get_ctx)
-
-    mock_session_ctx = Mock()
-    mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-    return mock_session_ctx
+def _send_returning(status: int, text: str = "<html>OK</html>") -> AsyncMock:
+    """Simule le point de sortie HTTP unique de BabelioService."""
+    return AsyncMock(
+        return_value=BabelioResponse(status=status, body=text.encode("cp1252"))
+    )
 
 
 @pytest.mark.asyncio
@@ -40,7 +29,7 @@ async def test_health_check_success_returns_ok_true():
     """health_check() retourne ok=True quand la page d'accueil répond 200."""
     svc = BabelioService()
 
-    with patch("aiohttp.ClientSession", return_value=_mock_session_ctx(200)):
+    with patch.object(svc, "_send", new=_send_returning(200)):
         result = await svc.health_check()
 
     assert result["ok"] is True
@@ -51,7 +40,7 @@ async def test_health_check_success_logs_request():
     """health_check() alimente le buffer recent_requests en cas de succès."""
     svc = BabelioService()
 
-    with patch("aiohttp.ClientSession", return_value=_mock_session_ctx(200)):
+    with patch.object(svc, "_send", new=_send_returning(200)):
         await svc.health_check()
 
     recent = svc.get_recent_requests()
@@ -65,7 +54,7 @@ async def test_health_check_403_returns_ok_false():
     """health_check() retourne ok=False quand Babelio répond 403 (bloqué)."""
     svc = BabelioService()
 
-    with patch("aiohttp.ClientSession", return_value=_mock_session_ctx(403)):
+    with patch.object(svc, "_send", new=_send_returning(403)):
         result = await svc.health_check()
 
     assert result["ok"] is False
@@ -77,10 +66,10 @@ async def test_health_check_circuit_already_open_returns_ok_false_without_networ
     svc = BabelioService()
     svc._circuit_open = True
 
-    with patch("aiohttp.ClientSession") as mock_session_cls:
+    with patch.object(svc, "_send", new=AsyncMock()) as send:
         result = await svc.health_check()
 
-    mock_session_cls.assert_not_called()
+    send.assert_not_awaited()
     assert result["ok"] is False
 
 
@@ -94,7 +83,7 @@ async def test_health_check_circuit_already_open_logs_request():
     svc = BabelioService()
     svc._circuit_open = True
 
-    with patch("aiohttp.ClientSession"):
+    with patch.object(svc, "_send", new=AsyncMock()):
         await svc.health_check()
 
     recent = svc.get_recent_requests()
@@ -107,7 +96,7 @@ async def test_health_check_timeout_returns_ok_false():
     """health_check() retourne ok=False (sans exception) sur timeout réseau."""
     svc = BabelioService()
 
-    with patch("aiohttp.ClientSession", side_effect=TimeoutError("boom")):
+    with patch.object(svc, "_send", new=AsyncMock(side_effect=TimeoutError("boom"))):
         result = await svc.health_check()
 
     assert result["ok"] is False
@@ -118,7 +107,7 @@ async def test_health_check_timeout_logs_request_with_status_zero():
     """health_check() journalise un status_code=0 sur timeout (même pattern que search())."""
     svc = BabelioService()
 
-    with patch("aiohttp.ClientSession", side_effect=TimeoutError("boom")):
+    with patch.object(svc, "_send", new=AsyncMock(side_effect=TimeoutError("boom"))):
         await svc.health_check()
 
     recent = svc.get_recent_requests()
@@ -148,7 +137,7 @@ async def test_health_check_bypasses_cache_and_logs_non_cache_hit(tmp_path):
         svc.base_url, "<html>cached</html>", search_type="page"
     )
 
-    with patch("aiohttp.ClientSession", return_value=_mock_session_ctx(200)):
+    with patch.object(svc, "_send", new=_send_returning(200)):
         result = await svc.health_check()
 
     assert result["ok"] is True

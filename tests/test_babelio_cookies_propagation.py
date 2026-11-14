@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from back_office_lmelp.services.babelio_service import BabelioService
+from back_office_lmelp.services.babelio_service import BabelioResponse, BabelioService
 
 
 @pytest.fixture
@@ -53,23 +53,19 @@ def test_get_page_headers_no_cookie_when_none(service):
 # ============================================================
 
 
+def _send_returning(status: int, body: str = "") -> AsyncMock:
+    """Simule le point de sortie HTTP unique de BabelioService."""
+    return AsyncMock(
+        return_value=BabelioResponse(status=status, body=body.encode("cp1252"))
+    )
+
+
 @pytest.mark.asyncio
 async def test_fetch_page_returns_html_on_success(service):
     """_fetch_page doit retourner le HTML de la page."""
     html = "<html><body><h1>Titre</h1></body></html>"
 
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=html)
-
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(service, "_send", new=_send_returning(200, html)):
         result = await service._fetch_page("https://www.babelio.com/livres/Test/1")
 
     assert result == html
@@ -80,17 +76,7 @@ async def test_fetch_page_returns_none_on_non_200(service):
     """_fetch_page doit retourner None si le statut HTTP n'est pas 200 (hors 403,
     qui a son propre comportement dédié — voir test_babelio_403_detection.py).
     """
-    mock_response = MagicMock()
-    mock_response.status = 503
-
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    mock_session.get = MagicMock()
-    mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(service, "_send", new=_send_returning(503)):
         result = await service._fetch_page("https://www.babelio.com/livres/Test/1")
 
     assert result is None
@@ -98,31 +84,18 @@ async def test_fetch_page_returns_none_on_non_200(service):
 
 @pytest.mark.asyncio
 async def test_fetch_page_passes_cookies_in_headers(service):
-    """_fetch_page doit passer les cookies dans les headers de la session."""
-    html = "<html><body>ok</body></html>"
+    """_fetch_page doit passer les cookies dans les en-têtes de la requête."""
     cookies = "disclaimer=1; p=FR; session=xyz"
-    captured_headers = {}
+    send = _send_returning(200, "<html><body>ok</body></html>")
 
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=html)
-
-    def make_session(headers=None, timeout=None, **kwargs):
-        captured_headers.update(headers or {})
-        mock_session = MagicMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-        mock_session.get = MagicMock()
-        mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-        return mock_session
-
-    with patch("aiohttp.ClientSession", side_effect=make_session):
+    with patch.object(service, "_send", new=send):
         await service._fetch_page(
             "https://www.babelio.com/livres/Test/1", babelio_cookies=cookies
         )
 
-    assert captured_headers.get("Cookie") == cookies
+    method, url, headers = send.await_args.args
+    assert (method, url) == ("GET", "https://www.babelio.com/livres/Test/1")
+    assert headers["Cookie"] == cookies
 
 
 @pytest.mark.asyncio
@@ -130,26 +103,14 @@ async def test_fetch_page_applies_rate_limiting(service):
     """_fetch_page doit respecter min_interval entre deux appels consécutifs."""
     import time
 
-    html = "<html><body>ok</body></html>"
     service.min_interval = 0.1  # Court pour le test
-
     call_times = []
 
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=html)
-
-    def make_session(headers=None, timeout=None, **kwargs):
+    async def fake_send(*args, **kwargs):
         call_times.append(time.time())
-        mock_session = MagicMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-        mock_session.get = MagicMock()
-        mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
-        return mock_session
+        return BabelioResponse(status=200, body=b"<html><body>ok</body></html>")
 
-    with patch("aiohttp.ClientSession", side_effect=make_session):
+    with patch.object(service, "_send", new=AsyncMock(side_effect=fake_send)):
         await service._fetch_page("https://www.babelio.com/livres/T1/1")
         await service._fetch_page("https://www.babelio.com/livres/T2/2")
 
@@ -486,39 +447,12 @@ async def test_search_injects_cookies_into_session_headers(service):
 @pytest.mark.asyncio
 async def test_search_no_cookie_header_when_none(service):
     """search() sans babelio_cookies ne doit pas envoyer un Cookie header vide (Issue #247)."""
-    captured_headers: dict = {}
+    send = _send_returning(200, "[]")
 
-    class FakeResponse:
-        status = 200
-
-        async def text(self, encoding=None):
-            return "[]"
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-    class FakeSession:
-        def post(self, url, **kwargs):
-            captured_headers.update(dict(kwargs.get("headers", {})))
-            return FakeResponse()
-
-        async def close(self):
-            pass
-
-        @property
-        def closed(self):
-            return False
-
-    with patch.object(
-        service, "_get_session", new=AsyncMock(return_value=FakeSession())
-    ):
+    with patch.object(service, "_send", new=send):
         await service.search("Murmuration")
 
-    # Cookie header ne doit pas être un string vide ou None
-    cookie_value = captured_headers.get("Cookie")
+    cookie_value = send.await_args.args[2].get("Cookie")
     assert cookie_value is None or cookie_value, (
         "search() sans babelio_cookies ne doit pas injecter un Cookie header vide"
     )

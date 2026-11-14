@@ -6,7 +6,7 @@ son enregistrement et refuse d'appeler Babelio au-delà de
 BABELIO_COOKIE_MAX_AGE_SEC, sans émettre la moindre requête.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -28,29 +28,23 @@ def stale_cookie_service(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_search_with_stale_cookie_sends_no_request(stale_cookie_service):
-    client_session = MagicMock(side_effect=AssertionError("requête HTTP émise"))
+    send = AsyncMock(side_effect=AssertionError("requête HTTP émise"))
     with (
-        patch(
-            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
-            client_session,
-        ),
+        patch.object(stale_cookie_service, "_send", new=send),
         pytest.raises(babelio_module.BabelioBlockedError),
     ):
         await stale_cookie_service.search("Ni de lait, ni de laine")
-    client_session.assert_not_called()
+    send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_fetch_page_with_stale_cookie_sends_no_request(stale_cookie_service):
-    client_session = MagicMock(side_effect=AssertionError("requête HTTP émise"))
+    send = AsyncMock(side_effect=AssertionError("requête HTTP émise"))
     with (
-        patch(
-            "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
-            client_session,
-        ),
+        patch.object(stale_cookie_service, "_send", new=send),
         pytest.raises(babelio_module.BabelioBlockedError),
     ):
         await stale_cookie_service._fetch_page(
             "https://www.babelio.com/livres/Salasc-Ni-de-lait-ni-de-laine/1641697"
         )
-    client_session.assert_not_called()
+    send.assert_not_awaited()

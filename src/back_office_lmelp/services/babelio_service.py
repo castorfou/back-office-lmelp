@@ -29,14 +29,44 @@ import logging
 import os
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
 import aiohttp
 from bs4 import BeautifulSoup
+from curl_cffi.requests import AsyncSession
+from curl_cffi.requests import exceptions as curl_exceptions
 
 
 logger = logging.getLogger(__name__)
+
+
+# Empreinte TLS / HTTP/2 imitée par curl_cffi, et identité par défaut quand
+# aucun navigateur n'a fourni de cookie (cohérente avec cette empreinte).
+IMPERSONATE_BROWSER = "firefox155"
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0"
+)
+DEFAULT_ACCEPT_LANGUAGE = "fr,en-US;q=0.9,en;q=0.8"
+
+
+class BabelioConnectTimeoutError(TimeoutError):
+    """La connexion TCP vers Babelio n'aboutit pas : signature d'un ban IP."""
+
+
+@dataclass
+class BabelioResponse:
+    """Réponse HTTP de Babelio renvoyée par BabelioService._send()."""
+
+    status: int
+    body: bytes
+    headers: dict[str, str] = field(default_factory=dict)
+
+    def text(self, encoding: str = "cp1252") -> str:
+        # Babelio déclare ISO-8859-1 mais utilise des caractères Windows-1252
+        # comme le tiret cadratin (0x96)
+        return self.body.decode(encoding, errors="replace")
 
 
 class BabelioBlockedError(Exception):
@@ -78,7 +108,6 @@ class BabelioService:
         """Initialise le service Babelio avec configuration appropriée."""
         self.base_url = "https://www.babelio.com"
         self.search_endpoint = "/aj_recherche.php"
-        self.session: aiohttp.ClientSession | None = None
         self.rate_limiter = asyncio.Semaphore(1)  # 1 requête simultanée max
         self.last_request_time = 0.0  # Timestamp de la dernière requête
         # Délai minimum entre requêtes (Issue #124 + #245).
@@ -99,6 +128,12 @@ class BabelioService:
         # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
         # jstsToken expiré, et ses 403 se transforment en ban IP d'environ 24 h).
         self._cookie_set_at: float | None = None
+        # Identité du navigateur qui a fourni le cookie : le jstsToken est émis
+        # pour ce navigateur, les requêtes doivent porter le même User-Agent.
+        self._browser_user_agent: str | None = None
+        self._browser_accept_language: str | None = None
+        self.connect_timeout_sec = 10.0
+        self.request_timeout_sec = 30.0
         self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "300"))
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
@@ -164,10 +199,17 @@ class BabelioService:
 
     # ── Cookie management ─────────────────────────────────────────────────
 
-    def set_cookie(self, cookie: str | None) -> None:
+    def set_cookie(
+        self,
+        cookie: str | None,
+        user_agent: str | None = None,
+        accept_language: str | None = None,
+    ) -> None:
         """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
         self._stored_cookie = cookie.strip() if cookie else None
         self._cookie_set_at = time.time() if self._stored_cookie else None
+        self._browser_user_agent = user_agent if self._stored_cookie else None
+        self._browser_accept_language = accept_language if self._stored_cookie else None
         if self._stored_cookie:
             self._circuit_open = False
             logger.info("🔑 Cookie Babelio mis à jour — circuit breaker réinitialisé")
@@ -203,24 +245,18 @@ class BabelioService:
             "circuit breaker ouvert"
         )
 
+    def get_browser_identity(self) -> dict[str, str | None]:
+        """User-Agent et Accept-Language du navigateur qui a fourni le cookie."""
+        return {
+            "user_agent": self._browser_user_agent,
+            "accept_language": self._browser_accept_language,
+        }
+
     def get_cookie(self) -> str | None:
         """Retourne le cookie stocké côté serveur."""
         return self._stored_cookie
 
     # ── HTTP session helpers ───────────────────────────────────────────────
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Récupère ou crée la session HTTP avec configuration appropriée."""
-        if self.session is None or self.session.closed:
-            # Timeout configuration respectueuse
-            timeout = aiohttp.ClientTimeout(total=30, connect=10)
-
-            self.session = aiohttp.ClientSession(
-                timeout=timeout,
-                headers=self._get_default_headers(),
-                cookies=self._get_default_cookies(),
-            )
-        return self.session
 
     def _get_default_headers(self) -> dict[str, str]:
         """Retourne les headers nécessaires pour Babelio.
@@ -230,13 +266,17 @@ class BabelioService:
         return {
             "Content-Type": "application/json",
             "Accept": "application/json, text/javascript, */*; q=0.01",
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
+            "User-Agent": self._browser_user_agent or DEFAULT_USER_AGENT,
             "X-Requested-With": "XMLHttpRequest",
             "Referer": "https://www.babelio.com/recherche.php",
             "Origin": "https://www.babelio.com",
-            "Accept-Language": "fr,en-US;q=0.7,en;q=0.3",
+            "Accept-Language": self._browser_accept_language or DEFAULT_ACCEPT_LANGUAGE,
             "DNT": "1",
             "Sec-GPC": "1",
+            # Requête AJAX same-origin d'un navigateur (moteur de recherche Babelio)
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
         }
 
     def _get_default_cookies(self) -> dict[str, str]:
@@ -251,6 +291,10 @@ class BabelioService:
             "bbacml": "0",  # Cookie marketing
         }
 
+    def _default_cookie_header(self) -> str:
+        """Cookies génériques (pays, disclaimer) en en-tête, faute de cookie stocké."""
+        return "; ".join(f"{k}={v}" for k, v in self._get_default_cookies().items())
+
     def _get_page_headers(self, babelio_cookies: str | None = None) -> dict[str, str]:
         """Retourne les headers navigateur pour le scraping de pages Babelio (Issue #245).
 
@@ -262,21 +306,22 @@ class BabelioService:
                 navigateur sur babelio.com. Si None, aucun cookie n'est ajouté.
 
         Returns:
-            Dict de headers HTTP à utiliser dans aiohttp.ClientSession.
+            Dict de headers HTTP à passer à _send().
         """
         headers: dict[str, str] = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
+            "User-Agent": self._browser_user_agent or DEFAULT_USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "fr,en-US;q=0.7,en;q=0.3",
+            "Accept-Language": self._browser_accept_language or DEFAULT_ACCEPT_LANGUAGE,
             "Referer": "https://www.babelio.com/",
             "DNT": "1",
             "Sec-GPC": "1",
-            "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
+            # Priorité HTTP/2 d'une navigation Firefox
+            "Priority": "u=0, i",
         }
         if babelio_cookies:
             headers["Cookie"] = babelio_cookies
@@ -292,6 +337,46 @@ class BabelioService:
             "je ne suis pas un robot",
         )
         return any(marker in lower for marker in captcha_markers)
+
+    async def _send(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json_body: Any | None = None,
+    ) -> BabelioResponse:
+        """Seul point de sortie HTTP vers Babelio.
+
+        curl_cffi imite l'empreinte TLS et HTTP/2 de Firefox : une requête
+        aiohttp (TLS de Python, HTTP/1.1) se distingue du navigateur qui a
+        obtenu le jstsToken, et Babelio bannit l'IP dès la première requête.
+        Les en-têtes passés remplacent ceux de l'imitation (User-Agent et
+        Accept-Language du navigateur, cookie).
+
+        Raises:
+            BabelioConnectTimeoutError: la connexion n'aboutit pas (ban IP).
+            TimeoutError: la réponse n'arrive pas à temps.
+        """
+        try:
+            async with AsyncSession(impersonate=IMPERSONATE_BROWSER) as session:
+                response = await session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json_body,
+                    timeout=(self.connect_timeout_sec, self.request_timeout_sec),
+                )
+        except curl_exceptions.Timeout as e:
+            if isinstance(e, curl_exceptions.ConnectTimeout) or (
+                "Connection timed out" in str(e)
+            ):
+                raise BabelioConnectTimeoutError(str(e)) from e
+            raise TimeoutError(str(e)) from e
+        return BabelioResponse(
+            status=response.status_code,
+            body=response.content,
+            headers={k.lower(): v for k, v in response.headers.items()},
+        )
 
     async def _fetch_page(
         self,
@@ -344,55 +429,43 @@ class BabelioService:
 
             effective_cookie = self._stored_cookie or babelio_cookies
             page_headers = self._get_page_headers(effective_cookie)
-            timeout = aiohttp.ClientTimeout(total=30, connect=10)
             try:
-                async with (
-                    aiohttp.ClientSession(
-                        headers=page_headers, timeout=timeout
-                    ) as tmp_session,
-                    tmp_session.get(url) as response,
-                ):
-                    if response.status == 403:
-                        logger.warning(
-                            f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
-                        )
-                        self._circuit_open = True
-                        self._log_request(
-                            "page", url, 403, False, (time.time() - t0) * 1000
-                        )
-                        raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
-                    if response.status != 200:
-                        logger.warning(
-                            f"Babelio HTTP {response.status} pour scraping page: {url}"
-                        )
-                        self._log_request(
-                            "page",
-                            url,
-                            response.status,
-                            False,
-                            (time.time() - t0) * 1000,
-                        )
-                        return None
-                    # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                    # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
-                    html = str(await response.text(encoding="cp1252"))
-                    # Detect captcha page (HTTP 200 but challenge content)
-                    if self._is_captcha_page(html):
-                        logger.warning(f"Babelio captcha détecté pour: {url}")
-                        self._log_request(
-                            "page", url, 200, False, (time.time() - t0) * 1000
-                        )
-                        raise BabelioCaptchaError(f"Babelio captcha: {url}")
-                    if self.cache_service is not None:
-                        self.cache_service.set_cached(url, html, search_type="page")
-                    self._log_request(
-                        "page", url, 200, False, (time.time() - t0) * 1000
-                    )
-                    return html
-            except aiohttp.ConnectionTimeoutError:
+                response = await self._send("GET", url, page_headers)
+            except BabelioConnectTimeoutError:
                 self._open_circuit_on_connection_timeout()
                 self._log_request("page", url, 0, False, (time.time() - t0) * 1000)
                 raise
+            if response.status == 403:
+                logger.warning(
+                    f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
+                )
+                self._circuit_open = True
+                self._log_request("page", url, 403, False, (time.time() - t0) * 1000)
+                raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
+            if response.status != 200:
+                logger.warning(
+                    f"Babelio HTTP {response.status} pour scraping page: {url}"
+                )
+                self._log_request(
+                    "page",
+                    url,
+                    response.status,
+                    False,
+                    (time.time() - t0) * 1000,
+                )
+                return None
+            # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
+            # des caractères Windows-1252 comme le tiret cadratin (0x96) (Issue #167)
+            html = response.text("cp1252")
+            # Detect captcha page (HTTP 200 but challenge content)
+            if self._is_captcha_page(html):
+                logger.warning(f"Babelio captcha détecté pour: {url}")
+                self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
+                raise BabelioCaptchaError(f"Babelio captcha: {url}")
+            if self.cache_service is not None:
+                self.cache_service.set_cached(url, html, search_type="page")
+            self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
+            return html
 
     async def health_check(self) -> dict[str, Any]:
         """Effectue une requête légère à la demande pour connaître l'état réel de Babelio.
@@ -436,18 +509,18 @@ class BabelioService:
 
     async def _handle_search_response(
         self,
-        response: Any,
+        response: BabelioResponse,
         term: str,
         cache_key: str,
         t0: float,
     ) -> list[dict[str, Any]]:
-        """Traite la réponse HTTP d'une recherche Babelio (factorisé pour les deux chemins session)."""
+        """Traite la réponse HTTP d'une recherche Babelio."""
         if self._debug_log_enabled:
             logger.info(f"🔍 [DEBUG] search: Response status={response.status}")
 
         if response.status == 200:
             try:
-                text_content = await response.text(encoding="cp1252")
+                text_content = response.text("cp1252")
                 results: list[dict[str, Any]] = json.loads(text_content)
 
                 if self._debug_log_enabled:
@@ -624,7 +697,6 @@ class BabelioService:
             self._ensure_cookie_fresh()
 
             self.last_request_time = time.time()
-            session = await self._get_session()
             url = f"{self.base_url}{self.search_endpoint}"
 
             # Format JSON exact découvert via DevTools
@@ -640,42 +712,27 @@ class BabelioService:
                 if self._debug_log_enabled:
                     logger.info(f"🔍 [DEBUG] search: POST {url} payload={payload}")
 
-                # Quand un cookie est disponible, créer une session temporaire sans
-                # cookie jar interne — aiohttp ignore le header Cookie manuel si la
-                # session a déjà des cookies configurés dans son jar.
-                if effective_cookie:
-                    search_headers = {
-                        **self._get_default_headers(),
-                        "Cookie": effective_cookie,
-                    }
-                    req_timeout = aiohttp.ClientTimeout(total=30, connect=10)
-                    async with (
-                        aiohttp.ClientSession(
-                            headers=search_headers, timeout=req_timeout
-                        ) as tmp_session,
-                        tmp_session.post(url, json=payload) as response,
-                    ):
-                        return await self._handle_search_response(
-                            response, term, cache_key, t0
-                        )
-                else:
-                    async with session.post(url, json=payload) as response:
-                        return await self._handle_search_response(
-                            response, term, cache_key, t0
-                        )
+                search_headers = {
+                    **self._get_default_headers(),
+                    "Cookie": effective_cookie or self._default_cookie_header(),
+                }
+                response = await self._send(
+                    "POST", url, search_headers, json_body=payload
+                )
+                return await self._handle_search_response(response, term, cache_key, t0)
 
             except BabelioBlockedError:
                 # Propager pour que verify_author/verify_book signalent le blocage
                 raise
             except TimeoutError as e:
                 logger.error(f"Timeout Babelio pour: {term}")
-                if isinstance(e, aiohttp.ConnectionTimeoutError):
+                if isinstance(e, BabelioConnectTimeoutError):
                     self._open_circuit_on_connection_timeout()
                 self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 raise TimeoutError(
                     f"Timeout lors de la recherche Babelio: {term}"
                 ) from e
-            except aiohttp.ClientError as e:
+            except (aiohttp.ClientError, curl_exceptions.RequestException) as e:
                 logger.error(f"Erreur réseau Babelio pour {term}: {e}")
                 self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 raise aiohttp.ClientError(
@@ -1315,32 +1372,25 @@ class BabelioService:
             return None
 
         try:
-            session = await self._get_session()
-
-            async with session.get(babelio_url) as response:
-                if response.status != 200:
-                    logger.warning(
-                        f"Babelio HTTP {response.status} pour scraping auteur: {babelio_url}"
-                    )
-                    return None
-
-                # Utiliser Windows-1252 car Babelio déclare ISO-8859-1 mais utilise
-                # des caractères Windows-1252 comme le tiret cadratin (0x96)
-                html = await response.text(encoding="cp1252")
-                soup = BeautifulSoup(html, "lxml")
-
-                # Sur une page auteur, le h1 contient le nom de l'auteur
-                h1_tag = soup.find("h1")
-                if h1_tag:
-                    author_raw = str(h1_tag.get_text())
-                    # Nettoyer les sauts de ligne et espaces multiples
-                    author_name = " ".join(author_raw.split())
-                    logger.debug(f"Nom auteur trouvé pour {babelio_url}: {author_name}")
-                    return author_name
-
-                logger.debug(f"Nom auteur non trouvé pour {babelio_url}")
+            html = await self._fetch_page(babelio_url)
+            if html is None:
                 return None
+            soup = BeautifulSoup(html, "lxml")
 
+            # Sur une page auteur, le h1 contient le nom de l'auteur
+            h1_tag = soup.find("h1")
+            if h1_tag:
+                author_raw = str(h1_tag.get_text())
+                # Nettoyer les sauts de ligne et espaces multiples
+                author_name = " ".join(author_raw.split())
+                logger.debug(f"Nom auteur trouvé pour {babelio_url}: {author_name}")
+                return author_name
+
+            logger.debug(f"Nom auteur non trouvé pour {babelio_url}")
+            return None
+
+        except BabelioBlockedError:
+            raise
         except Exception as e:
             logger.error(f"Erreur scraping auteur pour {babelio_url}: {e}")
             return None
@@ -1706,8 +1756,9 @@ class BabelioService:
 
         À appeler à la fin de l'utilisation pour éviter les warnings asyncio.
         """
-        if self.session and not self.session.closed:
-            await self.session.close()
+        # Chaque requête ouvre et ferme sa propre session curl_cffi (_send) :
+        # rien à fermer ici. Méthode conservée pour les appelants existants.
+        return
 
 
 # Instance globale du service (pattern singleton pour réutiliser la session)

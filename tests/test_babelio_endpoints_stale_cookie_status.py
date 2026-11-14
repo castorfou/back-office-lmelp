@@ -5,7 +5,7 @@ au 403, que Babelio transforme en ban IP. Le frontend doit pouvoir le distinguer
 d'une panne serveur et inviter à coller un cookie frais.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,14 +38,11 @@ def stale_cookie(monkeypatch):
     ],
 )
 def test_stale_cookie_answers_403_without_calling_babelio(stale_cookie, endpoint, body):
-    client_session = MagicMock(side_effect=AssertionError("requête HTTP émise"))
-    with patch(
-        "back_office_lmelp.services.babelio_service.aiohttp.ClientSession",
-        client_session,
-    ):
+    send = AsyncMock(side_effect=AssertionError("requête HTTP émise"))
+    with patch.object(babelio_service, "_send", new=send):
         response = TestClient(app).post(endpoint, json=body)
 
     assert response.status_code == 403
     assert response.json()["status"] == "blocked"
     assert "cookie frais" in response.json()["message"]
-    client_session.assert_not_called()
+    send.assert_not_awaited()
