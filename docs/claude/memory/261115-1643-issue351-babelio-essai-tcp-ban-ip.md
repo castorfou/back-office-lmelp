@@ -79,13 +79,20 @@ attribuaient un blocage à « 403, cookie probablement expiré », même pendant
 
 ## Pièges et apprentissages
 
-- **Le nouvel essai dans `start_migration()` aurait fait du vrai réseau dans les tests
-  existants du runner.** Fixture opt-in `babelio_reachable` dans `tests/conftest.py`
-  (patch de `migration_runner.babelio_service.probe_reachability`), activée par
-  `pytestmark = pytest.mark.usefixtures("babelio_reachable")` dans
-  `test_migration_runner_{phase2,python_direct,blocked_403}.py`. Patcher l'objet référencé
-  par `migration_runner` couvre aussi les tests qui importent via `src.` (le runner importe
-  `babelio_service` sans le préfixe `src.`).
+- **Le nouvel essai dans `start_migration()` fait du vrai réseau dans tout test qui démarre
+  la migration.** En local l'essai aboutit et tout passe ; en CI il expire → la migration
+  refuse de démarrer (premier run CI : 3 échecs dans `test_migration_runner_items_count.py`,
+  un fichier oublié par une fixture opt-in, car un `grep | head` avait tronqué la liste).
+  Correction : fixture **autouse** `babelio_reachable` dans `tests/conftest.py`.
+- **La fixture autouse ne doit importer aucun module.** Une première version importait
+  `migration_runner` : importé dès le premier test, il gardait le singleton `babelio_service`
+  d'avant le `importlib.reload` de `tests/test_babelio_service.py`, d'où un échec d'identité
+  dans `test_should_use_shared_babelio_service_singleton_not_new_instance`. Version finale :
+  patcher chaque singleton déjà présent dans `sys.modules` (copies `back_office_lmelp.` et `src.`,
+  dédupliquées par `id`) avec un `ExitStack`.
+- **Simuler la CI en local** : un plugin pytest jetable qui remplace `asyncio.open_connection`
+  par un `TimeoutError` (`PYTHONPATH=src:<dossier> pytest -p no_network_plugin ...`) reproduit
+  exactement les échecs CI ; il a validé la correction sur toute la suite.
 - La fixture autouse `_reset_babelio_circuit_breaker` remet aussi `_circuit_reason` à None.
 - pytest-asyncio est en mode strict : une fixture async doit utiliser `@pytest_asyncio.fixture`.
 - L'essai de l'adresse muette passe dans tous les environnements : un refus (`OSError`) donne

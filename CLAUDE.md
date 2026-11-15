@@ -1086,8 +1086,11 @@ limiter), so Babelio's HTTP logs see nothing. It backs « Rafraîchir »
 « Valider avec Babelio » and the migration. The circuit breaker records why it opened
 (`get_circuit_reason()`: `http_403` or `connect_timeout`): a successful probe closes a
 `connect_timeout` circuit, only a fresh cookie closes an `http_403` one. Any code that starts
-a Babelio job must run the probe first, and tests that start such a job must patch it
-(fixture `babelio_reachable` in `tests/conftest.py`), or they hit the real network.
+a Babelio job must run the probe first. In tests, the autouse fixture `babelio_reachable`
+(`tests/conftest.py`) patches the probe on every loaded `babelio_service` singleton: a
+real probe succeeds locally but times out in CI. The fixture must never import a module:
+importing `migration_runner` early pins the singleton from before `test_babelio_service.py`
+reloads `babelio_service`.
 
 **Find every occurrence**: grep for `babelio.com` and `ClientSession` together; each
 bypass was added independently by a feature reaching for "a quick way to hit this URL"
