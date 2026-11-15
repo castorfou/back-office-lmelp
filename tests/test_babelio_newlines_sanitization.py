@@ -156,7 +156,7 @@ class TestBabelioNewlinesSanitization:
                 pass
 
         # Mock search() pour retourner la réponse avec newlines
-        async def mock_search(query, babelio_cookies=None):
+        async def mock_search(query):
             return mock_search_response
 
         with (

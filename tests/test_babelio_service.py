@@ -977,14 +977,14 @@ class TestBabelioServerSideCookie:
         assert svc.get_cookie() == "jstsToken=abc123"
 
     @pytest.mark.asyncio
-    async def test_search_uses_stored_cookie_over_param(self):
+    async def test_search_uses_stored_cookie(self):
         """search() envoie le cookie serveur dans les headers de la requête HTTP."""
         svc = BabelioService()
         svc.set_cookie("jstsToken=SERVER_COOKIE; p=FR")
         send = _send_returning(200, "[]")
 
         with patch.object(svc, "_send", new=send):
-            await svc.search("victor hugo", babelio_cookies="jstsToken=CLIENT_COOKIE")
+            await svc.search("victor hugo")
 
         headers = send.await_args.args[2]
         assert headers["Cookie"] == "jstsToken=SERVER_COOKIE; p=FR"

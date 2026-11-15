@@ -33,7 +33,7 @@ AUTHOR = "Jonathan Littell"
 LITTELL_URL = "https://www.babelio.com/livres/Littell-LHeritage/2069632"
 
 
-async def _real_search(term: str, babelio_cookies: str | None = None) -> list[Any]:
+async def _real_search(term: str) -> list[Any]:
     # Comme le cache disque de search() : clé insensible à la casse
     by_key = {k.strip().lower(): v for k, v in SEARCHES.items()}
     return by_key.get(term.strip().lower(), [])
@@ -119,9 +119,7 @@ async def test_blocked_fallback_search_returns_blocked_403() -> None:
     # (importlib.reload), une classe importée en tête de fichier serait périmée.
     from back_office_lmelp.services import babelio_service as module
 
-    async def blocked_on_fallback(
-        term: str, babelio_cookies: str | None = None
-    ) -> list[Any]:
+    async def blocked_on_fallback(term: str) -> list[Any]:
         if term == TITLE:
             return SEARCHES[TITLE]
         raise module.BabelioBlockedError("403")
