@@ -66,6 +66,36 @@ BABELIO_IP_BANNED_MESSAGE = (
 )
 
 
+# Réponses 403 conservées pour diagnostic (GET /api/babelio/blocked-responses)
+BLOCKED_RESPONSES_KEPT = 10
+BLOCKED_BODY_MAX_CHARS = 4000
+
+
+def _redact_cookie(cookie: str) -> str:
+    """Garde les noms des cookies, jamais leurs valeurs."""
+    names = [part.split("=", 1)[0].strip() for part in cookie.split(";")]
+    return "; ".join(f"{name}=<REDACTED>" for name in names if name)
+
+
+def _decode_blocked_body(response: "BabelioResponse") -> str:
+    """Décode une page de refus : charset annoncé, sinon UTF-8, sinon cp1252.
+
+    Une page de refus vient souvent d'un pare-feu applicatif en UTF-8, pas
+    du site lui-même (Windows-1252).
+    """
+    content_type = response.headers.get("content-type", "")
+    match = re.search(r"charset=([\w-]+)", content_type, re.IGNORECASE)
+    if match:
+        try:
+            return response.body.decode(match.group(1), errors="replace")
+        except LookupError:
+            pass
+    try:
+        return response.body.decode("utf-8")
+    except UnicodeDecodeError:
+        return response.body.decode("cp1252", errors="replace")
+
+
 class BabelioConnectTimeoutError(TimeoutError):
     """La connexion TCP vers Babelio n'aboutit pas : signature d'un ban IP."""
 
@@ -201,6 +231,11 @@ class BabelioService:
         self.cache_service: Any | None = None
         # Circular buffer of recent requests (max 50), newest-first on read
         self._recent_requests: deque[dict[str, Any]] = deque(maxlen=50)
+        # Dernières réponses 403 (en-têtes + début du corps) : seul leur contenu
+        # dit pourquoi Babelio refuse (refus sec, défi anti-robots, message…)
+        self._blocked_responses: deque[dict[str, Any]] = deque(
+            maxlen=BLOCKED_RESPONSES_KEPT
+        )
         # Cookie stocké côté serveur (jstsToken) — posé via set_cookie(), utilisé partout
         self._stored_cookie: str | None = None
         # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
@@ -274,6 +309,33 @@ class BabelioService:
                 "cache_hit": cache_hit,
                 "duration_ms": round(duration_ms, 1),
                 "timestamp": time.time(),
+            }
+        )
+
+    def get_blocked_responses(self) -> list[dict[str, Any]]:
+        """Dernières réponses 403 de Babelio, la plus récente en premier."""
+        return list(reversed(self._blocked_responses))
+
+    def _record_blocked_response(
+        self,
+        method: str,
+        url: str,
+        request_headers: dict[str, str],
+        response: "BabelioResponse",
+    ) -> None:
+        """Conserve une réponse 403 pour diagnostic, cookie masqué."""
+        sent = dict(request_headers)
+        if "Cookie" in sent:
+            sent["Cookie"] = _redact_cookie(sent["Cookie"])
+        self._blocked_responses.append(
+            {
+                "timestamp": time.time(),
+                "method": method,
+                "url": url,
+                "status": response.status,
+                "response_headers": dict(response.headers),
+                "body": _decode_blocked_body(response)[:BLOCKED_BODY_MAX_CHARS],
+                "request_headers": sent,
             }
         )
 
@@ -540,11 +602,14 @@ class BabelioService:
             ):
                 raise BabelioConnectTimeoutError(str(e)) from e
             raise TimeoutError(str(e)) from e
-        return BabelioResponse(
+        result = BabelioResponse(
             status=response.status_code,
             body=response.content,
             headers={k.lower(): v for k, v in response.headers.items()},
         )
+        if result.status == 403:
+            self._record_blocked_response(method, url, headers, result)
+        return result
 
     async def _fetch_page(self, url: str) -> str | None:
         """Gateway unifié pour tous les GETs de pages Babelio (Issue #245).

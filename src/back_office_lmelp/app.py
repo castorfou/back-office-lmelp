@@ -3589,6 +3589,16 @@ async def delete_all_babelio_cache() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/api/babelio/blocked-responses")
+def get_babelio_blocked_responses() -> list[dict[str, Any]]:
+    """Dernières réponses 403 de Babelio, pour comprendre un refus.
+
+    En-têtes reçus, début du corps (refus sec, défi anti-robots, message…) et
+    en-têtes envoyés, cookie masqué. Lecture seule : aucune requête à Babelio.
+    """
+    return babelio_service.get_blocked_responses()
+
+
 @app.get("/api/babelio/requests/recent")
 async def get_babelio_recent_requests() -> list[dict[str, Any]]:
     """Retourne les dernières requêtes Babelio (max 50, les plus récentes en premier)."""

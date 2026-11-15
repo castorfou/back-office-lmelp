@@ -198,6 +198,10 @@ Le bouton **🔄 Rafraîchir** de la page **Contrôle Babelio** fait un simple e
 | **Circuit breaker** | 🚫 Ouvert — 403, cookie à renouveler | Un 403 a été reçu : coller un cookie frais |
 | | 🚫 Ouvert — IP bannie, inutile de changer le cookie | Une connexion n'a pas abouti : attendre la levée du ban |
 
+### Comprendre un 403
+
+Avec un 403, Babelio renvoie une page qui en dit la raison : refus sec, défi anti-robots, message explicite. Le serveur garde les dix dernières réponses 403 (en-têtes reçus, début de la page, en-têtes envoyés avec le cookie masqué). On les lit sur `GET /api/babelio/blocked-responses`, sans envoyer de requête à Babelio. Elles sont perdues au redémarrage du serveur.
+
 **Le disjoncteur suit l'essai** : un essai qui échoue l'ouvre (plus aucune requête ne part), un essai qui réussit referme un disjoncteur ouvert par un ban IP, sans exiger de nouveau cookie. Un disjoncteur ouvert par un 403 ne se referme qu'avec un cookie frais.
 
 **Vérification avant traitement** : **Valider avec Babelio** (page Livres et Auteurs) et le lancement de la liaison (page Liaison Babelio des livres) font d'abord un essai d'une seconde. Si l'IP est bannie, le traitement s'arrête aussitôt avec le message « Babelio injoignable : IP bannie, inutile de changer le cookie », au lieu d'attendre l'expiration de la première requête.
