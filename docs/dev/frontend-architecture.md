@@ -46,6 +46,25 @@ Composant de sélection d'épisodes (inchangé).
 #### EpisodeEditor (`src/components/EpisodeEditor.vue`)
 Composant d'édition d'épisodes (inchangé).
 
+#### BabelioCookiePanel (`src/components/BabelioCookiePanel.vue`)
+
+Panneau **🔑 Cookie Babelio**, partagé par Livres et Auteurs (page et modales), Liaison Babelio des livres et Contrôle Babelio. Le serveur est la seule source du cookie : le panneau lit `status` (réponse de `GET /api/babelio/status`, chargée par la page) et ne garde aucun cookie dans le navigateur.
+
+| Interface | Rôle |
+|---|---|
+| prop `status` | Statut serveur du cookie (`cookie_active`, `cookie_age_sec`, `cookie_max_age_sec`, `cookie_expired`) |
+| prop `open` | Ouvre le panneau (`<details>`), par exemple après un 403 |
+| prop `collapsible` | `false` : panneau toujours déplié, sans `<details>` |
+| événement `saved` | Un cookie a été enregistré : la page recharge `status` |
+| événement `cookie-state` | `'missing'`, `'expired'` ou `'active'`, émis au montage et à chaque changement, compte à rebours compris |
+| emplacement `actions` | Boutons de la page hôte, alignés à droite sur la ligne du badge |
+
+**Seule source de l'état du cookie** : une page qui doit griser une action Babelio écoute `cookie-state` au lieu de refaire le calcul de l'expiration. Livres et Auteurs grise ainsi **Valider avec Babelio** et **🔄 Relancer la validation** (`babelioCookieUsable`), et leurs méthodes ne font rien sans cookie actif.
+
+**Bouton dans l'emplacement `actions`** : avec `collapsible` (défaut), la ligne du badge est un `<summary>`. Un clic sur un bouton qui s'y trouve plie ou déplie aussi le panneau : le bouton doit appeler `preventDefault` (`@click.prevent`).
+
+**Dans les modales** de Livres et Auteurs, le panneau est rendu dans l'encadré « URL Babelio (optionnel) » seulement si une URL est saisie. Il est ouvert quand le cookie n'est pas actif ou après une extraction refusée en 403. Son événement `saved` relance l'extraction de l'URL saisie (`onModalCookieSaved`).
+
 ## Routing
 
 Le routing est géré par Vue Router 4 avec les routes suivantes :

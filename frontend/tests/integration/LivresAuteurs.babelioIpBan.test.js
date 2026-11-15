@@ -61,7 +61,13 @@ describe('LivresAuteurs - ban IP Babelio (Issue #351)', () => {
   function mockAxios({ reachable = true, status = {} } = {}) {
     axios.get.mockImplementation((url) => {
       if (url.startsWith('/api/babelio/status')) {
-        return Promise.resolve({ data: { cookie_active: false, ...status } });
+        // Cookie actif : sans lui, les boutons Babelio sont grisés (Issue #358)
+        return Promise.resolve({
+          data: {
+            cookie_active: true, cookie_age_sec: 10, cookie_max_age_sec: 300,
+            cookie_expired: false, ...status,
+          },
+        });
       }
       return Promise.resolve({ data: {} });
     });
@@ -105,6 +111,9 @@ describe('LivresAuteurs - ban IP Babelio (Issue #351)', () => {
     await wrapper.vm.$nextTick();
     await new Promise((resolve) => setTimeout(resolve, 20));
     wrapper.vm.selectedEpisodeId = EPISODE_ID;
+    // Laisser le panneau cookie s'afficher et transmettre l'état du cookie
+    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 20));
     return wrapper;
   }
 

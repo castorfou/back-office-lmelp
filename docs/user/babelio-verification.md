@@ -47,6 +47,9 @@ donc pas dans **Liaison Babelio des livres**. Il en va de même pour l'ajout man
 - Faute d'orthographe importante
 - Livre récent non encore référencé
 - Inversion de nom (ex: "Le Floch" → "Lefloc")
+- Titre mal transcrit, absent du titre et de la description de l'émission : le système ne
+  propose jamais à la place le titre d'un autre livre de la même émission, ni un titre trop
+  éloigné de l'original (ex: "Rouge Truite" pour *Rouges Truites*)
 
 **Action** : Vérification manuelle nécessaire. Consultez directement [Babelio.com](https://www.babelio.com) pour confirmation.
 
@@ -157,7 +160,7 @@ Babelio active parfois un système anti-bot qui bloque les requêtes automatique
 
 ### Configurer le cookie dans l'interface
 
-1. Sur la page **Livres et Auteurs**, sélectionnez un épisode (ou ouvrez **Liaison Babelio des livres** ou **Contrôle Babelio**)
+1. Sur la page **Livres et Auteurs**, sélectionnez un épisode (ou ouvrez **Liaison Babelio des livres** ou **Contrôle Babelio**). Le panneau apparaît aussi dans l'encadré « URL Babelio » des modales d'ajout et de validation d'un livre, dès qu'une URL y est saisie
 2. Collez la valeur du cookie dans le champ de texte. Si un cookie actif est déjà enregistré, le champ est masqué : cliquez d'abord sur **Entrer un cookie plus récent**
 3. Cliquez sur **Enregistrer**
 

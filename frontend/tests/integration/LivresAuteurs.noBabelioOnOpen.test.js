@@ -71,6 +71,15 @@ function mountPage() {
   );
 }
 
+// Cookie actif côté serveur : sans lui, « Valider avec Babelio » est grisé (Issue #358)
+function mockActiveCookie() {
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: url.startsWith('/api/babelio/status')
+      ? { cookie_active: true, cookie_age_sec: 10, cookie_max_age_sec: 300, cookie_expired: false }
+      : {},
+  }));
+}
+
 describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -109,6 +118,7 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
   });
 
   it('valide les livres avec Babelio sur clic du bouton', async () => {
+    mockActiveCookie();
     const wrapper = await mountPage();
     await flushPromises();
 
@@ -126,6 +136,7 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
   });
 
   it('affiche la progression pendant la validation', async () => {
+    mockActiveCookie();
     const wrapper = await mountPage();
     await flushPromises();
 

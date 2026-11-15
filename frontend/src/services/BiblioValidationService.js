@@ -6,6 +6,11 @@
 import { fixtureCaptureService } from './FixtureCaptureService.js';
 import { removeAccents } from '../utils/textUtils.js';
 
+// Un candidat titre de la vérité terrain est écarté s'il est à la fois faible
+// et éloigné du titre d'origine (Issue #358)
+const MIN_GROUND_TRUTH_TITLE_SCORE = 50;
+const MIN_GROUND_TRUTH_TITLE_SIMILARITY = 0.25;
+
 export class BiblioValidationService {
   constructor(dependencies = {}) {
     this.fuzzySearchService = dependencies.fuzzySearchService;
@@ -308,6 +313,13 @@ export class BiblioValidationService {
           groundTruthResult = await this._searchEpisodeWithCapture(
             episodeId,
             { author, title }
+          );
+          // Ne jamais suggérer le titre d'un autre livre de l'émission (Issue #358)
+          const episodeBooks = await this._getExtractedBooks(episodeId);
+          groundTruthResult = this._filterGroundTruthTitleCandidates(
+            groundTruthResult,
+            original,
+            episodeBooks.map(book => book.title)
           );
         } catch (error) {
           // Si ground truth échoue, continue avec Babelio seulement
@@ -758,36 +770,23 @@ export class BiblioValidationService {
       const origNorm = normalize(original.title || '');
 
 
-      // Levenshtein distance (normalized) for better similarity measure
-      const levenshtein = (a, b) => {
-        if (!a || !b) return Math.max(a?.length || 0, b?.length || 0) ? 1 : 0;
-        const m = a.length, n = b.length;
-        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-        for (let i = 0; i <= m; i++) dp[i][0] = i;
-        for (let j = 0; j <= n; j++) dp[0][j] = j;
-        for (let i = 1; i <= m; i++) {
-          for (let j = 1; j <= n; j++) {
-            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-          }
-        }
-        const dist = dp[m][n];
-        // normalized similarity: 1 - dist / maxLen
-        return 1 - dist / Math.max(m, n);
-      };
-
       // Score each candidate by combining similarity with fuzzy score, but
       // prioritize similarity more (70% similarity, 30% fuzzy score)
       const scored = titleMatches.map(tm => {
         const text = (tm[0] || '').replace('📖 ', '').trim();
         const score = (tm[1] || 0) / 100; // normalized 0-1
         const candNorm = normalize(text);
-        const sim = origNorm ? levenshtein(origNorm, candNorm) : 0;
+        const sim = this._titleSimilarity(origNorm, candNorm);
         const combined = sim * 0.7 + score * 0.3;
-        return { text, score: score * 100, combined };
+        return { text, score: score * 100, sim, combined };
       })
       // Filter out invalid suggestions before sorting
       .filter(candidate => this._isValidTitleSuggestion(candidate.text, original.title))
+      // Écarter un candidat à la fois faible et éloigné du titre d'origine (Issue #358)
+      .filter(candidate => !(
+        candidate.score < MIN_GROUND_TRUTH_TITLE_SCORE &&
+        candidate.sim < MIN_GROUND_TRUTH_TITLE_SIMILARITY
+      ))
       .sort((a, b) => b.combined - a.combined);
 
       titleMatch = scored[0]?.text || '';
@@ -911,6 +910,65 @@ export class BiblioValidationService {
   }
 
   /**
+   * Normalise un titre pour comparaison : minuscules, sans accents ni ponctuation
+   * @private
+   */
+  _normalizeTitle(title) {
+    return removeAccents((title || '').toString().toLowerCase())
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+  }
+
+  /**
+   * Similarité de Levenshtein normalisée (0 à 1) entre deux titres déjà normalisés
+   * @private
+   */
+  _titleSimilarity(a, b) {
+    if (!a || !b) return 0;
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      }
+    }
+    return 1 - dp[m][n] / Math.max(m, n);
+  }
+
+  /**
+   * Retire des candidats « titre » de la vérité terrain le titre d'un autre
+   * livre de la même émission : il ne peut pas être le livre validé (Issue #358).
+   * Retourne une copie de la réponse, sans modifier celle reçue.
+   * @private
+   */
+  _filterGroundTruthTitleCandidates(groundTruthResult, original, episodeTitles = []) {
+    if (!groundTruthResult) return groundTruthResult;
+
+    const origNorm = this._normalizeTitle(original?.title);
+    const otherBookTitles = new Set(
+      episodeTitles
+        .map(title => this._normalizeTitle(title))
+        .filter(norm => norm && norm !== origNorm)
+    );
+
+    const keep = (tm) => {
+      const text = (tm[0] || '').replace('📖 ', '').trim();
+      return !otherBookTitles.has(this._normalizeTitle(text));
+    };
+
+    const filtered = { ...groundTruthResult };
+    for (const key of ['title_matches', 'titleMatches']) {
+      if (Array.isArray(groundTruthResult[key])) {
+        filtered[key] = groundTruthResult[key].filter(keep);
+      }
+    }
+    return filtered;
+  }
+
+  /**
    * Valide si une suggestion de titre est acceptable
    * Filtre les URLs, les fragments trop courts, et autres suggestions invalides
    * @private
@@ -929,6 +987,11 @@ export class BiblioValidationService {
 
     // Rejeter les URLs partielles typiques
     if (trimmed.includes('franceinter.fr') || trimmed.includes('.com') || trimmed.includes('.fr')) {
+      return false;
+    }
+
+    // Rejeter les textes contenant une entité HTML (&amp;, &#38;) : du balisage, pas un titre
+    if (/&[a-z]+;|&#\d+;/i.test(trimmed)) {
       return false;
     }
 
