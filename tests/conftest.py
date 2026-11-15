@@ -1,7 +1,9 @@
 """Configuration pytest pour les tests du Back-Office LMELP."""
 
 import asyncio
+import sys
 from collections.abc import AsyncGenerator
+from contextlib import ExitStack
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -38,21 +40,41 @@ def _reset_babelio_circuit_breaker():
     babelio_service._circuit_reason = None
 
 
-@pytest.fixture
+# Modules qui peuvent détenir un singleton babelio_service : tests/test_babelio_service.py
+# recharge babelio_service (nouveau singleton), et certains tests importent via `src.`
+_BABELIO_SINGLETON_MODULES = (
+    "back_office_lmelp.services.babelio_service",
+    "back_office_lmelp.utils.migration_runner",
+    "src.back_office_lmelp.services.babelio_service",
+    "src.back_office_lmelp.utils.migration_runner",
+)
+
+
+@pytest.fixture(autouse=True)
 def babelio_reachable():
-    """Essai TCP Babelio réussi, sans réseau (Issue #351).
+    """Essai TCP Babelio réussi, sans réseau, pour tous les tests (Issue #351).
 
     MigrationRunner.start_migration() vérifie que Babelio est joignable avant
     de lancer la migration : sans ce patch, chaque test qui la démarre ferait
-    une vraie connexion vers www.babelio.com.
-    """
-    from back_office_lmelp.utils import migration_runner
+    une vraie connexion vers www.babelio.com, qui réussit en local mais
+    expire en CI. Autouse pour qu'un nouveau test ne puisse pas l'oublier.
+    Les tests de l'essai lui-même créent leur propre BabelioService().
 
-    with patch.object(
-        migration_runner.babelio_service,
-        "probe_reachability",
-        new=AsyncMock(return_value="reachable"),
-    ) as probe:
+    N'importe aucun module : importer migration_runner dès le premier test
+    lui ferait garder le singleton d'avant le rechargement de babelio_service.
+    Patche chaque singleton déjà chargé ; un module importé pendant le test
+    prend le singleton courant, lui aussi patché.
+    """
+    singletons = {}
+    for module_name in _BABELIO_SINGLETON_MODULES:
+        service = getattr(sys.modules.get(module_name), "babelio_service", None)
+        if service is not None:
+            singletons[id(service)] = service
+
+    probe = AsyncMock(return_value="reachable")
+    with ExitStack() as stack:
+        for service in singletons.values():
+            stack.enter_context(patch.object(service, "probe_reachability", new=probe))
         yield probe
 
 

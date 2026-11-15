@@ -10,10 +10,6 @@ from unittest.mock import patch
 import pytest
 
 
-# start_migration() fait un essai TCP vers Babelio : jamais de vrai réseau ici
-pytestmark = pytest.mark.usefixtures("babelio_reachable")
-
-
 class TestMigrationRunnerPythonDirect:
     """Tests pour MigrationRunner avec appels Python directs."""
 
