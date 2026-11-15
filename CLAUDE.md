@@ -1070,6 +1070,14 @@ own `User-Agent` / `Accept-Language`, captured from the `POST /api/babelio/cooki
 request (`set_cookie(..., user_agent=, accept_language=)`). aiohttp speaks HTTP/1.1
 with an OpenSSL fingerprint: distinguishable before any header is read.
 
+**The cookie comes from the server only**: requests carry `self._stored_cookie`, set
+through `POST /api/babelio/cookie`, which checks its shape (`normalize_cookie_header()`)
+and dates it on receipt. Never accept a cookie in a request body, and never keep one in
+`localStorage`/`sessionStorage`: an old `jstsToken` sent back looks fresh to the server,
+escapes `BABELIO_COOKIE_MAX_AGE_SEC`, and earns a 403. The UI reads the cookie's state
+from `GET /api/babelio/status` (`cookie_age_sec`, `cookie_expired`), through the shared
+`BabelioCookiePanel.vue`.
+
 **Find every occurrence**: grep for `babelio.com` and `ClientSession` together; each
 bypass was added independently by a feature reaching for "a quick way to hit this URL"
 (`fetch_author_name_from_url()` was one).

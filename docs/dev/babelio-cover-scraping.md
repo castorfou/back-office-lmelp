@@ -4,14 +4,13 @@ Ce document décrit l'architecture et l'implémentation du système de récupér
 
 ## Architecture générale
 
-Le scraping de couvertures ne peut pas se faire directement depuis le navigateur (CORS). La page Babelio est récupérée côté **backend** via `aiohttp`, à la demande du frontend.
+Le scraping de couvertures ne peut pas se faire directement depuis le navigateur (CORS). La page Babelio est récupérée côté **backend**, par la passerelle unique `BabelioService._fetch_page()`, à la demande du frontend.
 
 ```
 Frontend (Vue) ──POST /api/babelio/extract-cover-url──▶ Backend (FastAPI)
-                    { babelio_url, expected_title,                  │
-                      babelio_cookies }                              │
-                                                           aiohttp.GET babelio_url
-                                                           (avec Cookie header)
+                    { babelio_url, expected_title }                 │
+                                                           _fetch_page(babelio_url)
+                                                           (cookie stocké côté serveur)
                                                                      │
                                                            parse og:image + h1
                                                                      │
@@ -24,35 +23,17 @@ Frontend (Vue) ──POST /api/babelio/extract-cover-url──▶ Backend (FastA
 **Service** : `BabelioService.fetch_cover_url_from_babelio_page()`
 **Fichier** : `src/back_office_lmelp/services/babelio_service.py`
 
-### Headers critiques pour passer la détection bot Babelio
+### En-têtes et cookie
 
-```python
-headers = {
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-User": "?1",
-    "Accept-Encoding": "gzip, deflate",  # PAS de br (aiohttp ne supporte pas Brotli)
-    "Cookie": babelio_cookies,           # Cookie transmis depuis le navigateur
-}
-```
+Les en-têtes de navigation Firefox (`Sec-Fetch-*`, `User-Agent` et `Accept-Language` du navigateur qui a fourni le cookie) sont construits par `BabelioService._get_page_headers()`, et la requête part par `_send()` (empreinte TLS/HTTP2 de Firefox via `curl_cffi`).
 
-**Important** : Ne pas ajouter `br` dans `Accept-Encoding`. aiohttp ne supporte pas Brotli et lèverait `Can not decode content-encoding: brotli`.
-
-### Transmission du cookie Babelio
-
-Le cookie Babelio est obtenu par le navigateur (qui a une IP non bloquée) et transmis au backend via le body du POST. Le backend le place dans le header `Cookie` de la requête aiohttp.
+Le seul cookie envoyé est celui du serveur, enregistré par `POST /api/babelio/cookie` (panneau **🔑 Cookie Babelio**). La requête du frontend ne transporte aucun cookie : un cookie joint par le client échapperait au contrôle d'âge (`BABELIO_COOKIE_MAX_AGE_SEC`), et un vieux `jstsToken` provoque un 403, que Babelio transforme en ban IP.
 
 ```python
 # Dans app.py
 class ExtractCoverUrlRequest(BaseModel):
     babelio_url: str
     expected_title: str | None = None
-    babelio_cookies: str = ""
-
-# Dans babelio_service.py
-async with session.get(url, headers={..., "Cookie": babelio_cookies}) as response:
-    html = await response.text()
 ```
 
 ## Détection de redirection (TITLE_MISMATCH)
@@ -124,12 +105,13 @@ Fichier : `src/back_office_lmelp/services/babelio_migration_service.py`
 - `covers_mismatch_count` = livres avec `cover_mismatch_page_title`
 - `covers_pending` = livres avec `url_babelio`, sans `url_cover` **et** sans `cover_mismatch_page_title`
 
-## Mock aiohttp dans les tests
+## Mock dans les tests
 
-La session aiohttp est créée par requête (pas de session partagée). Patcher :
+Mocker le point de sortie HTTP unique `_send()`, qui renvoie une `BabelioResponse(status, body)` (corps encodé en `cp1252`, comme Babelio) :
 
 ```python
-with patch("back_office_lmelp.services.babelio_service.aiohttp.ClientSession", return_value=mock_session):
+send = AsyncMock(return_value=BabelioResponse(status=200, body=html.encode("cp1252")))
+with patch.object(service, "_send", send):
     result = await service.fetch_cover_url_from_babelio_page(url, expected_title="...")
 ```
 
