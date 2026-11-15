@@ -15,6 +15,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+# start_migration() fait un essai TCP vers Babelio : jamais de vrai réseau ici
+pytestmark = pytest.mark.usefixtures("babelio_reachable")
+
+
 class TestMigrationRunnerBlocked403:
     """Tests pour l'arrêt anticipé de la migration sur blocage 403 Babelio."""
 

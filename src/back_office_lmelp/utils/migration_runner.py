@@ -15,7 +15,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from back_office_lmelp.services.babelio_service import babelio_service
+from back_office_lmelp.services.babelio_service import (
+    BABELIO_IP_BANNED_MESSAGE,
+    PRECHECK_PROBE_TIMEOUT_SEC,
+    babelio_service,
+)
 
 
 # Import migrate_one_book_and_author from scripts
@@ -205,6 +209,19 @@ class MigrationRunner:
                     "start_time": self.start_time.isoformat()
                     if self.start_time
                     else None,
+                }
+
+            # Ban IP : la première requête attendrait 10 s le timeout de
+            # connexion. Un essai TCP d'une seconde (sans HTTP) suffit.
+            if (
+                await babelio_service.probe_reachability(
+                    timeout_sec=PRECHECK_PROBE_TIMEOUT_SEC
+                )
+                == "unreachable"
+            ):
+                return {
+                    "status": "unreachable",
+                    "message": BABELIO_IP_BANNED_MESSAGE,
                 }
 
             # Start the migration

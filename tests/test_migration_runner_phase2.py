@@ -10,6 +10,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+# start_migration() fait un essai TCP vers Babelio : jamais de vrai réseau ici
+pytestmark = pytest.mark.usefixtures("babelio_reachable")
+
+
 class TestMigrationRunnerPhase2:
     """Tests pour l'exécution de la Phase 2 du MigrationRunner."""
 

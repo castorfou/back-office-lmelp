@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -32,8 +32,28 @@ def _reset_babelio_circuit_breaker():
     qu'un test mal mocké continuera de produire.
     """
     babelio_service._circuit_open = False
+    babelio_service._circuit_reason = None
     yield
     babelio_service._circuit_open = False
+    babelio_service._circuit_reason = None
+
+
+@pytest.fixture
+def babelio_reachable():
+    """Essai TCP Babelio réussi, sans réseau (Issue #351).
+
+    MigrationRunner.start_migration() vérifie que Babelio est joignable avant
+    de lancer la migration : sans ce patch, chaque test qui la démarre ferait
+    une vraie connexion vers www.babelio.com.
+    """
+    from back_office_lmelp.utils import migration_runner
+
+    with patch.object(
+        migration_runner.babelio_service,
+        "probe_reachability",
+        new=AsyncMock(return_value="reachable"),
+    ) as probe:
+        yield probe
 
 
 @pytest.fixture(scope="session")
