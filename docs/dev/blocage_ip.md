@@ -6,7 +6,29 @@ Babelio peut bannir temporairement l'IP du réseau domestique.
 
 Une solution qui fonctionne consiste à travailler sur une **copie locale de la base** (i.e. faire tourner l'appli backoffice-lmelp sur le laptop), tout en étant déconnecté du réseau domestique, puis à rapatrier les modifications au retour. Une autre option serait le développement de [#293 - [implémentation] VPN Mullvad + gluetun pour le trafic backend vers Babelio](https://github.com/castorfou/back-office-lmelp/issues/293)
 
-Voici les grandes étapes :
+## Savoir si l'IP est bannie
+
+Un ban IP Babelio est un blocage pare-feu : la connexion TCP n'aboutit jamais, sans 403. Pour le constater sans rien envoyer à Babelio, un essai de connexion TCP suffit :
+
+- dans l'application : bouton **🔄 Rafraîchir** de **Contrôle Babelio** (`GET /api/babelio/status?live_check=true`, essai de 5 s) ou `POST /api/babelio/probe` (essai d'1 s). Les deux appellent `BabelioService.probe_reachability()`, qui ouvre une connexion vers `www.babelio.com:443` puis la ferme, sans TLS ni HTTP ;
+- à la main, depuis le devcontainer ou le NAS :
+
+```bash
+timeout 8 bash -c "</dev/tcp/www.babelio.com/443" && echo OK || echo FAIL
+```
+
+L'essai ne peut pas prolonger un ban : une IP bannie est déjà ignorée par le pare-feu, et une IP libre n'envoie qu'une connexion vide, absente des journaux HTTP. Il ne tourne jamais en boucle : à la demande, et avant « Valider avec Babelio » ou la liaison automatique.
+
+**Effets sur le circuit breaker** (`get_circuit_reason()` dans `/api/babelio/status`) :
+
+| Événement | Disjoncteur | Motif (`circuit_reason`) |
+|---|---|---|
+| Réponse 403 | ouvert | `http_403` |
+| Timeout de connexion d'une requête, ou essai TCP en échec | ouvert | `connect_timeout` |
+| Essai TCP réussi | refermé si le motif est `connect_timeout` | `null` |
+| Cookie enregistré (`POST /api/babelio/cookie`) | refermé | `null` |
+
+Voici les grandes étapes du contournement :
 
 - [Phase 1](#phase-1-dump-restore-vers-le-local-sur-reseau-domestique-avant-de-basculer) — Dump + restore vers le local
     - push la base de prod mongo nas vers la base laptop mongo
