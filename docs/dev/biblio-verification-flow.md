@@ -230,7 +230,7 @@ verifyBook("Rumba Mariachi", "Fabcaro")
 - Tous les enrichissements ont échoué
 
 **Code source** :
-- Frontend : `BiblioValidationService.js:80-216` (`_tryPhase0DirectValidation`)
+- Frontend : `BiblioValidationService.js` (`_tryPhase0DirectValidation`)
 - Backend API : `/api/verify-babelio` (endpoint Babelio)
 - Backend API : `/api/livres-auteurs` (livres extraits)
 
@@ -668,7 +668,7 @@ Un livre validé avec son URL Babelio n'a plus à passer par la page Liaison Bab
 
 **Code source** :
 - Backend : `app.py:583-674` (endpoint `/api/fuzzy-search-episode`)
-- Frontend : `BiblioValidationService.js:426-518` (`_hasGoodGroundTruthMatches`, `_hasDecentGroundTruthMatches`)
+- Frontend : `BiblioValidationService.js` (`_hasGoodGroundTruthMatches`, `_hasDecentGroundTruthMatches`)
 
 **Limites connues** :
 - Peut retourner des **URLs** : `https://www.franceinter.fr/...` (présentes dans le champ `description`)
@@ -974,7 +974,7 @@ Résultat final: Caroline du Saint - Un Déni français - Enquête...
 
 **Code source** :
 - Backend : `babelio_service.py:380-461` (`verify_book`)
-- Frontend : `BiblioValidationService.js:188-242` (logique de cascade)
+- Frontend : `BiblioValidationService.js` (logique de cascade)
 - Scoring : Combiné (70% titre + 30% auteur) pour livres
 
 ---
@@ -985,10 +985,35 @@ Résultat final: Caroline du Saint - Un Déni français - Enquête...
 
 #### 4.1 Filtrage des Suggestions Invalides
 
-**Avant l'arbitrage**, filtrer les suggestions ground truth invalides via `_isValidTitleSuggestion()` :
+**Titres des autres livres de l'émission** : juste après la recherche ground truth,
+`validateBiblio()` retire des `titleMatches` les candidats dont le titre est celui
+d'un **autre** livre extrait de la même émission (`_filterGroundTruthTitleCandidates()`,
+liste issue de `_getExtractedBooks(episodeId)`). La comparaison ignore casse, accents
+et ponctuation ; le titre du livre validé lui-même est conservé. Quand le texte de
+l'émission ne contient pas le vrai titre, les seuls segments entre guillemets sont
+souvent ceux des autres livres, et l'auteur trouvé à 100 rendrait la suggestion crédible.
+
+```javascript
+// Pierric Bailly - "Rouge Truite", émission avec "Saint Lucky Luke" et "Le Fondateur"
+titleMatches: [
+  ["📖 Saint Lucky Luke", 35.71],  // ❌ autre livre de l'émission
+  ["📖 Le Fondateur", 33.33],      // ❌ autre livre de l'émission
+  ["📖 https://www.radiofrance.fr/...&amp;at_medium=lien_RSS", 9.68]  // ❌ URL
+]
+// → aucun candidat : pas de suggestion ground truth, le livre passe par Babelio seul
+```
+
+Ce filtre ne retire que des candidats qui ne peuvent jamais être le livre :
+`_hasGoodGroundTruthMatches()` et `_hasDecentGroundTruthMatches()` lisent le
+**premier** candidat valide de la liste (segments `📖` d'abord, puis fragments du
+texte). Retirer un candidat de tête pour une simple raison de qualité ferait
+remonter un fragment mieux noté (ex : `festival` à 77) et franchir le seuil.
+
+**Ensuite**, filtrer les suggestions ground truth invalides via `_isValidTitleSuggestion()` :
 
 **Règles de rejet** :
 - URLs complètes : `http://`, `https://`, `www.`, `franceinter.fr`, `.com`, `.fr`
+- Entités HTML : `&amp;`, `&#38;`… (du balisage, pas un titre)
 - Fragments trop courts : `< 3 caractères` (sauf si exact match avec original)
 - Mots isolés courts : `< 8 caractères` pour un seul mot (filtre "Amélie", "tous", etc.)
 
@@ -1007,7 +1032,7 @@ titleMatches: [
 ]
 ```
 
-**Code source** : `BiblioValidationService.js:697-728` (`_isValidTitleSuggestion`)
+**Code source** : `BiblioValidationService.js` (`_isValidTitleSuggestion`)
 
 #### 4.2 Ordre de Priorité des Sources
 
@@ -1042,7 +1067,7 @@ titleMatches: [
 - **Action** : Retourner `status: 'not_found'`
 - **Exemples** : Grégory Lefloc - Peau d'ours (nécessite intervention manuelle)
 
-**Code source** : `BiblioValidationService.js:293-420` (`_arbitrateResults`)
+**Code source** : `BiblioValidationService.js` (`_arbitrateResults`)
 
 #### 4.3 Reconstruction du Nom d'Auteur (Ground Truth)
 
@@ -1071,7 +1096,7 @@ reconstructedAuthor: "Jakuta Alikavazovic"
 // Jakuta (plus court, pattern prénom) + Alikavazovic (nom)
 ```
 
-**Code source** : `BiblioValidationService.js:524-690` (`_extractGroundTruthSuggestion`)
+**Code source** : `BiblioValidationService.js` (`_extractGroundTruthSuggestion`)
 
 #### 4.4 Priorisation des Titres (Ground Truth)
 
@@ -1081,9 +1106,18 @@ Lorsque fuzzy search retourne **plusieurs titres candidats**, le service utilise
 1. Calculer **similarité Levenshtein** entre titre original et candidat (normalisé 0-1)
 2. Normaliser **score fuzzy** de rapidfuzz (0-1)
 3. Score combiné : `similarité × 0.7 + score_fuzzy × 0.3`
-4. Filtrer les suggestions invalides (URLs, fragments)
-5. Trier par score combiné décroissant
-6. Retourner le meilleur match
+4. Filtrer les suggestions invalides (URLs, entités HTML, fragments)
+5. Écarter un candidat à la fois **faible** (score fuzzy < 50) et **éloigné** du titre
+   original (similarité < 0.25) : `MIN_GROUND_TRUTH_TITLE_SCORE`,
+   `MIN_GROUND_TRUTH_TITLE_SIMILARITY`
+6. Trier par score combiné décroissant
+7. Retourner le meilleur match (titre vide s'il ne reste aucun candidat : l'arbitrage
+   retombe alors sur Babelio seul)
+
+| Original | Candidat | Score fuzzy | Similarité | Résultat |
+|---|---|---|---|---|
+| Colcause | Kolkhoze | 38 | 0.375 | ✅ gardé (proche) |
+| Rouge Truite | Saint Lucky Luke | 35.7 | 0.125 | ❌ écarté |
 
 **Exemple** :
 ```javascript
@@ -1099,7 +1133,7 @@ titleMatches: [
 // Résultat : "Kolkhoze" (meilleur compromis similarité/score)
 ```
 
-**Code source** : `BiblioValidationService.js:540-573` (dans `_extractGroundTruthSuggestion`)
+**Code source** : `BiblioValidationService.js` (dans `_extractGroundTruthSuggestion`)
 
 ---
 

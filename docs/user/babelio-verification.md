@@ -47,6 +47,9 @@ donc pas dans **Liaison Babelio des livres**. Il en va de même pour l'ajout man
 - Faute d'orthographe importante
 - Livre récent non encore référencé
 - Inversion de nom (ex: "Le Floch" → "Lefloc")
+- Titre mal transcrit, absent du titre et de la description de l'émission : le système ne
+  propose jamais à la place le titre d'un autre livre de la même émission, ni un titre trop
+  éloigné de l'original (ex: "Rouge Truite" pour *Rouges Truites*)
 
 **Action** : Vérification manuelle nécessaire. Consultez directement [Babelio.com](https://www.babelio.com) pour confirmation.
 
