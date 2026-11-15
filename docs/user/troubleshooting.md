@@ -367,15 +367,19 @@ localStorage.debug = '*'
 1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox (même machine que le serveur)
 2. Si un captcha s'affiche, résolvez-le
 3. Appuyez sur **F12** → onglet **Réseau** → rechargez la page (F5)
-4. Cliquez sur la première requête vers `babelio.com`
-5. Dans **En-têtes de la requête**, copiez la valeur complète du champ **Cookie**
-6. Dans la page **Livres et Auteurs** (ou **Liaison Babelio des livres**), collez la valeur dans
-   le champ **🍪 Cookie Babelio** et cliquez **Enregistrer**
-7. Une confirmation "✓ Cookie enregistré" s'affiche ; la bannière de blocage disparaît
+4. Cliquez sur la requête `/` vers `babelio.com`
+5. Dans **En-têtes de la requête**, faites un clic droit sur **Cookie** → **Copier la valeur**
+6. Dans la page **Livres et Auteurs** (ou **Liaison Babelio des livres**, ou **Contrôle
+   Babelio**), collez la valeur dans le panneau **🔑 Cookie Babelio** (bouton **Entrer un
+   cookie plus récent** si un cookie est encore actif) et cliquez **Enregistrer**
+7. Une confirmation « ✓ Cookie enregistré » s'affiche ; la bannière de blocage disparaît
 8. Relancez les validations
 
-**Durée de validité :** Le cookie expire après ~5 minutes. Passé ce délai, un badge "⏰
-probablement expiré" apparaît à côté du champ cookie. Si le blocage revient (nouvelle bannière
+Si le panneau affiche un message sous le champ (« Ce n'est pas un en-tête Cookie », « jstsToken
+absent »…), la valeur copiée n'est pas la bonne : reprenez l'étape 5.
+
+**Durée de validité :** Le cookie expire après ~5 minutes. Le badge indique le temps restant,
+puis passe à « ⏰ périmé — collez un cookie frais ». Si le blocage revient (nouvelle bannière
 rouge ou nouveau message contenant "403"), répétez la procédure.
 
 **Note :** Avant cette détection, un blocage 403 apparaissait silencieusement comme "Non trouvé"

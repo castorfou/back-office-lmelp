@@ -52,7 +52,7 @@ from .services.avis_critiques_generation_service import (
 )
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
-from .services.babelio_service import babelio_service
+from .services.babelio_service import babelio_service, normalize_cookie_header
 from .services.books_extraction_service import books_extraction_service
 from .services.calibre_matching_service import CalibreMatchingService
 from .services.calibre_service import calibre_service
@@ -104,9 +104,6 @@ class BabelioVerificationRequest(BaseModel):
     name: str | None = None  # Pour author ou publisher
     title: str | None = None  # Pour book
     author: str | None = None  # Auteur du livre (optionnel pour book)
-    babelio_cookies: str | None = (
-        None  # Cookie header (jstsToken) copié depuis DevTools (Issue #247)
-    )
 
 
 class FuzzySearchRequest(BaseModel):
@@ -256,16 +253,12 @@ class UpdateFromBabelioUrlRequest(BaseModel):
     item_id: str
     babelio_url: str
     item_type: str = "livre"  # "livre" ou "auteur"
-    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
 
 
 class ExtractFromBabelioUrlRequest(BaseModel):
     """Modèle pour extraire les données depuis une URL Babelio (Issue #159)."""
 
     babelio_url: str
-    babelio_cookies: str | None = (
-        None  # Cookie header copié depuis DevTools (Issue #245)
-    )
 
 
 class SaveCoverUrlRequest(BaseModel):
@@ -305,7 +298,6 @@ class ExtractCoverUrlRequest(BaseModel):
 
     babelio_url: str
     expected_title: str | None = None
-    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
 
 
 def _babelio_blocked_response(error: Exception) -> JSONResponse | None:
@@ -1700,18 +1692,14 @@ async def verify_babelio(request: BabelioVerificationRequest) -> dict[str, Any]:
                 raise HTTPException(
                     status_code=400, detail="Le nom de l'auteur est requis"
                 )
-            result = await babelio_service.verify_author(
-                request.name, babelio_cookies=request.babelio_cookies
-            )
+            result = await babelio_service.verify_author(request.name)
 
         elif request.type == "book":
             if not request.title:
                 raise HTTPException(
                     status_code=400, detail="Le titre du livre est requis"
                 )
-            result = await babelio_service.verify_book(
-                request.title, request.author, babelio_cookies=request.babelio_cookies
-            )
+            result = await babelio_service.verify_book(request.title, request.author)
 
         elif request.type == "publisher":
             if not request.name:
@@ -2535,16 +2523,9 @@ class ApplyRefreshRequest(BaseModel):
     auteur_url_babelio: str | None = None
 
 
-class RefreshBabelioRequest(BaseModel):
-    """Paramètres optionnels pour le refresh Babelio (Issue #245)."""
-
-    babelio_cookies: str | None = None  # Cookie header copié depuis DevTools
-
-
 @app.post("/api/livres/{livre_id}/refresh-babelio", response_model=dict[str, Any])
 async def refresh_livre_from_babelio(
     livre_id: str,
-    request: RefreshBabelioRequest | None = None,
 ) -> dict[str, Any]:
     """Scrape Babelio et retourne une comparaison current vs babelio (Issue #189).
 
@@ -2608,20 +2589,15 @@ async def refresh_livre_from_babelio(
         "auteur_url_babelio": auteur.get("url_babelio") if auteur else None,
     }
 
-    # Scraper Babelio (cookies transmis pour contourner le captcha - Issue #245)
-    babelio_cookies = request.babelio_cookies if request is not None else None
+    # Scraper Babelio (avec le cookie stocké côté serveur)
     try:
-        babelio_titre = await babelio_service.fetch_full_title_from_url(
-            url_babelio, babelio_cookies=babelio_cookies
-        )
-        babelio_editeur = await babelio_service.fetch_publisher_from_url(
-            url_babelio, babelio_cookies=babelio_cookies
-        )
+        babelio_titre = await babelio_service.fetch_full_title_from_url(url_babelio)
+        babelio_editeur = await babelio_service.fetch_publisher_from_url(url_babelio)
         babelio_auteur_url = await babelio_service.fetch_author_url_from_page(
-            url_babelio, babelio_cookies=babelio_cookies
+            url_babelio
         )
         babelio_auteur_nom = await babelio_service._scrape_author_from_book_page(
-            url_babelio, babelio_cookies=babelio_cookies
+            url_babelio
         )
     except Exception as e:
         raise HTTPException(
@@ -3425,7 +3401,6 @@ async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
         result = await babelio_service.fetch_cover_url_from_babelio_page(
             request.babelio_url,
             expected_title=request.expected_title,
-            babelio_cookies=request.babelio_cookies,
         )
         if isinstance(result, str) and result.startswith("TITLE_MISMATCH:"):
             rest = result[len("TITLE_MISMATCH:") :]
@@ -3498,10 +3473,21 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
         overall = "degraded"
 
     cache_ttl_hours = getattr(cache_service, "ttl_hours", None)
+    # Âge du cookie serveur : la seule référence pour savoir s'il est encore
+    # utilisable (le navigateur ne garde plus de cookie).
+    cookie_age_sec = babelio_service.get_cookie_age_sec()
+    cookie_max_age_sec = babelio_service.cookie_max_age_sec
 
     return {
         "overall": overall,
         "cookie_active": bool(babelio_service.get_cookie()),
+        "cookie_age_sec": (
+            round(cookie_age_sec, 1) if cookie_age_sec is not None else None
+        ),
+        "cookie_max_age_sec": cookie_max_age_sec,
+        "cookie_expired": (
+            cookie_age_sec is not None and cookie_age_sec >= cookie_max_age_sec
+        ),
         "browser_user_agent": babelio_service.get_browser_identity()["user_agent"],
         "browser_accept_language": babelio_service.get_browser_identity()[
             "accept_language"
@@ -3519,6 +3505,11 @@ async def set_babelio_cookie(request: Request) -> dict[str, Any]:
     """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
     body = await request.json()
     cookie = body.get("cookie") or None
+    if cookie is not None:
+        try:
+            cookie = normalize_cookie_header(cookie)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
     # Cette requête part du navigateur qui vient de récupérer le cookie : ses
     # en-têtes sont ceux pour lesquels Babelio a émis le jstsToken.
     babelio_service.set_cookie(
@@ -3706,7 +3697,6 @@ async def update_from_babelio_url(request: UpdateFromBabelioUrlRequest) -> JSONR
             item_id=request.item_id,
             babelio_url=request.babelio_url,
             item_type=request.item_type,
-            babelio_cookies=request.babelio_cookies,
         )
 
         if result["success"]:
@@ -3778,7 +3768,6 @@ async def extract_from_babelio_url(
         # Scraper les données depuis l'URL Babelio (cookies transmis pour contourner captcha)
         scraped_data = await babelio_migration_service.extract_from_babelio_url(
             request.babelio_url,
-            babelio_cookies=request.babelio_cookies,
         )
 
         return JSONResponse(

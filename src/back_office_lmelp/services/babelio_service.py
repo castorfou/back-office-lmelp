@@ -27,6 +27,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -84,6 +85,70 @@ class BabelioCaptchaError(Exception):
     mais le contenu HTML contient un captcha. L'utilisateur doit résoudre le captcha
     manuellement dans son navigateur pour obtenir un cookie frais.
     """
+
+
+# Nom de cookie : un « token » HTTP (RFC 6265 / RFC 7230).
+_COOKIE_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+# Attributs propres à un en-tête Set-Cookie (réponse), jamais à un en-tête Cookie.
+_SET_COOKIE_ATTRIBUTES = {
+    "path",
+    "domain",
+    "expires",
+    "max-age",
+    "httponly",
+    "secure",
+    "samesite",
+}
+
+
+def normalize_cookie_header(raw: str) -> str:
+    """Valide la valeur d'un en-tête Cookie Babelio collé à la main.
+
+    Le cookie se copie dans les outils de développement du navigateur
+    (requête « / » de babelio.com → En-têtes de requête → Cookie). Copier
+    une autre entrée enverrait à Babelio un cookie inutilisable, d'où un 403,
+    que Babelio transforme en ban IP.
+
+    Returns:
+        La valeur nettoyée (espaces et préfixe « Cookie: » retirés).
+
+    Raises:
+        ValueError: avec un message destiné à l'utilisateur.
+    """
+    value = raw.strip()
+    if "\n" in value or "\r" in value:
+        raise ValueError(
+            "Plusieurs lignes collées : copiez uniquement la valeur de l'en-tête "
+            "Cookie de la requête."
+        )
+    if value.lower().startswith("cookie:"):
+        value = value[len("cookie:") :].strip()
+
+    pairs: dict[str, str] = {}
+    for part in value.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        name, sep, cookie_value = part.partition("=")
+        name = name.strip()
+        if name.lower() in _SET_COOKIE_ATTRIBUTES:
+            raise ValueError(
+                "Ceci ressemble à un en-tête Set-Cookie (réponse) : copiez "
+                "l'en-tête Cookie des en-têtes de requête."
+            )
+        if not sep or not _COOKIE_NAME_RE.match(name):
+            raise ValueError(
+                "Ce n'est pas un en-tête Cookie : attendu une suite "
+                "« nom=valeur; nom=valeur » (En-têtes de requête → Cookie)."
+            )
+        pairs[name] = cookie_value.strip()
+
+    if not pairs.get("jstsToken"):
+        raise ValueError(
+            "jstsToken absent : rechargez babelio.com et copiez l'en-tête Cookie "
+            "de la requête « / »."
+        )
+    return value
 
 
 class BabelioService:
@@ -256,6 +321,12 @@ class BabelioService:
         """Retourne le cookie stocké côté serveur."""
         return self._stored_cookie
 
+    def get_cookie_age_sec(self) -> float | None:
+        """Âge du cookie stocké, en secondes depuis son enregistrement (None sans cookie)."""
+        if self._stored_cookie is None or self._cookie_set_at is None:
+            return None
+        return time.time() - self._cookie_set_at
+
     # ── HTTP session helpers ───────────────────────────────────────────────
 
     def _get_default_headers(self) -> dict[str, str]:
@@ -295,15 +366,12 @@ class BabelioService:
         """Cookies génériques (pays, disclaimer) en en-tête, faute de cookie stocké."""
         return "; ".join(f"{k}={v}" for k, v in self._get_default_cookies().items())
 
-    def _get_page_headers(self, babelio_cookies: str | None = None) -> dict[str, str]:
+    def _get_page_headers(self) -> dict[str, str]:
         """Retourne les headers navigateur pour le scraping de pages Babelio (Issue #245).
 
         Ces headers imitent un vrai navigateur Firefox pour éviter les blocages
-        par le système anti-bot de Babelio (captcha, 403, etc.).
-
-        Args:
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur sur babelio.com. Si None, aucun cookie n'est ajouté.
+        par le système anti-bot de Babelio (captcha, 403, etc.). Le seul cookie
+        ajouté est celui du serveur (``set_cookie``), jamais un cookie client.
 
         Returns:
             Dict de headers HTTP à passer à _send().
@@ -323,8 +391,8 @@ class BabelioService:
             # Priorité HTTP/2 d'une navigation Firefox
             "Priority": "u=0, i",
         }
-        if babelio_cookies:
-            headers["Cookie"] = babelio_cookies
+        if self._stored_cookie:
+            headers["Cookie"] = self._stored_cookie
         return headers
 
     def _is_captcha_page(self, html: str) -> bool:
@@ -381,7 +449,6 @@ class BabelioService:
     async def _fetch_page(
         self,
         url: str,
-        babelio_cookies: str | None = None,
         skip_cache: bool = False,
     ) -> str | None:
         """Gateway unifié pour tous les GETs de pages Babelio (Issue #245).
@@ -392,8 +459,6 @@ class BabelioService:
 
         Args:
             url: URL complète de la page Babelio à scraper.
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur. Permet de contourner le captcha Babelio.
             skip_cache: Si True, ignore le cache en lecture (une vraie requête
                 réseau est toujours effectuée) — utilisé par health_check()
                 (Issue #304), dont le but est justement de tester la
@@ -427,8 +492,7 @@ class BabelioService:
             self._ensure_cookie_fresh()
             self.last_request_time = time.time()
 
-            effective_cookie = self._stored_cookie or babelio_cookies
-            page_headers = self._get_page_headers(effective_cookie)
+            page_headers = self._get_page_headers()
             try:
                 response = await self._send("GET", url, page_headers)
             except BabelioConnectTimeoutError:
@@ -577,9 +641,7 @@ class BabelioService:
             )
             return []
 
-    async def search(
-        self, term: str, babelio_cookies: str | None = None
-    ) -> list[dict[str, Any]]:
+    async def search(self, term: str) -> list[dict[str, Any]]:
         """Effectue une recherche sur Babelio.
 
         Args:
@@ -702,9 +764,6 @@ class BabelioService:
             # Format JSON exact découvert via DevTools
             payload = {"term": term.strip(), "isMobile": False}
 
-            # Utiliser le cookie stocké côté serveur en priorité (Issue #254),
-            # sinon le cookie transmis par le frontend (rétro-compat).
-            effective_cookie = self._stored_cookie or babelio_cookies
             t0 = time.time()
 
             try:
@@ -714,7 +773,7 @@ class BabelioService:
 
                 search_headers = {
                     **self._get_default_headers(),
-                    "Cookie": effective_cookie or self._default_cookie_header(),
+                    "Cookie": self._stored_cookie or self._default_cookie_header(),
                 }
                 response = await self._send(
                     "POST", url, search_headers, json_body=payload
@@ -743,9 +802,7 @@ class BabelioService:
                 self._log_request("search", term, 0, False, (time.time() - t0) * 1000)
                 return []
 
-    async def verify_author(
-        self, author_name: str, babelio_cookies: str | None = None
-    ) -> dict[str, Any]:
+    async def verify_author(self, author_name: str) -> dict[str, Any]:
         """Vérifie et corrige l'orthographe d'un nom d'auteur.
 
         Args:
@@ -767,7 +824,7 @@ class BabelioService:
             return self._create_error_result(author_name, "Nom d'auteur vide")
 
         try:
-            results = await self.search(author_name, babelio_cookies=babelio_cookies)
+            results = await self.search(author_name)
 
             # Chercher le meilleur match auteur
             best_author = self._find_best_author_match(results, author_name)
@@ -826,7 +883,7 @@ class BabelioService:
             return self._create_error_result(author_name, str(e))
 
     async def verify_book(
-        self, title: str, author: str | None = None, babelio_cookies: str | None = None
+        self, title: str, author: str | None = None
     ) -> dict[str, Any]:
         """Vérifie et corrige l'orthographe d'un titre de livre.
 
@@ -862,7 +919,7 @@ class BabelioService:
                     f"(author filter: '{author or 'None'}')"
                 )
 
-            results = await self.search(search_term, babelio_cookies=babelio_cookies)
+            results = await self.search(search_term)
 
             if self._debug_log_enabled:
                 books_count = len([r for r in results if r.get("type") == "livres"])
@@ -886,9 +943,7 @@ class BabelioService:
                         f"🔍 [DEBUG] verify_book: aucun livre de '{author}' — "
                         f"repli sur '{fallback_term}'"
                     )
-                fallback_results = await self.search(
-                    fallback_term, babelio_cookies=babelio_cookies
-                )
+                fallback_results = await self.search(fallback_term)
                 best_book = self._find_best_book_match(fallback_results, title, author)
 
             if self._debug_log_enabled:
@@ -911,9 +966,7 @@ class BabelioService:
                         )
 
                     # Recherche avec titre seul
-                    title_only_results = await self.search(
-                        title, babelio_cookies=babelio_cookies
-                    )
+                    title_only_results = await self.search(title)
 
                     if self._debug_log_enabled:
                         books_count = len(
@@ -1021,9 +1074,7 @@ class BabelioService:
             babelio_publisher = None
             if confidence >= 0.90 and babelio_url:
                 try:
-                    babelio_publisher = await self.fetch_publisher_from_url(
-                        babelio_url, babelio_cookies=babelio_cookies
-                    )
+                    babelio_publisher = await self.fetch_publisher_from_url(babelio_url)
                 except BabelioBlockedError:
                     raise
                 except Exception as e:
@@ -1035,9 +1086,7 @@ class BabelioService:
             # Enrichissement titre: scraper si titre tronqué détecté (Issue #88)
             if self._is_title_truncated(suggested_title) and babelio_url:
                 try:
-                    full_title = await self.fetch_full_title_from_url(
-                        babelio_url, babelio_cookies=babelio_cookies
-                    )
+                    full_title = await self.fetch_full_title_from_url(babelio_url)
                     if full_title:
                         suggested_title = full_title
                         # Mettre à jour aussi babelio_data pour le frontend (Issue #88)
@@ -1057,7 +1106,7 @@ class BabelioService:
             if babelio_url:
                 try:
                     babelio_author_url = await self.fetch_author_url_from_page(
-                        babelio_url, babelio_cookies=babelio_cookies
+                        babelio_url
                     )
                 except BabelioBlockedError:
                     raise
@@ -1121,14 +1170,11 @@ class BabelioService:
     async def fetch_full_title_from_url(
         self,
         babelio_url: str,
-        babelio_cookies: str | None = None,
     ) -> str | None:
         """Scrape le titre complet depuis une page Babelio.
 
         Args:
             babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Titre complet ou None si non trouvé
@@ -1148,7 +1194,7 @@ class BabelioService:
             return None
 
         try:
-            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            html = await self._fetch_page(babelio_url)
             if html is None:
                 return None
 
@@ -1189,14 +1235,11 @@ class BabelioService:
     async def fetch_publisher_from_url(
         self,
         babelio_url: str,
-        babelio_cookies: str | None = None,
     ) -> str | None:
         """Scrape l'éditeur depuis une page Babelio.
 
         Args:
             babelio_url: URL complète Babelio (ex: https://www.babelio.com/livres/...)
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Nom de l'éditeur ou None si non trouvé
@@ -1215,7 +1258,7 @@ class BabelioService:
             return None
 
         try:
-            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            html = await self._fetch_page(babelio_url)
             if html is None:
                 return None
 
@@ -1243,7 +1286,6 @@ class BabelioService:
         self,
         babelio_url: str,
         expected_title: str | None = None,
-        babelio_cookies: str | None = None,
     ) -> str | None:
         """Scrape l'URL de couverture depuis une page Babelio (Issue #238).
 
@@ -1275,7 +1317,7 @@ class BabelioService:
 
         try:
             # Utiliser le gateway unifié _fetch_page (rate limiting + headers navigateur)
-            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            html = await self._fetch_page(babelio_url)
             if html is None:
                 logger.warning(
                     f"Babelio: impossible de scraper couverture pour: {babelio_url}"
@@ -1582,14 +1624,11 @@ class BabelioService:
     async def fetch_author_url_from_page(
         self,
         babelio_url: str,
-        babelio_cookies: str | None = None,
     ) -> str | None:
         """Scrape l'URL auteur depuis une page livre Babelio (Issue #124).
 
         Args:
             babelio_url: URL complète Babelio du livre
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             URL complète de l'auteur ou None si non trouvée
@@ -1613,7 +1652,7 @@ class BabelioService:
                     f"🔍 [DEBUG] fetch_author_url_from_page: Fetching {babelio_url}"
                 )
 
-            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            html = await self._fetch_page(babelio_url)
             if html is None:
                 if self._debug_log_enabled:
                     logger.info(
@@ -1688,14 +1727,11 @@ class BabelioService:
     async def _scrape_author_from_book_page(
         self,
         babelio_url: str,
-        babelio_cookies: str | None = None,
     ) -> str | None:
         """Scrape le nom de l'auteur depuis une page livre Babelio.
 
         Args:
             babelio_url: URL complète Babelio du livre
-            babelio_cookies: Valeur du header Cookie copiée depuis les DevTools du
-                navigateur sur babelio.com. Permet de contourner le captcha Babelio.
 
         Returns:
             Nom de l'auteur ou None si non trouvé
@@ -1713,7 +1749,7 @@ class BabelioService:
                     f"🔍 [DEBUG] _scrape_author_from_book_page: Fetching {babelio_url}"
                 )
 
-            html = await self._fetch_page(babelio_url, babelio_cookies=babelio_cookies)
+            html = await self._fetch_page(babelio_url)
             if html is None:
                 return None
 

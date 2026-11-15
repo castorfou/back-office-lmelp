@@ -82,48 +82,13 @@
         <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
       </div>
 
-      <!-- Cookie Babelio (jstsToken) — nécessaire pour les requêtes AJAX Issue #247 -->
+      <!-- Cookie Babelio (jstsToken) : le serveur est la seule source du cookie -->
       <section v-if="selectedEpisodeId" class="babelio-cookie-section">
-        <details :open="cookiePanelOpen" data-test="babelio-cookie-details">
-          <summary class="babelio-cookie-summary">
-            🔑 Cookie Babelio
-            <span v-if="serverCookieActive" class="cookie-status cookie-ok">✓ Actif côté serveur</span>
-            <span v-else-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
-            <span v-else-if="babelioCookieLikelyExpired" class="cookie-status cookie-expired" data-test="cookie-expired-badge">⏰ probablement expiré — actualisez-le</span>
-            <span v-else class="cookie-status cookie-ok">✓ Configuré</span>
-          </summary>
-          <div class="babelio-cookie-form">
-            <p class="cookie-help">
-              Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
-              Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
-            </p>
-            <details class="cookie-instructions">
-              <summary>Comment obtenir le cookie ?</summary>
-              <ol>
-                <li>Ouvre <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a> et connecte-toi</li>
-                <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
-                <li>Recharge la page, clique sur une requête babelio.com</li>
-                <li>Dans <strong>En-têtes de requête</strong>, copie la valeur du champ <strong>Cookie</strong></li>
-                <li>Colle-la ci-dessous et clique Enregistrer</li>
-              </ol>
-            </details>
-            <textarea
-              v-model="babelioCookieInput"
-              class="cookie-input"
-              placeholder="jstsToken=...; p=FR; disclaimer=1; ..."
-              rows="2"
-            ></textarea>
-            <div class="cookie-actions">
-              <button @click="saveBabelioCookie" class="btn-save-cookie" :disabled="!babelioCookieInput.trim()">
-                Enregistrer
-              </button>
-              <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
-                Effacer
-              </button>
-              <span v-if="babelioCookieJustSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
-            </div>
-          </div>
-        </details>
+        <BabelioCookiePanel
+          :status="babelioStatus"
+          :open="cookiePanelOpen"
+          @saved="onBabelioCookieSaved"
+        />
       </section>
 
       <!-- Légende des statuts -->
@@ -700,6 +665,7 @@ import { livresAuteursService, episodeService } from '../services/api.js';
 import Navigation from '../components/Navigation.vue';
 import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
+import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
@@ -714,6 +680,7 @@ export default {
     Navigation,
     BiblioValidationCell,
     EpisodeDropdown,
+    BabelioCookiePanel,
   },
 
   data() {
@@ -785,10 +752,9 @@ export default {
   // Issue #160: Global lock to prevent race conditions during episode changes
   changeEpisodeLock: false,
 
-  // Issue #247: Cookie Babelio (jstsToken) pour éviter les 403
-  babelioCookieInput: localStorage.getItem('babelio_cookies') || '',
-  babelioCookieStored: !!localStorage.getItem('babelio_cookies'),
-  serverCookieActive: false,
+  // Statut Babelio côté serveur (GET /api/babelio/status) : seule source de
+  // l'état du cookie, le navigateur n'en garde aucun.
+  babelioStatus: null,
   validatingWithBabelio: false,
   // Phase en cours de « Valider avec Babelio » : null, { phase: 'enrich' }
   // ou { phase: 'validate', index, total, titre }
@@ -797,9 +763,6 @@ export default {
   babelioBlocked: false,
   // Issue #304: ouvre automatiquement le panneau cookie quand un blocage est détecté
   cookiePanelOpen: false,
-  babelioCookieSavedAt: null,
-  babelioCookieJustSaved: false,
-  babelioCookieSavedConfirmationTimeout: null,
 
     };
   },
@@ -816,10 +779,6 @@ export default {
         !book.status ||
         !['verified', 'suggested', 'mongo', 'not_found'].includes(book.status)
       );
-    },
-    babelioCookieLikelyExpired() {
-      if (!this.babelioCookieSavedAt) return false;
-      return (Date.now() - this.babelioCookieSavedAt) > 5 * 60 * 1000;
     },
     selectedEpisode() {
       if (!this.selectedEpisodeId) return null;
@@ -963,9 +922,7 @@ export default {
     // Lire l'état du cookie côté serveur, sans jamais le réécrire : renvoyer le
     // cookie du navigateur (souvent périmé) refermait le circuit breaker et
     // provoquait un 403 Babelio, que Babelio transforme en ban IP.
-    axios.get('/api/babelio/status')
-      .then((response) => { this.serverCookieActive = !!response?.data?.cookie_active; })
-      .catch(() => {});
+    this.loadBabelioStatus();
 
     await this.loadEpisodesWithReviews();
 
@@ -1010,10 +967,6 @@ export default {
 
   beforeUnmount() {
     if (this._onKeydown) window.removeEventListener('keydown', this._onKeydown, true);
-    if (this.babelioCookieSavedConfirmationTimeout) {
-      clearTimeout(this.babelioCookieSavedConfirmationTimeout);
-      this.babelioCookieSavedConfirmationTimeout = null;
-    }
   },
 
   methods: {
@@ -1693,10 +1646,9 @@ export default {
 
       try {
         // Appeler l'API backend pour extraire les données (Issue #159)
-        // Les cookies Babelio sont transmis pour contourner le captcha (Issue #245)
+        // Le cookie Babelio est celui du serveur, jamais celui du navigateur
         const response = await axios.post('/api/babelio/extract-from-url', {
           babelio_url: url.trim(),
-          babelio_cookies: localStorage.getItem('babelio_cookies') || null,
         });
 
         if (response.data.status === 'success' && response.data.data) {
@@ -1825,41 +1777,26 @@ export default {
     },
 
 
-    /**
-     * Auto-validation des livres et envoi des résultats au backend
-     */
-    saveBabelioCookie() {
-      const val = this.babelioCookieInput.trim();
-      if (val) {
-        localStorage.setItem('babelio_cookies', val);
-        this.babelioCookieStored = true;
-        this.babelioCookieSavedAt = Date.now();
-        this.babelioBlocked = false;
-
-        // Synchroniser côté serveur (service centralisé)
-        axios.post('/api/babelio/cookie', { cookie: val })
-          .then(() => { this.serverCookieActive = true; })
-          .catch(() => {});
-
-        this.babelioCookieJustSaved = true;
-        if (this.babelioCookieSavedConfirmationTimeout) {
-          clearTimeout(this.babelioCookieSavedConfirmationTimeout);
-        }
-        this.babelioCookieSavedConfirmationTimeout = setTimeout(() => {
-          this.babelioCookieJustSaved = false;
-        }, 3000);
+    // Lire l'état du cookie côté serveur, sans jamais le réécrire : renvoyer un
+    // cookie du navigateur (souvent périmé) provoquait un 403 Babelio, que
+    // Babelio transforme en ban IP.
+    async loadBabelioStatus() {
+      try {
+        const response = await axios.get('/api/babelio/status');
+        this.babelioStatus = response?.data || null;
+      } catch {
+        // Statut indisponible : le badge reste « non configuré »
       }
     },
 
-    clearBabelioCookie() {
-      localStorage.removeItem('babelio_cookies');
-      this.babelioCookieInput = '';
-      this.babelioCookieStored = false;
-      this.serverCookieActive = false;
-      // Synchroniser côté serveur
-      axios.delete('/api/babelio/cookie').catch(() => {});
+    onBabelioCookieSaved() {
+      this.babelioBlocked = false;
+      this.loadBabelioStatus();
     },
 
+    /**
+     * Auto-validation des livres et envoi des résultats au backend
+     */
     async autoValidateAndSendResults() {
       if (!this.books || this.books.length === 0) return;
 
@@ -3322,104 +3259,6 @@ export default {
 
 .babelio-cookie-section {
   margin: 0.5rem 1rem;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.babelio-cookie-summary {
-  cursor: pointer;
-  padding: 0.5rem 1rem;
-  background: #f8f9fa;
-  font-size: 0.85rem;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.cookie-status {
-  font-size: 0.75rem;
-  padding: 1px 6px;
-  border-radius: 10px;
-}
-
-.cookie-ok {
-  background: #d4edda;
-  color: #155724;
-}
-
-.cookie-missing {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.babelio-cookie-form {
-  padding: 0.75rem 1rem;
-  background: white;
-}
-
-.cookie-help {
-  font-size: 0.8rem;
-  color: #6c757d;
-  margin-bottom: 0.5rem;
-}
-
-.cookie-instructions { margin-bottom: 1rem; font-size: 0.9rem; }
-.cookie-instructions ol { margin: 0.5rem 0 0 1.5rem; padding-left: 0; }
-.cookie-instructions li { margin-bottom: 0.25rem; }
-
-.cookie-input {
-  width: 100%;
-  font-family: monospace;
-  font-size: 0.75rem;
-  padding: 0.4rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  resize: vertical;
-  box-sizing: border-box;
-}
-
-.cookie-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.btn-save-cookie {
-  padding: 4px 12px;
-  background: #0d6efd;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.btn-save-cookie:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-clear-cookie {
-  padding: 4px 12px;
-  background: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.cookie-expired {
-  background: #ffe5b4;
-  color: #8a5a00;
-}
-
-.cookie-saved-confirmation {
-  font-size: 0.8rem;
-  color: #155724;
-  align-self: center;
 }
 
 /* Issue #251: Bannière de blocage Babelio 403 */

@@ -90,4 +90,4 @@ class TestBabelioGloriaCase:
             )
 
             # Vérifier que search() a été appelé UNE SEULE fois avec juste le titre
-            mock_search.assert_called_once_with("Gloria, Gloria", babelio_cookies=None)
+            mock_search.assert_called_once_with("Gloria, Gloria")

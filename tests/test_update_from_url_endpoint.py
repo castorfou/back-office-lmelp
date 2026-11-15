@@ -71,7 +71,6 @@ class TestUpdateFromUrlEndpoint:
                 item_id=livre_id,
                 babelio_url="https://www.babelio.com/livres/auteur/titre/123456",
                 item_type="livre",
-                babelio_cookies=None,
             )
 
     def test_should_update_auteur_from_url_via_api(self, client):
@@ -178,13 +177,11 @@ class TestUpdateFromUrlEndpoint:
                 item_id=livre_id,
                 babelio_url="https://www.babelio.com/livres/auteur/titre/123",
                 item_type="livre",  # Valeur par défaut
-                babelio_cookies=None,
             )
 
-    def test_should_pass_babelio_cookies_to_service(self, client):
-        """Test TDD (Issue #251): l'endpoint doit transmettre babelio_cookies
-        au service, sinon Babelio bloque les requêtes en 403 malgré le cookie
-        fourni par l'utilisateur dans l'UI.
+    def test_should_ignore_babelio_cookies_sent_by_client(self, client):
+        """Un champ babelio_cookies envoyé par un ancien client est ignoré :
+        le seul cookie utilisé est celui du serveur (Issue #350).
         """
         livre_id = str(ObjectId())
         cookies = "jstsToken=abc123; p=FR; disclaimer=1"
@@ -217,7 +214,6 @@ class TestUpdateFromUrlEndpoint:
                 item_id=livre_id,
                 babelio_url="https://www.babelio.com/livres/auteur/titre/123",
                 item_type="livre",
-                babelio_cookies=cookies,
             )
 
     def test_should_return_400_on_scraping_failure(self, client):

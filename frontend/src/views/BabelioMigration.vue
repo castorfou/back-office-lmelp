@@ -26,50 +26,15 @@
         <router-link to="/babelio-control">Contrôle Babelio</router-link>), puis relancez la liaison.
       </div>
 
-      <!-- Cookie Babelio -->
+      <!-- Cookie Babelio : le serveur est la seule source du cookie -->
       <div class="cookie-section">
-        <details>
-          <summary class="babelio-cookie-summary">
-            🔑 Cookie Babelio
-            <span v-if="serverCookieActive" class="cookie-status cookie-ok">✓ Actif côté serveur</span>
-            <span v-else-if="!babelioCookieStored" class="cookie-status cookie-missing">⚠ non configuré (risque 403)</span>
-            <span v-else-if="babelioCookieLikelyExpired" class="cookie-status cookie-expired">⏰ probablement expiré — actualisez-le</span>
-            <span v-else class="cookie-status cookie-ok">✓ Configuré</span>
-          </summary>
-          <div class="babelio-cookie-form">
-            <p class="cookie-help">
-              Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
-              Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
-              Pour un diagnostic complet (cache, requêtes récentes, circuit breaker), voir la page
-              <router-link to="/babelio-control">Contrôle Babelio</router-link>.
-            </p>
-            <details class="cookie-instructions">
-              <summary>Comment obtenir le cookie ?</summary>
-              <ol>
-                <li>Ouvre <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a> et connecte-toi</li>
-                <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
-                <li>Recharge la page, clique sur une requête babelio.com</li>
-                <li>Dans <strong>En-têtes de requête</strong>, copie la valeur du champ <strong>Cookie</strong></li>
-                <li>Colle-la ci-dessous et clique Enregistrer</li>
-              </ol>
-            </details>
-            <textarea
-              v-model="babelioCookieInput"
-              class="cookie-input"
-              placeholder="jstsToken=...; p=FR; disclaimer=1; ..."
-              rows="2"
-            ></textarea>
-            <div class="cookie-actions">
-              <button @click="saveBabelioCookie" class="btn-save-cookie" :disabled="!babelioCookieInput.trim()">
-                Enregistrer
-              </button>
-              <button v-if="babelioCookieStored" @click="clearBabelioCookie" class="btn-clear-cookie">
-                Effacer
-              </button>
-              <span v-if="babelioCookieJustSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
-            </div>
-          </div>
-        </details>
+        <BabelioCookiePanel
+          :status="babelioServiceStatus"
+          @saved="loadBabelioServiceStatus"
+        >
+          Pour un diagnostic complet (cache, requêtes récentes, circuit breaker), voir la page
+          <router-link to="/babelio-control">Contrôle Babelio</router-link>.
+        </BabelioCookiePanel>
       </div>
 
       <!-- Statistiques Livres -->
@@ -597,11 +562,13 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 
 export default {
   name: 'BabelioMigration',
   components: {
     Navigation,
+    BabelioCookiePanel,
   },
   data() {
     return {
@@ -634,15 +601,7 @@ export default {
       stopCoverMigration_flag: false,
       coverMismatchCases: [],
       coverUrlInputs: {}, // { [livre_id]: url_string }
-      babelioCookies: localStorage.getItem('babelio_cookies') || '',
-      babelioCookieInput: localStorage.getItem('babelio_cookies') || '',
-      babelioCookieStored: !!localStorage.getItem('babelio_cookies'),
-      babelioCookieJustSaved: false,
-      babelioCookieSavedAt: null,
-      serverCookieActive: false,
-      babelioServiceStatus: null, // GET /api/babelio/status (Issue #339)
-      babelioCookieSavedConfirmationTimeout: null,
-      showCookieHelp: false,
+      babelioServiceStatus: null, // GET /api/babelio/status : seule source de l'état du cookie
       // Popup pour entrer URL Babelio
       showUrlPopup: false,
       urlPopupCase: null,
@@ -666,16 +625,8 @@ export default {
     }
     // Arrêter la migration des couvertures si en cours
     this.stopCoverMigration_flag = true;
-    if (this.babelioCookieSavedConfirmationTimeout) {
-      clearTimeout(this.babelioCookieSavedConfirmationTimeout);
-      this.babelioCookieSavedConfirmationTimeout = null;
-    }
   },
   computed: {
-    babelioCookieLikelyExpired() {
-      if (!this.babelioCookieStored || !this.babelioCookieSavedAt) return false;
-      return (Date.now() - this.babelioCookieSavedAt) > 5 * 60 * 1000;
-    },
     totalItemsToProcess() {
       if (!this.status) return 0;
       return (this.status.pending_count || 0) + (this.status.authors_without_url_babelio || 0);
@@ -737,7 +688,6 @@ export default {
       try {
         const response = await axios.get('/api/babelio/status');
         this.babelioServiceStatus = response?.data || null;
-        this.serverCookieActive = !!response?.data?.cookie_active;
       } catch {
         // Statut indisponible : pas de bandeau plutôt qu'un faux blocage
       }
@@ -893,7 +843,6 @@ export default {
           item_id: itemId,
           babelio_url: this.babelioUrl.trim(),
           item_type: itemType,
-          babelio_cookies: this.babelioCookies || null,
         });
 
         if (response.data.status === 'success') {
@@ -1200,47 +1149,13 @@ export default {
       }
     },
 
-    saveBabelioCookie() {
-      const val = this.babelioCookieInput.trim();
-      if (val) {
-        localStorage.setItem('babelio_cookies', val);
-        this.babelioCookies = val;
-        this.babelioCookieStored = true;
-        this.babelioCookieSavedAt = Date.now();
-
-        // Synchroniser côté serveur (service centralisé)
-        axios.post('/api/babelio/cookie', { cookie: val })
-          .then(() => this.loadBabelioServiceStatus())
-          .catch(() => {});
-
-        this.babelioCookieJustSaved = true;
-        if (this.babelioCookieSavedConfirmationTimeout) {
-          clearTimeout(this.babelioCookieSavedConfirmationTimeout);
-        }
-        this.babelioCookieSavedConfirmationTimeout = setTimeout(() => {
-          this.babelioCookieJustSaved = false;
-        }, 3000);
-      }
-    },
-
-    clearBabelioCookie() {
-      localStorage.removeItem('babelio_cookies');
-      this.babelioCookies = '';
-      this.babelioCookieInput = '';
-      this.babelioCookieStored = false;
-      this.serverCookieActive = false;
-      // Synchroniser côté serveur
-      axios.delete('/api/babelio/cookie').catch(() => {});
-    },
-
     async _extractCoverUrlFromBabelioPage(babelioUrl, expectedTitle = null) {
-      // Backend proxy avec cookie Babelio transmis depuis le navigateur
+      // Backend proxy : le cookie Babelio utilisé est celui du serveur
       // Retourne { url_cover, title_mismatch, page_title } ou null en cas d'erreur
       try {
         const response = await axios.post('/api/babelio/extract-cover-url', {
           babelio_url: babelioUrl,
           expected_title: expectedTitle,
-          babelio_cookies: this.babelioCookies || null,
         });
         return response.data;
       } catch {
@@ -1518,106 +1433,6 @@ h2 {
 /* Migration Button */
 .cookie-section {
   margin: 16px 0 8px;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-}
-
-.cookie-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-
-.cookie-header label {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.cookie-status {
-  font-weight: normal;
-  font-size: 0.85rem;
-  color: #28a745;
-}
-
-.cookie-status.missing {
-  color: #856404;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: #007bff;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
-  text-decoration: underline;
-}
-
-.cookie-help {
-  font-size: 0.8rem;
-  color: #6c757d;
-  margin-bottom: 0.5rem;
-}
-
-.cookie-instructions { margin-bottom: 1rem; font-size: 0.9rem; }
-.cookie-instructions ol { margin: 0.5rem 0 0 1.5rem; padding-left: 0; }
-.cookie-instructions li { margin-bottom: 0.25rem; }
-
-.babelio-cookie-form {
-  padding: 0.75rem 1rem;
-  background: white;
-}
-
-.cookie-input {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: monospace;
-  font-size: 0.75rem;
-  padding: 6px 8px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  resize: vertical;
-  color: #495057;
-}
-
-.cookie-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.btn-save-cookie {
-  padding: 4px 12px;
-  background: #0d6efd;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.btn-save-cookie:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-clear-cookie {
-  padding: 4px 12px;
-  background: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.cookie-saved-confirmation {
-  font-size: 0.8rem;
-  color: #155724;
 }
 
 .migration-button-container {

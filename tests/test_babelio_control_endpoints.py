@@ -26,6 +26,8 @@ def mock_babelio_service():
     with patch("back_office_lmelp.app.babelio_service") as mock:
         mock.get_recent_requests.return_value = []
         mock.min_interval = 2.0
+        mock.get_cookie_age_sec.return_value = None
+        mock.cookie_max_age_sec = 300.0
         mock.health_check = AsyncMock(return_value={"ok": True})
         yield mock
 
@@ -39,6 +41,8 @@ def mock_cache_service(tmp_path):
         mock_svc.cache_service = svc
         mock_svc.get_recent_requests.return_value = []
         mock_svc.min_interval = 2.0
+        mock_svc.get_cookie_age_sec.return_value = None
+        mock_svc.cookie_max_age_sec = 300.0
         yield mock_svc, svc
 
 
