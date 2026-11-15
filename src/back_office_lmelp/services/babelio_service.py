@@ -24,6 +24,7 @@ Usage :
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -33,6 +34,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -50,6 +52,18 @@ DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0"
 )
 DEFAULT_ACCEPT_LANGUAGE = "fr,en-US;q=0.9,en;q=0.8"
+
+
+# Motifs d'ouverture du circuit breaker
+CIRCUIT_REASON_HTTP_403 = "http_403"
+CIRCUIT_REASON_CONNECT_TIMEOUT = "connect_timeout"
+
+# Durée de l'essai TCP : à la demande (Contrôle Babelio) et avant un traitement
+PROBE_TIMEOUT_SEC = 5.0
+PRECHECK_PROBE_TIMEOUT_SEC = 1.0
+BABELIO_IP_BANNED_MESSAGE = (
+    "Babelio injoignable : IP bannie, inutile de changer le cookie"
+)
 
 
 class BabelioConnectTimeoutError(TimeoutError):
@@ -202,6 +216,11 @@ class BabelioService:
         self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "300"))
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
+        # Motif d'ouverture : CIRCUIT_REASON_HTTP_403 (cookie) ou
+        # CIRCUIT_REASON_CONNECT_TIMEOUT (ban IP, la connexion n'aboutit pas)
+        self._circuit_reason: str | None = None
+        # Dernier essai de connexion TCP (probe_reachability)
+        self._last_probe: dict[str, Any] | None = None
         # Contrôle des logs temporaires pour le cache disque (utile en dev)
         # Si la variable d'environnement BABELIO_CACHE_LOG est '1' ou 'true',
         # on exposera des logs plus verbeux (info) pour hit/miss et écriture.
@@ -277,6 +296,7 @@ class BabelioService:
         self._browser_accept_language = accept_language if self._stored_cookie else None
         if self._stored_cookie:
             self._circuit_open = False
+            self._circuit_reason = None
             logger.info("🔑 Cookie Babelio mis à jour — circuit breaker réinitialisé")
         else:
             logger.info("🔑 Cookie Babelio effacé")
@@ -304,11 +324,91 @@ class BabelioService:
         n'aboutit jamais, sans 403 ni captcha. Insister ne fait qu'attendre
         10 s par requête pour rien.
         """
-        self._circuit_open = True
+        self._open_circuit(CIRCUIT_REASON_CONNECT_TIMEOUT)
         logger.warning(
             "Babelio injoignable (timeout de connexion, ban IP probable) — "
             "circuit breaker ouvert"
         )
+
+    def _open_circuit(self, reason: str) -> None:
+        """Ouvre le circuit breaker en notant son motif (CIRCUIT_REASON_*)."""
+        self._circuit_open = True
+        self._circuit_reason = reason
+
+    def _circuit_open_error(self) -> BabelioBlockedError:
+        """Erreur levée quand une requête est refusée par le circuit ouvert."""
+        if self._circuit_reason == CIRCUIT_REASON_CONNECT_TIMEOUT:
+            return BabelioBlockedError(BABELIO_IP_BANNED_MESSAGE)
+        return BabelioBlockedError(
+            "Circuit breaker ouvert (403 précédent) — configurez un cookie frais"
+        )
+
+    def get_circuit_reason(self) -> str | None:
+        """Motif d'ouverture du circuit breaker (None s'il est fermé)."""
+        return self._circuit_reason if self._circuit_open else None
+
+    def get_last_probe(self) -> dict[str, Any] | None:
+        """Résultat du dernier essai de connexion TCP (None si aucun essai)."""
+        return dict(self._last_probe) if self._last_probe is not None else None
+
+    async def probe_reachability(
+        self,
+        timeout_sec: float | None = None,
+        host: str | None = None,
+        port: int | None = None,
+    ) -> str:
+        """Essaie d'ouvrir une connexion TCP vers Babelio, puis la ferme aussitôt.
+
+        Aucun octet n'est envoyé : ni TLS ni HTTP. Un ban IP Babelio est un
+        blocage pare-feu (paquets ignorés) : si l'IP est bannie, Babelio ne voit
+        rien ; sinon il voit une connexion sans requête, absente des journaux
+        HTTP dont se nourrit son anti-bot. L'essai ne passe donc ni par
+        _send() ni par le rate limiter.
+
+        Effets sur le circuit breaker : un échec l'ouvre (motif ban IP), un
+        succès referme un circuit ouvert par un timeout de connexion. Un
+        circuit ouvert par un 403 reste ouvert : seul un cookie frais le ferme.
+
+        Returns:
+            "reachable" si la connexion aboutit, "unreachable" sinon (timeout,
+            refus, erreur réseau ou DNS).
+        """
+        parsed = urlparse(self.base_url)
+        target_host = host or parsed.hostname or "www.babelio.com"
+        target_port = port or parsed.port or 443
+        timeout = timeout_sec if timeout_sec is not None else PROBE_TIMEOUT_SEC
+        t0 = time.time()
+        reachable = False
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(target_host, target_port), timeout
+            )
+            reachable = True
+            writer.close()
+            with contextlib.suppress(OSError):
+                await writer.wait_closed()
+        except (TimeoutError, OSError) as e:
+            logger.warning(
+                f"Essai TCP Babelio {target_host}:{target_port} échoué "
+                f"({type(e).__name__}: {e})"
+            )
+
+        self._last_probe = {
+            "reachable": reachable,
+            "checked_at": time.time(),
+            "duration_ms": round((time.time() - t0) * 1000, 1),
+        }
+        if not reachable:
+            self._open_circuit_on_connection_timeout()
+            return "unreachable"
+        if (
+            self._circuit_open
+            and self._circuit_reason == CIRCUIT_REASON_CONNECT_TIMEOUT
+        ):
+            self._circuit_open = False
+            self._circuit_reason = None
+            logger.info("Babelio de nouveau joignable — circuit breaker refermé")
+        return "reachable"
 
     def get_browser_identity(self) -> dict[str, str | None]:
         """User-Agent et Accept-Language du navigateur qui a fourni le cookie."""
@@ -446,11 +546,7 @@ class BabelioService:
             headers={k.lower(): v for k, v in response.headers.items()},
         )
 
-    async def _fetch_page(
-        self,
-        url: str,
-        skip_cache: bool = False,
-    ) -> str | None:
+    async def _fetch_page(self, url: str) -> str | None:
         """Gateway unifié pour tous les GETs de pages Babelio (Issue #245).
 
         Centralise le rate limiting pour TOUTES les requêtes de scraping de pages.
@@ -459,10 +555,6 @@ class BabelioService:
 
         Args:
             url: URL complète de la page Babelio à scraper.
-            skip_cache: Si True, ignore le cache en lecture (une vraie requête
-                réseau est toujours effectuée) — utilisé par health_check()
-                (Issue #304), dont le but est justement de tester la
-                connectivité réelle, pas de servir une réponse mise en cache.
 
         Returns:
             HTML de la page (décodé cp1252) ou None si erreur HTTP.
@@ -470,12 +562,10 @@ class BabelioService:
         t0 = time.time()
 
         if self._circuit_open:
-            raise BabelioBlockedError(
-                "Circuit breaker ouvert (403 ou ban IP précédent) — configurez un cookie frais"
-            )
+            raise self._circuit_open_error()
 
         # Cache hit: bypass rate limiter and HTTP request entirely
-        if self.cache_service is not None and not skip_cache:
+        if self.cache_service is not None:
             cached = self.cache_service.get_cached(url, search_type="page")
             if cached is not None:
                 html_cached: str = cached.get("data", "")
@@ -503,7 +593,7 @@ class BabelioService:
                 logger.warning(
                     f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
                 )
-                self._circuit_open = True
+                self._open_circuit(CIRCUIT_REASON_HTTP_403)
                 self._log_request("page", url, 403, False, (time.time() - t0) * 1000)
                 raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
             if response.status != 200:
@@ -530,46 +620,6 @@ class BabelioService:
                 self.cache_service.set_cached(url, html, search_type="page")
             self._log_request("page", url, 200, False, (time.time() - t0) * 1000)
             return html
-
-    async def health_check(self) -> dict[str, Any]:
-        """Effectue une requête légère à la demande pour connaître l'état réel de Babelio.
-
-        Contrairement à /api/babelio/status en mode passif (qui ne fait que relire
-        le buffer des dernières requêtes applicatives), ce health check déclenche
-        une vraie requête réseau vers la page d'accueil Babelio — jamais autrement
-        mise en cache dans ce service — via le rate limiter existant (Issue #287).
-
-        Ne lève jamais d'exception : les échecs (403, captcha, timeout, circuit
-        déjà ouvert) sont capturés et journalisés via _log_request(), pour que
-        l'appelant (endpoint /api/babelio/status) puisse simplement relire le
-        buffer après cet appel plutôt que de gérer chaque type d'erreur.
-
-        Returns:
-            {"ok": bool} — True si la page d'accueil a été récupérée avec succès.
-        """
-        t0 = time.time()
-
-        if self._circuit_open:
-            # _fetch_page lève avant tout log dans ce cas — journaliser ici pour
-            # que /api/babelio/status voie bien "blocked_403" après l'appel.
-            self._log_request(
-                "page", self.base_url, 403, False, (time.time() - t0) * 1000
-            )
-            return {"ok": False}
-
-        try:
-            html = await self._fetch_page(self.base_url, skip_cache=True)
-        except (BabelioBlockedError, BabelioCaptchaError):
-            # Déjà journalisé par _fetch_page.
-            return {"ok": False}
-        except Exception as e:
-            logger.error(f"Erreur health check Babelio: {e}")
-            self._log_request(
-                "page", self.base_url, 0, False, (time.time() - t0) * 1000
-            )
-            return {"ok": False}
-
-        return {"ok": html is not None}
 
     async def _handle_search_response(
         self,
@@ -625,7 +675,7 @@ class BabelioService:
                 return []
         elif response.status == 403:
             logger.warning(f"Babelio HTTP 403 pour: {term} - cookie requis")
-            self._circuit_open = True
+            self._open_circuit(CIRCUIT_REASON_HTTP_403)
             self._log_request("search", term, 403, False, (time.time() - t0) * 1000)
             raise BabelioBlockedError(f"Babelio 403: {term}")
         elif response.status == 503:
@@ -676,9 +726,7 @@ class BabelioService:
             return []
 
         if self._circuit_open:
-            raise BabelioBlockedError(
-                "Circuit breaker ouvert (403 ou ban IP précédent) — configurez un cookie frais"
-            )
+            raise self._circuit_open_error()
 
         # Vérifier le cache disque/in-memory d'abord
         cache_key = term.strip().lower()

@@ -1078,6 +1078,20 @@ escapes `BABELIO_COOKIE_MAX_AGE_SEC`, and earns a 403. The UI reads the cookie's
 from `GET /api/babelio/status` (`cookie_age_sec`, `cookie_expired`), through the shared
 `BabelioCookiePanel.vue`.
 
+**Diagnose a ban with a TCP probe, never with HTTP**: an IP ban is a firewall drop (the
+TCP connection never completes, no 403). `BabelioService.probe_reachability()` opens a
+connection to `www.babelio.com:443` and closes it at once (no TLS, no `_send()`, no rate
+limiter), so Babelio's HTTP logs see nothing. It backs « Rafraîchir »
+(`/api/babelio/status?live_check=true`), `POST /api/babelio/probe` and the 1 s check before
+« Valider avec Babelio » and the migration. The circuit breaker records why it opened
+(`get_circuit_reason()`: `http_403` or `connect_timeout`): a successful probe closes a
+`connect_timeout` circuit, only a fresh cookie closes an `http_403` one. Any code that starts
+a Babelio job must run the probe first. In tests, the autouse fixture `babelio_reachable`
+(`tests/conftest.py`) patches the probe on every loaded `babelio_service` singleton: a
+real probe succeeds locally but times out in CI. The fixture must never import a module:
+importing `migration_runner` early pins the singleton from before `test_babelio_service.py`
+reloads `babelio_service`.
+
 **Find every occurrence**: grep for `babelio.com` and `ClientSession` together; each
 bypass was added independently by a feature reaching for "a quick way to hit this URL"
 (`fetch_author_name_from_url()` was one).

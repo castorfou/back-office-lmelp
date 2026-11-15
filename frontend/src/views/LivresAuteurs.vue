@@ -76,9 +76,14 @@
         </button>
       </div>
 
-      <!-- Alerte blocage Babelio 403 (Issue #251) -->
+      <!-- Alerte blocage Babelio : ban IP (connexion qui n'aboutit pas) ou 403 (cookie) -->
       <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
-        ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
+        <template v-if="babelioIpBanned">
+          🚫 Babelio injoignable : IP bannie, inutile de changer le cookie. Le ban dure en général environ 24 h.
+        </template>
+        <template v-else>
+          ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
+        </template>
         <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
       </div>
 
@@ -761,6 +766,8 @@ export default {
   babelioValidationProgress: null,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
   babelioBlocked: false,
+  // Dernier essai TCP avant validation : Babelio injoignable (ban IP)
+  babelioProbeUnreachable: false,
   // Issue #304: ouvre automatiquement le panneau cookie quand un blocage est détecté
   cookiePanelOpen: false,
 
@@ -768,6 +775,14 @@ export default {
   },
 
   computed: {
+    // Ban IP : essai TCP en échec, ou disjoncteur ouvert par un timeout de connexion
+    babelioIpBanned() {
+      return (
+        this.babelioProbeUnreachable ||
+        this.babelioStatus?.circuit_reason === 'connect_timeout'
+      );
+    },
+
     babelioValidationLabel() {
       const progress = this.babelioValidationProgress;
       if (!this.validatingWithBabelio || !progress) return '🔍 Valider avec Babelio';
@@ -911,9 +926,14 @@ export default {
     }, 500),
 
     // Issue #304: ouvrir automatiquement le panneau cookie quand un blocage est détecté
-    babelioBlocked(isBlocked) {
-      if (isBlocked) {
-        this.cookiePanelOpen = true;
+    // Un ban IP ne se règle pas avec un cookie : le panneau reste fermé.
+    async babelioBlocked(isBlocked) {
+      if (!isBlocked || this.babelioIpBanned) return;
+      this.cookiePanelOpen = true;
+      // Le motif du disjoncteur (403 ou ban IP) est lu sur le serveur
+      await this.loadBabelioStatus();
+      if (this.babelioIpBanned) {
+        this.cookiePanelOpen = false;
       }
     },
   },
@@ -1221,6 +1241,14 @@ export default {
       this.validatingWithBabelio = true;
       this.babelioValidationProgress = { phase: 'enrich' };
       try {
+        // Essai TCP d'une seconde (sans HTTP) : si l'IP est bannie, arrêter
+        // tout de suite plutôt qu'attendre le timeout de la première requête
+        if (!(await this.probeBabelio())) {
+          this.babelioProbeUnreachable = true;
+          this.babelioBlocked = true;
+          return;
+        }
+        this.babelioProbeUnreachable = false;
         // Recharger les livres enrichis par Babelio (babelio_url, babelio_publisher) :
         // pour un épisode sans cache, l'extraction ne les enrichit que sur demande
         this.books = await livresAuteursService.getLivresAuteurs({
@@ -1786,6 +1814,17 @@ export default {
         this.babelioStatus = response?.data || null;
       } catch {
         // Statut indisponible : le badge reste « non configuré »
+      }
+    },
+
+    // Vrai si Babelio est joignable. Un échec de l'appel lui-même (backend
+    // indisponible) ne bloque pas : la validation signalera l'erreur réelle.
+    async probeBabelio() {
+      try {
+        const response = await axios.post('/api/babelio/probe');
+        return response?.data?.reachable !== false;
+      } catch {
+        return true;
       }
     },
 

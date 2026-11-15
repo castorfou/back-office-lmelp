@@ -6,7 +6,11 @@
       <!-- État du service -->
       <section class="card status-section">
         <h2>
-          <span class="status-badge" :class="statusClass">{{ statusLabel }}</span>
+          <span
+            class="status-badge"
+            :class="statusClass"
+            title="Résultat de la dernière requête HTTP à Babelio. Sans requête récente : résultat de l'essai TCP (« Rafraîchir »), qui dit seulement si l'IP est bannie, pas si le cookie fonctionne."
+          >{{ statusLabel }}</span>
           État du service
           <a href="https://www.babelio.com" target="_blank" rel="noopener noreferrer" class="link-babelio-site">Babelio</a>
         </h2>
@@ -35,10 +39,26 @@
           <div class="stat-row">
             <span
               class="stat-label stat-label-help"
-              title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping) ou n'aboutit pas (ban IP : connexion qui expire), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Il se referme automatiquement dès qu'un cookie valide est enregistré ci-dessous."
+              title="Accès réseau : « Rafraîchir » ouvre une connexion TCP vers www.babelio.com:443 puis la referme aussitôt, sans TLS ni requête HTTP. Une IP bannie par Babelio ne parvient pas à se connecter ; une IP libre se connecte, et Babelio ne voit qu'une connexion sans requête, absente de ses journaux HTTP."
+            >Accès réseau (essai TCP) :</span>
+            <span class="stat-value" data-test="babelio-reachability">
+              <span v-if="!status.last_probe" class="badge badge-warning">Non testé</span>
+              <span v-else-if="status.last_probe.reachable" class="badge badge-ok">✓ Joignable</span>
+              <span v-else class="badge badge-expired">🚫 Injoignable — IP bannie</span>
+              <span v-if="status.last_probe" class="text-muted probe-time">
+                à {{ formatProbeTime(status.last_probe.checked_at) }}
+              </span>
+            </span>
+          </div>
+          <div class="stat-row">
+            <span
+              class="stat-label stat-label-help"
+              title="Protection automatique : dès qu'une requête Babelio répond 403 (blocage anti-scraping) ou n'aboutit pas (ban IP : connexion qui expire), le circuit s'ouvre et bloque immédiatement toutes les requêtes suivantes sans les envoyer, pour ne pas aggraver le blocage. Ouvert par un 403, il se referme dès qu'un cookie valide est enregistré ci-dessous ; ouvert par un ban IP, dès qu'un essai TCP (« Rafraîchir ») réussit."
             >Circuit breaker :</span>
-            <span class="stat-value">
-              <span v-if="status.circuit_open" class="badge badge-expired">🚫 Ouvert — requêtes bloquées</span>
+            <span class="stat-value" data-test="babelio-circuit">
+              <span v-if="status.circuit_open && status.circuit_reason === 'connect_timeout'" class="badge badge-expired">🚫 Ouvert — IP bannie, inutile de changer le cookie</span>
+              <span v-else-if="status.circuit_open && status.circuit_reason === 'http_403'" class="badge badge-expired">🚫 Ouvert — 403, cookie à renouveler</span>
+              <span v-else-if="status.circuit_open" class="badge badge-expired">🚫 Ouvert — requêtes bloquées</span>
               <span v-else class="badge badge-ok">✓ Fermé</span>
             </span>
           </div>
@@ -227,28 +247,42 @@ export default {
   },
 
   computed: {
+    // État affiché : d'abord un ban IP connu (disjoncteur ouvert par un timeout
+    // de connexion), puis la dernière vraie requête HTTP ; sans requête, le
+    // dernier essai TCP, qui ne dit que si l'IP est bannie (pas si le cookie marche).
+    statusKey() {
+      const st = this.status;
+      if (!st) return 'untested';
+      if (st.circuit_open && st.circuit_reason === 'connect_timeout') return 'ip_banned';
+      if (st.overall && st.overall !== 'unknown') return st.overall;
+      if (st.last_probe) return st.last_probe.reachable ? 'reachable' : 'ip_banned';
+      return 'untested';
+    },
+
     statusClass() {
-      if (!this.status) return 'status-unknown';
       const map = {
         ok: 'status-ok',
         blocked_403: 'status-blocked',
+        ip_banned: 'status-blocked',
         captcha: 'status-captcha',
         degraded: 'status-degraded',
-        unknown: 'status-unknown',
+        reachable: 'status-reachable',
+        untested: 'status-unknown',
       };
-      return map[this.status.overall] || 'status-unknown';
+      return map[this.statusKey] || 'status-unknown';
     },
 
     statusLabel() {
-      if (!this.status) return '❓ Inconnu';
       const map = {
         ok: '✅ OK',
         blocked_403: '🚫 Bloqué (403)',
+        ip_banned: '🚫 IP bannie',
         captcha: '⚠️ Captcha',
         degraded: '🟡 Dégradé',
-        unknown: '❓ Inconnu',
+        reachable: '🟢 Joignable',
+        untested: '❔ Non testé',
       };
-      return map[this.status.overall] || '❓ Inconnu';
+      return map[this.statusKey] || '❔ Non testé';
     },
   },
 
@@ -287,9 +321,13 @@ export default {
       }
     },
 
-    // Déclenche un health check actif côté backend (Issue #287) — réservé au
-    // clic explicite sur "Rafraîchir", jamais au polling silencieux (30s),
-    // pour ne pas spammer Babelio à chaque visite de la page.
+    formatProbeTime(checkedAt) {
+      if (checkedAt == null) return '';
+      return new Date(checkedAt * 1000).toLocaleTimeString('fr-FR');
+    },
+
+    // Essai TCP vers Babelio (sans requête HTTP) — réservé au clic explicite
+    // sur "Rafraîchir", jamais au polling silencieux (30s).
     async refreshStatus() {
       this.loading.status = true;
       try {
@@ -432,6 +470,8 @@ h2 {
 }
 .status-ok { background: #d4edda; color: #155724; }
 .status-blocked { background: #f8d7da; color: #721c24; }
+.status-reachable { background: #e2f0e6; color: #1e5631; }
+.probe-time { margin-left: 0.5rem; font-size: 0.85em; font-weight: normal; color: #6c757d; }
 .status-captcha { background: #fff3cd; color: #856404; }
 .status-degraded { background: #fff3cd; color: #856404; }
 

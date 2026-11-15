@@ -6,9 +6,10 @@ Tests pour :
 - DELETE /api/babelio/cache/{entry_id}
 - DELETE /api/babelio/cache
 - GET /api/babelio/requests/recent
+- POST /api/babelio/probe (Issue #351)
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,7 +29,9 @@ def mock_babelio_service():
         mock.min_interval = 2.0
         mock.get_cookie_age_sec.return_value = None
         mock.cookie_max_age_sec = 300.0
-        mock.health_check = AsyncMock(return_value={"ok": True})
+        mock.probe_reachability = AsyncMock(return_value="reachable")
+        mock.get_circuit_reason.return_value = None
+        mock.get_last_probe.return_value = None
         yield mock
 
 
@@ -119,46 +122,104 @@ def test_babelio_status_blocked_when_403(client, mock_babelio_service):
     assert data["overall"] == "blocked_403"
 
 
-def test_babelio_status_without_live_check_does_not_call_health_check(
-    client, mock_babelio_service
-):
-    """GET /api/babelio/status (sans paramètre) ne déclenche pas de requête réseau.
+def test_babelio_status_without_live_check_does_not_probe(client, mock_babelio_service):
+    """GET /api/babelio/status (sans paramètre) ne touche pas au réseau.
 
-    Issue #287: le polling automatique (30s) du frontend ne doit jamais
-    spammer Babelio — seul un live_check explicite le doit.
+    Le polling automatique (30s) du frontend ne doit jamais contacter Babelio,
+    même par un simple essai TCP.
     """
     client.get("/api/babelio/status")
-    mock_babelio_service.health_check.assert_not_called()
+    mock_babelio_service.probe_reachability.assert_not_called()
 
 
-def test_babelio_status_live_check_calls_health_check(client, mock_babelio_service):
-    """GET /api/babelio/status?live_check=true déclenche un health check à la demande."""
+def test_babelio_status_live_check_runs_tcp_probe(client, mock_babelio_service):
+    """GET /api/babelio/status?live_check=true lance l'essai TCP (5 s)."""
+    from back_office_lmelp.services.babelio_service import PROBE_TIMEOUT_SEC
+
     client.get("/api/babelio/status?live_check=true")
-    mock_babelio_service.health_check.assert_called_once()
+    mock_babelio_service.probe_reachability.assert_awaited_once_with(
+        timeout_sec=PROBE_TIMEOUT_SEC
+    )
 
 
-def test_babelio_status_live_check_reflects_fresh_result(client, mock_babelio_service):
-    """Après live_check, overall reflète le résultat frais du health check (pas l'ancien buffer)."""
-    mock_babelio_service.get_recent_requests.return_value = []
+def test_babelio_status_exposes_circuit_reason_and_last_probe(
+    client, mock_babelio_service
+):
+    mock_babelio_service.get_circuit_reason.return_value = "connect_timeout"
+    mock_babelio_service.get_last_probe.return_value = {
+        "reachable": False,
+        "checked_at": 1763220000.0,
+        "duration_ms": 5001.2,
+    }
 
-    async def fake_health_check():
-        mock_babelio_service.get_recent_requests.return_value = [
-            {
-                "type": "page",
-                "term_or_url": "https://www.babelio.com",
-                "status_code": 403,
-                "cache_hit": False,
-                "duration_ms": 50,
-                "timestamp": 1000000,
-            }
-        ]
-        return {"ok": False}
+    data = client.get("/api/babelio/status").json()
 
-    mock_babelio_service.health_check = AsyncMock(side_effect=fake_health_check)
+    assert data["circuit_reason"] == "connect_timeout"
+    assert data["last_probe"]["reachable"] is False
 
-    response = client.get("/api/babelio/status?live_check=true")
-    data = response.json()
-    assert data["overall"] == "blocked_403"
+
+def _fake_connection() -> tuple[MagicMock, MagicMock]:
+    writer = MagicMock()
+    writer.wait_closed = AsyncMock()
+    return MagicMock(), writer
+
+
+def test_babelio_status_live_check_sends_no_http_request(client):
+    """« Rafraîchir » ne doit plus envoyer de requête HTTP à Babelio."""
+    from back_office_lmelp.services.babelio_service import BabelioService
+
+    service = BabelioService()
+    with (
+        patch("back_office_lmelp.app.babelio_service", service),
+        patch.object(service, "_send", new=AsyncMock()) as send,
+        patch(
+            "asyncio.open_connection",
+            new=AsyncMock(return_value=_fake_connection()),
+        ),
+    ):
+        data = client.get("/api/babelio/status?live_check=true").json()
+
+    send.assert_not_awaited()
+    assert data["last_probe"]["reachable"] is True
+    assert data["recent_requests_count"] == 0
+
+
+# ── POST /api/babelio/probe ───────────────────────────────────────────────────
+
+
+def test_babelio_probe_endpoint_uses_short_precheck_timeout(
+    client, mock_babelio_service
+):
+    from back_office_lmelp.services.babelio_service import (
+        PRECHECK_PROBE_TIMEOUT_SEC,
+    )
+
+    mock_babelio_service.probe_reachability = AsyncMock(return_value="unreachable")
+    mock_babelio_service._circuit_open = True
+    mock_babelio_service.get_circuit_reason.return_value = "connect_timeout"
+
+    response = client.post("/api/babelio/probe")
+
+    assert response.status_code == 200
+    mock_babelio_service.probe_reachability.assert_awaited_once_with(
+        timeout_sec=PRECHECK_PROBE_TIMEOUT_SEC
+    )
+    assert response.json() == {
+        "reachable": False,
+        "circuit_open": True,
+        "circuit_reason": "connect_timeout",
+    }
+
+
+def test_babelio_probe_endpoint_reports_reachable(client, mock_babelio_service):
+    mock_babelio_service.probe_reachability = AsyncMock(return_value="reachable")
+    mock_babelio_service._circuit_open = False
+    mock_babelio_service.get_circuit_reason.return_value = None
+
+    data = client.post("/api/babelio/probe").json()
+
+    assert data["reachable"] is True
+    assert data["circuit_open"] is False
 
 
 # ── GET /api/babelio/cache/entries ────────────────────────────────────────────

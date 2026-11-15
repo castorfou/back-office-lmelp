@@ -52,7 +52,12 @@ from .services.avis_critiques_generation_service import (
 )
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
-from .services.babelio_service import babelio_service, normalize_cookie_header
+from .services.babelio_service import (
+    PRECHECK_PROBE_TIMEOUT_SEC,
+    PROBE_TIMEOUT_SEC,
+    babelio_service,
+    normalize_cookie_header,
+)
 from .services.books_extraction_service import books_extraction_service
 from .services.calibre_matching_service import CalibreMatchingService
 from .services.calibre_service import calibre_service
@@ -3441,14 +3446,13 @@ async def extract_cover_url(request: ExtractCoverUrlRequest) -> JSONResponse:
 async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
     """Retourne l'état du service Babelio: cache, requêtes récentes, dernier statut.
 
-    Si live_check=true (Issue #287), déclenche d'abord une requête légère à la
-    demande via babelio_service.health_check() (page d'accueil, rate-limitée)
-    pour refléter un état réellement à jour, au lieu de dépendre du hasard des
-    dernières requêtes applicatives. Réservé à un déclenchement explicite
-    (bouton "Rafraîchir") — jamais au polling automatique du frontend.
+    Si live_check=true, lance d'abord un essai de connexion TCP vers Babelio
+    (probe_reachability, sans TLS ni HTTP) : il dit si l'IP est bannie sans
+    rien envoyer que Babelio puisse journaliser. Réservé à un déclenchement
+    explicite (bouton "Rafraîchir"), jamais au polling automatique du frontend.
     """
     if live_check:
-        await babelio_service.health_check()
+        await babelio_service.probe_reachability(timeout_sec=PROBE_TIMEOUT_SEC)
 
     recent = babelio_service.get_recent_requests()
     cache_entries = 0
@@ -3493,10 +3497,29 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
             "accept_language"
         ],
         "circuit_open": bool(getattr(babelio_service, "_circuit_open", False)),
+        "circuit_reason": babelio_service.get_circuit_reason(),
+        "last_probe": babelio_service.get_last_probe(),
         "cache_entries": cache_entries,
         "recent_requests_count": len(recent),
         "min_interval_sec": getattr(babelio_service, "min_interval", 2.0),
         "cache_ttl_hours": cache_ttl_hours,
+    }
+
+
+@app.post("/api/babelio/probe")
+async def probe_babelio() -> dict[str, Any]:
+    """Essai TCP court (sans HTTP) avant un traitement Babelio.
+
+    Si l'IP est bannie, l'appelant s'arrête aussitôt au lieu d'attendre le
+    timeout de la première requête.
+    """
+    result = await babelio_service.probe_reachability(
+        timeout_sec=PRECHECK_PROBE_TIMEOUT_SEC
+    )
+    return {
+        "reachable": result == "reachable",
+        "circuit_open": bool(getattr(babelio_service, "_circuit_open", False)),
+        "circuit_reason": babelio_service.get_circuit_reason(),
     }
 
 

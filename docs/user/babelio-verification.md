@@ -181,20 +181,41 @@ Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et 
 
 !!! warning "Un 403 Babelio devient un ban IP"
     Quelques minutes après un 403, Babelio ignore toute connexion venant de l'IP
-    (aucune réponse, même pas une erreur) pendant environ 24 h. Le serveur
-    traite un tel timeout de connexion comme un blocage : le circuit breaker
-    s'ouvre et plus aucune requête ne part jusqu'à l'enregistrement d'un
-    nouveau cookie. Pendant un ban, inutile d'insister : attendre la levée.
+    (aucune réponse, même pas une erreur) pendant environ 24 h. Changer le
+    cookie n'y fait rien. Pendant un ban, inutile d'insister : attendre la levée.
 
-**Détection automatique des blocages** : Si Babelio renvoie malgré tout une erreur 403 (cookie expiré en cours de traitement, par exemple), le système le détecte désormais explicitement :
-- Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page
-- Sur **Liaison Babelio des livres** : un bandeau rouge 🚫 « Babelio bloque les requêtes (403) »
-  s'affiche en haut de page tant que le circuit breaker est ouvert, ou que le dernier appel a reçu
-  un 403 sans cookie actif. Il disparaît dès qu'un cookie frais est enregistré. La dernière liaison
-  arrêtée par un 403 s'intitule « 🚫 Dernière liaison interrompue : Babelio bloqué (403) » et le
-  livre concerné est marqué « 🚫 403 ». Dans le popup de saisie d'URL, le message d'erreur contient "403".
+### Savoir si l'IP est bannie
 
-Dans les deux cas, la solution est la même : rafraîchir le cookie et relancer.
+Le bouton **🔄 Rafraîchir** de la page **Contrôle Babelio** fait un simple essai de connexion vers Babelio, puis la referme aussitôt : aucune requête n'est envoyée. Une IP bannie ne parvient pas à se connecter, Babelio ne voit donc rien. Une IP libre se connecte, et Babelio ne voit qu'une connexion vide, absente des journaux dont se nourrit son anti-robots. L'essai ne peut donc ni provoquer ni prolonger un ban.
+
+| Ligne de Contrôle Babelio | Affichage | Signification |
+|---|---|---|
+| **État du service** (badge en haut) | ✅ OK, 🚫 Bloqué (403), ⚠️ Captcha, 🟡 Dégradé | Résultat de la dernière vraie requête à Babelio |
+| | 🟢 Joignable | Aucune requête récente, mais le dernier essai de connexion a réussi : l'IP n'est pas bannie (le cookie, lui, n'est pas vérifié) |
+| | 🚫 IP bannie | Le dernier essai de connexion a échoué |
+| | ❔ Non testé | Ni requête ni essai depuis le démarrage du serveur |
+| **Accès réseau (essai TCP)** | ✓ Joignable / 🚫 Injoignable — IP bannie / Non testé | Résultat et heure du dernier essai |
+| **Circuit breaker** | 🚫 Ouvert — 403, cookie à renouveler | Un 403 a été reçu : coller un cookie frais |
+| | 🚫 Ouvert — IP bannie, inutile de changer le cookie | Une connexion n'a pas abouti : attendre la levée du ban |
+
+**Le disjoncteur suit l'essai** : un essai qui échoue l'ouvre (plus aucune requête ne part), un essai qui réussit referme un disjoncteur ouvert par un ban IP, sans exiger de nouveau cookie. Un disjoncteur ouvert par un 403 ne se referme qu'avec un cookie frais.
+
+**Vérification avant traitement** : **Valider avec Babelio** (page Livres et Auteurs) et le lancement de la liaison (page Liaison Babelio des livres) font d'abord un essai d'une seconde. Si l'IP est bannie, le traitement s'arrête aussitôt avec le message « Babelio injoignable : IP bannie, inutile de changer le cookie », au lieu d'attendre l'expiration de la première requête.
+
+### Blocages détectés
+
+Le système distingue les deux causes de blocage :
+
+- **Ban IP** : un bandeau 🚫 « Babelio injoignable : IP bannie, inutile de changer le cookie » s'affiche sur **Livres et Auteurs** et **Liaison Babelio des livres**. Le panneau cookie ne s'ouvre pas : un cookie ne lèverait pas le ban.
+- **403 Babelio** (cookie expiré en cours de traitement, par exemple) :
+    - Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page et le panneau cookie s'ouvre
+    - Sur **Liaison Babelio des livres** : un bandeau rouge 🚫 « Babelio bloque les requêtes (403) »
+      s'affiche en haut de page tant que le circuit breaker est ouvert, ou que le dernier appel a reçu
+      un 403 sans cookie actif. Il disparaît dès qu'un cookie frais est enregistré. La dernière liaison
+      arrêtée par un 403 s'intitule « 🚫 Dernière liaison interrompue : Babelio bloqué (403) » et le
+      livre concerné est marqué « 🚫 403 ». Dans le popup de saisie d'URL, le message d'erreur contient "403".
+
+Pour un 403, la solution est toujours la même : rafraîchir le cookie et relancer.
 
 **Relancer les livres bloqués par un 403** (page **Liaison Babelio des
 livres**) : un livre bloqué par un 403 pendant la migration automatique
