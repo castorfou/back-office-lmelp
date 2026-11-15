@@ -20,10 +20,17 @@
 
       <!-- Issue #339: Babelio bloqué (403, cookie absent/expiré, disjoncteur ouvert) -->
       <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
-        🚫 Babelio bloque les requêtes (403) : le cookie est absent ou expiré, et aucune
-        requête ne part tant qu'il n'est pas renouvelé. Collez un cookie frais dans
-        « 🔑 Cookie Babelio » ci-dessous (ou dans
-        <router-link to="/babelio-control">Contrôle Babelio</router-link>), puis relancez la liaison.
+        <template v-if="babelioIpBanned">
+          🚫 Babelio injoignable : IP bannie, inutile de changer le cookie. Le ban dure en
+          général environ 24 h ; vérifiez l'accès avec « Rafraîchir » dans
+          <router-link to="/babelio-control">Contrôle Babelio</router-link> avant de relancer la liaison.
+        </template>
+        <template v-else>
+          🚫 Babelio bloque les requêtes (403) : le cookie est absent ou expiré, et aucune
+          requête ne part tant qu'il n'est pas renouvelé. Collez un cookie frais dans
+          « 🔑 Cookie Babelio » ci-dessous (ou dans
+          <router-link to="/babelio-control">Contrôle Babelio</router-link>), puis relancez la liaison.
+        </template>
       </div>
 
       <!-- Cookie Babelio : le serveur est la seule source du cookie -->
@@ -652,6 +659,12 @@ export default {
       if (st.circuit_open === true) return true;
       return st.overall === 'blocked_403' && !st.cookie_active;
     },
+    // Disjoncteur ouvert par un timeout de connexion ou un essai TCP en échec :
+    // ban IP, un cookie frais n'y changerait rien.
+    babelioIpBanned() {
+      const st = this.babelioServiceStatus;
+      return st?.circuit_open === true && st.circuit_reason === 'connect_timeout';
+    },
     lastRunBlocked403() {
       return (this.migrationProgress.book_logs || []).some(
         (log) => log.livre_status === 'blocked_403'
@@ -963,6 +976,10 @@ export default {
           this.startPolling();
         } else if (response.data.status === 'already_running') {
           this.showToast('Migration déjà en cours', 'info');
+        } else if (response.data.status === 'unreachable') {
+          // Essai TCP d'avant traitement en échec : ban IP
+          this.showToast(response.data.message, 'error');
+          await this.loadBabelioServiceStatus();
         } else {
           this.showToast(`Erreur: ${response.data.message}`, 'error');
         }
