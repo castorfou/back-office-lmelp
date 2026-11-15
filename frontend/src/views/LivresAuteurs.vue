@@ -49,57 +49,14 @@
               >
                 Suivant ▶️
               </button>
-              <button
-                v-if="selectedEpisodeId"
-                @click="refreshEpisodeCache"
-                class="btn-icon-refresh"
-                data-testid="refresh-cache-button"
-                title="Relancer la validation Biblio"
-                aria-label="Relancer la validation Biblio"
-              >
-                🔄
-              </button>
             </div>
           </div>
         </div>
 
-      <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
-      <div v-if="selectedEpisodeId && !loading && booksNeedValidation" class="babelio-validate-bar">
-        <span>Des livres de cet épisode ne sont pas encore validés avec Babelio.</span>
-        <button
-          @click="validateWithBabelio"
-          :disabled="validatingWithBabelio"
-          class="btn-validate-babelio"
-          data-test="validate-babelio-button"
-        >
-          {{ babelioValidationLabel }}
-        </button>
-      </div>
-
-      <!-- Alerte blocage Babelio : ban IP (connexion qui n'aboutit pas) ou 403 (cookie) -->
-      <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
-        <template v-if="babelioIpBanned">
-          🚫 Babelio injoignable : IP bannie, inutile de changer le cookie. Le ban dure en général environ 24 h.
-        </template>
-        <template v-else>
-          ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
-        </template>
-        <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
-      </div>
-
-      <!-- Cookie Babelio (jstsToken) : le serveur est la seule source du cookie -->
-      <section v-if="selectedEpisodeId" class="babelio-cookie-section">
-        <BabelioCookiePanel
-          :status="babelioStatus"
-          :open="cookiePanelOpen"
-          @saved="onBabelioCookieSaved"
-        />
-      </section>
-
       <!-- Légende des statuts -->
       <section v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="legend-section">
         <div class="legend-box">
-          <h6>Statuts des livres :</h6>
+          <h6>Statuts des épisodes :</h6>
           <ul class="legend-list">
             <li>
               <span class="badge bg-success">🟢</span>
@@ -163,6 +120,57 @@
             </div>
           </div>
         </div>
+      <!-- Bloc Babelio : validation des livres, juste au-dessus de la liste -->
+      <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
+      <div v-if="selectedEpisodeId && !loading && booksNeedValidation" class="babelio-validate-bar">
+        <span>Des livres de cet épisode ne sont pas encore validés avec Babelio.</span>
+        <button
+          @click="validateWithBabelio"
+          :disabled="validatingWithBabelio || !babelioCookieUsable"
+          :title="babelioCookieUsable ? null : babelioCookieMissingHint"
+          class="btn-validate-babelio"
+          data-test="validate-babelio-button"
+        >
+          {{ babelioValidationLabel }}
+        </button>
+      </div>
+
+      <!-- Alerte blocage Babelio : ban IP (connexion qui n'aboutit pas) ou 403 (cookie) -->
+      <div v-if="babelioBlocked" class="babelio-blocked-banner" data-test="babelio-blocked-banner">
+        <template v-if="babelioIpBanned">
+          🚫 Babelio injoignable : IP bannie, inutile de changer le cookie. Le ban dure en général environ 24 h.
+        </template>
+        <template v-else>
+          ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
+        </template>
+        <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
+      </div>
+
+      <!-- Cookie Babelio (jstsToken) : le serveur est la seule source du cookie -->
+      <section v-if="selectedEpisodeId" class="babelio-cookie-section">
+        <BabelioCookiePanel
+          :status="babelioStatus"
+          :open="cookiePanelOpen"
+          @saved="onBabelioCookieSaved"
+          @cookie-state="babelioCookieState = $event"
+        >
+          <template #actions>
+            <!-- .prevent : dans le <summary>, le clic plierait aussi le panneau -->
+            <button
+              @click.prevent="refreshEpisodeCache"
+              :disabled="validatingWithBabelio || !babelioCookieUsable"
+              class="btn-refresh-validation"
+              data-testid="refresh-cache-button"
+              :title="babelioCookieUsable
+                ? 'Vider le cache de l\'épisode, réextraire les livres et relancer la validation Babelio'
+                : babelioCookieMissingHint"
+            >
+              🔄 Relancer la validation
+            </button>
+          </template>
+        </BabelioCookiePanel>
+      </section>
+
       </section>
 
 
@@ -467,6 +475,15 @@
                 placeholder="https://www.babelio.com/livres/..."
               />
               <div v-if="validationUrlError" class="url-error">{{ validationUrlError }}</div>
+              <!-- Cookie Babelio : seulement avec une URL, seul cas où Babelio intervient -->
+              <BabelioCookiePanel
+                v-if="validationBabelioUrl"
+                :status="babelioStatus"
+                :open="!babelioCookieUsable || validationUrlBlocked"
+                data-testid="validation-babelio-cookie-panel"
+                @saved="onModalCookieSaved('validation')"
+                @cookie-state="babelioCookieState = $event"
+              />
             </div>
 
             <div class="form-group">
@@ -564,6 +581,15 @@
               @keydown.stop
             />
             <div v-if="manualUrlError" class="url-error">{{ manualUrlError }}</div>
+            <!-- Cookie Babelio : seulement avec une URL, seul cas où Babelio intervient -->
+            <BabelioCookiePanel
+              v-if="manualBabelioUrl"
+              :status="babelioStatus"
+              :open="!babelioCookieUsable || manualUrlBlocked"
+              data-testid="manual-babelio-cookie-panel"
+              @saved="onModalCookieSaved('manual')"
+              @cookie-state="babelioCookieState = $event"
+            />
           </div>
 
           <div class="form-group">
@@ -723,6 +749,8 @@ export default {
       },
       // Issue #159: URL Babelio pour auto-remplissage dans modal validation
       validationBabelioUrl: '',
+      // Extraction refusée en 403 : ouvre le panneau cookie de la modale
+      validationUrlBlocked: false,
       validationExtractingFromUrl: false,
       validationUrlError: null,
 
@@ -736,6 +764,7 @@ export default {
       },
       // Issue #159: URL Babelio pour auto-remplissage dans modal ajout manuel
       manualBabelioUrl: '',
+      manualUrlBlocked: false,
       manualExtractingFromUrl: false,
       manualUrlError: null,
 
@@ -760,6 +789,8 @@ export default {
   // Statut Babelio côté serveur (GET /api/babelio/status) : seule source de
   // l'état du cookie, le navigateur n'en garde aucun.
   babelioStatus: null,
+  // État du cookie Babelio émis par BabelioCookiePanel : 'missing' | 'expired' | 'active'
+  babelioCookieState: 'missing',
   validatingWithBabelio: false,
   // Phase en cours de « Valider avec Babelio » : null, { phase: 'enrich' }
   // ou { phase: 'validate', index, total, titre }
@@ -781,6 +812,15 @@ export default {
         this.babelioProbeUnreachable ||
         this.babelioStatus?.circuit_reason === 'connect_timeout'
       );
+    },
+
+    // Sans cookie actif, toute requête Babelio échoue en 403 (voire expose au ban IP) :
+    // on ne lance ni validation ni relance, qui viderait le cache pour rien
+    babelioCookieUsable() {
+      return this.babelioCookieState === 'active';
+    },
+    babelioCookieMissingHint() {
+      return 'Collez d\'abord un cookie Babelio frais (ci-dessous)';
     },
 
     babelioValidationLabel() {
@@ -1237,7 +1277,7 @@ export default {
      * Seul point d'entrée de la validation Babelio sur cette page (geste explicite).
      */
     async validateWithBabelio() {
-      if (!this.selectedEpisodeId || this.validatingWithBabelio) return;
+      if (!this.selectedEpisodeId || this.validatingWithBabelio || !this.babelioCookieUsable) return;
       this.validatingWithBabelio = true;
       this.babelioValidationProgress = { phase: 'enrich' };
       try {
@@ -1368,7 +1408,8 @@ export default {
      * Rafraîchit le cache pour l'épisode sélectionné
      */
     async refreshEpisodeCache() {
-      if (!this.selectedEpisodeId) return;
+      // Sans cookie utilisable, vider le cache effacerait les statuts sans pouvoir revalider
+      if (!this.selectedEpisodeId || !this.babelioCookieUsable) return;
 
       try {
         // Issue #85: Bloquer onEpisodeChange pendant le refresh pour éviter double appel
@@ -1666,9 +1707,11 @@ export default {
       // Réinitialiser les erreurs
       if (isValidation) {
         this.validationUrlError = null;
+        this.validationUrlBlocked = false;
         this.validationExtractingFromUrl = true;
       } else {
         this.manualUrlError = null;
+        this.manualUrlBlocked = false;
         this.manualExtractingFromUrl = true;
       }
 
@@ -1713,6 +1756,11 @@ export default {
         // Babelio bloqué (cookie périmé, 403, circuit ouvert) : ouvrir le panneau cookie
         if (error.response?.status === 403) {
           this.babelioBlocked = true;
+          if (isValidation) {
+            this.validationUrlBlocked = true;
+          } else {
+            this.manualUrlBlocked = true;
+          }
         }
         if (isValidation) {
           this.validationUrlError = errorMsg;
@@ -1753,6 +1801,7 @@ export default {
       // Issue #159: Réinitialiser les champs URL Babelio
       this.validationBabelioUrl = '';
       this.validationUrlError = null;
+      this.validationUrlBlocked = false;
       this.validationExtractingFromUrl = false;
     },
 
@@ -1770,6 +1819,7 @@ export default {
       // Issue #159: Réinitialiser les champs URL Babelio
       this.manualBabelioUrl = '';
       this.manualUrlError = null;
+      this.manualUrlBlocked = false;
       this.manualExtractingFromUrl = false;
     },
 
@@ -1825,6 +1875,19 @@ export default {
         return response?.data?.reachable !== false;
       } catch {
         return true;
+      }
+    },
+
+    /**
+     * Cookie frais enregistré depuis le panneau d'une modale : relancer
+     * l'extraction de l'URL déjà saisie, sans avoir à la recoller.
+     * @param {string} modalType - 'validation' ou 'manual'
+     */
+    async onModalCookieSaved(modalType) {
+      this.onBabelioCookieSaved();
+      const url = modalType === 'validation' ? this.validationBabelioUrl : this.manualBabelioUrl;
+      if (this.isValidBabelioUrl(url)) {
+        await this.extractFromBabelioUrl(modalType);
       }
     },
 
@@ -2794,30 +2857,24 @@ export default {
   overflow-y: auto;
 }
 
-.btn-icon-refresh {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  padding: 0;
+.btn-refresh-validation {
+  padding: 0.2rem 0.6rem;
   border: 1px solid #ddd;
   border-radius: 6px;
   background: white;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  white-space: nowrap;
 }
 
-.btn-icon-refresh:hover {
-  background: #f8f9fa;
+.btn-refresh-validation:hover:not(:disabled) {
   border-color: #667eea;
-  transform: rotate(180deg);
+  background: #f8f9fa;
 }
 
-.btn-icon-refresh:active {
-  transform: rotate(180deg) scale(0.95);
+.btn-refresh-validation:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .modal-actions {
@@ -3128,6 +3185,11 @@ export default {
 /* ========== STYLES POUR ISSUE #159: URL BABELIO AUTO-FILL ========== */
 
 /* Groupe du champ URL Babelio */
+/* Panneau cookie Babelio sous le champ URL des modales */
+.babelio-url-group .babelio-cookie-panel {
+  margin-top: 0.5rem;
+}
+
 .babelio-url-group {
   background: #f0f9ff;
   padding: 1rem;

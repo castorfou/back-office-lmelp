@@ -13,6 +13,11 @@
           :data-cookie-state="cookieState"
           data-test="cookie-badge"
         >{{ badge.label }}</span>
+        <!-- Actions de la page hôte sur la ligne du cookie (ex : relancer la validation).
+             Dans un <summary>, le bouton doit appeler preventDefault pour ne pas plier le panneau. -->
+        <span v-if="$slots.actions" class="babelio-cookie-actions">
+          <slot name="actions" />
+        </span>
       </component>
       <div class="babelio-cookie-form">
         <p class="cookie-help">
@@ -107,7 +112,9 @@ export default {
     collapsible: { type: Boolean, default: true },
   },
 
-  emits: ['saved'],
+  // cookie-state : 'missing' | 'expired' | 'active', émis à chaque changement
+  // (compte à rebours compris) pour que la page grise ses actions Babelio
+  emits: ['saved', 'cookie-state'],
 
   data() {
     return {
@@ -175,6 +182,12 @@ export default {
   },
 
   watch: {
+    cookieState: {
+      immediate: true,
+      handler(state) {
+        this.$emit('cookie-state', state);
+      },
+    },
     status: {
       immediate: true,
       handler() {
@@ -276,6 +289,13 @@ export default {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.babelio-cookie-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 

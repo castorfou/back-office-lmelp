@@ -1384,6 +1384,10 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       await wrapper.vm.$nextTick();
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Cookie Babelio actif : sans lui, le bouton est grisé (Issue #358)
+      wrapper.findComponent({ name: 'BabelioCookiePanel' }).vm.$emit('cookie-state', 'active');
+      await wrapper.vm.$nextTick();
+
       // Act
       const refreshButton = wrapper.find('[data-testid="refresh-cache-button"]');
       await refreshButton.trigger('click');
