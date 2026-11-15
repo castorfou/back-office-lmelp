@@ -1,10 +1,10 @@
 /**
- * Tests TDD pour la propagation du cookie Babelio dans submitUrl() (Issue #251).
+ * Les appels Babelio ne transportent plus de cookie du navigateur.
  *
- * Contexte: la page "Liaison Babelio des livres" (BabelioMigration.vue) a un champ
- * de cookie Babelio déjà fonctionnel pour /api/babelio/extract-cover-url, mais
- * l'appel à /api/babelio-migration/update-from-url oubliait de le transmettre,
- * causant des 403 silencieux même quand l'utilisateur avait fourni un cookie valide.
+ * Le serveur est la seule source du cookie Babelio : il le date à la réception
+ * et refuse de l'utiliser une fois périmé. Un cookie joint à chaque requête
+ * échappait à ce contrôle (le serveur l'utilisait quand il n'en avait pas),
+ * et un vieux jstsToken ainsi envoyé provoquait un 403, puis un ban IP.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -18,19 +18,19 @@ const RouterLinkStub = {
   template: '<a><slot /></a>',
 };
 
-describe('BabelioMigration - Propagation cookie Babelio (Issue #251)', () => {
+describe('BabelioMigration - aucun cookie du navigateur dans les requêtes', () => {
   let wrapper;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionStorage.clear();
+    localStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
   });
 
   afterEach(() => {
     if (wrapper) {
       wrapper.unmount();
     }
-    sessionStorage.clear();
+    localStorage.removeItem('babelio_cookies');
   });
 
   function mountComponent() {
@@ -43,55 +43,36 @@ describe('BabelioMigration - Propagation cookie Babelio (Issue #251)', () => {
     });
   }
 
-  it('transmet babelio_cookies à update-from-url quand un cookie est configuré', async () => {
+  it('update-from-url ne transmet pas babelio_cookies', async () => {
     wrapper = mountComponent();
     await wrapper.vm.$nextTick();
 
-    wrapper.vm.babelioCookies = 'jstsToken=abc123; p=FR; disclaimer=1';
     wrapper.vm.babelioUrl = 'https://www.babelio.com/livres/Test/123';
     wrapper.vm.urlPopupCase = {
       type: 'livre',
       livre_id: 'livre-id-1',
       titre_attendu: 'Titre Test',
     };
-
     axios.post.mockResolvedValue({
       data: { status: 'success', message: 'Livre mis à jour', data: {} },
     });
 
     await wrapper.vm.submitUrl();
 
-    expect(axios.post).toHaveBeenCalledWith(
-      '/api/babelio-migration/update-from-url',
-      expect.objectContaining({
-        babelio_cookies: 'jstsToken=abc123; p=FR; disclaimer=1',
-      })
-    );
+    const call = axios.post.mock.calls.find(([url]) => url === '/api/babelio-migration/update-from-url');
+    expect(call).toBeDefined();
+    expect(call[1]).not.toHaveProperty('babelio_cookies');
   });
 
-  it('transmet babelio_cookies=null quand aucun cookie configuré', async () => {
+  it('extract-cover-url ne transmet pas babelio_cookies', async () => {
     wrapper = mountComponent();
     await wrapper.vm.$nextTick();
+    axios.post.mockResolvedValue({ data: { url_cover: null } });
 
-    wrapper.vm.babelioCookies = '';
-    wrapper.vm.babelioUrl = 'https://www.babelio.com/livres/Test/123';
-    wrapper.vm.urlPopupCase = {
-      type: 'livre',
-      livre_id: 'livre-id-1',
-      titre_attendu: 'Titre Test',
-    };
+    await wrapper.vm._extractCoverUrlFromBabelioPage('https://www.babelio.com/livres/Test/123', 'Titre');
 
-    axios.post.mockResolvedValue({
-      data: { status: 'success', message: 'Livre mis à jour', data: {} },
-    });
-
-    await wrapper.vm.submitUrl();
-
-    expect(axios.post).toHaveBeenCalledWith(
-      '/api/babelio-migration/update-from-url',
-      expect.objectContaining({
-        babelio_cookies: null,
-      })
-    );
+    const call = axios.post.mock.calls.find(([url]) => url === '/api/babelio/extract-cover-url');
+    expect(call).toBeDefined();
+    expect(call[1]).not.toHaveProperty('babelio_cookies');
   });
 });

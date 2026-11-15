@@ -8,8 +8,10 @@
  *
  * Cette suite vérifie que le frontend :
  * 1. Affiche une bannière d'alerte quand un 403 est détecté
- * 2. Confirme visuellement la sauvegarde du cookie
- * 3. Affiche un badge "probablement expiré" après 5 minutes
+ * 2. Retire la bannière dès qu'un cookie frais est enregistré
+ *
+ * Le badge et la confirmation du panneau cookie sont testés avec
+ * BabelioCookiePanel (src/components/__tests__/BabelioCookiePanel.test.js).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -116,79 +118,13 @@ describe('LivresAuteurs - Détection blocage Babelio 403 (Issue #251)', () => {
       expect(banner.text()).toContain('403');
     });
 
-    it('efface la bannière en sauvegardant un nouveau cookie', async () => {
+    it('efface la bannière quand un nouveau cookie est enregistré', async () => {
       await mountPage();
       wrapper.vm.babelioBlocked = true;
-      wrapper.vm.babelioCookieInput = 'jstsToken=fresh123; p=FR; disclaimer=1';
-      wrapper.vm.saveBabelioCookie();
+      wrapper.vm.onBabelioCookieSaved();
       await wrapper.vm.$nextTick();
 
       expect(wrapper.vm.babelioBlocked).toBe(false);
-    });
-  });
-
-  describe('Confirmation de sauvegarde du cookie', () => {
-    it('affiche un message de confirmation après saveBabelioCookie()', async () => {
-      await mountPage();
-      vi.useFakeTimers();
-
-      wrapper.vm.babelioCookieInput = 'jstsToken=abc123; p=FR; disclaimer=1';
-      wrapper.vm.saveBabelioCookie();
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.babelioCookieJustSaved).toBe(true);
-
-      vi.advanceTimersByTime(3100);
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.babelioCookieJustSaved).toBe(false);
-    });
-
-    it("n'affiche pas de confirmation si le champ cookie est vide", async () => {
-      await mountPage();
-
-      wrapper.vm.babelioCookieInput = '   ';
-      wrapper.vm.saveBabelioCookie();
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.babelioCookieJustSaved).toBe(false);
-    });
-  });
-
-  describe('Badge d\'expiration probable (TTL ~5min)', () => {
-    it('ne considère pas le cookie comme expiré juste après sauvegarde', async () => {
-      await mountPage();
-
-      wrapper.vm.babelioCookieInput = 'jstsToken=abc123; p=FR; disclaimer=1';
-      wrapper.vm.saveBabelioCookie();
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.babelioCookieLikelyExpired).toBe(false);
-    });
-
-    it('considère le cookie comme probablement expiré après 5 minutes', async () => {
-      await mountPage();
-
-      wrapper.vm.babelioCookieInput = 'jstsToken=abc123; p=FR; disclaimer=1';
-      wrapper.vm.saveBabelioCookie();
-      await wrapper.vm.$nextTick();
-
-      // babelioCookieLikelyExpired compare Date.now() à babelioCookieSavedAt:
-      // on recule artificiellement la date de sauvegarde plutôt que d'avancer
-      // une fausse horloge (évite les conflits avec le setTimeout de confirmation).
-      wrapper.vm.babelioCookieSavedAt = Date.now() - (5 * 60 * 1000 + 1000);
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.babelioCookieLikelyExpired).toBe(true);
-    });
-
-    it('ne marque pas un cookie pré-existant (session précédente) comme expiré sans date connue', async () => {
-      localStorage.setItem('babelio_cookies', 'jstsToken=old; p=FR; disclaimer=1');
-      await mountPage();
-
-      // Pas de babelioCookieSavedAt connu pour ce cookie restauré depuis une session précédente
-      expect(wrapper.vm.babelioCookieSavedAt).toBeNull();
-      expect(wrapper.vm.babelioCookieLikelyExpired).toBe(false);
     });
   });
 

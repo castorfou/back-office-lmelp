@@ -499,10 +499,8 @@ export default {
 
       try {
         const livreId = this.$route.params.id;
-        // Les cookies Babelio sont transmis pour contourner le captcha (Issue #245)
-        const response = await axios.post(`/api/livres/${livreId}/refresh-babelio`, {
-          babelio_cookies: sessionStorage.getItem('babelio_cookies') || null,
-        });
+        // Le cookie Babelio est celui du serveur, jamais celui du navigateur
+        const response = await axios.post(`/api/livres/${livreId}/refresh-babelio`);
         const data = response.data;
 
         if (!data.changes_detected) {
