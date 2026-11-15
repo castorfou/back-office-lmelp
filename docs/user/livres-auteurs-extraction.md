@@ -52,6 +52,10 @@ Chaque épisode dans la liste déroulante affiche une pastille de couleur indiqu
 - **⚪ Pastille grise** : Épisode non traité - aucun livre n'a encore été analysé ou intégré
 - **🔴 Pastille rouge** : Épisode avec problèmes - certains livres ont des données incomplètes nécessitant une révision manuelle
 
+La légende **Statuts des épisodes**, juste sous le sélecteur, rappelle la signification de ces pastilles.
+
+Sous la légende viennent les **Détails de l'épisode** (titre et description, repliés), puis le bloc Babelio (bouton **Valider avec Babelio** et panneau **🔑 Cookie Babelio**), juste au-dessus de la liste des livres.
+
 Ces indicateurs permettent d'identifier rapidement les épisodes nécessitant une attention particulière et de suivre la progression du traitement global des avis critiques.
 
 ### Lien vers la page RadioFrance
@@ -103,7 +107,8 @@ La validation affiche différents statuts :
 Ouvrir la page ou changer d'épisode **n'envoie aucune requête à Babelio** : chaque cellule affiche le statut déjà enregistré. Babelio transforme ses refus (403) en ban de l'IP pendant environ 24 h, donc chaque appel doit venir d'un geste explicite :
 
 - **🔍 Valider avec Babelio** : affiché quand des livres de l'épisode ne sont pas encore validés ; enrichit les livres (URL et éditeur Babelio) puis les valide
-- **🔄 Relancer la validation Biblio** : vide le cache de l'épisode puis relance la validation
+- **🔄 Relancer la validation** : sur la ligne du panneau **🔑 Cookie Babelio**, toujours visible ; vide le cache de l'épisode, réextrait les livres puis relance la validation de tous les livres
+- **Cookie requis** : tant que le cookie Babelio n'est pas actif (absent ou périmé), ces deux boutons sont grisés. Ils se grisent d'eux-mêmes quand le cookie expire, et se réactivent dès qu'un cookie frais est enregistré. Sans cette règle, **🔄** viderait le cache de l'épisode puis échouerait en 403
 - **↻** dans une cellule : vérifie ce seul livre
 - **Rate limiting** : le serveur espace les requêtes vers Babelio (`BABELIO_FAIR_SEC`)
 - **Suggestions** : Affichage des corrections proposées à côté des données originales
@@ -188,6 +193,12 @@ Pour faciliter la saisie, les modales de validation et d'ajout manuel proposent 
   - **Éditeur** : Maison d'édition
 - Une indication "Chargement..." s'affiche pendant l'extraction
 - Les champs restent modifiables après auto-remplissage
+
+**Cookie Babelio dans la modale** : dès qu'une URL est saisie, le panneau **🔑 Cookie Babelio** apparaît dans l'encadré URL.
+- Cookie actif : le panneau tient sur une ligne, replié.
+- Cookie absent ou périmé, ou extraction refusée (403) : le panneau s'ouvre avec le champ de saisie. Collez un cookie frais et enregistrez : l'extraction se relance avec l'URL déjà saisie.
+- Sans URL, le panneau n'apparaît pas : l'ajout ou la validation n'interroge pas Babelio, et reste possible quel que soit l'état du cookie.
+- Une page Babelio déjà lue dans les 24 h est servie depuis le cache du serveur, même avec un cookie périmé.
 
 **Avantages** :
 - Gain de temps pour la saisie de nouvelles données
