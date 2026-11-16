@@ -68,6 +68,27 @@ class TestGetPgxDiagnostics:
         }
         mock_pgx.run_pgx_diagnostics.assert_not_called()
 
+    def test_missing_pgx_host_key_should_be_listed_and_block_diagnostics(self, client):
+        """Sans PGX_HOST_KEY, la variable est signalée et aucun appel réseau (#361)."""
+        with (
+            patch("back_office_lmelp.app.settings") as mock_settings,
+            patch(
+                "back_office_lmelp.app.pgx_service.run_pgx_diagnostics",
+                new=AsyncMock(),
+            ) as mock_run,
+        ):
+            mock_settings.pgx_host = "192.168.50.151"
+            mock_settings.pgx_user = "pgxuser"
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_settings.pgx_remote_audio_root = "/data/audios"
+            mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+            mock_settings.pgx_host_key = None
+
+            response = client.get("/api/pgx/diagnostics")
+
+        assert response.json() == {"diagnostics": [], "missing_vars": ["PGX_HOST_KEY"]}
+        mock_run.assert_not_called()
+
 
 class TestGetPgxSshKey:
     """Issue #310: endpoint pour afficher la clé SSH publique PGX dans l'UI."""

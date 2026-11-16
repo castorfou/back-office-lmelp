@@ -287,6 +287,7 @@ class PgxTranscriptionRunner:
             remote_transcription_root = settings.pgx_remote_transcription_root
             transcription_timeout_s = settings.pgx_transcription_timeout_s
             poll_interval_s = settings.pgx_poll_interval_s
+            host_key = settings.pgx_host_key
 
             if not (
                 host
@@ -294,10 +295,20 @@ class PgxTranscriptionRunner:
                 and key_path
                 and remote_audio_root
                 and remote_transcription_root
+                and host_key
             ):
                 self._log("Configuration PGX incomplète — abandon")
                 status = "error"
                 error_message = "Configuration PGX incomplète"
+                return
+
+            # Seule la clé d'hôte de PGX est acceptée par ssh/scp (ADR 0002)
+            try:
+                pgx_service.install_pgx_host_key(host_key)
+            except ValueError as exc:
+                self._log(f"PGX_HOST_KEY invalide — abandon ({exc})")
+                status = "error"
+                error_message = f"PGX_HOST_KEY invalide : {exc}"
                 return
 
             pgx_reachability_checked = False

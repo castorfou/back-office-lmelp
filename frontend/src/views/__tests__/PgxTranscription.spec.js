@@ -110,6 +110,7 @@ describe('PgxTranscription (Issue #302)', () => {
     // La checklist doit rester visible (statuts non exécutés), pas masquée
     // derrière le seul message d'avertissement — comportement lmelp.
     expect(text).toContain('Machine joignable');
+    expect(text).toContain('Identité de la machine');
     expect(text).toContain('Authentification SSH');
     expect(text).toContain('Répertoire audio distant');
     expect(text).toContain('Répertoire transcriptions distant');

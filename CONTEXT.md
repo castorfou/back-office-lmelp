@@ -67,6 +67,17 @@ La station GPU personnelle qui transcrit les épisodes ; elle se déplace entre 
 d'été et les quartiers d'hiver, et lmelp doit la joindre où qu'elle soit.
 _Avoid_: serveur de transcription, machine locale
 
+**Identité de PGX**:
+La clé d'hôte SSH de PGX : c'est elle, et elle seule, qui permet de reconnaître PGX ; une
+machine qui présente une autre clé n'est pas PGX, quelle que soit son adresse.
+_Avoid_: IP de PGX, PGX_HOST
+
+**Adresse de PGX**:
+L'adresse IP où PGX est joignable à un moment donné (réseau de la maison d'été ou VPN du
+NAS) ; elle change avec les déplacements et les connexions VPN, et ne prouve jamais
+l'identité de PGX.
+_Avoid_: hôte PGX, IP PGX (comme synonyme d'identité)
+
 **Séquence**:
 Un extrait de quelques minutes d'une émission, consacré à un seul livre, publié séparément
 sur radiofrance.fr ; ce n'est jamais un épisode.

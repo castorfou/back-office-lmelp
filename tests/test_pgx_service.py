@@ -15,6 +15,9 @@ from back_office_lmelp.services.pgx_service import (
     ensure_pgx_ssh_key,
     fetch_transcription_from_pgx,
     get_pgx_config_missing_vars,
+    host_key_fingerprint,
+    install_pgx_host_key,
+    parse_pgx_host_key,
     pgx_fully_configured,
     remote_file_exists,
     requeue_pgx_audio,
@@ -25,13 +28,43 @@ from back_office_lmelp.services.pgx_service import (
 )
 
 
+# Clés publiques d'hôte générées pour ces tests (`ssh-keygen -t ed25519`), et leurs
+# empreintes calculées par `ssh-keygen -lf`
+PGX_KEY_B64 = "AAAAC3NzaC1lZDI1NTE5AAAAIFwHMNuxrSKMJxd5UALz3Cx8yg9E0sm0A/hDvHPwbA8d"  # pragma: allowlist secret
+OTHER_KEY_B64 = "AAAAC3NzaC1lZDI1NTE5AAAAIFgWg0KeBqeXTeAPCfrOrt9g0Qh3B5QdfwCfI1b0DbUu"  # pragma: allowlist secret
+PGX_FINGERPRINT = "SHA256:3lUWrXecKY6L1mZAIResebD/lOeIy3CuYex6u1hU9wU"
+OTHER_FINGERPRINT = "SHA256:s9QpZso9EwJYjw+fW9spBV5bEKm5I93R6ZO/h7jHAgk"
+
 PGX_TEST_CONFIG = {
     "host": "192.168.50.151",
     "user": "pgxuser",
     "key_path": "/keys/pgx_ed25519",
     "remote_audio_root": "/data/audios",
     "remote_transcription_root": "/data/transcriptions",
+    # Contenu de /etc/ssh/ssh_host_ed25519_key.pub
+    "host_key": f"ssh-ed25519 {PGX_KEY_B64} root@pgx",
 }
+
+# Sortie réelle de `ssh-keyscan -t ed25519 <ip>` : la clé sur stdout, la bannière
+# du serveur en commentaire sur stderr
+KEYSCAN_STDOUT_PGX = f"192.168.50.151 ssh-ed25519 {PGX_KEY_B64}\n".encode()
+KEYSCAN_STDOUT_OTHER = f"192.168.50.151 ssh-ed25519 {OTHER_KEY_B64}\n".encode()
+KEYSCAN_STDERR = b"# 192.168.50.151:22 SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.5\n"
+
+# stderr réels cités dans l'issue #354
+STDERR_PERMISSION_DENIED = (
+    b"pgxuser@192.168.49.6: Permission denied (publickey,password).\r\n"
+)
+STDERR_HOST_KEY_CHANGED = (
+    b"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"
+    b"@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n"
+    b"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"
+    b"IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\r\n"
+    b"The fingerprint for the ED25519 key sent by the remote host is\r\n"
+    b"SHA256:25SQCoKsuvCVdRNxfmcQdwC2wbSns6z4sMrziDVcMCc.\r\n"
+    b"Offending ED25519 key in /tmp/back_office_lmelp_pgx_known_hosts:1\r\n"
+    b"Host key verification failed.\r\n"
+)
 
 
 def _make_subprocess_mock(
@@ -42,6 +75,48 @@ def _make_subprocess_mock(
     process_mock.returncode = returncode
     process_mock.communicate = AsyncMock(return_value=(stdout, stderr))
     return process_mock
+
+
+@pytest.fixture(autouse=True)
+def known_hosts_in_tmp(tmp_path):
+    """Le known_hosts généré vit dans tmp_path, jamais dans le /tmp partagé."""
+    path = tmp_path / "pgx_known_hosts"
+    with patch(
+        "back_office_lmelp.services.pgx_service._known_hosts_path",
+        return_value=str(path),
+    ):
+        yield path
+
+
+class _ExecDispatch:
+    """Faux create_subprocess_exec : ssh-keyscan répond avec `keyscan_stdout`,
+    chaque appel ssh/scp consomme le mock suivant de `ssh_results`."""
+
+    def __init__(
+        self, ssh_results: list[AsyncMock], keyscan_stdout: bytes = KEYSCAN_STDOUT_PGX
+    ) -> None:
+        self._ssh_iter = iter(ssh_results)
+        self._keyscan_stdout = keyscan_stdout
+        self.calls: list[tuple] = []
+
+    async def __call__(self, *args, **kwargs):
+        self.calls.append(args)
+        if args[0] == "ssh-keyscan":
+            return _make_subprocess_mock(
+                0, stdout=self._keyscan_stdout, stderr=KEYSCAN_STDERR
+            )
+        return next(self._ssh_iter)
+
+
+def _patch_exec(side_effect):
+    # AsyncMock n'attend le side_effect que s'il est une fonction coroutine
+    async def call(*args, **kwargs):
+        return await side_effect(*args, **kwargs)
+
+    return patch(
+        "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+        side_effect=call,
+    )
 
 
 class TestGetPgxConfigMissingVars:
@@ -55,6 +130,7 @@ class TestGetPgxConfigMissingVars:
             "key_path": "/app/keys/pgx_ed25519",
             "remote_audio_root": "/data/audios",
             "remote_transcription_root": "/data/transcriptions",
+            "host_key": PGX_TEST_CONFIG["host_key"],
         }
 
         missing = get_pgx_config_missing_vars(config)
@@ -69,11 +145,12 @@ class TestGetPgxConfigMissingVars:
             "key_path": None,
             "remote_audio_root": "/data/audios",
             "remote_transcription_root": "/data/transcriptions",
+            "host_key": None,
         }
 
         missing = get_pgx_config_missing_vars(config)
 
-        assert missing == ["PGX_HOST", "PGX_SSH_KEY_PATH"]
+        assert missing == ["PGX_HOST", "PGX_SSH_KEY_PATH", "PGX_HOST_KEY"]
 
     def test_should_return_all_env_var_names_when_config_empty(self):
         """Toutes les variables sont listées quand la config est vide."""
@@ -83,6 +160,7 @@ class TestGetPgxConfigMissingVars:
             "key_path": None,
             "remote_audio_root": None,
             "remote_transcription_root": None,
+            "host_key": None,
         }
 
         missing = get_pgx_config_missing_vars(config)
@@ -93,6 +171,7 @@ class TestGetPgxConfigMissingVars:
             "PGX_SSH_KEY_PATH",
             "PGX_REMOTE_AUDIO_ROOT",
             "PGX_REMOTE_TRANSCRIPTION_ROOT",
+            "PGX_HOST_KEY",
         ]
 
 
@@ -595,24 +674,16 @@ class TestRunPgxDiagnostics:
 
     @pytest.mark.asyncio
     async def test_should_return_all_ok_when_everything_succeeds(self):
-        """4 checks 'ok' quand joignable + auth SSH + les 2 répertoires existent."""
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
-                AsyncMock(
-                    return_value=_make_subprocess_mock(returncode=0, stdout=b"ok\n")
-                ),
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                AsyncMock(return_value=(AsyncMock(), AsyncMock(close=lambda: None))),
-            ),
-        ):
+        """5 checks 'ok' quand joignable + identité + auth SSH + les 2 répertoires."""
+        ok = _make_subprocess_mock(returncode=0, stdout=b"ok\n")
+        with _reachable(), _patch_exec(_ExecDispatch([ok, ok, ok])):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert [r["status"] for r in results] == ["ok", "ok", "ok", "ok"]
+        assert [r["status"] for r in results] == ["ok"] * 5
+        assert PGX_FINGERPRINT in results[1]["detail"]
         assert [r["name"] for r in results] == [
             "Machine joignable",
+            "Identité de la machine",
             "Authentification SSH (clé dédiée)",
             "Répertoire audio distant",
             "Répertoire transcriptions distant",
@@ -635,92 +706,72 @@ class TestRunPgxDiagnostics:
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
         assert results[0]["status"] == "fail"
-        assert [r["status"] for r in results[1:]] == ["skipped", "skipped", "skipped"]
+        assert [r["status"] for r in results[1:]] == ["skipped"] * 4
         mock_exec.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_should_skip_directory_checks_when_ssh_auth_fails(self):
-        """Joignable mais authentification SSH échoue => les 2 checks répertoires
-        sont 'skipped' (inutile de tester des répertoires sans authentification)."""
-        call_count = 0
-
-        async def fake_create_subprocess_exec(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            return _make_subprocess_mock(
-                returncode=1, stderr=b"Permission denied (publickey)"
-            )
-
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                AsyncMock(return_value=(AsyncMock(), AsyncMock(close=lambda: None))),
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
-                side_effect=fake_create_subprocess_exec,
-            ),
-        ):
+        """PGX reconnue mais elle refuse la clé => authorized_keys, et les 2 checks
+        répertoires sont 'skipped'."""
+        dispatch = _ExecDispatch(
+            [_make_subprocess_mock(returncode=255, stderr=STDERR_PERMISSION_DENIED)]
+        )
+        with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[0]["status"] == "ok"
-        assert results[1]["status"] == "fail"
+        assert results[1]["status"] == "ok"
+        assert results[2]["status"] == "fail"
+        assert "authorized_keys" in results[2]["detail"]
         # Piège #111 : le detail inclut le vrai stderr, pas un message générique statique.
-        assert "Permission denied (publickey)" in results[1]["detail"]
-        assert [r["status"] for r in results[2:]] == ["skipped", "skipped"]
-        assert call_count == 1  # un seul appel ssh (l'auth), pas les checks répertoires
+        assert "Permission denied (publickey,password)" in results[2]["detail"]
+        assert [r["status"] for r in results[3:]] == ["skipped", "skipped"]
+        # ssh-keyscan puis l'auth, pas les checks répertoires
+        assert [c[0] for c in dispatch.calls] == ["ssh-keyscan", "ssh"]
+
+    @pytest.mark.asyncio
+    async def test_host_key_failure_should_show_raw_stderr_not_authorized_keys(self):
+        """Un échec de vérification de clé d'hôte n'est pas un refus de clé : le
+        stderr ssh brut est affiché, sans renvoyer vers authorized_keys."""
+        dispatch = _ExecDispatch(
+            [_make_subprocess_mock(returncode=255, stderr=STDERR_HOST_KEY_CHANGED)]
+        )
+        with _reachable(), _patch_exec(dispatch):
+            results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
+
+        assert results[2]["status"] == "fail"
+        assert "Host key verification failed." in results[2]["detail"]
+        assert "authorized_keys" not in results[2]["detail"]
 
     @pytest.mark.asyncio
     async def test_should_report_generic_message_when_ssh_auth_fails_with_empty_stderr(
         self,
     ):
-        """Piège #111 (cas limite) : si stderr est vide, garder le message générique
-        plutôt que d'afficher un detail vide."""
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                AsyncMock(return_value=(AsyncMock(), AsyncMock(close=lambda: None))),
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
-                AsyncMock(return_value=_make_subprocess_mock(returncode=1, stderr=b"")),
-            ),
-        ):
+        """Piège #111 (cas limite) : stderr vide => message générique, pas un
+        detail vide, et pas de fausse piste authorized_keys."""
+        dispatch = _ExecDispatch([_make_subprocess_mock(returncode=1, stderr=b"")])
+        with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[1]["status"] == "fail"
-        assert "authorized_keys" in results[1]["detail"]
-        assert "détail SSH" not in results[1]["detail"]
+        assert results[2]["status"] == "fail"
+        assert results[2]["detail"]
+        assert "authorized_keys" not in results[2]["detail"]
 
     @pytest.mark.asyncio
     async def test_should_report_fail_per_directory_independently(self):
         """Joignable + auth OK mais un seul répertoire distant manque : l'autre check
         reste indépendant (pas de court-circuit entre les 2 vérifications de répertoires)."""
-        call_count = 0
-
-        async def fake_create_subprocess_exec(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:  # auth SSH
-                return _make_subprocess_mock(returncode=0, stdout=b"ok\n")
-            if call_count == 2:  # répertoire audio
-                return _make_subprocess_mock(returncode=0)
-            return _make_subprocess_mock(returncode=1)  # répertoire transcriptions
-
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                AsyncMock(return_value=(AsyncMock(), AsyncMock(close=lambda: None))),
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
-                side_effect=fake_create_subprocess_exec,
-            ),
-        ):
+        dispatch = _ExecDispatch(
+            [
+                _make_subprocess_mock(returncode=0, stdout=b"ok\n"),  # auth SSH
+                _make_subprocess_mock(returncode=0),  # répertoire audio
+                _make_subprocess_mock(returncode=1),  # répertoire transcriptions
+            ]
+        )
+        with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[2]["status"] == "ok"
-        assert results[3]["status"] == "fail"
+        assert results[3]["status"] == "ok"
+        assert results[4]["status"] == "fail"
 
 
 def _make_hanging_subprocess_mock() -> AsyncMock:
@@ -830,3 +881,182 @@ class TestNoUnboundedSshCommand:
         assert any(a.startswith("ConnectTimeout=") for a in args)
         assert any(a.startswith("ServerAliveInterval=") for a in args)
         assert exec_mock.call_args.kwargs["stdin"] == asyncio.subprocess.DEVNULL
+
+
+def _reachable():
+    return patch(
+        "back_office_lmelp.services.pgx_service.asyncio.open_connection",
+        AsyncMock(return_value=(AsyncMock(), AsyncMock(close=lambda: None))),
+    )
+
+
+class TestPgxIdentityCheck:
+    """La checklist reconnaît PGX à sa clé d'hôte, jamais à son adresse (#361)."""
+
+    @pytest.mark.asyncio
+    async def test_other_machine_on_pgx_address_should_be_named_as_the_cause(self):
+        exec_mock = AsyncMock(
+            return_value=_make_subprocess_mock(
+                0, stdout=KEYSCAN_STDOUT_OTHER, stderr=KEYSCAN_STDERR
+            )
+        )
+        with (
+            _reachable(),
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                exec_mock,
+            ),
+        ):
+            results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
+
+        assert [r["name"] for r in results] == [
+            "Machine joignable",
+            "Identité de la machine",
+            "Authentification SSH (clé dédiée)",
+            "Répertoire audio distant",
+            "Répertoire transcriptions distant",
+        ]
+        identity = results[1]
+        assert identity["status"] == "fail"
+        assert "192.168.50.151 n'est pas PGX" in identity["detail"]
+        assert "clé d'hôte différente" in identity["detail"]
+        assert PGX_FINGERPRINT in identity["detail"]
+        assert OTHER_FINGERPRINT in identity["detail"]
+        assert "authorized_keys" not in identity["detail"]
+        assert [r["status"] for r in results[2:]] == ["skipped"] * 3
+        # Un seul appel : ssh-keyscan, sans authentification
+        assert exec_mock.call_count == 1
+        assert exec_mock.call_args.args[0] == "ssh-keyscan"
+
+    @pytest.mark.asyncio
+    async def test_pgx_at_a_new_address_should_still_be_recognized(self):
+        """Même clé, autre IP : PGX est reconnue, pas de « host key changed »."""
+        keyscan = KEYSCAN_STDOUT_PGX.replace(b"192.168.50.151", b"192.168.49.10")
+        config = {**PGX_TEST_CONFIG, "host": "192.168.49.10"}
+        dispatch = _ExecDispatch(
+            [_make_subprocess_mock(0, stdout=b"ok\n")] * 3, keyscan_stdout=keyscan
+        )
+        with _reachable(), _patch_exec(dispatch):
+            results = await run_pgx_diagnostics(config)
+
+        assert [r["status"] for r in results] == ["ok"] * 5
+        assert "192.168.49.10 est bien PGX" in results[1]["detail"]
+
+    @pytest.mark.asyncio
+    async def test_no_host_key_received_should_fail_with_keyscan_detail(self):
+        dispatch = _ExecDispatch([], keyscan_stdout=b"")
+        with _reachable(), _patch_exec(dispatch):
+            results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
+
+        assert results[1]["status"] == "fail"
+        assert "aucune clé d'hôte" in results[1]["detail"]
+        assert PGX_FINGERPRINT in results[1]["detail"]
+        assert [r["status"] for r in results[2:]] == ["skipped"] * 3
+
+    @pytest.mark.asyncio
+    async def test_invalid_pgx_host_key_should_fail_without_any_command(self):
+        config = {**PGX_TEST_CONFIG, "host_key": "pas une clé"}
+        dispatch = _ExecDispatch([])
+        with _reachable(), _patch_exec(dispatch):
+            results = await run_pgx_diagnostics(config)
+
+        assert results[1]["status"] == "fail"
+        assert "PGX_HOST_KEY invalide" in results[1]["detail"]
+        assert dispatch.calls == []
+
+    @pytest.mark.asyncio
+    async def test_keyscan_should_be_bounded_in_time(self):
+        """ssh-keyscan a son propre délai (-T) et la commande entière est bornée."""
+        with (
+            _reachable(),
+            _patch_exec(
+                lambda *a, **k: asyncio.sleep(0, result=_make_hanging_subprocess_mock())
+            ),
+            patch(
+                "back_office_lmelp.services.pgx_service.KEYSCAN_COMMAND_TIMEOUT_S",
+                0.05,
+            ),
+        ):
+            results = await asyncio.wait_for(
+                run_pgx_diagnostics(PGX_TEST_CONFIG), timeout=5
+            )
+
+        assert results[1]["status"] == "fail"
+        assert "à temps" in results[1]["detail"]
+
+    @pytest.mark.asyncio
+    async def test_keyscan_command_should_ask_only_for_the_pinned_key_type(self):
+        dispatch = _ExecDispatch([_make_subprocess_mock(0, stdout=b"ok\n")] * 3)
+        with _reachable(), _patch_exec(dispatch):
+            await run_pgx_diagnostics(PGX_TEST_CONFIG)
+
+        keyscan = dispatch.calls[0]
+        assert keyscan[0] == "ssh-keyscan"
+        assert keyscan[keyscan.index("-t") + 1] == "ed25519"
+        assert "-T" in keyscan
+        assert keyscan[-1] == "192.168.50.151"
+
+
+class TestPinnedHostKey:
+    """ssh/scp n'acceptent que la clé de PGX, sous un alias fixe (#361, ADR 0002)."""
+
+    def test_parse_should_accept_the_pub_file_content(self):
+        assert parse_pgx_host_key(PGX_TEST_CONFIG["host_key"]) == (
+            "ssh-ed25519",
+            PGX_KEY_B64,
+        )
+
+    def test_parse_should_accept_a_keyscan_line(self):
+        key_type, _ = parse_pgx_host_key(KEYSCAN_STDOUT_PGX.decode())
+        assert key_type == "ssh-ed25519"
+
+    def test_parse_should_reject_a_non_ed25519_key(self):
+        """Seule la clé ED25519 est épinglée : ssh-keyscan -t ed25519 la demande."""
+        with pytest.raises(ValueError):
+            parse_pgx_host_key("ecdsa-sha2-nistp256 AAAAE2VjZHNh root@pgx")
+
+    def test_parse_should_reject_garbage(self):
+        with pytest.raises(ValueError):
+            parse_pgx_host_key("ssh-ed25519 pas-du-base64!")
+
+    def test_fingerprint_should_match_ssh_keygen(self):
+        _, key_b64 = parse_pgx_host_key(PGX_TEST_CONFIG["host_key"])
+        assert host_key_fingerprint(key_b64) == PGX_FINGERPRINT
+
+    def test_known_hosts_should_hold_only_pgx_key_under_the_alias(
+        self, known_hosts_in_tmp
+    ):
+        known_hosts_in_tmp.write_text("192.168.49.6 ssh-ed25519 AAAAancienne\n")
+
+        install_pgx_host_key(PGX_TEST_CONFIG["host_key"])
+
+        assert known_hosts_in_tmp.read_text() == f"pgx ssh-ed25519 {PGX_KEY_B64}\n"
+
+    @pytest.mark.asyncio
+    async def test_ssh_and_scp_should_never_accept_an_unknown_host_key(
+        self, known_hosts_in_tmp, tmp_path
+    ):
+        exec_mock = AsyncMock(return_value=_make_subprocess_mock(0))
+        with patch(
+            "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+            exec_mock,
+        ):
+            await remote_file_exists(
+                "/data/x.txt", host="192.168.49.6", user="u", key_path="/k"
+            )
+            (tmp_path / "x.txt").write_text("t")
+            await fetch_transcription_from_pgx(
+                "/data/x.txt",
+                str(tmp_path / "x.txt"),
+                host="192.168.49.6",
+                user="u",
+                key_path="/k",
+            )
+
+        for call in exec_mock.call_args_list:
+            args = call.args
+            assert args[0] in ("ssh", "scp")
+            assert "StrictHostKeyChecking=yes" in args
+            assert "HostKeyAlias=pgx" in args
+            assert f"UserKnownHostsFile={known_hosts_in_tmp}" in args
+            assert not any("accept-new" in a for a in args)

@@ -125,12 +125,20 @@ Le service de transcription (conteneur whisper) doit tourner comme d'habitude :
 
 ## 7. Côté NAS
 
-1. Mettre l'IP `tun0` de PGX dans `PGX_HOST`, puis redémarrer le conteneur backend.
-2. Test direct depuis le conteneur backend :
+1. Récupérer la clé d'hôte de PGX, **sur PGX même** (pas par le réseau : c'est elle qui
+   permettra de reconnaître PGX, il ne faut pas la demander à la machine qu'on cherche à
+   vérifier) :
+   ```bash
+   cat /etc/ssh/ssh_host_ed25519_key.pub
+   ```
+   Copier la ligne entière dans `PGX_HOST_KEY` (`.env` du NAS). Elle ne change ni avec
+   l'adresse ni avec le réseau : à faire une seule fois, ou après une réinstallation de PGX.
+2. Mettre l'IP `tun0` de PGX dans `PGX_HOST`, puis redémarrer le conteneur backend.
+3. Test direct depuis le conteneur backend :
    ```bash
    sudo docker exec <conteneur-backend> bash -c 'timeout 3 bash -c "</dev/tcp/<ip-tun0-pgx>/22" && echo OK || echo KO'
    ```
-3. Dans lmelp, page `/transcription-pgx` : la checklist doit être **entièrement verte**,
+4. Dans lmelp, page `/transcription-pgx` : la checklist doit être **entièrement verte**,
    puis lancer la transcription des épisodes en attente.
 
 ## 8. Au quotidien
@@ -140,6 +148,13 @@ Le service de transcription (conteneur whisper) doit tourner comme d'habitude :
 - **L'IP VPN n'est pas réservée** : si la checklist affiche « Machine joignable » en 🔴
   alors que PGX est allumée, comparer `ip -4 addr show tun0` avec `PGX_HOST` et corriger
   si besoin.
+- **« La machine sur `<ip>` n'est pas PGX (clé d'hôte différente) »** sur la ligne
+  « Identité de la machine » : une autre cliente du VPN (le laptop, typiquement) a
+  récupéré l'adresse de `PGX_HOST`. lmelp refuse de lui parler. Relever l'IP `tun0` de PGX,
+  corriger `PGX_HOST` et redémarrer le conteneur backend. Rien à effacer dans un
+  `known_hosts` : lmelp reconnaît PGX à `PGX_HOST_KEY`, pas à son adresse.
+- Ne pas connecter le laptop au VPN du NAS en même temps que PGX limite ces échanges
+  d'adresse.
 
 ## 9. Retour à la maison d'été
 
