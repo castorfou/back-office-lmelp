@@ -51,6 +51,24 @@ _BABELIO_SINGLETON_MODULES = (
 
 
 @pytest.fixture(autouse=True)
+def pgx_location_forgotten():
+    """Chaque test démarre sans « dernière adresse de PGX » (Issue #362).
+
+    pgx_service la garde en mémoire de module : sans remise à zéro, l'adresse
+    trouvée par un test serait essayée en premier par le suivant. Passe par
+    sys.modules (et toutes ses copies, `src.` compris) sans importer le module.
+    """
+    for name in (
+        "back_office_lmelp.services.pgx_service",
+        "src.back_office_lmelp.services.pgx_service",
+    ):
+        module = sys.modules.get(name)
+        if module is not None:
+            module._last_pgx_address = None
+    yield
+
+
+@pytest.fixture(autouse=True)
 def babelio_reachable():
     """Essai TCP Babelio réussi, sans réseau, pour tous les tests (Issue #351).
 

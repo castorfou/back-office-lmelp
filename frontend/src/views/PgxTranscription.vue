@@ -186,8 +186,7 @@ import Navigation from '../components/Navigation.vue';
 import axios from 'axios';
 
 const PGX_DIAGNOSTIC_STEP_NAMES = [
-  'Machine joignable',
-  'Identité de la machine',
+  'PGX localisée',
   'Authentification SSH (clé dédiée)',
   'Répertoire audio distant',
   'Répertoire transcriptions distant',

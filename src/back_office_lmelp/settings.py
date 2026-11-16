@@ -147,6 +147,13 @@ class Settings:
         return os.environ.get("PGX_HOST_KEY") or None
 
     @property
+    def pgx_host_candidates(self) -> list[str]:
+        """Plages (CIDR ou IP) où chercher PGX quand elle n'est pas sur PGX_HOST
+        (PGX_HOST_CANDIDATES, séparées par des virgules). Vide : pas de balayage."""
+        value = os.environ.get("PGX_HOST_CANDIDATES", "")
+        return [part.strip() for part in value.split(",") if part.strip()]
+
+    @property
     def pgx_user(self) -> str | None:
         """Utilisateur SSH sur PGX (PGX_USER)."""
         return os.environ.get("PGX_USER") or None

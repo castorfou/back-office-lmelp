@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from back_office_lmelp.services.pgx_service import PgxError
+from back_office_lmelp.services.pgx_service import PgxError, PgxLocation
 from back_office_lmelp.utils.pgx_transcription_runner import PgxTranscriptionRunner
 
 
@@ -27,6 +27,12 @@ def _make_episode(episode_id: str, titre: str = "Un épisode") -> dict:
         "transcription": None,
     }
 
+
+# Résultats de pgx_service.locate_pgx() (Issue #362)
+PGX_FOUND = PgxLocation(
+    "192.168.50.151", "PGX trouvée en 192.168.50.151 (clé d'hôte SHA256:…)"
+)
+PGX_NOT_FOUND = PgxLocation(None, "192.168.50.151 ne répond pas sur le port 22")
 
 EP1_ID = "507f1f77bcf86cd799439011"
 EP2_ID = "507f1f77bcf86cd799439012"
@@ -149,7 +155,7 @@ class TestRunSequentialProcessing:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = "/app/audios"
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -214,7 +220,7 @@ class TestRunSequentialProcessing:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = "/app/audios"
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(
@@ -274,7 +280,7 @@ class TestRunSequentialProcessing:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=False)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_NOT_FOUND)
 
             await runner._run()
 
@@ -312,7 +318,7 @@ class TestRunSequentialProcessing:
 
         assert runner.is_running is False
         mock_pgx.install_pgx_host_key.assert_not_called()
-        mock_pgx.wait_for_pgx_reachable.assert_not_called()
+        mock_pgx.locate_pgx.assert_not_called()
         mock_pgx.send_audio_to_pgx.assert_not_called()
 
     @pytest.mark.asyncio
@@ -344,9 +350,9 @@ class TestRunSequentialProcessing:
 
             async def unreachable(*args, **kwargs):
                 order.append("ssh")
-                return False
+                return PGX_NOT_FOUND
 
-            mock_pgx.wait_for_pgx_reachable = unreachable
+            mock_pgx.locate_pgx = unreachable
             await runner._run()
 
         mock_pgx.install_pgx_host_key.assert_called_once_with(host_key)
@@ -374,7 +380,7 @@ class TestRunSequentialProcessing:
             await runner._run()
 
         assert runner.is_running is False
-        mock_pgx.wait_for_pgx_reachable.assert_not_called()
+        mock_pgx.locate_pgx.assert_not_called()
         mock_pgx.send_audio_to_pgx.assert_not_called()
 
     @pytest.mark.asyncio
@@ -401,9 +407,7 @@ class TestRunSequentialProcessing:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = "/app/audios"
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(
-                side_effect=RuntimeError("unexpected")
-            )
+            mock_pgx.locate_pgx = AsyncMock(side_effect=RuntimeError("unexpected"))
 
             await runner._run()
 
@@ -491,7 +495,7 @@ class TestLocalCacheFirst:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -561,11 +565,11 @@ class TestLocalCacheFirst:
             mock_settings.audio_storage_path = str(tmp_path)
 
             # PGX injoignable — ne doit pas empêcher le traitement du cache local.
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=False)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_NOT_FOUND)
 
             await runner._run()
 
-        mock_pgx.wait_for_pgx_reachable.assert_not_called()
+        mock_pgx.locate_pgx.assert_not_called()
         assert runner.processed == [
             {
                 "episode_id": EP1_ID,
@@ -612,7 +616,7 @@ class TestLocalCacheFirst:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -743,7 +747,7 @@ class TestTriggerParameter:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=False)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_NOT_FOUND)
 
             await runner._run("manual")
 
@@ -792,7 +796,7 @@ class TestTriggerParameter:
             mock_settings.pgx_transcription_retry_interval_hours = 1.0
             mock_settings.pgx_transcription_retry_max_hours = 24.0
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(side_effect=[False, True])
+            mock_pgx.locate_pgx = AsyncMock(side_effect=[PGX_NOT_FOUND, PGX_FOUND])
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -830,14 +834,12 @@ class TestApiRetryScheduling:
         ):
             mock_settings.pgx_transcription_retry_interval_hours = 1.0
             mock_settings.pgx_transcription_retry_max_hours = 24.0
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(side_effect=[False, True])
+            mock_pgx.locate_pgx = AsyncMock(side_effect=[PGX_NOT_FOUND, PGX_FOUND])
 
-            result = await runner._wait_for_reachable_with_retry(
-                "192.168.50.151", "api"
-            )
+            result = await runner._wait_for_reachable_with_retry("api")
 
-        assert result is True
-        assert mock_pgx.wait_for_pgx_reachable.call_count == 2
+        assert result == "192.168.50.151"
+        assert mock_pgx.locate_pgx.call_count == 2
         mock_sleep.assert_awaited_with(3600.0)
         assert runner.retry_pending is False
         assert runner.next_attempt_at is None
@@ -876,14 +878,12 @@ class TestApiRetryScheduling:
             # de test négligeable — pas besoin de mocker datetime.now().
             mock_settings.pgx_transcription_retry_interval_hours = 0.0001
             mock_settings.pgx_transcription_retry_max_hours = 0.0002
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=False)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_NOT_FOUND)
 
-            result = await runner._wait_for_reachable_with_retry(
-                "192.168.50.151", "api"
-            )
+            result = await runner._wait_for_reachable_with_retry("api")
 
-        assert result is False
-        assert mock_pgx.wait_for_pgx_reachable.call_count >= 1
+        assert result is None
+        assert mock_pgx.locate_pgx.call_count >= 1
         assert runner.retry_pending is False
         assert runner.next_attempt_at is None
         assert len(runner.retry_attempts) >= 1
@@ -913,9 +913,9 @@ class TestApiRetryScheduling:
         ):
             mock_settings.pgx_transcription_retry_interval_hours = 1.0
             mock_settings.pgx_transcription_retry_max_hours = 24.0
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
 
-            await runner._wait_for_reachable_with_retry("192.168.50.151", "api")
+            await runner._wait_for_reachable_with_retry("api")
 
         assert seen_pending_during_sleep == [True, True]
         assert runner.retry_pending is False
@@ -940,11 +940,11 @@ class TestApiRetryScheduling:
         ):
             mock_settings.pgx_transcription_retry_interval_hours = 1.0
             mock_settings.pgx_transcription_retry_max_hours = 3.0
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(
-                side_effect=[False, False, True]
+            mock_pgx.locate_pgx = AsyncMock(
+                side_effect=[PGX_NOT_FOUND, PGX_NOT_FOUND, PGX_FOUND]
             )
 
-            await runner._wait_for_reachable_with_retry("192.168.50.151", "api")
+            await runner._wait_for_reachable_with_retry("api")
 
         mock_notify.assert_awaited_once()
         message = mock_notify.call_args_list[0].args[1]
@@ -983,15 +983,15 @@ class TestApiRetryScheduling:
         ):
             mock_settings.pgx_transcription_retry_interval_hours = 1.0
             mock_settings.pgx_transcription_retry_max_hours = 3.0
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(
-                side_effect=[False, False, True]
+            mock_pgx.locate_pgx = AsyncMock(
+                side_effect=[PGX_NOT_FOUND, PGX_NOT_FOUND, PGX_FOUND]
             )
             mock_mongo.insert_pgx_transcription_log = MagicMock(
                 return_value="log-id-123"
             )
             mock_mongo.update_pgx_transcription_log = MagicMock()
 
-            await runner._wait_for_reachable_with_retry("192.168.50.151", "api")
+            await runner._wait_for_reachable_with_retry("api")
 
         mock_mongo.insert_pgx_transcription_log.assert_called_once()
         inserted_doc = mock_mongo.insert_pgx_transcription_log.call_args[0][0]
@@ -1073,7 +1073,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -1133,7 +1133,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -1187,7 +1187,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError("scp failed"))
@@ -1244,7 +1244,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(
@@ -1289,9 +1289,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = "/app/audios"
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(
-                side_effect=RuntimeError("unexpected")
-            )
+            mock_pgx.locate_pgx = AsyncMock(side_effect=RuntimeError("unexpected"))
 
             await runner._run("manual")
 
@@ -1342,7 +1340,7 @@ class TestPgxTranscriptionLogPersistence:
             mock_settings.pgx_transcription_retry_interval_hours = 0.0001
             mock_settings.pgx_transcription_retry_max_hours = 0.0001
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=False)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_NOT_FOUND)
             mock_mongo.insert_pgx_transcription_log = MagicMock(
                 return_value="log-id-abandoned"
             )
@@ -1428,7 +1426,7 @@ class TestPgxNtfyNotifications:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -1478,7 +1476,7 @@ class TestPgxNtfyNotifications:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError("scp failed"))
@@ -1535,7 +1533,7 @@ class TestPgxNtfyNotifications:
             mock_settings.pgx_poll_interval_s = 10.0
             mock_settings.audio_storage_path = str(tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             # Transcription absente de PGX : envoi normal (Issue #337)
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock(side_effect=PgxError(raw_ssh_error))
@@ -1626,7 +1624,7 @@ class TestOrphanMp3Requeue:
             mock_mongo.episodes_collection.update_one = MagicMock()
             self._configure_settings(mock_settings, tmp_path)
 
-            mock_pgx.wait_for_pgx_reachable = AsyncMock(return_value=True)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
             mock_pgx.remote_file_exists = AsyncMock(side_effect=remote_file_exists)
             mock_pgx.requeue_pgx_audio = AsyncMock(side_effect=requeue_error)
             mock_pgx.send_audio_to_pgx = AsyncMock()
@@ -1739,3 +1737,93 @@ class TestResumeTranscriptionAlreadyOnPgx:
         runner = PgxTranscriptionRunner.get_instance()
         assert runner.processed[0]["success"] is True
         assert any("déjà présente sur PGX" in line for line in runner.logs)
+
+
+class TestRunnerLocatesPgx:
+    """L'entrée du runner et le réessai horaire localisent PGX ; le reste du
+    pipeline utilise l'adresse trouvée (Issue #362)."""
+
+    FOUND = PgxLocation("192.168.49.10", "PGX trouvée en 192.168.49.10")
+    NOT_FOUND = PgxLocation(None, "Aucune machine avec l'identité de PGX")
+
+    async def _run(self, trigger: str, locations: list[PgxLocation]) -> MagicMock:
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"
+            ) as mock_mongo,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.asyncio.sleep",
+                new=AsyncMock(),
+            ),
+            patch.object(runner, "_send_notification", new=AsyncMock()),
+        ):
+            mock_mongo.get_episode_by_id = MagicMock(return_value=_make_episode(EP1_ID))
+            mock_settings.pgx_host = "192.168.49.6"
+            mock_settings.pgx_host_candidates = ["192.168.49.0/24"]
+            mock_settings.pgx_host_key = "ssh-ed25519 AAAA root@pgx"
+            mock_settings.pgx_user = "pgxuser"
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_settings.pgx_remote_audio_root = "/data/audios"
+            mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+            mock_settings.pgx_transcription_timeout_s = 1800.0
+            mock_settings.pgx_poll_interval_s = 10.0
+            mock_settings.audio_storage_path = "/app/audios"
+            mock_settings.pgx_transcription_retry_interval_hours = 1.0
+            mock_settings.pgx_transcription_retry_max_hours = 24.0
+
+            mock_pgx.locate_pgx = AsyncMock(side_effect=locations)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
+            mock_pgx.send_audio_to_pgx = AsyncMock()
+            mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_transcription_from_pgx = AsyncMock(return_value="Texte")
+
+            await runner._run(trigger=trigger)
+        return mock_pgx
+
+    @staticmethod
+    def _assert_pipeline_used_found_address(mock_pgx: MagicMock) -> None:
+        for step in (
+            mock_pgx.remote_file_exists,
+            mock_pgx.send_audio_to_pgx,
+            mock_pgx.wait_for_pgx_transcription,
+            mock_pgx.fetch_transcription_from_pgx,
+        ):
+            assert step.await_count >= 1
+            assert all(c.kwargs["host"] == "192.168.49.10" for c in step.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_entry_should_locate_pgx_and_use_the_found_address(self):
+        mock_pgx = await self._run("manual", [self.FOUND])
+
+        mock_pgx.locate_pgx.assert_awaited_once_with(
+            host="192.168.49.6",
+            host_key="ssh-ed25519 AAAA root@pgx",
+            candidates=["192.168.49.0/24"],
+        )
+        self._assert_pipeline_used_found_address(mock_pgx)
+
+    @pytest.mark.asyncio
+    async def test_hourly_retry_should_locate_pgx_and_use_the_found_address(self):
+        mock_pgx = await self._run("api", [self.NOT_FOUND, self.FOUND])
+
+        assert mock_pgx.locate_pgx.await_count == 2
+        self._assert_pipeline_used_found_address(mock_pgx)
+
+    @pytest.mark.asyncio
+    async def test_manual_run_should_stop_with_the_location_detail(self):
+        mock_pgx = await self._run("manual", [self.NOT_FOUND])
+
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+        runner = PgxTranscriptionRunner.get_instance()
+        assert any(
+            "Aucune machine avec l'identité de PGX" in line for line in runner.logs
+        )

@@ -166,8 +166,9 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
-| `PGX_HOST` | IP directe de la station PGX : IP locale, ou IP VPN quand PGX est cliente du VPN du NAS (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement) | Aucune (requis pour activer PGX) | `192.168.50.151` |
+| `PGX_HOST` | Première adresse où chercher PGX : IP locale, ou IP VPN quand PGX est cliente du VPN du NAS (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement). Si PGX n'y est pas, elle est cherchée dans `PGX_HOST_CANDIDATES` | Aucune (requis pour activer PGX) | `192.168.50.151` |
 | `PGX_HOST_KEY` | Clé publique d'hôte ED25519 de PGX, contenu de `/etc/ssh/ssh_host_ed25519_key.pub` lu **sur PGX même**. C'est elle qui identifie PGX : ssh/scp refusent toute machine qui présente une autre clé, quelle que soit son adresse | Aucune (requis) | `ssh-ed25519 AAAAC3Nz… root@pgx` |
+| `PGX_HOST_CANDIDATES` | Plages où chercher PGX quand elle ne répond pas sur `PGX_HOST` : CIDR ou IP, séparées par des virgules. Seule la machine qui présente `PGX_HOST_KEY` est retenue. Vide : seule `PGX_HOST` est essayée | Vide (pas de balayage) | `192.168.49.0/24,192.168.50.0/24` |
 | `PGX_USER` | Utilisateur SSH sur PGX | Aucune (requis) | `f279814` |
 | `PGX_SSH_KEY_PATH` | Chemin de la clé privée SSH dédiée à PGX (générée automatiquement si absente à ce chemin, via `ensure_pgx_ssh_key()`) | Aucune (requis) | `/app/keys/pgx_ed25519` |
 | `PGX_REMOTE_AUDIO_ROOT` | Répertoire distant racine des audios sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/audios` |

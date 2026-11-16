@@ -27,10 +27,10 @@ Pour chaque épisode de la file (traités **séquentiellement**, une seule machi
    (`settings.audio_storage_path`), lire son contenu directement — aucun appel réseau.
    Reproduit `set_transcription()` de lmelp.
 2. Sinon, pipeline réseau complet :
-   - Vérification de joignabilité PGX (**lazy** : une seule fois pour toute la file, au
+   - Localisation de PGX (`locate_pgx`, **lazy** : une seule fois pour toute la file, au
      premier épisode qui en a réellement besoin — pas en amont de la boucle, sinon un
      run entièrement servi par le cache local échouerait inutilement si PGX est
-     injoignable).
+     introuvable). L'adresse trouvée sert à tout le reste du cycle.
    - Envoi du fichier audio par `scp` (`send_audio_to_pgx`, qui crée d'abord le
      répertoire distant `<remote_audio_root>/<année>/` via `ssh mkdir -p` — `scp` ne
      crée pas les répertoires manquants), ou relance si un mp3 orphelin est détecté
@@ -80,35 +80,65 @@ docker exec <PGX_WHISPER_CONTAINER> python3 -m whisper_docker.queue_manager enqu
 `run_pgx_diagnostics()` (`pgx_service.py`) exécute une checklist en cascade — chaque
 étape court-circuite les suivantes si elle échoue :
 
-1. **Joignabilité** (`wait_for_pgx_reachable`, poll TCP port 22).
-2. **Identité de la machine** (`_check_host_identity`) : `ssh-keyscan -T 5 -t ed25519`
-   (borné, sans authentification), clé reçue comparée à `PGX_HOST_KEY`. En échec, le
-   message nomme la cause (« n'est pas PGX ») avec les empreintes attendue et reçue.
-3. **Authentification SSH** (`_check_ssh_auth`, connexion SSH réelle testée, pas
+1. **PGX localisée** (`locate_pgx`, voir [Localisation de PGX](#localisation-de-pgx)).
+   Les étapes suivantes visent l'adresse trouvée, pas forcément `PGX_HOST`.
+2. **Authentification SSH** (`_check_ssh_auth`, connexion SSH réelle testée, pas
    seulement le port ouvert). Le message ne renvoie vers `authorized_keys` que pour un
    `Permission denied` ; sinon il affiche le `stderr` ssh brut.
-4. **Répertoire audio distant** existe.
-5. **Répertoire transcriptions distant** existe.
+3. **Répertoire audio distant** existe.
+4. **Répertoire transcriptions distant** existe.
 
 ### Identité de PGX (clé d'hôte épinglée)
 
 PGX est reconnue à sa clé d'hôte, jamais à son adresse (ADR 0002,
 `docs/adr/0002-pgx-reconnue-par-sa-cle-dhote.md`). `install_pgx_host_key()` écrit un
 known_hosts dédié d'une seule ligne, `pgx <type> <clé>`, généré depuis `PGX_HOST_KEY` ; le
-runner l'appelle avant toute commande, la checklist après la vérification d'identité.
+runner l'appelle avant toute commande, la checklist une fois PGX localisée.
 Toutes les commandes ssh/scp passent `HostKeyAlias=pgx`, `StrictHostKeyChecking=yes`,
 `CheckHostIP=no` et `GlobalKnownHostsFile=/dev/null` : la clé est cherchée sous l'alias, pas
 sous l'adresse, donc un changement d'adresse de PGX ne provoque pas « REMOTE HOST
 IDENTIFICATION HAS CHANGED », et une autre machine sur `PGX_HOST` est refusée dès le
 premier contact. Sans le fichier, ssh refuse tout : c'est l'état sûr par défaut.
 
+### Localisation de PGX
+
+`locate_pgx(host, host_key, candidates)` renvoie un `PgxLocation(address, detail)` :
+`address` est l'adresse où répond la machine qui présente `PGX_HOST_KEY` (None si
+introuvable), `detail` le message de la ligne « PGX localisée ». Ordre des essais :
+
+1. la dernière adresse où PGX a été trouvée (`_last_pgx_address`, en mémoire du module,
+   perdue au redémarrage) ;
+2. `PGX_HOST` ;
+3. les adresses des plages de `PGX_HOST_CANDIDATES` (CIDR ou IP), sauf celles déjà
+   essayées.
+
+Chaque adresse : connexion TCP sur le port 22 (`TCP_PROBE_TIMEOUT_S` = 1 s), puis, si elle
+répond, `_check_host_identity()` (`ssh-keyscan -T 5 -t ed25519`, sans authentification,
+clé reçue comparée à `PGX_HOST_KEY`). Le balayage sonde `SCAN_CONCURRENCY` (64) adresses à
+la fois et s'arrête à la première qui présente la clé de PGX ; la localisation entière est
+bornée par `LOCATE_TIMEOUT_S` (30 s), au-delà « PGX introuvable ».
+
+Sans candidats, seule `PGX_HOST` est essayée et `detail` reprend le message de
+`_check_host_identity()` (« La machine sur `<ip>` n'est pas PGX », empreintes attendue et
+reçue). Avec candidats, l'échec donne le nombre d'hôtes qui répondent sur le port 22.
+
+Trois appelants, une seule localisation : la checklist, l'entrée du runner (premier
+épisode à envoyer) et le réessai horaire du déclenchement automatique
+(`_wait_for_reachable_with_retry()`). Le runner remplace alors `host` par l'adresse trouvée
+pour tout le reste du cycle (envoi, attente, rapatriement), sans autre changement.
+
+Dans les tests, l'autouse `pgx_location_forgotten` (`tests/conftest.py`) remet
+`_last_pgx_address` à `None` avant chaque test, sinon l'adresse trouvée par un test serait
+essayée en premier par le suivant. `tests/test_pgx_locate.py` simule le réseau (connexions
+TCP et `ssh-keyscan`) à partir d'une table adresse → clé d'hôte.
+
 `get_pgx_config_missing_vars()` doit être vérifié **avant** tout appel à
-`run_pgx_diagnostics()` — `wait_for_pgx_reachable()` lève sinon une erreur non catchée
-si `host` est `None`. C'est ce que fait l'endpoint `GET /api/pgx/diagnostics`.
+`run_pgx_diagnostics()` — la localisation lève sinon une erreur non catchée si `host`
+est `None`. C'est ce que fait l'endpoint `GET /api/pgx/diagnostics`.
 
 Côté frontend (`PgxTranscription.vue`), la checklist reste **toujours visible**, y compris
 quand `missing_vars` n'est pas vide (Issue #310) : la computed `pgxDiagnosticsDisplay`
-affiche dans ce cas les 5 étapes connues avec un statut `skipped` forcé côté client (le
+affiche dans ce cas les 4 étapes connues avec un statut `skipped` forcé côté client (le
 backend renvoie une liste vide, cohérent avec le court-circuit ci-dessus), plutôt que de
 masquer toute la section derrière le seul message d'avertissement de config incomplète.
 

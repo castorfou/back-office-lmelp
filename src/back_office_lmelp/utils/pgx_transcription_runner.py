@@ -141,12 +141,25 @@ class PgxTranscriptionRunner:
         except Exception as exc:  # noqa: BLE001 - la persistance ne doit jamais casser le run
             logger.error(f"Erreur lors de la mise à jour du log PGX: {exc}")
 
-    async def _wait_for_reachable_with_retry(self, host: str, trigger: str) -> bool:
-        """Retry horaire de joignabilité PGX, plafonné (Issue #309).
+    @staticmethod
+    async def _locate_pgx() -> pgx_service.PgxLocation:
+        """Localise PGX d'après sa clé d'hôte (Issue #362, ADR 0002)."""
+        host = settings.pgx_host
+        host_key = settings.pgx_host_key
+        if not host or not host_key:
+            return pgx_service.PgxLocation(None, "Configuration PGX incomplète")
+        return await pgx_service.locate_pgx(
+            host=host,
+            host_key=host_key,
+            candidates=settings.pgx_host_candidates,
+        )
+
+    async def _wait_for_reachable_with_retry(self, trigger: str) -> str | None:
+        """Retry horaire de localisation de PGX, plafonné (Issues #309, #362).
 
         Notifie une seule fois au premier échec (pas à chaque tentative),
-        pour que l'utilisateur sache qu'il doit allumer PGX. Retourne True
-        dès que PGX redevient joignable, False si le plafond est dépassé.
+        pour que l'utilisateur sache qu'il doit allumer PGX. Retourne
+        l'adresse où PGX a été retrouvée, None si le plafond est dépassé.
         """
         retry_deadline = datetime.now(UTC) + timedelta(
             hours=settings.pgx_transcription_retry_max_hours
@@ -178,25 +191,23 @@ class PgxTranscriptionRunner:
 
             await asyncio.sleep(settings.pgx_transcription_retry_interval_hours * 3600)
 
-            attempt_reachable = await pgx_service.wait_for_pgx_reachable(
-                host, timeout_s=10, poll_interval_s=2
-            )
+            location = await self._locate_pgx()
             self.retry_attempts.append(
                 {
                     "attempted_at": datetime.now(UTC).isoformat(),
-                    "reachable": attempt_reachable,
+                    "reachable": location.address is not None,
                 }
             )
             self._sync_retry_attempts_to_log()
-            if attempt_reachable:
+            if location.address is not None:
                 self.retry_pending = False
                 self.next_attempt_at = None
-                self._log("PGX de nouveau joignable — reprise du traitement")
-                return True
+                self._log(f"{location.detail} — reprise du traitement")
+                return location.address
 
         self.retry_pending = False
         self.next_attempt_at = None
-        return False
+        return None
 
     async def _has_orphan_mp3(
         self,
@@ -343,27 +354,32 @@ class PgxTranscriptionRunner:
                             transcription_text = f.read()
                     else:
                         if not pgx_reachability_checked:
-                            self._log("Vérification de la disponibilité de PGX…")
-                            if not await pgx_service.wait_for_pgx_reachable(
-                                host, timeout_s=10, poll_interval_s=2
-                            ):
+                            self._log("Localisation de PGX…")
+                            location = await self._locate_pgx()
+                            if location.address is None:
+                                self._log(location.detail)
                                 if trigger == "manual":
                                     self._log(
-                                        "PGX injoignable — vérifiez qu'elle est "
-                                        "allumée et sur le réseau (aucun réveil "
-                                        "automatique n'est tenté)"
+                                        "Vérifiez qu'elle est allumée et sur le "
+                                        "réseau (aucun réveil automatique n'est "
+                                        "tenté)"
                                     )
                                     return
-                                if not await self._wait_for_reachable_with_retry(
-                                    host, trigger
-                                ):
+                                address = await self._wait_for_reachable_with_retry(
+                                    trigger
+                                )
+                                if address is None:
                                     self._log(
-                                        "PGX toujours injoignable après "
+                                        "PGX toujours introuvable après "
                                         f"{settings.pgx_transcription_retry_max_hours}h "
                                         "— abandon du cycle"
                                     )
                                     abandoned = True
                                     break
+                                host = address
+                            else:
+                                self._log(location.detail)
+                                host = location.address
                             pgx_reachability_checked = True
 
                         remote_audio_dir = f"{remote_audio_root}/{year}"
