@@ -2,8 +2,8 @@
 
 Porté depuis castorfou/lmelp (nbs/pgx.py) : un service watcher tourne en
 permanence sur PGX et transcrit automatiquement tout fichier audio déposé
-dans le répertoire surveillé. Ce module vérifie que PGX est joignable,
-envoie l'audio, attend la transcription puis la rapatrie. PGX (Wi-Fi
+dans le répertoire surveillé. Ce module localise PGX d'après sa clé d'hôte
+(ADR 0002), envoie l'audio, attend la transcription puis la rapatrie. PGX (Wi-Fi
 uniquement, veille système désactivée pour raisons GPU) doit être allumée
 manuellement — aucun réveil à distance n'est tenté (pas de Wake-on-LAN).
 """
@@ -13,8 +13,10 @@ import base64
 import binascii
 import contextlib
 import hashlib
+import ipaddress
 import os
 import tempfile
+from dataclasses import dataclass
 
 
 class PgxError(RuntimeError):
@@ -83,25 +85,6 @@ async def ensure_pgx_ssh_key(key_path: str) -> str:
 
     with open(f"{key_path}.pub") as f:
         return f.read().strip()
-
-
-async def wait_for_pgx_reachable(
-    host: str, port: int = 22, timeout_s: float = 120, poll_interval_s: float = 5
-) -> bool:
-    """Poll la disponibilité de PGX (connexion TCP) jusqu'à dispo ou expiration du délai."""
-    deadline = asyncio.get_event_loop().time() + timeout_s
-    while True:
-        try:
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=poll_interval_s
-            )
-            writer.close()
-            await writer.wait_closed()
-            return True
-        except (TimeoutError, OSError):
-            if asyncio.get_event_loop().time() >= deadline:
-                return False
-            await asyncio.sleep(poll_interval_s)
 
 
 # Alias sous lequel la clé d'hôte de PGX est connue : ssh vérifie la clé de
@@ -230,13 +213,21 @@ async def _run_command(
             process.communicate(), timeout=effective_timeout
         )
     except TimeoutError as exc:
-        with contextlib.suppress(ProcessLookupError):
-            process.kill()
-            await process.wait()
+        await _kill(process)
         raise PgxTimeoutError(
             f"PGX ne répond pas (commande ssh/scp > {effective_timeout}s)"
         ) from exc
+    except asyncio.CancelledError:
+        # Tâche annulée (ex: PGX trouvée ailleurs) : pas de processus orphelin
+        await asyncio.shield(_kill(process))
+        raise
     return process.returncode or 0, stdout.decode(), stderr.decode()
+
+
+async def _kill(process: asyncio.subprocess.Process) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        process.kill()
+        await process.wait()
 
 
 async def _ensure_remote_dir(
@@ -403,6 +394,156 @@ async def _check_host_identity(*, host: str, host_key: str) -> tuple[bool, str]:
     )
 
 
+@dataclass(frozen=True)
+class PgxLocation:
+    """Résultat de la localisation : l'adresse où PGX a été reconnue (None si
+    introuvable) et le message affiché dans la checklist."""
+
+    address: str | None
+    detail: str
+
+
+# Dernière adresse où PGX a été reconnue : essayée en premier, perdue au
+# redémarrage du backend (la recherche repart alors de PGX_HOST)
+_last_pgx_address: str | None = None
+
+# Bornes du balayage des candidats (#337) : délai de connexion TCP par hôte,
+# hôtes sondés en parallèle, durée totale de la localisation
+TCP_PROBE_TIMEOUT_S = 1.0
+SCAN_CONCURRENCY = 64
+LOCATE_TIMEOUT_S = 30.0
+
+
+async def _port_22_open(address: str) -> bool:
+    """Connexion TCP sur le port 22, refermée aussitôt (pas de TLS, pas de ssh)."""
+    try:
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(address, 22), timeout=TCP_PROBE_TIMEOUT_S
+        )
+    except (TimeoutError, OSError):
+        return False
+    writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
+    return True
+
+
+def _expand_candidates(candidates: list[str]) -> list[str]:
+    """Adresses à balayer, dans l'ordre des plages (IP seules ou CIDR)."""
+    addresses: list[str] = []
+    for candidate in candidates:
+        network = ipaddress.ip_network(candidate.strip(), strict=False)
+        hosts = list(network.hosts()) or [network.network_address]
+        addresses.extend(str(h) for h in hosts)
+    return addresses
+
+
+class _Search:
+    """État d'une localisation : adresses sondées et celles qui répondent."""
+
+    def __init__(self, host_key: str) -> None:
+        self.host_key = host_key
+        self.probed: set[str] = set()
+        self.responding: set[str] = set()
+        self.details: dict[str, str] = {}
+
+    async def is_pgx(self, address: str) -> bool:
+        self.probed.add(address)
+        if not await _port_22_open(address):
+            return False
+        self.responding.add(address)
+        ok, detail = await _check_host_identity(host=address, host_key=self.host_key)
+        self.details[address] = detail
+        return ok
+
+    async def scan(self, addresses: list[str]) -> str | None:
+        """Sonde les adresses (SCAN_CONCURRENCY à la fois) ; s'arrête à la première
+        qui présente la clé de PGX."""
+        semaphore = asyncio.Semaphore(SCAN_CONCURRENCY)
+
+        async def probe(address: str) -> str | None:
+            async with semaphore:
+                return address if await self.is_pgx(address) else None
+
+        tasks = [asyncio.create_task(probe(a)) for a in addresses]
+        try:
+            for next_done in asyncio.as_completed(tasks):
+                found = await next_done
+                if found:
+                    return found
+            return None
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def locate_pgx(*, host: str, host_key: str, candidates: list[str]) -> PgxLocation:
+    """Trouve l'adresse où répond la machine qui présente la clé d'hôte de PGX.
+
+    Ordre : dernière adresse trouvée, PGX_HOST, puis balayage de `candidates`
+    (plages CIDR ou IP). Une adresse n'est retenue que si la clé d'hôte reçue
+    est celle de PGX_HOST_KEY (ADR 0002). Bornée par LOCATE_TIMEOUT_S.
+    """
+    global _last_pgx_address
+    try:
+        _, expected_b64 = parse_pgx_host_key(host_key)
+    except ValueError as exc:
+        return PgxLocation(None, f"PGX_HOST_KEY invalide : {exc}")
+    try:
+        scan_addresses = _expand_candidates(candidates)
+    except ValueError as exc:
+        return PgxLocation(None, f"PGX_HOST_CANDIDATES invalide : {exc}")
+    expected_fp = host_key_fingerprint(expected_b64)
+
+    search = _Search(host_key)
+    direct = [a for a in (_last_pgx_address, host) if a]
+    direct = list(dict.fromkeys(direct))
+
+    async def find() -> str | None:
+        for address in direct:
+            if await search.is_pgx(address):
+                return address
+        return await search.scan([a for a in scan_addresses if a not in search.probed])
+
+    def search_summary() -> str:
+        return (
+            f"({len(search.responding)} hôte(s) répondent sur le port 22) — "
+            f"empreinte attendue : {expected_fp}"
+        )
+
+    try:
+        found = await asyncio.wait_for(find(), timeout=LOCATE_TIMEOUT_S)
+    except TimeoutError:
+        return PgxLocation(
+            None,
+            f"PGX introuvable : recherche arrêtée après {LOCATE_TIMEOUT_S:.0f} s "
+            + search_summary(),
+        )
+
+    if found is None:
+        if not scan_addresses:
+            if host not in search.responding:
+                return PgxLocation(
+                    None,
+                    f"{host} ne répond pas sur le port 22 — vérifiez que PGX est "
+                    "allumée et connectée au VPN",
+                )
+            return PgxLocation(None, search.details[host])
+        return PgxLocation(
+            None,
+            "Aucune machine avec l'identité de PGX parmi les candidats "
+            + search_summary(),
+        )
+    _last_pgx_address = found
+    if found == host:
+        return PgxLocation(found, f"PGX trouvée en {found} (clé d'hôte {expected_fp})")
+    return PgxLocation(
+        found,
+        f"PGX trouvée en {found} (PGX_HOST vaut {host}) — clé d'hôte {expected_fp}",
+    )
+
+
 async def _check_ssh_auth(*, host: str, user: str, key_path: str) -> tuple[bool, str]:
     """Teste une authentification SSH réelle avec la clé dédiée (pas juste le port ouvert).
 
@@ -441,8 +582,7 @@ async def _check_remote_dir_exists(
 
 # Étapes de la checklist, dans l'ordre où run_pgx_diagnostics() les exécute
 PGX_DIAGNOSTIC_STEPS = (
-    "Machine joignable",
-    "Identité de la machine",
+    "PGX localisée",
     "Authentification SSH (clé dédiée)",
     "Répertoire audio distant",
     "Répertoire transcriptions distant",
@@ -459,12 +599,14 @@ def _skip_remaining_steps(results: list[dict], detail: str) -> list[dict]:
 async def run_pgx_diagnostics(config: dict) -> list[dict]:
     """Exécute la checklist PGX (PGX_DIAGNOSTIC_STEPS) — chaque vérification
     arrête les suivantes si elle échoue, puisqu'elles en dépendent (inutile de
-    tester l'authentification si injoignable, ni sur une machine qui n'est pas PGX).
+    tester l'authentification si PGX n'a pas été localisée). Les vérifications
+    ssh visent l'adresse où PGX a été trouvée, pas forcément PGX_HOST.
 
     Args:
         config: dict avec les clés host, user, key_path, remote_audio_root,
         remote_transcription_root, host_key (voir get_pgx_config_missing_vars pour la
-        vérification préalable de complétude).
+        vérification préalable de complétude), et candidates (facultative, plages
+        PGX_HOST_CANDIDATES).
 
     Returns:
         list[dict]: une entrée par vérification, avec les clés "name" (str),
@@ -479,33 +621,19 @@ async def run_pgx_diagnostics(config: dict) -> list[dict]:
 
     results = []
 
-    reachable = await wait_for_pgx_reachable(host, timeout_s=5, poll_interval_s=2)
-    results.append(
-        {
-            "name": "Machine joignable",
-            "status": "ok" if reachable else "fail",
-            "detail": (
-                f"{host} répond sur le port 22"
-                if reachable
-                else f"{host} ne répond pas sur le port 22 — vérifiez qu'elle est allumée"
-            ),
-        }
-    )
-    if not reachable:
-        return _skip_remaining_steps(results, "PGX injoignable")
-
-    identity_ok, identity_detail = await _check_host_identity(
-        host=host, host_key=host_key
+    location = await locate_pgx(
+        host=host, host_key=host_key, candidates=config.get("candidates") or []
     )
     results.append(
         {
-            "name": "Identité de la machine",
-            "status": "ok" if identity_ok else "fail",
-            "detail": identity_detail,
+            "name": "PGX localisée",
+            "status": "ok" if location.address else "fail",
+            "detail": location.detail,
         }
     )
-    if not identity_ok:
-        return _skip_remaining_steps(results, "La machine jointe n'est pas PGX")
+    if location.address is None:
+        return _skip_remaining_steps(results, "PGX introuvable")
+    host = location.address
 
     install_pgx_host_key(host_key)
 

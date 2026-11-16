@@ -59,6 +59,7 @@ class TestPgxSettings:
     PGX_ENV_VARS = (
         "PGX_HOST",
         "PGX_HOST_KEY",
+        "PGX_HOST_CANDIDATES",
         "PGX_USER",
         "PGX_SSH_KEY_PATH",
         "PGX_REMOTE_AUDIO_ROOT",
@@ -98,6 +99,15 @@ class TestPgxSettings:
 
     def test_pgx_host_key_should_return_none_when_not_set(self):
         assert Settings().pgx_host_key is None
+
+    def test_pgx_host_candidates_should_split_the_ranges(self):
+        """Valeur du NAS : pool du VPN et réseau de la maison d'été (#362)."""
+        os.environ["PGX_HOST_CANDIDATES"] = "192.168.49.0/24, 192.168.50.0/24,"
+
+        assert Settings().pgx_host_candidates == ["192.168.49.0/24", "192.168.50.0/24"]
+
+    def test_pgx_host_candidates_should_be_empty_when_not_set(self):
+        assert Settings().pgx_host_candidates == []
 
     def test_pgx_user_should_return_env_value_when_set(self):
         """pgx_user retourne la valeur de PGX_USER quand définie."""

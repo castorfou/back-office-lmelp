@@ -68,15 +68,16 @@ La checklist de diagnostic s'exécute **automatiquement** au chargement de la pa
 statut 🟢/🔴/⚪ par étape, et reste **toujours visible** — y compris quand la configuration
 PGX est incomplète :
 
-1. **Machine joignable** — le port SSH répond.
-2. **Identité de la machine** — la machine qui répond sur `PGX_HOST` présente bien la clé
-   d'hôte de PGX (`PGX_HOST_KEY`). La vérification se fait sans authentification. PGX est
-   reconnue à cette clé, jamais à son adresse.
-3. **Authentification SSH (clé dédiée)** — une vraie connexion est testée (pas juste le
+1. **PGX localisée** — lmelp cherche la machine qui présente la clé d'hôte de PGX
+   (`PGX_HOST_KEY`), sans authentification : d'abord à la dernière adresse où il l'a
+   trouvée, puis à `PGX_HOST`, puis dans les plages de `PGX_HOST_CANDIDATES`. PGX est
+   reconnue à cette clé, jamais à son adresse. Le détail donne l'adresse trouvée et signale
+   l'écart éventuel : « PGX trouvée en 192.168.49.10 (PGX_HOST vaut 192.168.49.6) ».
+2. **Authentification SSH (clé dédiée)** — une vraie connexion est testée (pas juste le
    port ouvert). En cas d'échec, le détail SSH réel est inclus dans le message pour en
    identifier la cause précise (voir [Dépannage](#depannage)).
-4. **Répertoire audio distant** — le répertoire configuré existe sur PGX.
-5. **Répertoire transcriptions distant** — le répertoire configuré existe sur PGX.
+3. **Répertoire audio distant** — le répertoire configuré existe sur PGX.
+4. **Répertoire transcriptions distant** — le répertoire configuré existe sur PGX.
 
 Chaque étape court-circuite les suivantes si elle échoue (inutile de tester
 l'authentification si injoignable, par exemple). Si des variables d'environnement PGX sont
@@ -132,16 +133,16 @@ Configuration côté PGX :
      seconde (`chmod 600`) : indispensable pour une connexion sans saisie.
 2. `sudo systemctl enable --now openvpn-client@nas` : PGX rejoint le VPN à chaque démarrage
    et se reconnecte après une coupure.
-3. Relever l'IP VPN de PGX (`ip -4 addr show tun0`), la renseigner dans `PGX_HOST`, puis
-   redémarrer le conteneur backend.
+3. Renseigner `PGX_HOST_CANDIDATES` avec le pool du VPN et le réseau local
+   (`192.168.49.0/24,192.168.50.0/24` sur le NAS), puis redémarrer le conteneur backend.
+   `PGX_HOST` peut garder n'importe laquelle des deux adresses habituelles de PGX.
 
 !!! warning "L'IP VPN n'est pas réservée"
     Synology VPN Server attribue les IP OpenVPN dynamiquement : celle de PGX peut changer
     d'une connexion à l'autre, et une autre machine cliente du VPN peut récupérer l'ancienne.
-    Si la checklist affiche « Machine joignable » en 🔴, ou « Identité de la machine » en 🔴
-    (« n'est pas PGX »), alors que PGX est allumée et connectée au VPN, comparer son IP
-    `tun0` avec `PGX_HOST`. Au retour de PGX sur le réseau local, remettre son IP locale
-    dans `PGX_HOST`. `PGX_HOST_KEY`, elle, ne change pas.
+    Avec `PGX_HOST_CANDIDATES`, lmelp retrouve PGX tout seul, sur le VPN comme au retour à
+    la maison d'été, sans modification de `PGX_HOST`. Une machine qui occupe l'ancienne
+    adresse de PGX est ignorée, puisqu'elle ne présente pas la clé `PGX_HOST_KEY`.
 
 ## Déclenchement automatique et historique
 
@@ -185,19 +186,30 @@ prochaine tentative.
 - Vérifiez que PGX est bien sous tension et sur le réseau — aucun réveil automatique n'est
   tenté, elle doit être allumée manuellement au préalable.
 - PGX hors du réseau local : vérifiez qu'elle est connectée au VPN du NAS et que son IP
-  `tun0` correspond toujours à `PGX_HOST` (voir
+  `tun0` est dans une plage de `PGX_HOST_CANDIDATES` (voir
   [PGX hors du réseau local](#pgx-hors-du-reseau-local)).
 - Consultez la checklist de diagnostic sur `/transcription-pgx` pour un état rapide.
 
-### "Identité de la machine" : « La machine sur `<ip>` n'est pas PGX »
+### "PGX localisée" en 🔴
 
-Le message complet est « La machine sur `<ip>` n'est pas PGX (clé d'hôte différente) —
-l'adresse VPN a probablement changé de machine », suivi de l'empreinte attendue (celle de
-`PGX_HOST_KEY`) et de l'empreinte reçue.
+- « Aucune machine avec l'identité de PGX parmi les candidats (N hôte(s) répondent sur le
+  port 22) » : PGX n'est sur aucune adresse de `PGX_HOST` ni de `PGX_HOST_CANDIDATES`.
+  Vérifiez qu'elle est allumée et connectée, et que son IP (`ip -4 addr`) est dans une des
+  plages. Les N machines qui répondent ont une autre clé d'hôte : lmelp ne leur parle pas.
+- « PGX introuvable : recherche arrêtée après 30 s » : la recherche a atteint sa borne.
+  Réduisez les plages de `PGX_HOST_CANDIDATES` aux réseaux où PGX peut réellement se
+  trouver.
+- « `<ip>` ne répond pas sur le port 22 » (sans `PGX_HOST_CANDIDATES`) : PGX n'est pas à
+  l'adresse `PGX_HOST`.
+
+Sans `PGX_HOST_CANDIDATES`, seule `PGX_HOST` est essayée et le message nomme ce qui s'y
+trouve : « La machine sur `<ip>` n'est pas PGX (clé d'hôte différente) — l'adresse VPN a
+probablement changé de machine », suivi de l'empreinte attendue (celle de `PGX_HOST_KEY`)
+et de l'empreinte reçue.
 
 - Une autre machine (le laptop, par exemple) occupe l'adresse `PGX_HOST`. lmelp refuse de
-  lui parler : aucun audio ne lui est envoyé. Relever l'IP `tun0` de PGX et corriger
-  `PGX_HOST`.
+  lui parler : aucun audio ne lui est envoyé. Renseignez `PGX_HOST_CANDIDATES` pour que
+  PGX soit retrouvée ailleurs.
 - Si l'empreinte reçue est bien celle de PGX (`ssh-keygen -lf
   /etc/ssh/ssh_host_ed25519_key.pub` sur PGX), c'est `PGX_HOST_KEY` qui est fausse ou
   périmée (PGX réinstallée, `sshd` reconfiguré) : la recopier depuis PGX.
@@ -206,7 +218,7 @@ l'adresse VPN a probablement changé de machine », suivi de l'empreinte attendu
 
 ### "Authentification SSH (clé dédiée)" échoue malgré une clé bien déployée
 
-Cette étape ne s'exécute que si l'identité de la machine est vérifiée. Le message inclut le
+Cette étape ne s'exécute que si PGX a été localisée, à l'adresse trouvée. Le message inclut le
 **détail SSH réel** (stderr de la tentative de connexion) :
 
 - `Permission denied (publickey,…)` : PGX refuse la clé dédiée. C'est le seul cas où le

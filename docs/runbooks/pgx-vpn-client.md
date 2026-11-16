@@ -2,7 +2,8 @@
 
 But : quand PGX n'est pas sur le réseau de la maison d'été, la connecter au serveur
 OpenVPN du NAS pour que le backend lmelp (sur le NAS) la joigne en SSH et lui envoie les
-épisodes à transcrire. Rien ne change dans lmelp à part la variable `PGX_HOST`.
+épisodes à transcrire. lmelp retrouve PGX tout seul sur le VPN grâce à
+`PGX_HOST_CANDIDATES` : aucune adresse à corriger à la main.
 
 Repères réseau :
 
@@ -101,7 +102,7 @@ Le service redémarre avec PGX et se reconnecte tout seul après une coupure. Lo
 ## 6. Vérifications
 
 ```bash
-# IP VPN de PGX : c'est elle qui ira dans PGX_HOST
+# IP VPN de PGX : doit être dans une plage de PGX_HOST_CANDIDATES (192.168.49.0/24)
 ip -4 addr show tun0
 
 # Le NAS passe par le VPN...
@@ -133,26 +134,29 @@ Le service de transcription (conteneur whisper) doit tourner comme d'habitude :
    ```
    Copier la ligne entière dans `PGX_HOST_KEY` (`.env` du NAS). Elle ne change ni avec
    l'adresse ni avec le réseau : à faire une seule fois, ou après une réinstallation de PGX.
-2. Mettre l'IP `tun0` de PGX dans `PGX_HOST`, puis redémarrer le conteneur backend.
+2. Vérifier que `PGX_HOST_CANDIDATES` contient le pool du VPN et le réseau local
+   (`192.168.49.0/24,192.168.50.0/24`), puis redémarrer le conteneur backend. À faire une
+   seule fois : `PGX_HOST` ne suit pas l'IP `tun0` de PGX.
 3. Test direct depuis le conteneur backend :
    ```bash
    sudo docker exec <conteneur-backend> bash -c 'timeout 3 bash -c "</dev/tcp/<ip-tun0-pgx>/22" && echo OK || echo KO'
    ```
-4. Dans lmelp, page `/transcription-pgx` : la checklist doit être **entièrement verte**,
-   puis lancer la transcription des épisodes en attente.
+4. Dans lmelp, page `/transcription-pgx` : la checklist doit être **entièrement verte**.
+   La ligne « PGX localisée » donne l'adresse où PGX a été trouvée. Lancer ensuite la
+   transcription des épisodes en attente.
 
 ## 8. Au quotidien
 
 - **Allumer PGX suffit** : le VPN monte tout seul, et le déclenchement automatique
   réessaie toutes les heures pendant 24h.
-- **L'IP VPN n'est pas réservée** : si la checklist affiche « Machine joignable » en 🔴
-  alors que PGX est allumée, comparer `ip -4 addr show tun0` avec `PGX_HOST` et corriger
-  si besoin.
-- **« La machine sur `<ip>` n'est pas PGX (clé d'hôte différente) »** sur la ligne
-  « Identité de la machine » : une autre cliente du VPN (le laptop, typiquement) a
-  récupéré l'adresse de `PGX_HOST`. lmelp refuse de lui parler. Relever l'IP `tun0` de PGX,
-  corriger `PGX_HOST` et redémarrer le conteneur backend. Rien à effacer dans un
-  `known_hosts` : lmelp reconnaît PGX à `PGX_HOST_KEY`, pas à son adresse.
+- **L'IP VPN n'est pas réservée** : lmelp cherche PGX dans `PGX_HOST_CANDIDATES` et ne
+  retient que la machine qui présente `PGX_HOST_KEY`. Une autre cliente du VPN (le
+  laptop, typiquement) qui récupère l'ancienne adresse de PGX est ignorée. Aucun
+  `known_hosts` à nettoyer, `PGX_HOST` reste telle quelle.
+- **« PGX localisée » en 🔴** (« Aucune machine avec l'identité de PGX parmi les
+  candidats ») alors que PGX est allumée : vérifier que le VPN est monté
+  (`ip -4 addr show tun0`) et que cette IP est bien dans une plage de
+  `PGX_HOST_CANDIDATES`.
 - Ne pas connecter le laptop au VPN du NAS en même temps que PGX limite ces échanges
   d'adresse.
 
@@ -165,6 +169,6 @@ double) :
 sudo systemctl disable --now openvpn-client@nas
 ```
 
-Puis remettre l'IP locale de PGX dans `PGX_HOST` et redémarrer le conteneur backend. À
-l'automne suivant : `sudo systemctl enable --now openvpn-client@nas`, puis les étapes 6
-et 7.
+Côté NAS, la configuration reste la même : lmelp retrouve PGX sur le réseau local (`192.168.50.0/24`,
+dans `PGX_HOST_CANDIDATES`). À l'automne suivant :
+`sudo systemctl enable --now openvpn-client@nas`, puis l'étape 6.

@@ -84,7 +84,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('affiche la checklist de diagnostics PGX', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '192.168.50.151 répond' },
+        { name: 'PGX localisée', status: 'ok', detail: "PGX trouvée en 192.168.50.151 (clé d'hôte SHA256:25SQCoKsuvCVdRNxfmcQdwC2wbSns6z4sMrziDVcMCc)" },
         { name: 'Authentification SSH (clé dédiée)', status: 'fail', detail: 'Échec' },
       ],
     });
@@ -94,7 +94,7 @@ describe('PgxTranscription (Issue #302)', () => {
     await wrapper.vm.$nextTick();
 
     const text = wrapper.text();
-    expect(text).toContain('Machine joignable');
+    expect(text).toContain('PGX localisée');
     expect(text).toContain('Authentification SSH');
   });
 
@@ -109,8 +109,8 @@ describe('PgxTranscription (Issue #302)', () => {
     expect(text).toContain('PGX_HOST');
     // La checklist doit rester visible (statuts non exécutés), pas masquée
     // derrière le seul message d'avertissement — comportement lmelp.
-    expect(text).toContain('Machine joignable');
-    expect(text).toContain('Identité de la machine');
+    expect(text).toContain('PGX localisée');
+    expect(text).not.toContain('Machine joignable');
     expect(text).toContain('Authentification SSH');
     expect(text).toContain('Répertoire audio distant');
     expect(text).toContain('Répertoire transcriptions distant');
@@ -130,7 +130,7 @@ describe('PgxTranscription (Issue #302)', () => {
 
   it('désactive le bouton de lancement si la checklist PGX n\'est pas entièrement au vert', async () => {
     mockApi({
-      diagnostics: [{ name: 'Machine joignable', status: 'fail', detail: '...' }],
+      diagnostics: [{ name: 'PGX localisée', status: 'fail', detail: '...' }],
       episodes: [{ id: 'abc', titre: 'Episode Test', date: '2026-03-01' }],
     });
 
@@ -145,7 +145,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it("désactive le bouton de lancement si aucun épisode n'est en attente", async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -164,7 +164,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('active le bouton de lancement quand tout est prêt et affiche le nombre d\'épisodes', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -188,7 +188,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('accorde le texte au singulier quand un seul épisode est en attente', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -206,7 +206,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('affiche une ligne par épisode avec sa date de diffusion (dd/mm/yy) et son titre', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -232,7 +232,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('déclenche la transcription et démarre le polling de progression', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -257,7 +257,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it("rafraîchit l'historique automatiquement pendant le polling de progression", async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -294,7 +294,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it("rafraîchit le détail d'historique ouvert pendant le polling de progression", async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -397,7 +397,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('arrête le polling automatiquement quand is_running redevient false', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -453,7 +453,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('nettoie le polling au démontage du composant', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: '...' },
+        { name: 'PGX localisée', status: 'ok', detail: '...' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -479,7 +479,7 @@ describe('PgxTranscription (Issue #302)', () => {
 
   it('recharge diagnostics et épisodes au clic sur le bouton de rafraîchissement', async () => {
     mockApi({
-      diagnostics: [{ name: 'Machine joignable', status: 'fail', detail: 'injoignable' }],
+      diagnostics: [{ name: 'PGX localisée', status: 'fail', detail: 'injoignable' }],
       episodes: [],
     });
 
@@ -491,7 +491,7 @@ describe('PgxTranscription (Issue #302)', () => {
 
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: 'répond' },
+        { name: 'PGX localisée', status: 'ok', detail: 'répond' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -535,7 +535,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it("n'affiche pas la section clé SSH quand l'authentification SSH est déjà réussie", async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: 'répond' },
+        { name: 'PGX localisée', status: 'ok', detail: 'répond' },
         { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: 'Authentification réussie' },
         { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
@@ -553,7 +553,7 @@ describe('PgxTranscription (Issue #302)', () => {
   it('affiche la section clé SSH quand l\'authentification SSH échoue encore', async () => {
     mockApi({
       diagnostics: [
-        { name: 'Machine joignable', status: 'ok', detail: 'répond' },
+        { name: 'PGX localisée', status: 'ok', detail: 'répond' },
         { name: 'Authentification SSH (clé dédiée)', status: 'fail', detail: 'Échec' },
         { name: 'Répertoire audio distant', status: 'skipped', detail: '...' },
         { name: 'Répertoire transcriptions distant', status: 'skipped', detail: '...' },

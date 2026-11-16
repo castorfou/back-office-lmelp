@@ -23,7 +23,7 @@ def client():
 class TestGetPgxDiagnostics:
     def test_should_return_diagnostics_list(self, client):
         diagnostics = [
-            {"name": "Machine joignable", "status": "ok", "detail": "..."},
+            {"name": "PGX localisée", "status": "ok", "detail": "..."},
         ]
         with (
             patch("back_office_lmelp.app.settings") as mock_settings,
@@ -88,6 +88,28 @@ class TestGetPgxDiagnostics:
 
         assert response.json() == {"diagnostics": [], "missing_vars": ["PGX_HOST_KEY"]}
         mock_run.assert_not_called()
+
+    def test_diagnostics_should_receive_the_candidate_ranges(self, client):
+        """PGX_HOST_CANDIDATES est transmise à la localisation (#362)."""
+        with (
+            patch("back_office_lmelp.app.settings") as mock_settings,
+            patch(
+                "back_office_lmelp.app.pgx_service.run_pgx_diagnostics",
+                new=AsyncMock(return_value=[]),
+            ) as mock_run,
+        ):
+            mock_settings.pgx_host = "192.168.49.6"
+            mock_settings.pgx_user = "pgxuser"
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_settings.pgx_remote_audio_root = "/data/audios"
+            mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+            mock_settings.pgx_host_key = "ssh-ed25519 AAAA root@pgx"
+            mock_settings.pgx_host_candidates = ["192.168.49.0/24", "192.168.50.0/24"]
+
+            client.get("/api/pgx/diagnostics")
+
+        config = mock_run.call_args.args[0]
+        assert config["candidates"] == ["192.168.49.0/24", "192.168.50.0/24"]
 
 
 class TestGetPgxSshKey:
@@ -292,7 +314,7 @@ class TestGetPgxTranscriptionProgress:
             "current_episode_index": 0,
             "processed": [],
             "start_time": "2026-03-01T10:00:00+00:00",
-            "logs": ["Vérification de la disponibilité de PGX…"],
+            "logs": ["Localisation de PGX…"],
             "last_update": "2026-03-01T10:00:00+00:00",
         }
         with patch(

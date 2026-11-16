@@ -3929,6 +3929,7 @@ async def get_pgx_diagnostics() -> JSONResponse:
             "remote_audio_root": settings.pgx_remote_audio_root,
             "remote_transcription_root": settings.pgx_remote_transcription_root,
             "host_key": settings.pgx_host_key,
+            "candidates": settings.pgx_host_candidates,
         }
         missing_vars = pgx_service.get_pgx_config_missing_vars(config)
         if missing_vars:

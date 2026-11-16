@@ -23,7 +23,6 @@ from back_office_lmelp.services.pgx_service import (
     requeue_pgx_audio,
     run_pgx_diagnostics,
     send_audio_to_pgx,
-    wait_for_pgx_reachable,
     wait_for_pgx_transcription,
 )
 
@@ -181,7 +180,7 @@ class TestPgxFullyConfigured:
     def test_should_return_true_when_all_checks_ok(self):
         """True quand tous les diagnostics sont 'ok'."""
         diagnostics = [
-            {"name": "Machine joignable", "status": "ok", "detail": "..."},
+            {"name": "PGX localisée", "status": "ok", "detail": "..."},
             {"name": "Authentification SSH", "status": "ok", "detail": "..."},
         ]
 
@@ -190,7 +189,7 @@ class TestPgxFullyConfigured:
     def test_should_return_false_when_any_check_fails(self):
         """False dès qu'un diagnostic est 'fail' ou 'skipped'."""
         diagnostics = [
-            {"name": "Machine joignable", "status": "fail", "detail": "..."},
+            {"name": "PGX localisée", "status": "fail", "detail": "..."},
             {"name": "Authentification SSH", "status": "skipped", "detail": "..."},
         ]
 
@@ -266,77 +265,6 @@ class TestEnsurePgxSshKey:
             pytest.raises(PgxError, match="permission denied"),
         ):
             await ensure_pgx_ssh_key(str(key_path))
-
-
-class TestWaitForPgxReachable:
-    """Tests de wait_for_pgx_reachable() — poll TCP port 22."""
-
-    @pytest.mark.asyncio
-    async def test_should_return_true_when_connection_succeeds_immediately(self):
-        """True dès que la connexion TCP réussit, sans attendre le poll suivant."""
-        writer_mock = AsyncMock()
-        writer_mock.close = lambda: None
-
-        with patch(
-            "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-            AsyncMock(return_value=(AsyncMock(), writer_mock)),
-        ):
-            result = await wait_for_pgx_reachable(
-                "192.168.50.151", timeout_s=5, poll_interval_s=1
-            )
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_should_return_false_when_deadline_exceeded(self):
-        """False si aucune connexion n'a réussi avant l'expiration du délai."""
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                AsyncMock(side_effect=OSError("connection refused")),
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.sleep",
-                AsyncMock(),
-            ),
-        ):
-            result = await wait_for_pgx_reachable(
-                "192.168.50.151", timeout_s=0, poll_interval_s=1
-            )
-
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_should_retry_after_timeout_error_then_succeed(self):
-        """Une première tentative en timeout n'empêche pas un succès au poll suivant."""
-        writer_mock = AsyncMock()
-        writer_mock.close = lambda: None
-
-        call_count = 0
-
-        async def fake_open_connection(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise TimeoutError
-            return AsyncMock(), writer_mock
-
-        with (
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
-                side_effect=fake_open_connection,
-            ),
-            patch(
-                "back_office_lmelp.services.pgx_service.asyncio.sleep",
-                AsyncMock(),
-            ),
-        ):
-            result = await wait_for_pgx_reachable(
-                "192.168.50.151", timeout_s=30, poll_interval_s=1
-            )
-
-        assert result is True
-        assert call_count == 2
 
 
 class TestSendAudioToPgx:
@@ -674,16 +602,15 @@ class TestRunPgxDiagnostics:
 
     @pytest.mark.asyncio
     async def test_should_return_all_ok_when_everything_succeeds(self):
-        """5 checks 'ok' quand joignable + identité + auth SSH + les 2 répertoires."""
+        """4 checks 'ok' quand PGX localisée + auth SSH + les 2 répertoires."""
         ok = _make_subprocess_mock(returncode=0, stdout=b"ok\n")
         with _reachable(), _patch_exec(_ExecDispatch([ok, ok, ok])):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert [r["status"] for r in results] == ["ok"] * 5
-        assert PGX_FINGERPRINT in results[1]["detail"]
+        assert [r["status"] for r in results] == ["ok"] * 4
+        assert PGX_FINGERPRINT in results[0]["detail"]
         assert [r["name"] for r in results] == [
-            "Machine joignable",
-            "Identité de la machine",
+            "PGX localisée",
             "Authentification SSH (clé dédiée)",
             "Répertoire audio distant",
             "Répertoire transcriptions distant",
@@ -696,8 +623,8 @@ class TestRunPgxDiagnostics:
         contextes, ou perdrait du temps ici)."""
         with (
             patch(
-                "back_office_lmelp.services.pgx_service.wait_for_pgx_reachable",
-                AsyncMock(return_value=False),
+                "back_office_lmelp.services.pgx_service.asyncio.open_connection",
+                AsyncMock(side_effect=OSError(113, "No route to host")),
             ),
             patch(
                 "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec"
@@ -706,7 +633,8 @@ class TestRunPgxDiagnostics:
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
         assert results[0]["status"] == "fail"
-        assert [r["status"] for r in results[1:]] == ["skipped"] * 4
+        assert "192.168.50.151 ne répond pas sur le port 22" in results[0]["detail"]
+        assert [r["status"] for r in results[1:]] == ["skipped"] * 3
         mock_exec.assert_not_called()
 
     @pytest.mark.asyncio
@@ -719,12 +647,12 @@ class TestRunPgxDiagnostics:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[1]["status"] == "ok"
-        assert results[2]["status"] == "fail"
-        assert "authorized_keys" in results[2]["detail"]
+        assert results[0]["status"] == "ok"
+        assert results[1]["status"] == "fail"
+        assert "authorized_keys" in results[1]["detail"]
         # Piège #111 : le detail inclut le vrai stderr, pas un message générique statique.
-        assert "Permission denied (publickey,password)" in results[2]["detail"]
-        assert [r["status"] for r in results[3:]] == ["skipped", "skipped"]
+        assert "Permission denied (publickey,password)" in results[1]["detail"]
+        assert [r["status"] for r in results[2:]] == ["skipped", "skipped"]
         # ssh-keyscan puis l'auth, pas les checks répertoires
         assert [c[0] for c in dispatch.calls] == ["ssh-keyscan", "ssh"]
 
@@ -738,9 +666,9 @@ class TestRunPgxDiagnostics:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[2]["status"] == "fail"
-        assert "Host key verification failed." in results[2]["detail"]
-        assert "authorized_keys" not in results[2]["detail"]
+        assert results[1]["status"] == "fail"
+        assert "Host key verification failed." in results[1]["detail"]
+        assert "authorized_keys" not in results[1]["detail"]
 
     @pytest.mark.asyncio
     async def test_should_report_generic_message_when_ssh_auth_fails_with_empty_stderr(
@@ -752,9 +680,9 @@ class TestRunPgxDiagnostics:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[2]["status"] == "fail"
-        assert results[2]["detail"]
-        assert "authorized_keys" not in results[2]["detail"]
+        assert results[1]["status"] == "fail"
+        assert results[1]["detail"]
+        assert "authorized_keys" not in results[1]["detail"]
 
     @pytest.mark.asyncio
     async def test_should_report_fail_per_directory_independently(self):
@@ -770,8 +698,8 @@ class TestRunPgxDiagnostics:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[3]["status"] == "ok"
-        assert results[4]["status"] == "fail"
+        assert results[2]["status"] == "ok"
+        assert results[3]["status"] == "fail"
 
 
 def _make_hanging_subprocess_mock() -> AsyncMock:
@@ -909,21 +837,15 @@ class TestPgxIdentityCheck:
         ):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert [r["name"] for r in results] == [
-            "Machine joignable",
-            "Identité de la machine",
-            "Authentification SSH (clé dédiée)",
-            "Répertoire audio distant",
-            "Répertoire transcriptions distant",
-        ]
-        identity = results[1]
+        identity = results[0]
+        assert identity["name"] == "PGX localisée"
         assert identity["status"] == "fail"
         assert "192.168.50.151 n'est pas PGX" in identity["detail"]
         assert "clé d'hôte différente" in identity["detail"]
         assert PGX_FINGERPRINT in identity["detail"]
         assert OTHER_FINGERPRINT in identity["detail"]
         assert "authorized_keys" not in identity["detail"]
-        assert [r["status"] for r in results[2:]] == ["skipped"] * 3
+        assert [r["status"] for r in results[1:]] == ["skipped"] * 3
         # Un seul appel : ssh-keyscan, sans authentification
         assert exec_mock.call_count == 1
         assert exec_mock.call_args.args[0] == "ssh-keyscan"
@@ -939,8 +861,8 @@ class TestPgxIdentityCheck:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(config)
 
-        assert [r["status"] for r in results] == ["ok"] * 5
-        assert "192.168.49.10 est bien PGX" in results[1]["detail"]
+        assert [r["status"] for r in results] == ["ok"] * 4
+        assert "PGX trouvée en 192.168.49.10" in results[0]["detail"]
 
     @pytest.mark.asyncio
     async def test_no_host_key_received_should_fail_with_keyscan_detail(self):
@@ -948,10 +870,10 @@ class TestPgxIdentityCheck:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(PGX_TEST_CONFIG)
 
-        assert results[1]["status"] == "fail"
-        assert "aucune clé d'hôte" in results[1]["detail"]
-        assert PGX_FINGERPRINT in results[1]["detail"]
-        assert [r["status"] for r in results[2:]] == ["skipped"] * 3
+        assert results[0]["status"] == "fail"
+        assert "aucune clé d'hôte" in results[0]["detail"]
+        assert PGX_FINGERPRINT in results[0]["detail"]
+        assert [r["status"] for r in results[1:]] == ["skipped"] * 3
 
     @pytest.mark.asyncio
     async def test_invalid_pgx_host_key_should_fail_without_any_command(self):
@@ -960,8 +882,8 @@ class TestPgxIdentityCheck:
         with _reachable(), _patch_exec(dispatch):
             results = await run_pgx_diagnostics(config)
 
-        assert results[1]["status"] == "fail"
-        assert "PGX_HOST_KEY invalide" in results[1]["detail"]
+        assert results[0]["status"] == "fail"
+        assert "PGX_HOST_KEY invalide" in results[0]["detail"]
         assert dispatch.calls == []
 
     @pytest.mark.asyncio
@@ -981,8 +903,8 @@ class TestPgxIdentityCheck:
                 run_pgx_diagnostics(PGX_TEST_CONFIG), timeout=5
             )
 
-        assert results[1]["status"] == "fail"
-        assert "à temps" in results[1]["detail"]
+        assert results[0]["status"] == "fail"
+        assert "à temps" in results[0]["detail"]
 
     @pytest.mark.asyncio
     async def test_keyscan_command_should_ask_only_for_the_pinned_key_type(self):
