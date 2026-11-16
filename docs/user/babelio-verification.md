@@ -152,16 +152,26 @@ Babelio active parfois un système anti-bot qui bloque les requêtes automatique
 
 ### Obtenir le cookie
 
-1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox
+1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox et **connectez-vous à votre compte**, jusqu'à voir votre avatar. Un bouton « Continuer en tant que… » affiché ne suffit pas : il propose la connexion, il ne la fait pas
 2. Si un captcha s'affiche, résolvez-le
 3. Appuyez sur **F12** → onglet **Réseau** (Network)
 4. Rechargez la page (F5) et cliquez sur la requête `/` vers `babelio.com`
 5. Dans **En-têtes de la requête**, faites un clic droit sur **Cookie** → **Copier la valeur**
 
+!!! warning "Un cookie copié sans être connecté déclenche une vérification humaine"
+    À un cookie de visiteur anonyme, Babelio répond dès la première requête par une
+    page « Vérification de sécurité » (curseur à glisser, HTTP 403). Un cookie frais
+    n'y change rien tant que vous n'êtes pas connecté.
+
+    Un cookie sans `id_user` (navigateur jamais connecté à Babelio) est accepté, mais
+    le panneau affiche « Cookie anonyme : Babelio risque de demander une vérification
+    humaine… » et le badge porte « ⚠ anonyme ». L'absence d'avertissement ne prouve
+    pas une connexion : `id_user` reste dans le navigateur après une déconnexion.
+
 ### Configurer le cookie dans l'interface
 
 1. Sur la page **Livres et Auteurs**, sélectionnez un épisode (ou ouvrez **Liaison Babelio des livres** ou **Contrôle Babelio**). Le panneau apparaît aussi dans l'encadré « URL Babelio » des modales d'ajout et de validation d'un livre, dès qu'une URL y est saisie
-2. Collez la valeur du cookie dans le champ de texte. Si un cookie actif est déjà enregistré, le champ est masqué : cliquez d'abord sur **Entrer un cookie plus récent**
+2. Collez la valeur du cookie dans le champ de texte. Si un cookie actif est déjà enregistré, le champ est masqué : cliquez d'abord sur **Entrer un cookie plus récent**. Le bouton **Vider** efface le texte collé (et son message d'erreur) ; il ne touche pas au cookie du serveur
 3. Cliquez sur **Enregistrer**
 
 Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et le badge indique l'état du cookie **côté serveur** :
@@ -199,13 +209,16 @@ Le bouton **🔄 Rafraîchir** de la page **Contrôle Babelio** fait un simple e
 | | ❔ Non testé | Ni requête ni essai depuis le démarrage du serveur |
 | **Accès réseau (essai TCP)** | ✓ Joignable / 🚫 Injoignable — IP bannie / Non testé | Résultat et heure du dernier essai |
 | **Circuit breaker** | 🚫 Ouvert — 403, cookie à renouveler | Un 403 a été reçu : coller un cookie frais |
+| | 🧩 Ouvert — Babelio demande une vérification humaine… | Le 403 était une page « Vérification de sécurité » : se connecter à Babelio, puis coller un nouveau cookie |
 | | 🚫 Ouvert — IP bannie, inutile de changer le cookie | Une connexion n'a pas abouti : attendre la levée du ban |
 
 ### Comprendre un 403
 
 Avec un 403, Babelio renvoie une page qui en dit la raison : refus sec, défi anti-robots, message explicite. Le serveur garde les dix dernières réponses 403 (en-têtes reçus, début de la page, en-têtes envoyés avec le cookie masqué). On les lit sur `GET /api/babelio/blocked-responses`, sans envoyer de requête à Babelio. Elles sont perdues au redémarrage du serveur.
 
-**Le disjoncteur suit l'essai** : un essai qui échoue l'ouvre (plus aucune requête ne part), un essai qui réussit referme un disjoncteur ouvert par un ban IP, sans exiger de nouveau cookie. Un disjoncteur ouvert par un 403 ne se referme qu'avec un cookie frais.
+**Le disjoncteur suit l'essai** : un essai qui échoue l'ouvre (plus aucune requête ne part), un essai qui réussit referme un disjoncteur ouvert par un ban IP, sans exiger de nouveau cookie. Un disjoncteur ouvert par un 403 ou par une vérification humaine ne se referme qu'avec un nouveau cookie.
+
+**Vérification humaine** : quand la page du 403 s'intitule « Vérification de sécurité », le serveur le reconnaît (motif `captcha`, état « ⚠️ Captcha » sur **Contrôle Babelio**). Le cookie avait été copié sans être connecté au compte Babelio : connectez-vous, puis collez un nouveau cookie.
 
 **Vérification avant traitement** : **Valider avec Babelio** (page Livres et Auteurs) et le lancement de la liaison (page Liaison Babelio des livres) font d'abord un essai d'une seconde. Si l'IP est bannie, le traitement s'arrête aussitôt avec le message « Babelio injoignable : IP bannie, inutile de changer le cookie », au lieu d'attendre l'expiration de la première requête.
 
@@ -214,6 +227,7 @@ Avec un 403, Babelio renvoie une page qui en dit la raison : refus sec, défi an
 Le système distingue les deux causes de blocage :
 
 - **Ban IP** : un bandeau 🚫 « Babelio injoignable : IP bannie, inutile de changer le cookie » s'affiche sur **Livres et Auteurs** et **Liaison Babelio des livres**. Le panneau cookie ne s'ouvre pas : un cookie ne lèverait pas le ban.
+- **Vérification humaine** (cookie copié sans être connecté) : sur **Livres et Auteurs**, **Liaison Babelio des livres** et **Contrôle Babelio**, le message devient 🧩 « Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie ». Sur Livres et Auteurs, le panneau cookie s'ouvre.
 - **403 Babelio** (cookie expiré en cours de traitement, par exemple) :
     - Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page et le panneau cookie s'ouvre
     - Sur **Liaison Babelio des livres** : un bandeau rouge 🚫 « Babelio bloque les requêtes (403) »
