@@ -38,7 +38,7 @@
           <details class="cookie-instructions">
             <summary>Comment obtenir le cookie ?</summary>
             <ol>
-              <li>Ouvre <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a> et connecte-toi</li>
+              <li>Connectez-vous à votre compte Babelio sur <a href="https://www.babelio.com" target="_blank" rel="noopener">babelio.com</a>, jusqu'à voir votre avatar : un bouton « Continuer en tant que… » affiché ne suffit pas. Un cookie copié sans être connecté déclenche une vérification humaine (403)</li>
               <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
               <li>Recharge la page, clique sur la requête <code>/</code> de babelio.com</li>
               <li>Dans <strong>En-têtes de requête</strong>, clic droit sur <strong>Cookie</strong> → Copier la valeur</li>
@@ -63,11 +63,22 @@
             >
               Enregistrer
             </button>
+            <!-- Vide le champ seulement : le cookie du serveur n'est jamais effacé d'ici -->
+            <button
+              v-if="cookieInput"
+              class="btn-clear-cookie"
+              data-test="cookie-input-clear"
+              @click="clearInput"
+            >
+              Vider
+            </button>
             <button v-if="replacing" class="btn-clear-cookie" data-test="cookie-cancel" @click="cancelReplacing">
               Annuler
             </button>
           </div>
         </template>
+
+        <p v-if="anonymousWarning" class="cookie-anonymous-warning" data-test="cookie-anonymous-warning">⚠ {{ anonymousWarning }}</p>
 
         <div v-if="justSaved || saveError" class="cookie-feedback">
           <span v-if="justSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
@@ -90,6 +101,12 @@ const BADGES = {
   expired: { label: '⏰ périmé — collez un cookie frais', cssClass: 'cookie-expired' },
   active: { label: '✓ Actif côté serveur', cssClass: 'cookie-ok' },
 };
+
+// Repli si le statut serveur signale un cookie anonyme sans réponse d'enregistrement
+// sous la main (même texte que BABELIO_ANONYMOUS_COOKIE_WARNING côté serveur)
+const ANONYMOUS_COOKIE_WARNING =
+  'Cookie anonyme : Babelio risque de demander une vérification humaine. '
+  + 'Connectez-vous à Babelio puis copiez un nouveau cookie.';
 
 // Rafraîchissement du temps restant affiché (pas d'appel serveur)
 const CLOCK_TICK_MS = 5000;
@@ -122,6 +139,8 @@ export default {
       saving: false,
       justSaved: false,
       saveError: null,
+      // Avertissement renvoyé par POST /api/babelio/cookie (cookie anonyme)
+      saveWarning: null,
       // Champ de saisie ouvert alors qu'un cookie actif est déjà sur le serveur
       replacing: false,
       // Horloge locale : fait vieillir le cookie entre deux statuts serveur
@@ -160,10 +179,19 @@ export default {
       if (this.remainingSec === null) return null;
       return this.remainingSec >= 60 ? `~${Math.round(this.remainingSec / 60)} min` : '< 1 min';
     },
+    // Cookie copié sans être connecté au compte : Babelio exigera un captcha
+    anonymousWarning() {
+      if (this.saveWarning) return this.saveWarning;
+      if (this.status?.cookie_active && this.status.cookie_anonymous === true) {
+        return ANONYMOUS_COOKIE_WARNING;
+      }
+      return null;
+    },
     badge() {
       const badge = BADGES[this.cookieState];
       if (this.cookieState !== 'active') return badge;
       const parts = [badge.label];
+      if (this.anonymousWarning) parts.push('⚠ anonyme');
       if (this.savedAtLabel) parts.push(`enregistré à ${this.savedAtLabel}`);
       if (this.remainingLabel) parts.push(`expire dans ${this.remainingLabel}`);
       return { ...badge, label: parts.join(' · ') };
@@ -242,6 +270,11 @@ export default {
       this.replacing = true;
     },
 
+    clearInput() {
+      this.cookieInput = '';
+      this.saveError = null;
+    },
+
     cancelReplacing() {
       this.cookieInput = '';
       this.saveError = null;
@@ -253,8 +286,10 @@ export default {
       const { value } = this.cookieCheck;
       this.saving = true;
       this.saveError = null;
+      this.saveWarning = null;
       try {
-        await axios.post('/api/babelio/cookie', { cookie: value });
+        const response = await axios.post('/api/babelio/cookie', { cookie: value });
+        this.saveWarning = response?.data?.warning || null;
       } catch (error) {
         this.saveError = error?.response?.data?.detail || "Échec de l'enregistrement du cookie";
         return;
@@ -381,6 +416,15 @@ summary.babelio-cookie-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.cookie-anonymous-warning {
+  font-size: 0.8rem;
+  color: #856404;
+  background: #fff3cd;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  margin: 0.5rem 0 0;
 }
 
 .cookie-format-error {

@@ -179,4 +179,66 @@ describe('BabelioCookiePanel', () => {
     expect(axios.post).not.toHaveBeenCalled();
     expect(localStorage.getItem('babelio_cookies')).toBeNull();
   });
+
+  // Issue #357 : un cookie copié sans être connecté au compte Babelio reçoit
+  // une page de vérification humaine (403)
+  describe('cookie anonyme', () => {
+    const WARNING = 'Cookie anonyme : Babelio risque de demander une vérification humaine. Connectez-vous à Babelio puis copiez un nouveau cookie.';
+
+    it('l\'aide commence par la connexion au compte Babelio', () => {
+      wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
+      const steps = wrapper.findAll('.cookie-instructions li');
+      expect(steps[0].text()).toContain('Connectez-vous à votre compte Babelio');
+      // id_user et bbac survivent à la déconnexion : seule la page fait foi
+      expect(steps[0].text()).toContain('Continuer en tant que');
+      // Les étapes de copie viennent après
+      expect(steps[1].text()).not.toContain('Connectez-vous');
+    });
+
+    it('affiche l\'avertissement renvoyé par le serveur à l\'enregistrement', async () => {
+      axios.post.mockResolvedValueOnce({ data: { ok: true, warning: WARNING } });
+      wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
+      await wrapper.find('textarea').setValue('jstsToken=fresh; p=FR');
+      await wrapper.find('[data-test="cookie-save"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-test="cookie-anonymous-warning"]').text()).toContain('Cookie anonyme');
+    });
+
+    it('garde l\'avertissement tant que le cookie actif est anonyme (statut serveur)', () => {
+      wrapper = mount(BabelioCookiePanel, {
+        props: { status: { cookie_active: true, cookie_anonymous: true, cookie_age_sec: 10, cookie_max_age_sec: 300, cookie_expired: false } },
+      });
+      expect(wrapper.find('[data-test="cookie-anonymous-warning"]').text()).toContain('Connectez-vous à Babelio');
+      // Visible aussi panneau replié
+      expect(badgeText(wrapper)).toContain('anonyme');
+    });
+
+    it('pas d\'avertissement pour un cookie de session connectée', async () => {
+      axios.post.mockResolvedValueOnce({ data: { ok: true, warning: null } });
+      wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
+      await wrapper.find('textarea').setValue('jstsToken=fresh; id_user=1');
+      await wrapper.find('[data-test="cookie-save"]').trigger('click');
+      await flushPromises();
+      await wrapper.setProps({ status: { cookie_active: true, cookie_anonymous: false, cookie_age_sec: 0, cookie_max_age_sec: 300, cookie_expired: false } });
+
+      expect(wrapper.find('[data-test="cookie-anonymous-warning"]').exists()).toBe(false);
+    });
+  });
+
+  // Un collage refusé (jstsToken absent…) se vide d'un clic
+  it('« Vider » efface le texte collé et son erreur, sans toucher au cookie serveur', async () => {
+    wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
+    expect(wrapper.find('[data-test="cookie-input-clear"]').exists()).toBe(false);
+
+    await wrapper.find('textarea').setValue('p=FR; PHPSESSID=abc');
+    expect(wrapper.find('[data-test="cookie-format-error"]').exists()).toBe(true);
+
+    await wrapper.find('[data-test="cookie-input-clear"]').trigger('click');
+
+    expect(wrapper.find('textarea').element.value).toBe('');
+    expect(wrapper.find('[data-test="cookie-format-error"]').exists()).toBe(false);
+    expect(axios.post).not.toHaveBeenCalled();
+    expect(axios.delete).not.toHaveBeenCalled();
+  });
 });

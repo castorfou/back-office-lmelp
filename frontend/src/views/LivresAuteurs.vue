@@ -140,6 +140,9 @@
         <template v-if="babelioIpBanned">
           🚫 Babelio injoignable : IP bannie, inutile de changer le cookie. Le ban dure en général environ 24 h.
         </template>
+        <template v-else-if="babelioCaptcha">
+          🧩 Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie ci-dessous. Un cookie copié sans être connecté au compte déclenche cette vérification.
+        </template>
         <template v-else>
           ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
         </template>
@@ -812,6 +815,11 @@ export default {
         this.babelioProbeUnreachable ||
         this.babelioStatus?.circuit_reason === 'connect_timeout'
       );
+    },
+
+    // 403 « Vérification de sécurité » : cookie copié sans être connecté au compte
+    babelioCaptcha() {
+      return this.babelioStatus?.circuit_reason === 'captcha';
     },
 
     // Sans cookie actif, toute requête Babelio échoue en 403 (voire expose au ban IP) :

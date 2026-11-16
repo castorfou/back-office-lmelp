@@ -124,4 +124,21 @@ describe('BabelioControl - accès réseau (essai TCP)', () => {
       expect(wrapper.find('.status-badge').text()).toContain('Non testé');
     });
   });
+
+  // Issue #357 : 403 « Vérification de sécurité » d'un cookie anonyme
+  it('motif captcha : statut « Captcha » et disjoncteur « vérification humaine »', async () => {
+    const wrapper = mountWith({
+      ...BASE_STATUS,
+      overall: 'captcha',
+      cookie_active: true,
+      circuit_open: true,
+      circuit_reason: 'captcha',
+    });
+    await flushPromises();
+
+    const circuit = wrapper.find('[data-test="babelio-circuit"]').text();
+    expect(circuit).toContain('vérification humaine');
+    expect(circuit).toContain('connectez-vous à Babelio');
+    expect(wrapper.text()).toContain('Captcha');
+  });
 });
