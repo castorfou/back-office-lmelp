@@ -167,6 +167,7 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `PGX_HOST` | IP directe de la station PGX : IP locale, ou IP VPN quand PGX est cliente du VPN du NAS (jamais un nom `.local` — résolution mDNS peu fiable selon l'environnement) | Aucune (requis pour activer PGX) | `192.168.50.151` |
+| `PGX_HOST_KEY` | Clé publique d'hôte ED25519 de PGX, contenu de `/etc/ssh/ssh_host_ed25519_key.pub` lu **sur PGX même**. C'est elle qui identifie PGX : ssh/scp refusent toute machine qui présente une autre clé, quelle que soit son adresse | Aucune (requis) | `ssh-ed25519 AAAAC3Nz… root@pgx` |
 | `PGX_USER` | Utilisateur SSH sur PGX | Aucune (requis) | `f279814` |
 | `PGX_SSH_KEY_PATH` | Chemin de la clé privée SSH dédiée à PGX (générée automatiquement si absente à ce chemin, via `ensure_pgx_ssh_key()`) | Aucune (requis) | `/app/keys/pgx_ed25519` |
 | `PGX_REMOTE_AUDIO_ROOT` | Répertoire distant racine des audios sur PGX (un sous-répertoire par année) | Aucune (requis) | `/home/user/whisper-docker/docker/data/audios` |
@@ -178,7 +179,7 @@ Exemples de logs générés avec `BABELIO_DEBUG_LOG=1` :
 | `PGX_TRANSCRIPTION_RETRY_INTERVAL_HOURS` | Intervalle entre deux tentatives de reprise si PGX est injoignable au déclenchement via l'API (`trigger="api"` uniquement, Issue #309) | `1` (1h) | `2` |
 | `PGX_TRANSCRIPTION_RETRY_MAX_HOURS` | Durée max cumulée de retry avant abandon définitif du cycle (`status: "pgx_unreachable_abandoned"`) | `24` (24h) | `48` |
 
-Les 5 premières variables sont toutes requises pour activer les
+Les 6 premières variables sont toutes requises pour activer les
 fonctionnalités PGX (`GET /api/pgx/diagnostics` renvoie sinon
 `missing_vars` sans tenter d'appel réseau). PGX doit être allumée
 manuellement (Wi-Fi uniquement, veille système désactivée) — aucun réveil

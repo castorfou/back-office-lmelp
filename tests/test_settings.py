@@ -58,6 +58,7 @@ class TestPgxSettings:
 
     PGX_ENV_VARS = (
         "PGX_HOST",
+        "PGX_HOST_KEY",
         "PGX_USER",
         "PGX_SSH_KEY_PATH",
         "PGX_REMOTE_AUDIO_ROOT",
@@ -88,6 +89,15 @@ class TestPgxSettings:
         settings = Settings()
 
         assert settings.pgx_host is None
+
+    def test_pgx_host_key_should_return_env_value_when_set(self):
+        """pgx_host_key retourne le contenu de PGX_HOST_KEY (#361)."""
+        os.environ["PGX_HOST_KEY"] = "ssh-ed25519 AAAAC3Nz root@pgx"
+
+        assert Settings().pgx_host_key == "ssh-ed25519 AAAAC3Nz root@pgx"
+
+    def test_pgx_host_key_should_return_none_when_not_set(self):
+        assert Settings().pgx_host_key is None
 
     def test_pgx_user_should_return_env_value_when_set(self):
         """pgx_user retourne la valeur de PGX_USER quand définie."""

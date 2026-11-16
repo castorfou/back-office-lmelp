@@ -141,6 +141,12 @@ class Settings:
         return os.environ.get("PGX_HOST") or None
 
     @property
+    def pgx_host_key(self) -> str | None:
+        """Clé publique d'hôte de PGX (PGX_HOST_KEY), contenu de
+        /etc/ssh/ssh_host_ed25519_key.pub : c'est elle qui identifie PGX (ADR 0002)."""
+        return os.environ.get("PGX_HOST_KEY") or None
+
+    @property
     def pgx_user(self) -> str | None:
         """Utilisateur SSH sur PGX (PGX_USER)."""
         return os.environ.get("PGX_USER") or None

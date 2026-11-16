@@ -9,7 +9,10 @@ manuellement — aucun réveil à distance n'est tenté (pas de Wake-on-LAN).
 """
 
 import asyncio
+import base64
+import binascii
 import contextlib
+import hashlib
 import os
 import tempfile
 
@@ -101,17 +104,80 @@ async def wait_for_pgx_reachable(
             await asyncio.sleep(poll_interval_s)
 
 
+# Alias sous lequel la clé d'hôte de PGX est connue : ssh vérifie la clé de
+# l'alias, pas celle de l'adresse jointe. PGX change d'adresse (maison d'été,
+# VPN du NAS) sans changer d'identité (ADR 0002).
+PGX_HOST_KEY_ALIAS = "pgx"
+
+# Délai de ssh-keyscan (par tentative) et borne de la commande entière (#337)
+KEYSCAN_TIMEOUT_S = 5
+KEYSCAN_COMMAND_TIMEOUT_S = 15.0
+
+
+def parse_pgx_host_key(value: str) -> tuple[str, str]:
+    """Extrait (type, clé en base64) d'une clé publique d'hôte ED25519.
+
+    Accepte le contenu de `/etc/ssh/ssh_host_ed25519_key.pub`
+    (`ssh-ed25519 AAAA… root@pgx`) comme une ligne de `ssh-keyscan`
+    (`<ip> ssh-ed25519 AAAA…`). Lève ValueError si aucune clé ED25519 n'y
+    figure : c'est le seul type épinglé (et demandé à ssh-keyscan).
+    """
+    tokens = value.split()
+    for key_type, key_b64 in zip(tokens, tokens[1:], strict=False):
+        if key_type == "ssh-ed25519":
+            try:
+                base64.b64decode(key_b64, validate=True)
+            except (binascii.Error, ValueError):
+                continue
+            return key_type, key_b64
+    raise ValueError("Clé d'hôte illisible (attendu : « ssh-ed25519 AAAA… »)")
+
+
+def host_key_fingerprint(key_b64: str) -> str:
+    """Empreinte SHA256 d'une clé, au format affiché par `ssh-keygen -lf`."""
+    digest = hashlib.sha256(base64.b64decode(key_b64)).digest()
+    return "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
+
+
 def _known_hosts_path() -> str:
     """Fichier known_hosts dédié, dans un répertoire toujours accessible en écriture.
 
     Jamais le ~/.ssh/known_hosts par défaut (potentiellement en lecture
     seule, ex: bind-mount ro en devcontainer), ni un chemin dérivé de
-    PGX_SSH_KEY_PATH (qui peut lui aussi vivre dans un emplacement en
-    lecture seule pour un usage local/dev). Pas besoin de persistance :
-    StrictHostKeyChecking=accept-new réaccepte la clé d'hôte à chaque
-    redémarrage, sans risque sur un réseau local de confiance.
+    PGX_SSH_KEY_PATH. Il ne contient qu'une ligne, générée depuis
+    PGX_HOST_KEY par install_pgx_host_key() : rien n'y est jamais appris.
     """
     return os.path.join(tempfile.gettempdir(), "back_office_lmelp_pgx_known_hosts")
+
+
+def install_pgx_host_key(host_key: str) -> None:
+    """(Ré)écrit le known_hosts dédié avec la seule clé de PGX, sous l'alias fixe.
+
+    À appeler avant toute commande ssh/scp : sans ce fichier, ssh refuse toute
+    machine (StrictHostKeyChecking=yes), ce qui est le comportement sûr.
+    """
+    key_type, key_b64 = parse_pgx_host_key(host_key)
+    path = _known_hosts_path()
+    tmp_path = f"{path}.{os.getpid()}.tmp"
+    with open(tmp_path, "w") as f:
+        f.write(f"{PGX_HOST_KEY_ALIAS} {key_type} {key_b64}\n")
+    os.replace(tmp_path, path)
+
+
+def _host_key_options() -> list[str]:
+    """Options ssh/scp : seule la clé de PGX est acceptée, quelle que soit l'adresse."""
+    return [
+        "-o",
+        f"UserKnownHostsFile={_known_hosts_path()}",
+        "-o",
+        "GlobalKnownHostsFile=/dev/null",
+        "-o",
+        f"HostKeyAlias={PGX_HOST_KEY_ALIAS}",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        "CheckHostIP=no",
+    ]
 
 
 def _ssh_base_command(user: str, host: str, key_path: str) -> list[str]:
@@ -121,10 +187,7 @@ def _ssh_base_command(user: str, host: str, key_path: str) -> list[str]:
         key_path,
         "-o",
         "IdentitiesOnly=yes",
-        "-o",
-        f"UserKnownHostsFile={_known_hosts_path()}",
-        "-o",
-        "StrictHostKeyChecking=accept-new",
+        *_host_key_options(),
         *_SSH_SAFETY_OPTIONS,
         f"{user}@{host}",
     ]
@@ -137,10 +200,7 @@ def _scp_base_command(key_path: str) -> list[str]:
         key_path,
         "-o",
         "IdentitiesOnly=yes",
-        "-o",
-        f"UserKnownHostsFile={_known_hosts_path()}",
-        "-o",
-        "StrictHostKeyChecking=accept-new",
+        *_host_key_options(),
         *_SSH_SAFETY_OPTIONS,
     ]
 
@@ -295,8 +355,61 @@ async def fetch_transcription_from_pgx(
         return f.read()
 
 
+async def _check_host_identity(*, host: str, host_key: str) -> tuple[bool, str]:
+    """Compare la clé d'hôte présentée sur `host` à PGX_HOST_KEY (sans authentification)."""
+    try:
+        key_type, expected_b64 = parse_pgx_host_key(host_key)
+    except ValueError as exc:
+        return False, f"PGX_HOST_KEY invalide : {exc}"
+
+    command = [
+        "ssh-keyscan",
+        "-T",
+        str(KEYSCAN_TIMEOUT_S),
+        "-t",
+        "ed25519",
+        host,
+    ]
+    try:
+        _, stdout, stderr = await _run_command(
+            command, timeout_s=KEYSCAN_COMMAND_TIMEOUT_S
+        )
+    except PgxTimeoutError:
+        return False, f"{host} n'a pas présenté de clé d'hôte à temps"
+
+    received = []
+    for line in stdout.splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        try:
+            received.append(parse_pgx_host_key(line))
+        except ValueError:
+            continue
+
+    expected_fp = host_key_fingerprint(expected_b64)
+    if any(b64 == expected_b64 for _, b64 in received):
+        return True, f"{host} est bien PGX (clé d'hôte {expected_fp})"
+    if not received:
+        detail = stderr.strip() or "aucune réponse"
+        return False, (
+            f"{host} n'a présenté aucune clé d'hôte {key_type} ({detail}) — "
+            f"empreinte attendue : {expected_fp}"
+        )
+    received_fp = ", ".join(host_key_fingerprint(b64) for _, b64 in received)
+    return False, (
+        f"La machine sur {host} n'est pas PGX (clé d'hôte différente) — "
+        "l'adresse VPN a probablement changé de machine. "
+        f"Empreinte attendue : {expected_fp} ; empreinte reçue : {received_fp}"
+    )
+
+
 async def _check_ssh_auth(*, host: str, user: str, key_path: str) -> tuple[bool, str]:
-    """Teste une authentification SSH réelle avec la clé dédiée (pas juste le port ouvert)."""
+    """Teste une authentification SSH réelle avec la clé dédiée (pas juste le port ouvert).
+
+    Appelée seulement une fois l'identité de la machine vérifiée : un
+    « Permission denied » vient alors bien de PGX, et renvoie vers
+    authorized_keys. Tout autre échec affiche le stderr ssh tel quel.
+    """
     command = _ssh_base_command(user, host, key_path) + ["echo ok"]
     try:
         returncode, stdout, stderr = await _run_command(command, timeout_s=10)
@@ -304,14 +417,15 @@ async def _check_ssh_auth(*, host: str, user: str, key_path: str) -> tuple[bool,
         return False, "Timeout lors de la tentative d'authentification"
     if returncode == 0 and "ok" in stdout:
         return True, "Authentification réussie avec la clé dédiée"
-    base_message = (
-        "Échec de l'authentification — vérifiez que la clé publique est bien "
-        "dans authorized_keys sur PGX"
-    )
     stderr_detail = stderr.strip()
+    if "Permission denied" in stderr_detail:
+        return False, (
+            "PGX refuse la clé dédiée — vérifiez que la clé publique est bien "
+            f"dans authorized_keys sur PGX (détail SSH : {stderr_detail})"
+        )
     if stderr_detail:
-        return False, f"{base_message} (détail SSH : {stderr_detail})"
-    return False, base_message
+        return False, f"Échec de la connexion SSH : {stderr_detail}"
+    return False, "Échec de la connexion SSH (ssh n'a renvoyé aucun détail)"
 
 
 async def _check_remote_dir_exists(
@@ -325,14 +439,31 @@ async def _check_remote_dir_exists(
     return False, f"{remote_dir} n'existe pas ou n'est pas accessible"
 
 
+# Étapes de la checklist, dans l'ordre où run_pgx_diagnostics() les exécute
+PGX_DIAGNOSTIC_STEPS = (
+    "Machine joignable",
+    "Identité de la machine",
+    "Authentification SSH (clé dédiée)",
+    "Répertoire audio distant",
+    "Répertoire transcriptions distant",
+)
+
+
+def _skip_remaining_steps(results: list[dict], detail: str) -> list[dict]:
+    """Marque 'skipped' les étapes qui suivent la dernière exécutée."""
+    for name in PGX_DIAGNOSTIC_STEPS[len(results) :]:
+        results.append({"name": name, "status": "skipped", "detail": detail})
+    return results
+
+
 async def run_pgx_diagnostics(config: dict) -> list[dict]:
-    """Exécute une checklist de vérifications PGX (joignabilité, authentification SSH,
-    répertoires distants) — chaque vérification arrête les suivantes si elle échoue,
-    puisqu'elles en dépendent (inutile de tester l'authentification si injoignable, etc.).
+    """Exécute la checklist PGX (PGX_DIAGNOSTIC_STEPS) — chaque vérification
+    arrête les suivantes si elle échoue, puisqu'elles en dépendent (inutile de
+    tester l'authentification si injoignable, ni sur une machine qui n'est pas PGX).
 
     Args:
         config: dict avec les clés host, user, key_path, remote_audio_root,
-        remote_transcription_root (voir get_pgx_config_missing_vars pour la
+        remote_transcription_root, host_key (voir get_pgx_config_missing_vars pour la
         vérification préalable de complétude).
 
     Returns:
@@ -344,6 +475,7 @@ async def run_pgx_diagnostics(config: dict) -> list[dict]:
     key_path = config["key_path"]
     remote_audio_root = config["remote_audio_root"]
     remote_transcription_root = config["remote_transcription_root"]
+    host_key = config["host_key"]
 
     results = []
 
@@ -360,15 +492,22 @@ async def run_pgx_diagnostics(config: dict) -> list[dict]:
         }
     )
     if not reachable:
-        for name in (
-            "Authentification SSH (clé dédiée)",
-            "Répertoire audio distant",
-            "Répertoire transcriptions distant",
-        ):
-            results.append(
-                {"name": name, "status": "skipped", "detail": "PGX injoignable"}
-            )
-        return results
+        return _skip_remaining_steps(results, "PGX injoignable")
+
+    identity_ok, identity_detail = await _check_host_identity(
+        host=host, host_key=host_key
+    )
+    results.append(
+        {
+            "name": "Identité de la machine",
+            "status": "ok" if identity_ok else "fail",
+            "detail": identity_detail,
+        }
+    )
+    if not identity_ok:
+        return _skip_remaining_steps(results, "La machine jointe n'est pas PGX")
+
+    install_pgx_host_key(host_key)
 
     ssh_ok, ssh_detail = await _check_ssh_auth(host=host, user=user, key_path=key_path)
     results.append(
@@ -379,15 +518,7 @@ async def run_pgx_diagnostics(config: dict) -> list[dict]:
         }
     )
     if not ssh_ok:
-        for name in ("Répertoire audio distant", "Répertoire transcriptions distant"):
-            results.append(
-                {
-                    "name": name,
-                    "status": "skipped",
-                    "detail": "Authentification SSH impossible",
-                }
-            )
-        return results
+        return _skip_remaining_steps(results, "Authentification SSH impossible")
 
     audio_ok, audio_detail = await _check_remote_dir_exists(
         remote_audio_root, host=host, user=user, key_path=key_path
@@ -424,6 +555,7 @@ def get_pgx_config_missing_vars(config: dict) -> list[str]:
         "key_path": "PGX_SSH_KEY_PATH",
         "remote_audio_root": "PGX_REMOTE_AUDIO_ROOT",
         "remote_transcription_root": "PGX_REMOTE_TRANSCRIPTION_ROOT",
+        "host_key": "PGX_HOST_KEY",
     }
     return [env_name for key, env_name in env_var_names.items() if not config.get(key)]
 

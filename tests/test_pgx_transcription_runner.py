@@ -282,6 +282,101 @@ class TestRunSequentialProcessing:
         assert runner.processed == []
         mock_pgx.send_audio_to_pgx.assert_not_called()
 
+    @staticmethod
+    def _configure(mock_settings, host_key):
+        mock_settings.pgx_host = "192.168.50.151"
+        mock_settings.pgx_user = "pgxuser"
+        mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+        mock_settings.pgx_remote_audio_root = "/data/audios"
+        mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+        mock_settings.pgx_host_key = host_key
+
+    @pytest.mark.asyncio
+    async def test_should_abort_without_pgx_host_key(self):
+        """Sans PGX_HOST_KEY, aucune commande ssh/scp n'est lancée (#361)."""
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+
+        with (
+            patch("back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"),
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+        ):
+            self._configure(mock_settings, host_key=None)
+            await runner._run()
+
+        assert runner.is_running is False
+        mock_pgx.install_pgx_host_key.assert_not_called()
+        mock_pgx.wait_for_pgx_reachable.assert_not_called()
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_should_pin_pgx_host_key_before_any_ssh_command(self, tmp_path):
+        """La clé d'hôte de PGX est installée avant toute commande ssh/scp (#361)."""
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+        host_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwHMNuxrSKMJxd5UALz3Cx8yg9E0sm0A/hDvHPwbA8d root@pgx"  # pragma: allowlist secret
+        order: list[str] = []
+
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"
+            ) as mock_mongo,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+        ):
+            mock_mongo.get_episode_by_id = MagicMock(return_value=_make_episode(EP1_ID))
+            self._configure(mock_settings, host_key=host_key)
+            mock_settings.audio_storage_path = str(tmp_path)
+            mock_pgx.install_pgx_host_key = MagicMock(
+                side_effect=lambda _: order.append("install")
+            )
+
+            async def unreachable(*args, **kwargs):
+                order.append("ssh")
+                return False
+
+            mock_pgx.wait_for_pgx_reachable = unreachable
+            await runner._run()
+
+        mock_pgx.install_pgx_host_key.assert_called_once_with(host_key)
+        assert order[0] == "install"
+
+    @pytest.mark.asyncio
+    async def test_should_abort_on_invalid_pgx_host_key(self):
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+
+        with (
+            patch("back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"),
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+        ):
+            self._configure(mock_settings, host_key="pas une clé")
+            mock_pgx.install_pgx_host_key = MagicMock(
+                side_effect=ValueError("illisible")
+            )
+            await runner._run()
+
+        assert runner.is_running is False
+        mock_pgx.wait_for_pgx_reachable.assert_not_called()
+        mock_pgx.send_audio_to_pgx.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_should_always_reset_is_running_even_on_unexpected_exception(self):
         """is_running repasse à False même si une exception inattendue survient."""

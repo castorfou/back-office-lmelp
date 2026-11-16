@@ -81,12 +81,26 @@ docker exec <PGX_WHISPER_CONTAINER> python3 -m whisper_docker.queue_manager enqu
 étape court-circuite les suivantes si elle échoue :
 
 1. **Joignabilité** (`wait_for_pgx_reachable`, poll TCP port 22).
-2. **Authentification SSH** (`_check_ssh_auth`, connexion SSH réelle testée, pas
-   seulement le port ouvert — le message d'échec inclut le `stderr` réel de la tentative,
-   jamais un message générique statique, pour distinguer permissions de clé, clé absente
-   d'`authorized_keys`, etc.).
-3. **Répertoire audio distant** existe.
-4. **Répertoire transcriptions distant** existe.
+2. **Identité de la machine** (`_check_host_identity`) : `ssh-keyscan -T 5 -t ed25519`
+   (borné, sans authentification), clé reçue comparée à `PGX_HOST_KEY`. En échec, le
+   message nomme la cause (« n'est pas PGX ») avec les empreintes attendue et reçue.
+3. **Authentification SSH** (`_check_ssh_auth`, connexion SSH réelle testée, pas
+   seulement le port ouvert). Le message ne renvoie vers `authorized_keys` que pour un
+   `Permission denied` ; sinon il affiche le `stderr` ssh brut.
+4. **Répertoire audio distant** existe.
+5. **Répertoire transcriptions distant** existe.
+
+### Identité de PGX (clé d'hôte épinglée)
+
+PGX est reconnue à sa clé d'hôte, jamais à son adresse (ADR 0002,
+`docs/adr/0002-pgx-reconnue-par-sa-cle-dhote.md`). `install_pgx_host_key()` écrit un
+known_hosts dédié d'une seule ligne, `pgx <type> <clé>`, généré depuis `PGX_HOST_KEY` ; le
+runner l'appelle avant toute commande, la checklist après la vérification d'identité.
+Toutes les commandes ssh/scp passent `HostKeyAlias=pgx`, `StrictHostKeyChecking=yes`,
+`CheckHostIP=no` et `GlobalKnownHostsFile=/dev/null` : la clé est cherchée sous l'alias, pas
+sous l'adresse, donc un changement d'adresse de PGX ne provoque pas « REMOTE HOST
+IDENTIFICATION HAS CHANGED », et une autre machine sur `PGX_HOST` est refusée dès le
+premier contact. Sans le fichier, ssh refuse tout : c'est l'état sûr par défaut.
 
 `get_pgx_config_missing_vars()` doit être vérifié **avant** tout appel à
 `run_pgx_diagnostics()` — `wait_for_pgx_reachable()` lève sinon une erreur non catchée
@@ -94,7 +108,7 @@ si `host` est `None`. C'est ce que fait l'endpoint `GET /api/pgx/diagnostics`.
 
 Côté frontend (`PgxTranscription.vue`), la checklist reste **toujours visible**, y compris
 quand `missing_vars` n'est pas vide (Issue #310) : la computed `pgxDiagnosticsDisplay`
-affiche dans ce cas les 4 étapes connues avec un statut `skipped` forcé côté client (le
+affiche dans ce cas les 5 étapes connues avec un statut `skipped` forcé côté client (le
 backend renvoie une liste vide, cohérent avec le court-circuit ci-dessus), plutôt que de
 masquer toute la section derrière le seul message d'avertissement de config incomplète.
 

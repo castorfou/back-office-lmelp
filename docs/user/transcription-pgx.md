@@ -69,15 +69,18 @@ statut 🟢/🔴/⚪ par étape, et reste **toujours visible** — y compris qua
 PGX est incomplète :
 
 1. **Machine joignable** — le port SSH répond.
-2. **Authentification SSH (clé dédiée)** — une vraie connexion est testée (pas juste le
+2. **Identité de la machine** — la machine qui répond sur `PGX_HOST` présente bien la clé
+   d'hôte de PGX (`PGX_HOST_KEY`). La vérification se fait sans authentification. PGX est
+   reconnue à cette clé, jamais à son adresse.
+3. **Authentification SSH (clé dédiée)** — une vraie connexion est testée (pas juste le
    port ouvert). En cas d'échec, le détail SSH réel est inclus dans le message pour en
    identifier la cause précise (voir [Dépannage](#depannage)).
-3. **Répertoire audio distant** — le répertoire configuré existe sur PGX.
-4. **Répertoire transcriptions distant** — le répertoire configuré existe sur PGX.
+4. **Répertoire audio distant** — le répertoire configuré existe sur PGX.
+5. **Répertoire transcriptions distant** — le répertoire configuré existe sur PGX.
 
 Chaque étape court-circuite les suivantes si elle échoue (inutile de tester
 l'authentification si injoignable, par exemple). Si des variables d'environnement PGX sont
-manquantes (voir `docs/dev/environment-variables.md`), aucun appel réseau n'est tenté : les 4
+manquantes (voir `docs/dev/environment-variables.md`), aucun appel réseau n'est tenté : les 5
 étapes s'affichent en statut ⚪ (non exécuté) et un message au-dessus liste les variables
 absentes.
 
@@ -134,9 +137,11 @@ Configuration côté PGX :
 
 !!! warning "L'IP VPN n'est pas réservée"
     Synology VPN Server attribue les IP OpenVPN dynamiquement : celle de PGX peut changer
-    d'une connexion à l'autre. Si la checklist affiche « Machine joignable » en 🔴 alors que
-    PGX est allumée et connectée au VPN, comparer son IP `tun0` avec `PGX_HOST`. Au retour
-    de PGX sur le réseau local, remettre son IP locale dans `PGX_HOST`.
+    d'une connexion à l'autre, et une autre machine cliente du VPN peut récupérer l'ancienne.
+    Si la checklist affiche « Machine joignable » en 🔴, ou « Identité de la machine » en 🔴
+    (« n'est pas PGX »), alors que PGX est allumée et connectée au VPN, comparer son IP
+    `tun0` avec `PGX_HOST`. Au retour de PGX sur le réseau local, remettre son IP locale
+    dans `PGX_HOST`. `PGX_HOST_KEY`, elle, ne change pas.
 
 ## Déclenchement automatique et historique
 
@@ -184,23 +189,35 @@ prochaine tentative.
   [PGX hors du réseau local](#pgx-hors-du-reseau-local)).
 - Consultez la checklist de diagnostic sur `/transcription-pgx` pour un état rapide.
 
+### "Identité de la machine" : « La machine sur `<ip>` n'est pas PGX »
+
+Le message complet est « La machine sur `<ip>` n'est pas PGX (clé d'hôte différente) —
+l'adresse VPN a probablement changé de machine », suivi de l'empreinte attendue (celle de
+`PGX_HOST_KEY`) et de l'empreinte reçue.
+
+- Une autre machine (le laptop, par exemple) occupe l'adresse `PGX_HOST`. lmelp refuse de
+  lui parler : aucun audio ne lui est envoyé. Relever l'IP `tun0` de PGX et corriger
+  `PGX_HOST`.
+- Si l'empreinte reçue est bien celle de PGX (`ssh-keygen -lf
+  /etc/ssh/ssh_host_ed25519_key.pub` sur PGX), c'est `PGX_HOST_KEY` qui est fausse ou
+  périmée (PGX réinstallée, `sshd` reconfiguré) : la recopier depuis PGX.
+- « n'a présenté aucune clé d'hôte » : `sshd` ne répond pas sur cette adresse, ou ne
+  propose pas de clé ED25519.
+
 ### "Authentification SSH (clé dédiée)" échoue malgré une clé bien déployée
 
-Le message affiché pour cette étape inclut le **détail SSH réel** (stderr de la tentative
-de connexion), utile pour distinguer une clé effectivement absente d'`authorized_keys`
-d'une tout autre cause :
+Cette étape ne s'exécute que si l'identité de la machine est vérifiée. Le message inclut le
+**détail SSH réel** (stderr de la tentative de connexion) :
 
+- `Permission denied (publickey,…)` : PGX refuse la clé dédiée. C'est le seul cas où le
+  message renvoie vers `authorized_keys` : vérifiez que la clé publique y figure bien.
 - `Permissions ... are too open` / `UNPROTECTED PRIVATE KEY FILE!` : la clé privée pointée
   par `PGX_SSH_KEY_PATH` a des permissions trop ouvertes (ex: `777` au lieu de `600`) — ssh
   l'ignore alors silencieusement et retombe sur une authentification par mot de passe, qui
   échoue.
-- `Host key verification failed` / avertissement de clé d'hôte : la clé d'hôte de PGX a
-  changé (réinstallation, reconfiguration de `sshd`), ou `PGX_HOST` était configuré avec un
-  nom `.local` qui a résolu vers une IP différente entre deux connexions — utilisez
-  toujours une IP directe (voir `docs/dev/environment-variables.md`).
-- Un stderr vide malgré l'échec (aucun détail complémentaire) : le message générique reste
-  alors le seul indice — vérifiez bien le contenu d'`authorized_keys` sur PGX dans ce cas
-  précis.
+- `Host key verification failed` : la machine a changé entre la vérification d'identité et
+  la connexion (adresse VPN reprise entre-temps). Rafraîchir le statut.
+- Un stderr vide malgré l'échec : ssh n'a donné aucun détail ; relancer la checklist.
 
 ### Échec de l'envoi ou du rapatriement du fichier (`scp`)
 
