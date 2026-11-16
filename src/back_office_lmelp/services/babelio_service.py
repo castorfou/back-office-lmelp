@@ -57,6 +57,7 @@ DEFAULT_ACCEPT_LANGUAGE = "fr,en-US;q=0.9,en;q=0.8"
 # Motifs d'ouverture du circuit breaker
 CIRCUIT_REASON_HTTP_403 = "http_403"
 CIRCUIT_REASON_CONNECT_TIMEOUT = "connect_timeout"
+CIRCUIT_REASON_CAPTCHA = "captcha"
 
 # Durée de l'essai TCP : à la demande (Contrôle Babelio) et avant un traitement
 PROBE_TIMEOUT_SEC = 5.0
@@ -64,6 +65,16 @@ PRECHECK_PROBE_TIMEOUT_SEC = 1.0
 BABELIO_IP_BANNED_MESSAGE = (
     "Babelio injoignable : IP bannie, inutile de changer le cookie"
 )
+BABELIO_CAPTCHA_MESSAGE = (
+    "Babelio demande une vérification humaine : connectez-vous à Babelio, "
+    "puis collez un nouveau cookie"
+)
+BABELIO_ANONYMOUS_COOKIE_WARNING = (
+    "Cookie anonyme : Babelio risque de demander une vérification humaine. "
+    "Connectez-vous à Babelio puis copiez un nouveau cookie."
+)
+# Titre de la page renvoyée en 403 à un cookie anonyme (curseur à glisser)
+CAPTCHA_403_TITLE = "vérification de sécurité"
 
 
 # Réponses 403 conservées pour diagnostic (GET /api/babelio/blocked-responses)
@@ -143,6 +154,23 @@ _SET_COOKIE_ATTRIBUTES = {
     "secure",
     "samesite",
 }
+
+
+def is_anonymous_cookie(cookie: str) -> bool:
+    """True si le cookie est à coup sûr anonyme (pas d'`id_user`).
+
+    À un cookie anonyme, Babelio répond par une page de vérification humaine
+    (403). Un navigateur jamais connecté n'a ni `id_user` ni `bbac`. Mais ces
+    deux cookies survivent à une déconnexion : un cookie copié déconnecté sur
+    un navigateur déjà connecté par le passé a les mêmes noms qu'un cookie de
+    session connectée (seules les valeurs de `bbac` et `PHPSESSID` diffèrent,
+    état tenu côté serveur). False ne prouve donc pas qu'une session est ouverte.
+    """
+    for part in cookie.split(";"):
+        name, _, value = part.partition("=")
+        if name.strip() == "id_user" and value.strip():
+            return False
+    return True
 
 
 def normalize_cookie_header(raw: str) -> str:
@@ -363,6 +391,12 @@ class BabelioService:
         else:
             logger.info("🔑 Cookie Babelio effacé")
 
+    def get_cookie_anonymous(self) -> bool | None:
+        """True si le cookie stocké est anonyme, None sans cookie."""
+        if not self._stored_cookie:
+            return None
+        return is_anonymous_cookie(self._stored_cookie)
+
     def _ensure_cookie_fresh(self) -> None:
         """Lève BabelioBlockedError si le cookie stocké est périmé.
 
@@ -401,6 +435,8 @@ class BabelioService:
         """Erreur levée quand une requête est refusée par le circuit ouvert."""
         if self._circuit_reason == CIRCUIT_REASON_CONNECT_TIMEOUT:
             return BabelioBlockedError(BABELIO_IP_BANNED_MESSAGE)
+        if self._circuit_reason == CIRCUIT_REASON_CAPTCHA:
+            return BabelioBlockedError(BABELIO_CAPTCHA_MESSAGE)
         return BabelioBlockedError(
             "Circuit breaker ouvert (403 précédent) — configurez un cookie frais"
         )
@@ -568,6 +604,18 @@ class BabelioService:
         )
         return any(marker in lower for marker in captcha_markers)
 
+    def _reason_for_403(self, response: "BabelioResponse") -> str:
+        """Motif d'ouverture du circuit pour un 403 : captcha ou refus du cookie.
+
+        Un cookie copié sans être connecté au compte reçoit une page
+        « Vérification de sécurité » (curseur à glisser) : un cookie frais
+        n'y change rien tant qu'on ne s'est pas connecté à Babelio.
+        """
+        body = _decode_blocked_body(response)
+        if CAPTCHA_403_TITLE in body.lower() or self._is_captcha_page(body):
+            return CIRCUIT_REASON_CAPTCHA
+        return CIRCUIT_REASON_HTTP_403
+
     async def _send(
         self,
         method: str,
@@ -655,10 +703,9 @@ class BabelioService:
                 self._log_request("page", url, 0, False, (time.time() - t0) * 1000)
                 raise
             if response.status == 403:
-                logger.warning(
-                    f"Babelio HTTP 403 pour scraping page: {url} - cookie requis"
-                )
-                self._open_circuit(CIRCUIT_REASON_HTTP_403)
+                reason = self._reason_for_403(response)
+                logger.warning(f"Babelio HTTP 403 ({reason}) pour scraping page: {url}")
+                self._open_circuit(reason)
                 self._log_request("page", url, 403, False, (time.time() - t0) * 1000)
                 raise BabelioBlockedError(f"Babelio 403 scraping: {url}")
             if response.status != 200:
@@ -739,8 +786,9 @@ class BabelioService:
                 )
                 return []
         elif response.status == 403:
-            logger.warning(f"Babelio HTTP 403 pour: {term} - cookie requis")
-            self._open_circuit(CIRCUIT_REASON_HTTP_403)
+            reason = self._reason_for_403(response)
+            logger.warning(f"Babelio HTTP 403 ({reason}) pour: {term}")
+            self._open_circuit(reason)
             self._log_request("search", term, 403, False, (time.time() - t0) * 1000)
             raise BabelioBlockedError(f"Babelio 403: {term}")
         elif response.status == 503:

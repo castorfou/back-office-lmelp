@@ -53,9 +53,12 @@ from .services.avis_critiques_generation_service import (
 from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
 from .services.babelio_service import (
+    BABELIO_ANONYMOUS_COOKIE_WARNING,
+    CIRCUIT_REASON_CAPTCHA,
     PRECHECK_PROBE_TIMEOUT_SEC,
     PROBE_TIMEOUT_SEC,
     babelio_service,
+    is_anonymous_cookie,
     normalize_cookie_header,
 )
 from .services.books_extraction_service import books_extraction_service
@@ -3475,6 +3478,10 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
         overall = "captcha" if last_real.get("captcha") else "ok"
     else:
         overall = "degraded"
+    # Un 403 « Vérification de sécurité » se règle en se connectant à Babelio,
+    # pas en renouvelant le cookie : on le distingue d'un 403 ordinaire.
+    if babelio_service.get_circuit_reason() == CIRCUIT_REASON_CAPTCHA:
+        overall = "captcha"
 
     cache_ttl_hours = getattr(cache_service, "ttl_hours", None)
     # Âge du cookie serveur : la seule référence pour savoir s'il est encore
@@ -3492,6 +3499,7 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
         "cookie_expired": (
             cookie_age_sec is not None and cookie_age_sec >= cookie_max_age_sec
         ),
+        "cookie_anonymous": babelio_service.get_cookie_anonymous(),
         "browser_user_agent": babelio_service.get_browser_identity()["user_agent"],
         "browser_accept_language": babelio_service.get_browser_identity()[
             "accept_language"
@@ -3540,7 +3548,13 @@ async def set_babelio_cookie(request: Request) -> dict[str, Any]:
         user_agent=request.headers.get("user-agent"),
         accept_language=request.headers.get("accept-language"),
     )
-    return {"ok": True, "cookie_active": bool(cookie)}
+    # Pas de refus : un cookie anonyme passe parfois, mais l'utilisateur est prévenu
+    warning = (
+        BABELIO_ANONYMOUS_COOKIE_WARNING
+        if cookie and is_anonymous_cookie(cookie)
+        else None
+    )
+    return {"ok": True, "cookie_active": bool(cookie), "warning": warning}
 
 
 @app.delete("/api/babelio/cookie")
