@@ -57,6 +57,7 @@
             >Circuit breaker :</span>
             <span class="stat-value" data-test="babelio-circuit">
               <span v-if="status.circuit_open && status.circuit_reason === 'connect_timeout'" class="badge badge-expired">🚫 Ouvert — IP bannie, inutile de changer le cookie</span>
+              <span v-else-if="status.circuit_open && status.circuit_reason === 'captcha'" class="badge badge-expired">🧩 Ouvert — Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie</span>
               <span v-else-if="status.circuit_open && status.circuit_reason === 'http_403'" class="badge badge-expired">🚫 Ouvert — 403, cookie à renouveler</span>
               <span v-else-if="status.circuit_open" class="badge badge-expired">🚫 Ouvert — requêtes bloquées</span>
               <span v-else class="badge badge-ok">✓ Fermé</span>

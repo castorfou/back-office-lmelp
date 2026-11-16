@@ -83,3 +83,48 @@ def test_empty_cookie_still_clears(client):
     response = client.post("/api/babelio/cookie", json={"cookie": ""})
     assert response.status_code == 200
     assert babelio_service.get_cookie() is None
+
+
+# Un cookie copié sans être connecté au compte Babelio n'a pas d'id_user :
+# Babelio lui répond par une page de vérification humaine (403). Il est
+# accepté (à garder sous la main s'il passe), mais l'utilisateur est prévenu.
+ANONYMOUS_COOKIE = "jstsToken=AbCd%2FeF%2BgH%3D%3D; PHPSESSID=fakesession123; p=FR"
+
+
+def test_anonymous_cookie_is_accepted_with_a_warning(client):
+    response = client.post("/api/babelio/cookie", json={"cookie": ANONYMOUS_COOKIE})
+
+    assert response.status_code == 200
+    assert babelio_service.get_cookie() == ANONYMOUS_COOKIE
+    assert "Cookie anonyme" in response.json()["warning"]
+    assert client.get("/api/babelio/status").json()["cookie_anonymous"] is True
+
+
+def test_logged_in_cookie_has_no_warning(client):
+    response = client.post("/api/babelio/cookie", json={"cookie": FIREFOX_COOKIE})
+
+    assert response.status_code == 200
+    assert response.json()["warning"] is None
+    assert client.get("/api/babelio/status").json()["cookie_anonymous"] is False
+
+
+def test_no_cookie_is_neither_anonymous_nor_logged_in(client):
+    client.post("/api/babelio/cookie", json={"cookie": ""})
+
+    assert client.get("/api/babelio/status").json()["cookie_anonymous"] is None
+
+
+def test_stale_id_user_is_not_detected_as_anonymous(client):
+    """Limite connue : id_user et bbac restent après une déconnexion.
+
+    Un cookie copié déconnecté sur un navigateur déjà connecté par le passé a
+    les mêmes noms qu'un cookie de session connectée ; seules les valeurs de
+    bbac et PHPSESSID diffèrent (état côté serveur Babelio). L'avertissement ne
+    couvre donc que le cas net (pas d'id_user) : son absence ne prouve rien,
+    d'où la consigne de l'aide (être connecté, avatar visible).
+    """
+    stale = "bbacml=0; disclaimer=1; p=FR; bbac=00ff; id_user=1; jstsToken=AbCd"
+
+    response = client.post("/api/babelio/cookie", json={"cookie": stale})
+
+    assert response.json()["warning"] is None

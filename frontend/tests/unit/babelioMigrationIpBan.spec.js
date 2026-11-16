@@ -94,4 +94,15 @@ describe('BabelioMigration - ban IP (Issue #351)', () => {
     expect(wrapper.vm.migrationProgress.is_running).toBe(false);
     expect(wrapper.find('[data-test="babelio-blocked-banner"]').text()).toContain(IP_BAN_TEXT);
   });
+
+  // Issue #357 : 403 « Vérification de sécurité » d'un cookie anonyme
+  it('le bandeau dit « vérification humaine » quand le disjoncteur a été ouvert par un captcha', async () => {
+    mockApi({ ...BANNED_STATUS, overall: 'captcha', circuit_reason: 'captcha' });
+    await mountPage();
+
+    const banner = wrapper.find('[data-test="babelio-blocked-banner"]');
+    expect(banner.text()).toContain('Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie');
+    expect(banner.text()).not.toContain('expiré');
+    expect(banner.text()).not.toContain(IP_BAN_TEXT);
+  });
 });

@@ -25,6 +25,11 @@
           général environ 24 h ; vérifiez l'accès avec « Rafraîchir » dans
           <router-link to="/babelio-control">Contrôle Babelio</router-link> avant de relancer la liaison.
         </template>
+        <template v-else-if="babelioCaptcha">
+          🧩 Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie dans « 🔑 Cookie Babelio » ci-dessous (ou dans
+          <router-link to="/babelio-control">Contrôle Babelio</router-link>), puis relancez la liaison.
+          Un cookie copié sans être connecté au compte déclenche cette vérification.
+        </template>
         <template v-else>
           🚫 Babelio bloque les requêtes (403) : le cookie est absent ou expiré, et aucune
           requête ne part tant qu'il n'est pas renouvelé. Collez un cookie frais dans
@@ -664,6 +669,11 @@ export default {
     babelioIpBanned() {
       const st = this.babelioServiceStatus;
       return st?.circuit_open === true && st.circuit_reason === 'connect_timeout';
+    },
+    // 403 « Vérification de sécurité » : cookie copié sans être connecté au compte
+    babelioCaptcha() {
+      const st = this.babelioServiceStatus;
+      return st?.circuit_open === true && st.circuit_reason === 'captcha';
     },
     lastRunBlocked403() {
       return (this.migrationProgress.book_logs || []).some(

@@ -1084,8 +1084,12 @@ connection to `www.babelio.com:443` and closes it at once (no TLS, no `_send()`,
 limiter), so Babelio's HTTP logs see nothing. It backs « Rafraîchir »
 (`/api/babelio/status?live_check=true`), `POST /api/babelio/probe` and the 1 s check before
 « Valider avec Babelio » and the migration. The circuit breaker records why it opened
-(`get_circuit_reason()`: `http_403` or `connect_timeout`): a successful probe closes a
-`connect_timeout` circuit, only a fresh cookie closes an `http_403` one. Any code that starts
+(`get_circuit_reason()`: `http_403`, `captcha` or `connect_timeout`): a successful probe
+closes a `connect_timeout` circuit, only a fresh cookie closes an `http_403` or `captcha` one.
+`captcha` is a 403 whose body is the « Vérification de sécurité » page (`_reason_for_403()`):
+the cookie was copied while logged out of Babelio, so a fresh cookie only helps after logging
+in. `id_user`/`bbac` survive a logout, so the cookie alone cannot prove a session is open
+(`is_anonymous_cookie()` only catches a browser that never logged in). Any code that starts
 a Babelio job must run the probe first. In tests, the autouse fixture `babelio_reachable`
 (`tests/conftest.py`) patches the probe on every loaded `babelio_service` singleton: a
 real probe succeeds locally but times out in CI. The fixture must never import a module:

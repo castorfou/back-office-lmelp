@@ -24,9 +24,12 @@ L'essai ne peut pas prolonger un ban : une IP bannie est déjà ignorée par le 
 | Événement | Disjoncteur | Motif (`circuit_reason`) |
 |---|---|---|
 | Réponse 403 | ouvert | `http_403` |
+| Réponse 403 dont la page est « Vérification de sécurité » (`_reason_for_403()`) | ouvert | `captcha` |
 | Timeout de connexion d'une requête, ou essai TCP en échec | ouvert | `connect_timeout` |
 | Essai TCP réussi | refermé si le motif est `connect_timeout` | `null` |
 | Cookie enregistré (`POST /api/babelio/cookie`) | refermé | `null` |
+
+Le motif `captcha` correspond à un cookie copié sans être connecté au compte Babelio : `GET /api/babelio/status` renvoie alors `overall: "captcha"`. `POST /api/babelio/cookie` accepte un cookie sans `id_user` mais renvoie un `warning`, et le statut expose `cookie_anonymous`. Ce contrôle ne voit que le cas d'un navigateur jamais connecté : `id_user` et `bbac` restent dans le navigateur après une déconnexion, et seules les valeurs de `bbac` et `PHPSESSID` distinguent alors une session ouverte, côté serveur Babelio.
 
 Voici les grandes étapes du contournement :
 

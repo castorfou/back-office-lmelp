@@ -186,4 +186,20 @@ describe('LivresAuteurs - ban IP Babelio (Issue #351)', () => {
     expect(banner.text()).toContain('403');
     expect(banner.text()).not.toContain(IP_BAN_TEXT);
   });
+
+  // Issue #357 : 403 « Vérification de sécurité » d'un cookie anonyme
+  it('affiche le bandeau vérification humaine quand le disjoncteur a été ouvert par un captcha', async () => {
+    mockAxios({ status: { circuit_open: true, circuit_reason: 'captcha' } });
+    await mountPage();
+
+    wrapper.vm.babelioBlocked = true;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await wrapper.vm.$nextTick();
+
+    const banner = wrapper.find('[data-test="babelio-blocked-banner"]');
+    expect(banner.text()).toContain('Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie');
+    expect(banner.text()).not.toContain('probablement expiré');
+    // Un nouveau cookie (après connexion) règle le problème : panneau ouvert
+    expect(wrapper.vm.cookiePanelOpen).toBe(true);
+  });
 });
