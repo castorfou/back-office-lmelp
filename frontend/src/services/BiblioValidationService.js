@@ -22,6 +22,11 @@ export class BiblioValidationService {
     // Évite les appels API redondants lors de la validation de plusieurs livres
     // Key: episodeId, Value: Array<{author, title}>
     this._extractedBooksCache = new Map();
+
+    // Éditeur de chaque page Babelio vue par verifyBook (Issue #352) : la
+    // validation rend l'éditeur de la page dont elle retient l'URL.
+    // Key: babelio_url, Value: babelio_publisher
+    this._publisherByBabelioUrl = new Map();
   }
 
   /**
@@ -67,6 +72,10 @@ export class BiblioValidationService {
    */
   async _verifyBookWithCapture(title, author) {
     const result = await this.babelioService.verifyBook(title, author);
+
+    if (result?.babelio_url && result.babelio_publisher) {
+      this._publisherByBabelioUrl.set(result.babelio_url, result.babelio_publisher);
+    }
 
     // Capturer l'appel si la capture est active
     if (fixtureCaptureService.isCapturing) {
@@ -295,6 +304,23 @@ export class BiblioValidationService {
    * @returns {Promise<Object>} Résultat de validation
    */
   async validateBiblio(author, title, publisher, episodeId) {
+    return this._withBabelioPublisher(
+      await this._validateBiblio(author, title, publisher, episodeId)
+    );
+  }
+
+  /**
+   * Ajoute l'éditeur Babelio de la page retenue (babelio_url) au résultat.
+   * @private
+   */
+  _withBabelioPublisher(result) {
+    const url = result?.data?.babelio_url;
+    const babelioPublisher = url && this._publisherByBabelioUrl.get(url);
+    if (!babelioPublisher || result.data.babelio_publisher) return result;
+    return { ...result, data: { ...result.data, babelio_publisher: babelioPublisher } };
+  }
+
+  async _validateBiblio(author, title, publisher, episodeId) {
     try {
       const original = { author, title, publisher };
 

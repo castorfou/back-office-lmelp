@@ -1036,13 +1036,13 @@ async def get_onkindle_books() -> dict[str, Any] | JSONResponse:
 
 @app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
 async def get_livres_auteurs(
-    episode_oid: str, limit: int | None = None, enrich_babelio: bool = False
+    episode_oid: str, limit: int | None = None
 ) -> list[dict[str, Any]]:
     """Récupère la liste des livres/auteurs extraits des avis critiques via parsing des tableaux markdown (format simplifié : auteur/titre/éditeur).
 
-    Sans cache pour l'épisode, les livres sont extraits du résumé. Ils ne sont
-    enrichis via Babelio que si enrich_babelio est vrai (bouton « Valider avec
-    Babelio ») : ouvrir la page ne doit jamais interroger Babelio.
+    Sans cache pour l'épisode, les livres sont extraits du résumé, sans jamais
+    interroger Babelio : seule la validation Babelio, livre par livre depuis la
+    page (« Valider avec Babelio »), le fait.
     """
     # Vérification mémoire
     memory_check = memory_guard.check_memory_limit()
@@ -1102,7 +1102,7 @@ async def get_livres_auteurs(
             try:
                 extracted_books = (
                     await books_extraction_service.extract_books_from_reviews(
-                        avis_critiques, enrich_babelio=enrich_babelio
+                        avis_critiques
                     )
                 )
                 all_books.extend(extracted_books)

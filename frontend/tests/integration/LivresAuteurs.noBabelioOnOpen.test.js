@@ -126,11 +126,11 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
     await wrapper.find('[data-test="validate-babelio-button"]').trigger('click');
     await flushPromises();
 
-    // L'enrichissement Babelio de l'extraction n'a lieu que sur ce clic
-    expect(livresAuteursService.getLivresAuteurs).toHaveBeenCalledWith({
-      episode_oid: EPISODE_ID,
-      enrich_babelio: true,
-    });
+    // Pas de phase d'enrichissement séparée (Issue #352) : la validation
+    // livre par livre est la seule à interroger Babelio
+    expect(livresAuteursService.getLivresAuteurs).not.toHaveBeenCalledWith(
+      expect.objectContaining({ enrich_babelio: true })
+    );
     expect(BiblioValidationService.validateBiblio).toHaveBeenCalledWith(
       'Emmanuelle Salasc', 'Ni de lait, ni de laine', 'P.O.L', EPISODE_ID
     );
@@ -141,11 +141,6 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
     const wrapper = await mountPage();
     await flushPromises();
 
-    // Enrichissement en attente : le bouton annonce la phase en cours
-    let resolveEnrich;
-    livresAuteursService.getLivresAuteurs.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveEnrich = resolve; })
-    );
     let resolveValidation;
     BiblioValidationService.validateBiblio.mockImplementationOnce(
       () => new Promise((resolve) => { resolveValidation = resolve; })
@@ -154,15 +149,14 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
     await wrapper.find('[data-test="validate-babelio-button"]').trigger('click');
     await flushPromises();
     const button = () => wrapper.find('[data-test="validate-babelio-button"]');
-    expect(button().text()).toContain('Enrichissement Babelio');
-
-    resolveEnrich([{ ...bookWithoutStatus }]);
-    await flushPromises();
+    // Dès le clic, la validation livre par livre (Issue #352 : plus de phase
+    // « Enrichissement Babelio… » sans avancement)
     expect(button().text()).toContain('Validation 1/1');
     expect(button().text()).toContain('Ni de lait, ni de laine');
 
     resolveValidation({ status: 'verified', data: {} });
     await flushPromises();
+    await wrapper.vm.$nextTick();
     expect(button().text()).toContain('Valider avec Babelio');
   });
 

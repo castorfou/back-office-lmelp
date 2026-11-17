@@ -7,8 +7,6 @@ from typing import Any
 import openai
 from dotenv import load_dotenv
 
-from .babelio_service import babelio_service
-
 
 load_dotenv()
 
@@ -46,22 +44,19 @@ class BooksExtractionService:
             self.client = None
 
     async def extract_books_from_reviews(
-        self, avis_critiques: list[dict[str, Any]], enrich_babelio: bool = False
+        self, avis_critiques: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """
         Extrait les informations bibliographiques depuis les tableaux markdown des avis critiques.
         Parse les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES CRITIQUES".
-        Enrichit chaque livre avec Babelio (babelio_url, babelio_publisher) seulement
-        si enrich_babelio est vrai : chaque livre coûte des requêtes Babelio, et les
-        403 de Babelio se transforment en ban IP. Réservé au geste explicite
-        « Valider avec Babelio ».
+        N'interroge jamais Babelio : l'URL et l'éditeur Babelio viennent de la
+        validation livre par livre (« Valider avec Babelio »).
 
         Args:
             avis_critiques: Liste des avis critiques avec leurs summaries
-            enrich_babelio: Interroger Babelio pour enrichir chaque livre
 
         Returns:
-            Liste des livres extraits avec métadonnées (auteur/titre/éditeur + enrichissement Babelio)
+            Liste des livres extraits avec métadonnées (auteur/titre/éditeur)
         """
         if not avis_critiques:
             return []
@@ -102,10 +97,7 @@ class BooksExtractionService:
                     # Autres erreurs, continuer sans fallback
                     continue
 
-        if not enrich_babelio:
-            return all_extracted_books
-
-        return await self._enrich_books_with_babelio(all_extracted_books)
+        return all_extracted_books
 
     async def _extract_books_from_single_review(
         self, avis_critique: dict[str, Any]
@@ -360,66 +352,6 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
                         books.append(book)
 
         return books
-
-    async def _enrich_books_with_babelio(
-        self, books: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        """
-        Enrichit automatiquement chaque livre avec Babelio (babelio_url, babelio_publisher).
-        Appelle verify_book() pour chaque livre et enrichit si confidence >= 0.90.
-
-        Args:
-            books: Liste des livres extraits
-
-        Returns:
-            Liste des livres enrichis avec babelio_url et babelio_publisher
-        """
-        enriched_books = []
-
-        for book in books:
-            enriched_book = book.copy()
-            titre = book.get("titre", "")
-            auteur = book.get("auteur", "")
-
-            try:
-                # Appeler Babelio verify_book()
-                verification = await babelio_service.verify_book(titre, auteur)
-
-                # ✅ FIX Issue #85: Utiliser la vraie clé "confidence_score" de l'API (pas "confidence")
-                confidence = (
-                    verification.get("confidence_score", 0) if verification else 0
-                )
-
-                # Enrichir si confidence >= 0.90
-                if verification and confidence >= 0.90:
-                    # ✅ FIX Issue #85: L'API retourne "babelio_url" directement (pas "url")
-                    if verification.get("babelio_url"):
-                        enriched_book["babelio_url"] = verification["babelio_url"]
-                    if verification.get("babelio_publisher"):
-                        enriched_book["babelio_publisher"] = verification[
-                            "babelio_publisher"
-                        ]
-
-                    # ✅ FIX Issue #88: Enrichir suggested_title et suggested_author
-                    # Ces champs sont ESSENTIELS pour que le frontend affiche le titre complet
-                    # dans le modal de validation (LivresAuteurs.vue:validateSuggestion)
-                    if verification.get("babelio_suggestion_title"):
-                        enriched_book["suggested_title"] = verification[
-                            "babelio_suggestion_title"
-                        ]
-                    if verification.get("babelio_suggestion_author"):
-                        enriched_book["suggested_author"] = verification[
-                            "babelio_suggestion_author"
-                        ]
-
-            except Exception:
-                # En cas d'erreur Babelio (timeout, réseau, etc.), continuer sans enrichissement
-                # Le livre reste tel quel sans babelio_url/babelio_publisher
-                pass
-
-            enriched_books.append(enriched_book)
-
-        return enriched_books
 
     def format_books_for_display(
         self, books_data: list[dict[str, Any]]

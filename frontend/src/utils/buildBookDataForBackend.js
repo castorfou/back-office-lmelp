@@ -46,8 +46,10 @@ export function buildBookDataForBackend(book, validationResult, status) {
   if (babelioUrl) {
     bookForBackend.babelio_url = babelioUrl;
   }
-  if (book.babelio_publisher) {
-    bookForBackend.babelio_publisher = book.babelio_publisher;
+  // Issue #352: l'éditeur de la page Babelio retenue par la validation
+  const babelioPublisher = book.babelio_publisher || validationResult.data?.babelio_publisher;
+  if (babelioPublisher) {
+    bookForBackend.babelio_publisher = babelioPublisher;
   }
 
   return bookForBackend;

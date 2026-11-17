@@ -803,8 +803,7 @@ export default {
   // État du cookie Babelio émis par BabelioCookiePanel : 'missing' | 'expired' | 'active'
   babelioCookieState: 'missing',
   validatingWithBabelio: false,
-  // Phase en cours de « Valider avec Babelio » : null, { phase: 'enrich' }
-  // ou { phase: 'validate', index, total, titre }
+  // Avancement de « Valider avec Babelio » : null ou { index, total, titre }
   babelioValidationProgress: null,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
   babelioBlocked: false,
@@ -841,8 +840,8 @@ export default {
 
     babelioValidationLabel() {
       const progress = this.babelioValidationProgress;
-      if (!this.validatingWithBabelio || !progress) return '🔍 Valider avec Babelio';
-      if (progress.phase === 'enrich') return '⏳ Enrichissement Babelio…';
+      if (!this.validatingWithBabelio) return '🔍 Valider avec Babelio';
+      if (!progress) return '⏳ Validation…';
       return `⏳ Validation ${progress.index}/${progress.total} — ${progress.titre}`;
     },
     booksNeedValidation() {
@@ -1306,7 +1305,6 @@ export default {
     async validateWithBabelio() {
       if (!this.selectedEpisodeId || this.validatingWithBabelio || !this.babelioCookieUsable) return;
       this.validatingWithBabelio = true;
-      this.babelioValidationProgress = { phase: 'enrich' };
       this.clearTransientStatuses();
       try {
         // Essai TCP d'une seconde (sans HTTP) : si l'IP est bannie, arrêter
@@ -1317,12 +1315,8 @@ export default {
           return;
         }
         this.babelioProbeUnreachable = false;
-        // Recharger les livres enrichis par Babelio (babelio_url, babelio_publisher) :
-        // pour un épisode sans cache, l'extraction ne les enrichit que sur demande
-        this.books = await livresAuteursService.getLivresAuteurs({
-          episode_oid: this.selectedEpisodeId,
-          enrich_babelio: true,
-        });
+        // Une seule passe livre par livre : verify_book y fournit aussi l'URL
+        // et l'éditeur Babelio (Issue #352, plus de phase d'enrichissement)
         await this.autoValidateAndSendResults();
         // Recharger les livres depuis le cache avec les vrais statuts
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
@@ -1950,7 +1944,6 @@ export default {
           this.validatingBookKey = this.getBookKey(book);
           if (this.validatingWithBabelio) {
             this.babelioValidationProgress = {
-              phase: 'validate',
               index: index + 1,
               total: booksToValidate.length,
               titre: book.titre,
