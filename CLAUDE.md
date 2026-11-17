@@ -1454,6 +1454,28 @@ export AVIS_CRITIQUES_DEBUG_LOG=1
 - Configuration Docker : Voir docker-lmelp issue #38
 - Variables d'environnement dev : Voir `docs/dev/environment-variables.md`
 
+## Écosystème lmelp : schéma à tenir à jour
+
+La page [Écosystème lmelp](https://castorfou.github.io/lmelp-mobile/ecosysteme/) de
+lmelp-mobile (`docs/ecosysteme.md` dans `castorfou/lmelp-mobile`) décrit les flux de toute
+la stack (« Mise à jour des données », « Mise à jour du code ») et ce qui déclenche chacun.
+Toute modification d'un de ces flux faite ici doit s'accompagner d'une issue dans
+`castorfou/lmelp-mobile` pour mettre la page à jour, avec le changement et la PR concernée
+(`gh issue create --repo castorfou/lmelp-mobile`).
+
+Changements concernés côté back-office-lmelp :
+
+- nouvel endpoint appelé par Automatisch, ou changement de `POST /api/rss/sync` /
+  `POST /api/pgx/transcription/start` ;
+- changement du réessai PGX (`pgx_transcription_retry_interval_hours`, toutes les heures),
+  du rythme des requêtes Babelio (`BABELIO_FAIR_SEC`) ou de la durée de validité du cookie
+  Babelio (`BABELIO_COOKIE_MAX_AGE_SEC`) ;
+- nouvelle notification ntfy, ou notification modifiée (`utils/ntfy.py`) ;
+- changement de la lecture de la copie Calibre (`metadata.db`) ;
+- workflow CI qui publie les images (`.github/workflows/docker-publish.yml`).
+
+La même consigne figure dans le `CLAUDE.md` de lmelp-mobile.
+
 ## Documentation Guidelines
 
 ### Writing Documentation
