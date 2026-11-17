@@ -122,7 +122,7 @@
         </div>
       <!-- Bloc Babelio : validation des livres, juste au-dessus de la liste -->
       <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
-      <div v-if="selectedEpisodeId && !loading && booksNeedValidation" class="babelio-validate-bar">
+      <div v-if="selectedEpisodeId && !loading && (booksNeedValidation || validatingWithBabelio)" class="babelio-validate-bar">
         <span>Des livres de cet épisode ne sont pas encore validés avec Babelio.</span>
         <button
           @click="validateWithBabelio"
@@ -350,6 +350,7 @@
                     :book-key="getBookKey(book)"
                     :stored-status="book.status || null"
                     :stored-suggestion="getStoredSuggestion(book)"
+                    :validating="validatingBookKey === getBookKey(book)"
                     @validation-status-change="handleValidationStatusChange"
                   />
                   <span v-else class="mongo-status">✅ Traité</span>
@@ -703,6 +704,7 @@ import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
+import { toRowStatus, isTransientStatus } from '../utils/validationStatus.js';
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
@@ -737,6 +739,12 @@ export default {
       // Map des statuts de validation par livre (clé: episode_oid-auteur-titre)
       validationStatuses: new Map(),
       validationSuggestions: new Map(),
+      // Validation Babelio au fil de l'eau (Issue #352) : livre en cours de
+      // validation, boucle en cours, et statuts transitoires (blocked_403 /
+      // error, jamais enregistrés) à réafficher après chaque rechargement
+      validatingBookKey: null,
+      autoValidating: false,
+      transientStatuses: new Map(),
       // Protection contre le traitement automatique en boucle
       alreadyProcessedBooks: new Set(),
 
@@ -1100,6 +1108,16 @@ export default {
     handleValidationStatusChange(eventData) {
       const { bookKey, status, suggestion, validationResult } = eventData;
 
+      // Pendant la boucle de « Valider avec Babelio » (Issue #352), la ligne
+      // reflète un résultat pas encore enregistré (pas de cache_id) : ni
+      // persistance unitaire ni traitement automatique, l'envoi groupé de fin
+      // s'en charge.
+      if (this.autoValidating) {
+        this.validationStatuses.set(bookKey, status);
+        if (suggestion) this.validationSuggestions.set(bookKey, suggestion);
+        return;
+      }
+
       // Issue #304: un retry réussi après un blocage 403 (ou une erreur
       // technique) doit être persisté pour CE livre uniquement, sinon le
       // livre resterait indéfiniment non traité en base malgré le retry.
@@ -1249,6 +1267,7 @@ export default {
 
         // Récupérer SEULEMENT les livres de cet épisode (cache ou extraction)
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
+        this.applyTransientStatuses();
 
         // Pas de validation Babelio automatique : elle se lance avec le bouton
         // « Valider avec Babelio » (validateWithBabelio).
@@ -1288,6 +1307,7 @@ export default {
       if (!this.selectedEpisodeId || this.validatingWithBabelio || !this.babelioCookieUsable) return;
       this.validatingWithBabelio = true;
       this.babelioValidationProgress = { phase: 'enrich' };
+      this.clearTransientStatuses();
       try {
         // Essai TCP d'une seconde (sans HTTP) : si l'IP est bannie, arrêter
         // tout de suite plutôt qu'attendre le timeout de la première requête
@@ -1306,6 +1326,13 @@ export default {
         await this.autoValidateAndSendResults();
         // Recharger les livres depuis le cache avec les vrais statuts
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
+        this.applyTransientStatuses();
+        // Les lignes ont déjà leur statut : la cellule ne réémet rien au
+        // rechargement, le traitement automatique des livres vérifiés (qui
+        // ont maintenant un cache_id) part donc d'ici.
+        for (const book of this.books) {
+          if (book.status === 'verified') this.triggerAutoProcessIfPossible(this.getBookKey(book));
+        }
       } catch (error) {
         this.error = error.message;
         console.error('Erreur lors de la validation Babelio:', error);
@@ -1335,6 +1362,9 @@ export default {
       try {
         // Verrouiller pour empêcher les changements concurrents
         this.changeEpisodeLock = true;
+
+        // Les statuts transitoires appartiennent à l'épisode précédent
+        this.transientStatuses.clear();
 
         // Réinitialiser les filtres
         this.searchFilter = '';
@@ -1910,12 +1940,14 @@ export default {
     async autoValidateAndSendResults() {
       if (!this.books || this.books.length === 0) return;
 
+      this.autoValidating = true;
       try {
         const validatedBooks = [];
 
         // Valider chaque livre avec BiblioValidationService
         const booksToValidate = this.books;
         for (const [index, book] of booksToValidate.entries()) {
+          this.validatingBookKey = this.getBookKey(book);
           if (this.validatingWithBabelio) {
             this.babelioValidationProgress = {
               phase: 'validate',
@@ -1952,6 +1984,7 @@ export default {
             const bookForBackend = buildBookDataForBackend(book, validationResult, status);
 
             validatedBooks.push(bookForBackend);
+            this.showLiveResult(book, status, validationResult);
 
           } catch (validationError) {
             console.warn(`⚠️ Erreur validation ${book.auteur}:`, validationError);
@@ -1967,8 +2000,10 @@ export default {
               programme: book.programme || false,
               validation_status: 'error'
             });
+            this.showLiveResult(book, 'error');
           }
         }
+        this.validatingBookKey = null;
 
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
   const selectedEpisode = this.episodesWithReviews?.find(ep => String(ep.id) === String(this.selectedEpisodeId));
@@ -1984,7 +2019,57 @@ export default {
 
       } catch (error) {
         console.error('❌ Erreur auto-validation:', error);
+      } finally {
+        this.validatingBookKey = null;
+        this.autoValidating = false;
       }
+    },
+
+    /**
+     * Affiche dans la ligne du livre le résultat de validation qui vient
+     * d'arriver (Issue #352), sans attendre l'envoi groupé ni le rechargement.
+     */
+    showLiveResult(book, validationStatus, validationResult = null) {
+      const rowStatus = toRowStatus(validationStatus);
+      const suggested = validationResult?.data?.suggested;
+      if (rowStatus === 'suggested' && suggested) {
+        if (suggested.author) book.suggested_author = suggested.author;
+        if (suggested.title) book.suggested_title = suggested.title;
+      }
+      book.status = rowStatus;
+      const key = this.getBookKey(book);
+      if (isTransientStatus(rowStatus)) {
+        this.transientStatuses.set(key, rowStatus);
+      } else {
+        this.transientStatuses.delete(key);
+      }
+    },
+
+    /**
+     * Réaffiche les statuts transitoires (blocked_403, error) que le backend
+     * n'enregistre pas, sur les livres restés sans statut après rechargement.
+     */
+    applyTransientStatuses() {
+      if (this.transientStatuses.size === 0) return;
+      for (const book of this.books || []) {
+        const transient = this.transientStatuses.get(this.getBookKey(book));
+        if (transient && !book.status) book.status = transient;
+      }
+    },
+
+    /**
+     * Efface les statuts transitoires avant une nouvelle validation : les
+     * lignes concernées repassent « À valider ».
+     */
+    clearTransientStatuses() {
+      for (const book of this.books || []) {
+        const key = this.getBookKey(book);
+        if (this.transientStatuses.has(key) && book.status === this.transientStatuses.get(key)) {
+          book.status = null;
+          this.validationStatuses.delete(key);
+        }
+      }
+      this.transientStatuses.clear();
     }
 
   }

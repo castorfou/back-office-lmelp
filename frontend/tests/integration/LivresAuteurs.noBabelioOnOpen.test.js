@@ -95,7 +95,8 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
         has_incomplete_books: false,
       },
     ]);
-    livresAuteursService.getLivresAuteurs.mockResolvedValue([bookWithoutStatus]);
+    // Une copie par appel : la validation met à jour les lignes en place (Issue #352)
+    livresAuteursService.getLivresAuteurs.mockImplementation(async () => [{ ...bookWithoutStatus }]);
     livresAuteursService.setValidationResults.mockResolvedValue({ success: true });
     livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue({ success: true });
     episodeService.getEpisodeById.mockResolvedValue({ id: EPISODE_ID });
@@ -155,7 +156,7 @@ describe('LivresAuteurs - aucune requête Babelio à l\'ouverture', () => {
     const button = () => wrapper.find('[data-test="validate-babelio-button"]');
     expect(button().text()).toContain('Enrichissement Babelio');
 
-    resolveEnrich([bookWithoutStatus]);
+    resolveEnrich([{ ...bookWithoutStatus }]);
     await flushPromises();
     expect(button().text()).toContain('Validation 1/1');
     expect(button().text()).toContain('Ni de lait, ni de laine');

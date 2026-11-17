@@ -251,7 +251,8 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       episodeId: '6865f995a1418e3d7c63d076', // pragma: allowlist secret
       bookKey: '6865f995a1418e3d7c63d076-Michel Houellebecq-Les Particules élémentaires',
       storedStatus: null,
-      storedSuggestion: null
+      storedSuggestion: null,
+      validating: false
     });
   });
 
