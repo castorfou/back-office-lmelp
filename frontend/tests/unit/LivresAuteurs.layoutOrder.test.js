@@ -235,3 +235,17 @@ describe('BabelioCookiePanel - emplacement « actions » (Issue #358)', () => {
     expect(panel.find('.babelio-cookie-actions').exists()).toBe(false)
   })
 })
+
+describe('BabelioCookiePanel - temps restant transmis à la page (Issue #352)', () => {
+  it('émet le temps restant d\'un cookie actif, et null une fois expiré', async () => {
+    const { default: BabelioCookiePanel } = await import('@/components/BabelioCookiePanel.vue')
+    const panel = mount(BabelioCookiePanel, {
+      props: { status: { cookie_active: true, cookie_age_sec: 60, cookie_max_age_sec: 300, cookie_expired: false } },
+    })
+    expect(panel.emitted('cookie-remaining').at(-1)).toEqual(['~4 min'])
+
+    await panel.setProps({ status: { cookie_active: true, cookie_age_sec: 300, cookie_max_age_sec: 300, cookie_expired: true } })
+    expect(panel.emitted('cookie-remaining').at(-1)).toEqual([null])
+    panel.unmount()
+  })
+})

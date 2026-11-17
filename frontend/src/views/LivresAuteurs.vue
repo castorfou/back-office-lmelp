@@ -29,7 +29,7 @@
               <button
                 class="nav-episode-btn prev-btn"
                 @click.prevent="selectPreviousEpisode"
-                :disabled="!hasPreviousEpisode"
+                :disabled="!hasPreviousEpisode || validatingWithBabelio"
                 aria-label="Épisode précédent"
                 data-testid="prev-episode-button"
               >
@@ -38,12 +38,13 @@
               <EpisodeDropdown
                 v-model="selectedEpisodeId"
                 :episodes="episodesWithReviews || []"
+                :disabled="validatingWithBabelio"
                 @update:modelValue="onEpisodeChange"
               />
               <button
                 class="nav-episode-btn next-btn"
                 @click.prevent="selectNextEpisode"
-                :disabled="!hasNextEpisode"
+                :disabled="!hasNextEpisode || validatingWithBabelio"
                 aria-label="Épisode suivant"
                 data-testid="next-episode-button"
               >
@@ -133,6 +134,15 @@
         >
           {{ babelioValidationLabel }}
         </button>
+        <button
+          v-if="babelioValidationPaused"
+          @click="stopBabelioValidation"
+          class="btn-stop-babelio"
+          data-test="stop-babelio-validation"
+          title="Enregistrer les livres déjà validés et laisser les autres à valider"
+        >
+          ⏹ Arrêter
+        </button>
       </div>
 
       <!-- Alerte blocage Babelio : ban IP (connexion qui n'aboutit pas) ou 403 (cookie) -->
@@ -156,6 +166,7 @@
           :open="cookiePanelOpen"
           @saved="onBabelioCookieSaved"
           @cookie-state="babelioCookieState = $event"
+          @cookie-remaining="babelioCookieRemaining = $event"
         >
           <template #actions>
             <!-- .prevent : dans le <summary>, le clic plierait aussi le panneau -->
@@ -702,7 +713,7 @@ import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
-import BiblioValidationService from '../services/BiblioValidationService.js';
+import BiblioValidationService, { COOKIE_EXPIRED } from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
 import { toRowStatus, isTransientStatus } from '../utils/validationStatus.js';
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
@@ -803,6 +814,11 @@ export default {
   // État du cookie Babelio émis par BabelioCookiePanel : 'missing' | 'expired' | 'active'
   babelioCookieState: 'missing',
   validatingWithBabelio: false,
+  // Pause de validation (Issue #352) : cookie expiré pendant « Valider avec
+  // Babelio ». La boucle attend resumeBabelioValidation(true|false).
+  babelioValidationPaused: false,
+  // Temps restant du cookie émis par BabelioCookiePanel (« ~3 min », « < 1 min »)
+  babelioCookieRemaining: null,
   // Avancement de « Valider avec Babelio » : null ou { index, total, titre }
   babelioValidationProgress: null,
   // Issue #251: feedback de blocage 403, confirmation de sauvegarde, expiration
@@ -842,7 +858,11 @@ export default {
       const progress = this.babelioValidationProgress;
       if (!this.validatingWithBabelio) return '🔍 Valider avec Babelio';
       if (!progress) return '⏳ Validation…';
-      return `⏳ Validation ${progress.index}/${progress.total} — ${progress.titre}`;
+      if (this.babelioValidationPaused) {
+        return `⏸ En pause — cookie expiré (${progress.index}/${progress.total})`;
+      }
+      const cookie = this.babelioCookieRemaining ? ` · cookie ${this.babelioCookieRemaining}` : '';
+      return `⏳ Validation ${progress.index}/${progress.total} — ${progress.titre}${cookie}`;
     },
     booksNeedValidation() {
       return (this.books || []).some(book =>
@@ -1042,6 +1062,8 @@ export default {
 
   beforeUnmount() {
     if (this._onKeydown) window.removeEventListener('keydown', this._onKeydown, true);
+    // Ne pas laisser une validation en pause attendre indéfiniment
+    this.stopBabelioValidation();
   },
 
   methods: {
@@ -1403,7 +1425,7 @@ export default {
     },
 
     async selectPreviousEpisode() {
-      if (this.navLock) return;
+      if (this.navLock || this.validatingWithBabelio) return;
       // Move to older episode (to the right on timeline) => index + 1
       const idx = this.currentEpisodeIndex;
       if (idx >= 0 && idx < this.episodesWithReviews.length - 1) {
@@ -1420,7 +1442,7 @@ export default {
     },
 
     async selectNextEpisode() {
-      if (this.navLock) return;
+      if (this.navLock || this.validatingWithBabelio) return;
       // Move to more recent episode (to the left on timeline) => index - 1
       const idx = this.currentEpisodeIndex;
       if (idx > 0) {
@@ -1923,9 +1945,15 @@ export default {
       }
     },
 
-    onBabelioCookieSaved() {
+    async onBabelioCookieSaved() {
       this.babelioBlocked = false;
-      this.loadBabelioStatus();
+      await this.loadBabelioStatus();
+      // Laisser le panneau recalculer l'état du cookie, puis reprendre la
+      // validation en pause si le nouveau cookie est actif (Issue #352)
+      await this.$nextTick();
+      if (this.babelioValidationPaused && this.babelioCookieUsable) {
+        this.resumeBabelioValidation(true);
+      }
     },
 
     /**
@@ -1940,7 +1968,9 @@ export default {
 
         // Valider chaque livre avec BiblioValidationService
         const booksToValidate = this.books;
-        for (const [index, book] of booksToValidate.entries()) {
+        let index = 0;
+        while (index < booksToValidate.length) {
+          const book = booksToValidate[index];
           this.validatingBookKey = this.getBookKey(book);
           if (this.validatingWithBabelio) {
             this.babelioValidationProgress = {
@@ -1948,6 +1978,11 @@ export default {
               total: booksToValidate.length,
               titre: book.titre,
             };
+            // Cookie déjà expiré côté navigateur : pause sans rien envoyer
+            if (!this.babelioCookieUsable) {
+              if (await this.pauseBabelioValidation()) continue;
+              break;
+            }
           }
           try {
             const validationResult = await BiblioValidationService.validateBiblio(
@@ -1956,6 +1991,15 @@ export default {
               book.editeur || '',
               this.selectedEpisodeId
             );
+
+            // Refus du serveur pour cookie expiré (Issue #352) : ce résultat est
+            // écarté, le livre sera revalidé entièrement après la pause
+            if (this.validatingWithBabelio
+                && validationResult.status === 'blocked_403'
+                && validationResult.data?.reason === COOKIE_EXPIRED) {
+              if (await this.pauseBabelioValidation()) continue;
+              break;
+            }
 
             // Issue #251: Babelio a bloqué la requête (403) — signaler à l'utilisateur
             // qu'il doit rafraîchir son cookie, distinct d'un "not_found" légitime
@@ -1995,6 +2039,7 @@ export default {
             });
             this.showLiveResult(book, 'error');
           }
+          index += 1;
         }
         this.validatingBookKey = null;
 
@@ -2063,6 +2108,33 @@ export default {
         }
       }
       this.transientStatuses.clear();
+    },
+
+    /**
+     * Pause de validation (Issue #352) : ouvre le panneau cookie et attend.
+     * Résout true pour reprendre (cookie actif enregistré), false pour arrêter.
+     */
+    pauseBabelioValidation() {
+      this.babelioValidationPaused = true;
+      this.cookiePanelOpen = true;
+      return new Promise((resolve) => {
+        this._resumeBabelioValidation = resolve;
+      }).finally(() => {
+        this.babelioValidationPaused = false;
+        this._resumeBabelioValidation = null;
+      });
+    },
+
+    resumeBabelioValidation(proceed) {
+      if (this._resumeBabelioValidation) this._resumeBabelioValidation(proceed);
+    },
+
+    /**
+     * « Arrêter » : la boucle sort de la pause, envoie les résultats déjà
+     * obtenus puis recharge le tableau ; les livres restants restent à valider.
+     */
+    stopBabelioValidation() {
+      this.resumeBabelioValidation(false);
     }
 
   }
@@ -3431,6 +3503,21 @@ export default {
 .btn-validate-babelio:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-stop-babelio {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: white;
+  color: #842029;
+  border: 1px solid #f1aeb5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-stop-babelio:hover {
+  background: #f8d7da;
 }
 
 @media (max-width: 600px) {

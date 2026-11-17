@@ -57,9 +57,10 @@ Panneau **🔑 Cookie Babelio**, partagé par Livres et Auteurs (page et modales
 | prop `collapsible` | `false` : panneau toujours déplié, sans `<details>` |
 | événement `saved` | Un cookie a été enregistré : la page recharge `status` |
 | événement `cookie-state` | `'missing'`, `'expired'` ou `'active'`, émis au montage et à chaque changement, compte à rebours compris |
+| événement `cookie-remaining` | Temps restant d'un cookie actif (`'~3 min'`, `'< 1 min'`) ou `null`, émis au montage et à chaque changement |
 | emplacement `actions` | Boutons de la page hôte, alignés à droite sur la ligne du badge |
 
-**Seule source de l'état du cookie** : une page qui doit griser une action Babelio écoute `cookie-state` au lieu de refaire le calcul de l'expiration. Livres et Auteurs grise ainsi **Valider avec Babelio** et **🔄 Relancer la validation** (`babelioCookieUsable`), et leurs méthodes ne font rien sans cookie actif.
+**Seule source de l'état du cookie** : une page qui doit griser une action Babelio écoute `cookie-state` au lieu de refaire le calcul de l'expiration. Livres et Auteurs grise ainsi **Valider avec Babelio** et **🔄 Relancer la validation** (`babelioCookieUsable`), et leurs méthodes ne font rien sans cookie actif. Pendant **Valider avec Babelio**, la boucle relit `babelioCookieUsable` avant chaque livre : un cookie expiré met la validation en pause (`pauseBabelioValidation()`), que l'événement `saved` reprend une fois le cookie actif. Le serveur signale aussi l'expiration par `reason: "cookie_expired"` dans les résultats `blocked_403` de `verify_book`/`verify_author`, que `BiblioValidationService` remonte dans `data.reason`.
 
 **Bouton dans l'emplacement `actions`** : avec `collapsible` (défaut), la ligne du badge est un `<summary>`. Un clic sur un bouton qui s'y trouve plie ou déplie aussi le panneau : le bouton doit appeler `preventDefault` (`@click.prevent`).
 

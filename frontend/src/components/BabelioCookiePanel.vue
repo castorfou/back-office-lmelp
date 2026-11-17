@@ -131,8 +131,10 @@ export default {
   },
 
   // cookie-state : 'missing' | 'expired' | 'active', émis à chaque changement
-  // (compte à rebours compris) pour que la page grise ses actions Babelio
-  emits: ['saved', 'cookie-state'],
+  // (compte à rebours compris) pour que la page grise ses actions Babelio.
+  // cookie-remaining : temps restant du cookie (« ~3 min », « < 1 min » ou
+  // null), émis à chaque changement, affiché pendant la validation Babelio.
+  emits: ['saved', 'cookie-state', 'cookie-remaining'],
 
   data() {
     return {
@@ -176,6 +178,10 @@ export default {
         minute: '2-digit',
       });
     },
+    // Temps restant d'un cookie actif uniquement (null sinon)
+    activeRemainingLabel() {
+      return this.cookieState === 'active' ? this.remainingLabel : null;
+    },
     remainingLabel() {
       if (this.remainingSec === null) return null;
       return this.remainingSec >= 60 ? `~${Math.round(this.remainingSec / 60)} min` : '< 1 min';
@@ -215,6 +221,12 @@ export default {
       immediate: true,
       handler(state) {
         this.$emit('cookie-state', state);
+      },
+    },
+    activeRemainingLabel: {
+      immediate: true,
+      handler(label) {
+        this.$emit('cookie-remaining', label);
       },
     },
     status: {

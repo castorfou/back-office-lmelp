@@ -228,7 +228,8 @@ Le système distingue les deux causes de blocage :
 
 - **Ban IP** : un bandeau 🚫 « Babelio injoignable : IP bannie, inutile de changer le cookie » s'affiche sur **Livres et Auteurs** et **Liaison Babelio des livres**. Le panneau cookie ne s'ouvre pas : un cookie ne lèverait pas le ban.
 - **Vérification humaine** (cookie copié sans être connecté) : sur **Livres et Auteurs**, **Liaison Babelio des livres** et **Contrôle Babelio**, le message devient 🧩 « Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie ». Sur Livres et Auteurs, le panneau cookie s'ouvre.
-- **403 Babelio** (cookie expiré en cours de traitement, par exemple) :
+- **Cookie expiré pendant « Valider avec Babelio »** : le serveur refuse avant tout envoi et la validation se met en pause (voir [Livres et Auteurs](livres-auteurs-extraction.md)) ; aucun livre n'est marqué bloqué.
+- **403 Babelio** :
     - Sur **Livres et Auteurs** : une bannière rouge ⚠️ s'affiche en haut de page et le panneau cookie s'ouvre
     - Sur **Liaison Babelio des livres** : un bandeau rouge 🚫 « Babelio bloque les requêtes (403) »
       s'affiche en haut de page tant que le circuit breaker est ouvert, ou que le dernier appel a reçu
