@@ -22,6 +22,8 @@ Cette application permet de :
 - **Base de données** : MongoDB
 - **Environnement** : Docker devcontainer avec uv pour le developpement, image docker pour le deploiement (pour installation PC ou Nas)
 
+lmelp fait partie d'une stack plus large (lmelp-mobile, docker-lmelp, Automatisch, PGX, Calibre…). La page [Écosystème lmelp](https://castorfou.github.io/lmelp-mobile/ecosysteme/) décrit qui alimente qui et ce qui déclenche chaque flux.
+
 ## Documentation
 
 ### 👨‍💻 Pour les développeurs (`docs/dev/`)

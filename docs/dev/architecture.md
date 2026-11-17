@@ -4,6 +4,8 @@
 
 L'architecture de lmelp suit un pattern client-serveur classique avec des composants spécialisés pour la gestion de la mémoire et la robustesse du système.
 
+Cette page décrit l'application elle-même. Sa place dans la stack lmelp (flux de données et de code entre lmelp, lmelp-mobile, docker-lmelp, Automatisch, PGX, Calibre, et leurs déclencheurs) est décrite sur la page [Écosystème lmelp](https://castorfou.github.io/lmelp-mobile/ecosysteme/) de lmelp-mobile.
+
 ## Diagramme d'architecture
 
 ```mermaid
