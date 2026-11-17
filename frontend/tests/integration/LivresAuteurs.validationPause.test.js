@@ -204,4 +204,51 @@ describe('LivresAuteurs - pause de validation (Issue #352)', () => {
     validate.mockResolvedValueOnce(notFound);
     await run;
   });
+
+  it('reprend dès que le cookie local redevient actif', async () => {
+    let resolveFirst;
+    validate.mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }));
+    validate.mockResolvedValueOnce(notFound);
+
+    const run = wrapper.vm.validateWithBabelio();
+    await flushPromises();
+    wrapper.vm.babelioCookieState = 'expired';
+    resolveFirst(verified);
+    await flushPromises();
+    expect(wrapper.vm.babelioValidationPaused).toBe(true);
+
+    wrapper.vm.babelioCookieState = 'active';
+    await run;
+
+    expect(validate).toHaveBeenCalledTimes(2);
+    expect(sentBooks().map((b) => b.validation_status)).toEqual(['verified', 'not_found']);
+  });
+
+  it('quitter la page arrête la validation sans rien envoyer', async () => {
+    let resolveFirst;
+    validate.mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }));
+
+    const run = wrapper.vm.validateWithBabelio();
+    await flushPromises();
+    wrapper.unmount();
+    resolveFirst(verified);
+    await run;
+    wrapper = null;
+
+    expect(validate).toHaveBeenCalledTimes(1);
+    expect(livresAuteursService.setValidationResults).not.toHaveBeenCalled();
+  });
+
+  it('quitter la page pendant une pause n\'envoie rien', async () => {
+    validate.mockResolvedValueOnce(verified).mockResolvedValueOnce(cookieExpired);
+
+    const run = wrapper.vm.validateWithBabelio();
+    await flushPromises();
+    expect(wrapper.vm.babelioValidationPaused).toBe(true);
+    wrapper.unmount();
+    await run;
+    wrapper = null;
+
+    expect(livresAuteursService.setValidationResults).not.toHaveBeenCalled();
+  });
 });

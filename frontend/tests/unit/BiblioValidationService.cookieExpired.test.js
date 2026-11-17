@@ -76,4 +76,28 @@ describe('BiblioValidationService - cookie expiré (Issue #352)', () => {
     expect(result.status).toBe('blocked_403');
     expect(result.data.reason).toBe('cookie_expired');
   });
+
+  it('un appel concurrent ne masque pas un cookie expiré', async () => {
+    let resolveBook;
+    const authorNotFound = {
+      status: 'not_found', original: 'Autre', babelio_suggestion: null,
+      confidence_score: 0, babelio_data: null, babelio_url: null, error_message: null,
+    };
+    // Seul le premier appel auteur est refusé pour cookie expiré
+    mockBabelioService.verifyAuthor
+      .mockResolvedValueOnce({ ...cookieExpired })
+      .mockResolvedValue(authorNotFound);
+    mockBabelioService.verifyBook
+      .mockImplementationOnce(() => new Promise((r) => { resolveBook = r; }))
+      .mockResolvedValue({ ...cookieExpired, status: 'not_found', reason: undefined });
+
+    const first = service.validateBiblio('Valérie Manteau', 'Le Sillon', '', null);
+    await vi.waitFor(() => expect(resolveBook).toBeTypeOf('function'));
+    // Une seconde validation démarre pendant la première
+    const second = service.validateBiblio('Autre', 'Autre livre', '', null);
+    resolveBook({ ...cookieExpired, status: 'not_found', reason: undefined });
+
+    expect((await first).data.reason).toBe('cookie_expired');
+    await second;
+  });
 });

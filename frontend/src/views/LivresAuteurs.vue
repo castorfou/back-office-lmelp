@@ -715,7 +715,7 @@ import BiblioValidationCell from '../components/BiblioValidationCell.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
-import BiblioValidationService, { COOKIE_EXPIRED } from '../services/BiblioValidationService.js';
+import BiblioValidationService, { isCookieExpiredResult } from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
 import { toRowStatus, isTransientStatus } from '../utils/validationStatus.js';
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
@@ -1002,6 +1002,13 @@ export default {
       }
     }, 500),
 
+    // Pause de validation : reprendre dès que le cookie redevient actif (Issue #352)
+    babelioCookieState(state) {
+      if (this.babelioValidationPaused && state === 'active') {
+        this.resumeBabelioValidation(true);
+      }
+    },
+
     // Issue #304: ouvrir automatiquement le panneau cookie quand un blocage est détecté
     // Un ban IP ne se règle pas avec un cookie : le panneau reste fermé.
     async babelioBlocked(isBlocked) {
@@ -1064,7 +1071,9 @@ export default {
 
   beforeUnmount() {
     if (this._onKeydown) window.removeEventListener('keydown', this._onKeydown, true);
-    // Ne pas laisser une validation en pause attendre indéfiniment
+    // Arrêter la validation Babelio en cours (en pause ou non) sans rien
+    // envoyer ni interroger Babelio pour une page quittée (Issue #352)
+    this._leftPage = true;
     this.stopBabelioValidation();
   },
 
@@ -1342,6 +1351,7 @@ export default {
         // Une seule passe livre par livre : verify_book y fournit aussi l'URL
         // et l'éditeur Babelio (Issue #352, plus de phase d'enrichissement)
         await this.autoValidateAndSendResults();
+        if (this._leftPage) return;
         // Recharger les livres depuis le cache avec les vrais statuts
         this.books = await livresAuteursService.getLivresAuteurs({ episode_oid: this.selectedEpisodeId });
         this.applyTransientStatuses();
@@ -1971,7 +1981,7 @@ export default {
         // Valider chaque livre avec BiblioValidationService
         const booksToValidate = this.books;
         let index = 0;
-        while (index < booksToValidate.length) {
+        while (index < booksToValidate.length && !this._leftPage) {
           const book = booksToValidate[index];
           this.validatingBookKey = this.getBookKey(book);
           if (this.validatingWithBabelio) {
@@ -1996,9 +2006,7 @@ export default {
 
             // Refus du serveur pour cookie expiré (Issue #352) : ce résultat est
             // écarté, le livre sera revalidé entièrement après la pause
-            if (this.validatingWithBabelio
-                && validationResult.status === 'blocked_403'
-                && validationResult.data?.reason === COOKIE_EXPIRED) {
+            if (this.validatingWithBabelio && isCookieExpiredResult(validationResult)) {
               if (await this.pauseBabelioValidation()) continue;
               break;
             }
@@ -2044,6 +2052,8 @@ export default {
           index += 1;
         }
         this.validatingBookKey = null;
+        // Page quittée : les résultats non envoyés sont abandonnés (Issue #352)
+        if (this._leftPage) return;
 
         // Récupérer l'avis_critique_id depuis l'épisode sélectionné
   const selectedEpisode = this.episodesWithReviews?.find(ep => String(ep.id) === String(this.selectedEpisodeId));
