@@ -125,24 +125,26 @@
       <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
       <div v-if="selectedEpisodeId && !loading && (booksNeedValidation || validatingWithBabelio)" class="babelio-validate-bar">
         <span>Des livres de cet épisode ne sont pas encore validés avec Babelio.</span>
-        <button
-          @click="validateWithBabelio"
-          :disabled="validatingWithBabelio || !babelioCookieUsable"
-          :title="babelioCookieUsable ? null : babelioCookieMissingHint"
-          class="btn-validate-babelio"
-          data-test="validate-babelio-button"
-        >
-          {{ babelioValidationLabel }}
-        </button>
-        <button
-          v-if="babelioValidationPaused"
-          @click="stopBabelioValidation"
-          class="btn-stop-babelio"
-          data-test="stop-babelio-validation"
-          title="Enregistrer les livres déjà validés et laisser les autres à valider"
-        >
-          ⏹ Arrêter
-        </button>
+        <div class="babelio-validate-actions">
+          <button
+            @click="validateWithBabelio"
+            :disabled="validatingWithBabelio || !babelioCookieUsable"
+            :title="babelioCookieUsable ? null : babelioCookieMissingHint"
+            class="btn-validate-babelio"
+            data-test="validate-babelio-button"
+          >
+            {{ babelioValidationLabel }}
+          </button>
+          <button
+            v-if="babelioValidationPaused"
+            @click="stopBabelioValidation"
+            class="btn-stop-babelio"
+            data-test="stop-babelio-validation"
+            title="Enregistrer les livres déjà validés et laisser les autres à valider"
+          >
+            ⏹ Arrêter
+          </button>
+        </div>
       </div>
 
       <!-- Alerte blocage Babelio : ban IP (connexion qui n'aboutit pas) ou 403 (cookie) -->
@@ -3485,9 +3487,17 @@ export default {
   color: #664d03;
 }
 
-.btn-validate-babelio {
+.babelio-validate-actions {
+  display: flex;
+  gap: 0.5rem;
   flex-shrink: 0;
   max-width: 60%;
+  min-width: 0;
+}
+
+.btn-validate-babelio {
+  flex-shrink: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3526,8 +3536,13 @@ export default {
     align-items: stretch;
   }
 
-  .btn-validate-babelio {
+  .babelio-validate-actions {
     max-width: 100%;
+    flex-direction: column;
+  }
+
+  .btn-validate-babelio {
+    white-space: normal;
   }
 }
 
