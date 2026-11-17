@@ -314,9 +314,10 @@ def _babelio_blocked_response(error: Exception) -> JSONResponse | None:
     Un blocage (403 Babelio, cookie périmé, circuit breaker ouvert) n'est pas une
     panne serveur : le frontend doit inviter à coller un cookie frais. Comparaison
     par nom de classe : le module babelio_service peut être chargé en deux copies
-    (imports `src.` legacy dans les tests), cf. CLAUDE.md.
+    (imports `src.` legacy dans les tests), cf. CLAUDE.md. Le MRO couvre les
+    sous-classes (BabelioCookieExpiredError).
     """
-    if type(error).__name__ != "BabelioBlockedError":
+    if not any(cls.__name__ == "BabelioBlockedError" for cls in type(error).__mro__):
         return None
     return JSONResponse(
         status_code=403, content={"status": "blocked", "message": str(error)}
