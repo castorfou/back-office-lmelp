@@ -149,7 +149,7 @@
         <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
       </div>
 
-      <!-- Cookie Babelio (jstsToken) : le serveur est la seule source du cookie -->
+      <!-- Cookie Babelio : le serveur est la seule source du cookie -->
       <section v-if="selectedEpisodeId" class="babelio-cookie-section">
         <BabelioCookiePanel
           :status="babelioStatus"

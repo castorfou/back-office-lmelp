@@ -365,7 +365,7 @@ localStorage.debug = '*'
 **Solution :**
 
 1. Ouvrez [babelio.com](https://www.babelio.com) dans Firefox (même machine que le serveur)
-2. Si un captcha s'affiche, résolvez-le
+2. Connectez-vous à votre compte Babelio ; si un captcha s'affiche, résolvez-le
 3. Appuyez sur **F12** → onglet **Réseau** → rechargez la page (F5)
 4. Cliquez sur la requête `/` vers `babelio.com`
 5. Dans **En-têtes de la requête**, faites un clic droit sur **Cookie** → **Copier la valeur**
@@ -375,8 +375,9 @@ localStorage.debug = '*'
 7. Une confirmation « ✓ Cookie enregistré » s'affiche ; la bannière de blocage disparaît
 8. Relancez les validations
 
-Si le panneau affiche un message sous le champ (« Ce n'est pas un en-tête Cookie », « jstsToken
-absent »…), la valeur copiée n'est pas la bonne : reprenez l'étape 5.
+Si le panneau affiche un message sous le champ (« Ce n'est pas un en-tête Cookie », « PHPSESSID
+absent »…), la valeur copiée n'est pas la bonne : vérifiez que vous êtes connecté à Babelio, puis
+reprenez l'étape 5.
 
 **Durée de validité :** Le cookie expire après ~5 minutes. Le badge indique le temps restant,
 puis passe à « ⏰ périmé — collez un cookie frais ». Si le blocage revient (nouvelle bannière

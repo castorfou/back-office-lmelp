@@ -3533,7 +3533,7 @@ async def probe_babelio() -> dict[str, Any]:
 
 @app.post("/api/babelio/cookie")
 async def set_babelio_cookie(request: Request) -> dict[str, Any]:
-    """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
+    """Stocke le cookie Babelio côté serveur pour toutes les requêtes Babelio."""
     body = await request.json()
     cookie = body.get("cookie") or None
     if cookie is not None:
@@ -3542,7 +3542,7 @@ async def set_babelio_cookie(request: Request) -> dict[str, Any]:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
     # Cette requête part du navigateur qui vient de récupérer le cookie : ses
-    # en-têtes sont ceux pour lesquels Babelio a émis le jstsToken.
+    # en-têtes sont ceux pour lesquels Babelio a ouvert la session.
     babelio_service.set_cookie(
         cookie,
         user_agent=request.headers.get("user-agent"),

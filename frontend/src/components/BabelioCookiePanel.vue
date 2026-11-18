@@ -21,7 +21,8 @@
       </component>
       <div class="babelio-cookie-form">
         <p class="cookie-help">
-          Le cookie <code>jstsToken</code> (TTL ~5 min) est requis pour éviter les blocages 403.
+          Le cookie de session d'un navigateur <strong>connecté</strong> à Babelio est requis pour éviter les blocages 403.
+          Il reste actif 5 min après son enregistrement.
           Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
           Le navigateur n'en garde aucun : chaque cookie se colle frais.
           <slot />
@@ -48,7 +49,7 @@
           <textarea
             v-model="cookieInput"
             class="cookie-input"
-            placeholder="jstsToken=...; p=FR; disclaimer=1; ..."
+            placeholder="PHPSESSID=...; id_user=...; bbac=...; ..."
             rows="2"
             autocomplete="off"
             :aria-invalid="formatError ? 'true' : 'false'"

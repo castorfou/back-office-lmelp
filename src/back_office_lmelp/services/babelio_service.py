@@ -129,7 +129,7 @@ class BabelioBlockedError(Exception):
     """Levée quand Babelio renvoie HTTP 403 (blocage anti-bot).
 
     Distingue un blocage anti-bot d'un "vraiment pas trouvé sur Babelio" (Issue #251).
-    Le cookie jstsToken (TTL ~5 min) est probablement manquant ou expiré.
+    Le cookie Babelio est probablement expiré, ou sa session fermée.
     """
 
 
@@ -171,6 +171,12 @@ def is_anonymous_cookie(cookie: str) -> bool:
         if name.strip() == "id_user" and value.strip():
             return False
     return True
+
+
+PHPSESSID_MISSING_MESSAGE = (
+    "PHPSESSID absent : connectez-vous à babelio.com, rechargez la page et "
+    "copiez l'en-tête Cookie de la requête « / »."
+)
 
 
 def normalize_cookie_header(raw: str) -> str:
@@ -215,11 +221,10 @@ def normalize_cookie_header(raw: str) -> str:
             )
         pairs[name] = cookie_value.strip()
 
-    if not pairs.get("jstsToken"):
-        raise ValueError(
-            "jstsToken absent : rechargez babelio.com et copiez l'en-tête Cookie "
-            "de la requête « / »."
-        )
+    # Babelio ne pose plus de jstsToken (Issue #367) : s'il est là, il part avec
+    # le reste ; le cookie de session, lui, est toujours requis.
+    if not pairs.get("PHPSESSID"):
+        raise ValueError(PHPSESSID_MISSING_MESSAGE)
     return value
 
 
@@ -264,14 +269,16 @@ class BabelioService:
         self._blocked_responses: deque[dict[str, Any]] = deque(
             maxlen=BLOCKED_RESPONSES_KEPT
         )
-        # Cookie stocké côté serveur (jstsToken) — posé via set_cookie(), utilisé partout
+        # Cookie stocké côté serveur — posé via set_cookie(), utilisé partout
         self._stored_cookie: str | None = None
         # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
         # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
-        # jstsToken expiré, et ses 403 se transforment en ban IP d'environ 24 h).
+        # cookie expiré, et ses 403 se transforment en ban IP d'environ 24 h).
+        # Les 5 min par défaut viennent de la durée de vie du jstsToken, que
+        # Babelio ne pose plus : celle de la session reste à mesurer.
         self._cookie_set_at: float | None = None
-        # Identité du navigateur qui a fourni le cookie : le jstsToken est émis
-        # pour ce navigateur, les requêtes doivent porter le même User-Agent.
+        # Identité du navigateur qui a fourni le cookie : la session Babelio est
+        # ouverte pour ce navigateur, les requêtes doivent porter le même User-Agent.
         self._browser_user_agent: str | None = None
         self._browser_accept_language: str | None = None
         self.connect_timeout_sec = 10.0
@@ -379,7 +386,7 @@ class BabelioService:
         user_agent: str | None = None,
         accept_language: str | None = None,
     ) -> None:
-        """Stocke le cookie jstsToken côté serveur pour toutes les requêtes Babelio."""
+        """Stocke le cookie Babelio côté serveur pour toutes les requêtes Babelio."""
         self._stored_cookie = cookie.strip() if cookie else None
         self._cookie_set_at = time.time() if self._stored_cookie else None
         self._browser_user_agent = user_agent if self._stored_cookie else None
@@ -627,7 +634,7 @@ class BabelioService:
 
         curl_cffi imite l'empreinte TLS et HTTP/2 de Firefox : une requête
         aiohttp (TLS de Python, HTTP/1.1) se distingue du navigateur qui a
-        obtenu le jstsToken, et Babelio bannit l'IP dès la première requête.
+        fourni le cookie, et Babelio bannit l'IP dès la première requête.
         Les en-têtes passés remplacent ceux de l'imitation (User-Agent et
         Accept-Language du navigateur, cookie).
 
@@ -1031,8 +1038,9 @@ class BabelioService:
                 "babelio_data": None,
                 "babelio_url": None,
                 "error_message": (
-                    "Babelio a bloqué la requête (403). Le cookie jstsToken est "
-                    "probablement expiré — collez un cookie frais."
+                    "Babelio a bloqué la requête (403). Le cookie Babelio est "
+                    "probablement expiré ou la session fermée — connectez-vous "
+                    "à babelio.com et collez un cookie frais."
                 ),
             }
         except (TimeoutError, aiohttp.ClientError):
@@ -1303,8 +1311,9 @@ class BabelioService:
                 "babelio_url": None,
                 "babelio_author_url": None,
                 "error_message": (
-                    "Babelio a bloqué la requête (403). Le cookie jstsToken est "
-                    "probablement expiré — collez un cookie frais."
+                    "Babelio a bloqué la requête (403). Le cookie Babelio est "
+                    "probablement expiré ou la session fermée — connectez-vous "
+                    "à babelio.com et collez un cookie frais."
                 ),
             }
         except (TimeoutError, aiohttp.ClientError):

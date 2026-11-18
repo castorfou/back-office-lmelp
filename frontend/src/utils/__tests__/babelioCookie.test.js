@@ -14,9 +14,15 @@ describe('checkBabelioCookie', () => {
     expect(checkBabelioCookie(`  ${FIREFOX_COOKIE}  `)).toEqual({ value: FIREFOX_COOKIE, error: null });
   });
 
+  it('accepte un cookie de session connecté sans jstsToken', () => {
+    // Noms relevés depuis que Babelio ne pose plus de jstsToken (Issue #367)
+    const cookie = 'bbacml=0; disclaimer=1; p=FR; PHPSESSID=fakesession123; bbac=00ff; id_user=1';
+    expect(checkBabelioCookie(cookie)).toEqual({ value: cookie, error: null });
+  });
+
   it('retire un préfixe « Cookie: » collé par mégarde', () => {
-    expect(checkBabelioCookie('Cookie: jstsToken=AbCd; p=FR')).toEqual({
-      value: 'jstsToken=AbCd; p=FR',
+    expect(checkBabelioCookie('Cookie: PHPSESSID=abc; p=FR')).toEqual({
+      value: 'PHPSESSID=abc; p=FR',
       error: null,
     });
   });
@@ -26,8 +32,8 @@ describe('checkBabelioCookie', () => {
     ['Set-Cookie', 'jstsToken=AbCd; path=/; expires=Sat, 15 Nov 2026 12:00:00 GMT; HttpOnly', 'Set-Cookie'],
     ['plusieurs lignes', 'Host: www.babelio.com\nCookie: jstsToken=AbCd; p=FR', 'Plusieurs lignes'],
     ['jeton seul', 'AbCd%2FeF%2BgH%3D%3D', 'en-tête Cookie'],
-    ['sans jstsToken', 'disclaimer=1; p=FR; PHPSESSID=fakesession123', 'jstsToken absent'],
-    ['jstsToken vide', 'jstsToken=; disclaimer=1', 'jstsToken absent'],
+    ['fenêtre privée non connectée', 'p=FR; disclaimer=1; g_state={}', 'PHPSESSID absent : connectez-vous'],
+    ['PHPSESSID vide', 'PHPSESSID=; disclaimer=1', 'PHPSESSID absent'],
   ])('refuse : %s', (_label, pasted, expected) => {
     const { error } = checkBabelioCookie(pasted);
     expect(error).toContain(expected);
