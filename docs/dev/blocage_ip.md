@@ -31,6 +31,8 @@ L'essai ne peut pas prolonger un ban : une IP bannie est déjà ignorée par le 
 
 Le motif `captcha` correspond à un cookie copié sans être connecté au compte Babelio : `GET /api/babelio/status` renvoie alors `overall: "captcha"`. `POST /api/babelio/cookie` accepte un cookie sans `id_user` mais renvoie un `warning`, et le statut expose `cookie_anonymous`. Ce contrôle ne voit que le cas d'un navigateur jamais connecté : `id_user` et `bbac` restent dans le navigateur après une déconnexion, et seules les valeurs de `bbac` et `PHPSESSID` distinguent alors une session ouverte, côté serveur Babelio.
 
+Le serveur imite l'empreinte réseau de Firefox (`IMPERSONATE_BROWSER`) mais reprend le User-Agent du navigateur qui envoie `POST /api/babelio/cookie`. Si ce User-Agent n'est pas celui d'un Firefox (`is_firefox_user_agent()` : `Firefox/` et `Gecko/`, sans `Chrome/`), le cookie est accepté mais la réponse porte un `browser_warning`, et le statut expose `cookie_browser_not_firefox`. Sans User-Agent, les requêtes partent avec `DEFAULT_USER_AGENT` (un Firefox) : pas d'avertissement.
+
 Voici les grandes étapes du contournement :
 
 - [Phase 1](#phase-1-dump-restore-vers-le-local-sur-reseau-domestique-avant-de-basculer) — Dump + restore vers le local

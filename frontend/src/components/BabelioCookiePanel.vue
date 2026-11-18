@@ -80,6 +80,7 @@
         </template>
 
         <p v-if="anonymousWarning" class="cookie-anonymous-warning" data-test="cookie-anonymous-warning">⚠ {{ anonymousWarning }}</p>
+        <p v-if="browserWarning" class="cookie-browser-warning" data-test="cookie-browser-warning">⚠ {{ browserWarning }}</p>
 
         <div v-if="justSaved || saveError" class="cookie-feedback">
           <span v-if="justSaved" class="cookie-saved-confirmation" data-test="cookie-saved-confirmation">✓ Cookie enregistré</span>
@@ -108,6 +109,13 @@ const BADGES = {
 const ANONYMOUS_COOKIE_WARNING =
   'Cookie anonyme : Babelio risque de demander une vérification humaine. '
   + 'Connectez-vous à Babelio puis copiez un nouveau cookie.';
+
+// Repli si le statut serveur signale un navigateur autre que Firefox
+// (même texte que BABELIO_NON_FIREFOX_WARNING côté serveur)
+const NON_FIREFOX_WARNING =
+  "Cookie enregistré depuis un navigateur qui n'est pas Firefox : lmelp imite "
+  + 'Firefox, Babelio risque de refuser les requêtes (403, puis ban IP). '
+  + 'Enregistrez le cookie depuis le Firefox connecté à Babelio.';
 
 // Rafraîchissement du temps restant affiché (pas d'appel serveur)
 const CLOCK_TICK_MS = 5000;
@@ -144,6 +152,8 @@ export default {
       saveError: null,
       // Avertissement renvoyé par POST /api/babelio/cookie (cookie anonyme)
       saveWarning: null,
+      // Avertissement renvoyé par POST /api/babelio/cookie (navigateur pas Firefox)
+      saveBrowserWarning: null,
       // Champ de saisie ouvert alors qu'un cookie actif est déjà sur le serveur
       replacing: false,
       // Horloge locale : fait vieillir le cookie entre deux statuts serveur
@@ -194,11 +204,20 @@ export default {
       }
       return null;
     },
+    // lmelp imite l'empreinte de Firefox : un autre User-Agent la contredit
+    browserWarning() {
+      if (this.saveBrowserWarning) return this.saveBrowserWarning;
+      if (this.status?.cookie_active && this.status.cookie_browser_not_firefox === true) {
+        return NON_FIREFOX_WARNING;
+      }
+      return null;
+    },
     badge() {
       const badge = BADGES[this.cookieState];
       if (this.cookieState !== 'active') return badge;
       const parts = [badge.label];
       if (this.anonymousWarning) parts.push('⚠ anonyme');
+      if (this.browserWarning) parts.push('⚠ pas Firefox');
       if (this.savedAtLabel) parts.push(`enregistré à ${this.savedAtLabel}`);
       if (this.remainingLabel) parts.push(`expire dans ${this.remainingLabel}`);
       return { ...badge, label: parts.join(' · ') };
@@ -300,9 +319,11 @@ export default {
       this.saving = true;
       this.saveError = null;
       this.saveWarning = null;
+      this.saveBrowserWarning = null;
       try {
         const response = await axios.post('/api/babelio/cookie', { cookie: value });
         this.saveWarning = response?.data?.warning || null;
+        this.saveBrowserWarning = response?.data?.browser_warning || null;
       } catch (error) {
         this.saveError = error?.response?.data?.detail || "Échec de l'enregistrement du cookie";
         return;
@@ -431,7 +452,8 @@ summary.babelio-cookie-summary {
   gap: 0.5rem;
 }
 
-.cookie-anonymous-warning {
+.cookie-anonymous-warning,
+.cookie-browser-warning {
   font-size: 0.8rem;
   color: #856404;
   background: #fff3cd;

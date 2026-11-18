@@ -190,7 +190,9 @@ Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et 
 
 **Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (240 s par défaut), refuse d'appeler Babelio plutôt que de risquer un 403.
 
-**Les requêtes portent l'identité de votre navigateur** : en cliquant sur **Enregistrer**, le navigateur transmet aussi son User-Agent et sa langue. Le serveur les reprend pour toutes les requêtes Babelio, avec l'empreinte réseau d'un Firefox (TLS et HTTP/2). Babelio ouvre la session pour ce navigateur : présenté par un client différent, le cookie trahit un robot. Récupérez donc le cookie avec le navigateur depuis lequel vous utilisez lmelp. La page **Contrôle Babelio** (`GET /api/babelio/status`) affiche l'identité retenue.
+**Les requêtes portent l'identité de votre navigateur** : en cliquant sur **Enregistrer**, le navigateur transmet aussi son User-Agent et sa langue. Le serveur les reprend pour toutes les requêtes Babelio, avec l'empreinte réseau d'un Firefox (TLS et HTTP/2). Babelio ouvre la session pour ce navigateur : présenté par un client différent, le cookie trahit un robot. Récupérez donc le cookie dans Firefox, et enregistrez-le depuis ce même Firefox. La page **Contrôle Babelio** (`GET /api/babelio/status`) affiche l'identité retenue.
+
+**Un cookie enregistré depuis un autre navigateur est signalé** : empreinte Firefox et User-Agent d'un autre navigateur (Chrome, Edge, le navigateur intégré de VS Code…) se contredisent, et l'anti-bot de Babelio peut répondre 403, puis bannir l'IP. Le cookie est accepté, mais le panneau affiche « Cookie enregistré depuis un navigateur qui n'est pas Firefox… » et le badge porte « ⚠ pas Firefox » tant que ce cookie est actif. Est reconnu comme Firefox un User-Agent qui contient `Firefox/` et `Gecko/`, sans `Chrome/` ; sa version n'est pas comparée à celle imitée par le serveur.
 
 !!! warning "Un 403 Babelio devient un ban IP"
     Quelques minutes après un 403, Babelio ignore toute connexion venant de l'IP

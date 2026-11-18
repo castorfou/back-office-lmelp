@@ -226,6 +226,40 @@ describe('BabelioCookiePanel', () => {
     });
   });
 
+  // Issue #368 : lmelp imite l'empreinte réseau de Firefox ; un User-Agent
+  // d'un autre navigateur la contredit (403, puis ban IP)
+  describe('navigateur qui n\'est pas Firefox', () => {
+    const BROWSER_WARNING = "Cookie enregistré depuis un navigateur qui n'est pas Firefox : lmelp imite Firefox, Babelio risque de refuser les requêtes (403, puis ban IP). Enregistrez le cookie depuis le Firefox connecté à Babelio.";
+
+    it('affiche l\'avertissement renvoyé par le serveur à l\'enregistrement', async () => {
+      axios.post.mockResolvedValueOnce({ data: { ok: true, warning: null, browser_warning: BROWSER_WARNING } });
+      wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
+      await wrapper.find('textarea').setValue('PHPSESSID=fresh; id_user=1');
+      await wrapper.find('[data-test="cookie-save"]').trigger('click');
+      await flushPromises();
+
+      expect(wrapper.find('[data-test="cookie-browser-warning"]').text()).toContain("n'est pas Firefox");
+    });
+
+    it('garde l\'avertissement tant que le cookie actif vient d\'un autre navigateur (statut serveur)', () => {
+      wrapper = mount(BabelioCookiePanel, {
+        props: { status: { cookie_active: true, cookie_anonymous: false, cookie_browser_not_firefox: true, cookie_age_sec: 10, cookie_max_age_sec: 300, cookie_expired: false } },
+      });
+      expect(wrapper.find('[data-test="cookie-browser-warning"]').text()).toContain('depuis le Firefox connecté');
+      // Visible aussi panneau replié
+      expect(badgeText(wrapper)).toContain('pas Firefox');
+      expect(wrapper.find('[data-test="cookie-anonymous-warning"]').exists()).toBe(false);
+    });
+
+    it('pas d\'avertissement pour un cookie enregistré depuis Firefox', () => {
+      wrapper = mount(BabelioCookiePanel, {
+        props: { status: { cookie_active: true, cookie_anonymous: false, cookie_browser_not_firefox: false, cookie_age_sec: 10, cookie_max_age_sec: 300, cookie_expired: false } },
+      });
+      expect(wrapper.find('[data-test="cookie-browser-warning"]').exists()).toBe(false);
+      expect(badgeText(wrapper)).not.toContain('Firefox');
+    });
+  });
+
   // Un collage refusé (PHPSESSID absent…) se vide d'un clic
   it('« Vider » efface le texte collé et son erreur, sans toucher au cookie serveur', async () => {
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });

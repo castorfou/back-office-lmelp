@@ -73,6 +73,11 @@ BABELIO_ANONYMOUS_COOKIE_WARNING = (
     "Cookie anonyme : Babelio risque de demander une vérification humaine. "
     "Connectez-vous à Babelio puis copiez un nouveau cookie."
 )
+BABELIO_NON_FIREFOX_WARNING = (
+    "Cookie enregistré depuis un navigateur qui n'est pas Firefox : lmelp imite "
+    "Firefox, Babelio risque de refuser les requêtes (403, puis ban IP). "
+    "Enregistrez le cookie depuis le Firefox connecté à Babelio."
+)
 # Titre de la page renvoyée en 403 à un cookie anonyme (curseur à glisser)
 CAPTCHA_403_TITLE = "vérification de sécurité"
 
@@ -193,6 +198,23 @@ def is_anonymous_cookie(cookie: str) -> bool:
         if name.strip() == "id_user" and value.strip():
             return False
     return True
+
+
+def is_firefox_user_agent(user_agent: str | None) -> bool:
+    """True si les requêtes partiront avec un User-Agent de Firefox.
+
+    Sans User-Agent, le serveur envoie DEFAULT_USER_AGENT (un Firefox). Le
+    User-Agent de Chrome contient « like Gecko » mais pas « Gecko/ ». La version
+    n'est pas comparée à IMPERSONATE_BROWSER : Firefox se met à jour plus vite
+    que curl_cffi, l'écart de version est celui de tout utilisateur réel.
+    """
+    if not user_agent:
+        return True
+    return (
+        "Firefox/" in user_agent
+        and "Gecko/" in user_agent
+        and "Chrome/" not in user_agent
+    )
 
 
 BLOCKED_403_MESSAGE = (
@@ -433,6 +455,12 @@ class BabelioService:
         if not self._stored_cookie:
             return None
         return is_anonymous_cookie(self._stored_cookie)
+
+    def get_cookie_browser_not_firefox(self) -> bool | None:
+        """True si le cookie vient d'un navigateur autre que Firefox, None sans cookie."""
+        if not self._stored_cookie:
+            return None
+        return not is_firefox_user_agent(self._browser_user_agent)
 
     def _ensure_cookie_fresh(self) -> None:
         """Lève BabelioBlockedError si le cookie stocké est périmé.

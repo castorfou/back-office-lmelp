@@ -54,6 +54,7 @@ from .services.babelio_cache_service import BabelioCacheService
 from .services.babelio_migration_service import BabelioMigrationService
 from .services.babelio_service import (
     BABELIO_ANONYMOUS_COOKIE_WARNING,
+    BABELIO_NON_FIREFOX_WARNING,
     CIRCUIT_REASON_CAPTCHA,
     PRECHECK_PROBE_TIMEOUT_SEC,
     PROBE_TIMEOUT_SEC,
@@ -3501,6 +3502,9 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
             cookie_age_sec is not None and cookie_age_sec >= cookie_max_age_sec
         ),
         "cookie_anonymous": babelio_service.get_cookie_anonymous(),
+        "cookie_browser_not_firefox": (
+            babelio_service.get_cookie_browser_not_firefox()
+        ),
         "browser_user_agent": babelio_service.get_browser_identity()["user_agent"],
         "browser_accept_language": babelio_service.get_browser_identity()[
             "accept_language"
@@ -3555,7 +3559,18 @@ async def set_babelio_cookie(request: Request) -> dict[str, Any]:
         if cookie and is_anonymous_cookie(cookie)
         else None
     )
-    return {"ok": True, "cookie_active": bool(cookie), "warning": warning}
+    # Empreinte Firefox + User-Agent d'un autre navigateur : prévenir sans refuser
+    browser_warning = (
+        BABELIO_NON_FIREFOX_WARNING
+        if babelio_service.get_cookie_browser_not_firefox()
+        else None
+    )
+    return {
+        "ok": True,
+        "cookie_active": bool(cookie),
+        "warning": warning,
+        "browser_warning": browser_warning,
+    }
 
 
 @app.delete("/api/babelio/cookie")
