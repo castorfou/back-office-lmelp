@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from back_office_lmelp.app import app
 from back_office_lmelp.services.babelio_service import (
     babelio_service,
+    is_firefox_user_agent,
     normalize_cookie_header,
 )
 
@@ -213,3 +214,34 @@ def test_cookie_without_user_agent_has_no_browser_warning(client):
     )
 
     assert response.json()["browser_warning"] is None
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "expected"),
+    [
+        # Firefox de bureau
+        (FIREFOX_UA, True),
+        # Firefox Android : moteur Gecko, même empreinte réseau
+        (
+            "Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0",
+            True,
+        ),
+        # Firefox iOS : moteur WebKit, empreinte d'un Safari
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/132.0 Mobile/15E148 "
+            "Safari/605.1.15",
+            False,
+        ),
+        # Edge : « like Gecko » sans « Gecko/ »
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+            False,
+        ),
+        # Navigateur intégré de VS Code
+        (VSCODE_UA, False),
+    ],
+)
+def test_firefox_user_agent_criterion(user_agent, expected):
+    assert is_firefox_user_agent(user_agent) is expected
