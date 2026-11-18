@@ -240,4 +240,31 @@ describe('LivresAuteurs - tableau mis à jour au fil de la validation (Issue #35
     expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalledWith('c1');
     expect(livresAuteursService.autoProcessVerifiedBooks).toHaveBeenCalledWith('c2');
   });
+
+  it('masque « Traiter » tant que la validation tourne (livre pas encore enregistré)', async () => {
+    await mountWithBooks();
+    wrapper.vm.babelioCookieState = 'active';
+    const second = deferred();
+    vi.spyOn(BiblioValidationService, 'validateBiblio')
+      .mockResolvedValueOnce({ status: 'verified', data: { original: {}, source: 'babelio' } })
+      .mockReturnValueOnce(second.promise);
+
+    const run = wrapper.vm.validateWithBabelio();
+    await flushPromises();
+
+    const traiter = () => rowOf('Le Sillon').find('[data-testid="auto-process-verified-btn"]');
+    expect(rowOf('Le Sillon').find('[data-testid="validation-success"]').exists()).toBe(true);
+    expect(traiter().exists()).toBe(false);
+
+    livresAuteursService.getLivresAuteurs.mockResolvedValue([
+      { ...makeBooks()[0], status: 'verified', cache_id: 'c1' },
+      { ...makeBooks()[1], status: 'not_found', cache_id: 'c2' },
+    ]);
+    livresAuteursService.autoProcessVerifiedBooks.mockResolvedValue({ processed_count: 0 });
+    second.resolve({ status: 'not_found', data: { original: {} } });
+    await run;
+    await flushPromises();
+
+    expect(traiter().exists()).toBe(true);
+  });
 });

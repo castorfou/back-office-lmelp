@@ -384,7 +384,7 @@
                   <!-- Action buttons hidden for mongo status -->
                   <template v-if="book.status !== 'mongo'">
                     <button
-                      v-if="getValidationStatus(book) === 'verified'"
+                      v-if="getValidationStatus(book) === 'verified' && !validatingWithBabelio"
                       @click="autoProcessVerified(book)"
                       class="btn btn-success btn-sm"
                       data-testid="auto-process-verified-btn"
