@@ -46,8 +46,13 @@ export function checkBabelioCookie(raw) {
     pairs[name] = part.slice(sep + 1).trim();
   }
 
-  if (!pairs.jstsToken) {
-    return { value, error: "jstsToken absent : rechargez babelio.com et copiez l'en-tête Cookie de la requête « / »." };
+  // Babelio ne pose plus de jstsToken (Issue #367) : s'il est là, il part avec
+  // le reste ; le cookie de session, lui, est toujours requis.
+  if (!pairs.PHPSESSID) {
+    return {
+      value,
+      error: "PHPSESSID absent : connectez-vous à babelio.com, rechargez la page et copiez l'en-tête Cookie de la requête « / ».",
+    };
   }
   return { value, error: null };
 }

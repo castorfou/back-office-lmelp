@@ -1064,7 +1064,7 @@ if html is None:
 
 **Why**: Babelio's anti-bot checks the client's identity, not only its rate. A 403
 turns into a ~24 h firewall ban of the IP, and one request whose fingerprint differs
-from the browser that obtained the `jstsToken` is enough. `_send()` uses `curl_cffi`
+from the browser that supplied the cookie is enough. `_send()` uses `curl_cffi`
 with `impersonate=IMPERSONATE_BROWSER` (Firefox TLS/JA4 + HTTP/2) and the browser's
 own `User-Agent` / `Accept-Language`, captured from the `POST /api/babelio/cookie`
 request (`set_cookie(..., user_agent=, accept_language=)`). aiohttp speaks HTTP/1.1
@@ -1073,7 +1073,7 @@ with an OpenSSL fingerprint: distinguishable before any header is read.
 **The cookie comes from the server only**: requests carry `self._stored_cookie`, set
 through `POST /api/babelio/cookie`, which checks its shape (`normalize_cookie_header()`)
 and dates it on receipt. Never accept a cookie in a request body, and never keep one in
-`localStorage`/`sessionStorage`: an old `jstsToken` sent back looks fresh to the server,
+`localStorage`/`sessionStorage`: an old cookie sent back looks fresh to the server,
 escapes `BABELIO_COOKIE_MAX_AGE_SEC`, and earns a 403. The UI reads the cookie's state
 from `GET /api/babelio/status` (`cookie_age_sec`, `cookie_expired`), through the shared
 `BabelioCookiePanel.vue`.

@@ -27,7 +27,7 @@ Frontend (Vue) ──POST /api/babelio/extract-cover-url──▶ Backend (FastA
 
 Les en-têtes de navigation Firefox (`Sec-Fetch-*`, `User-Agent` et `Accept-Language` du navigateur qui a fourni le cookie) sont construits par `BabelioService._get_page_headers()`, et la requête part par `_send()` (empreinte TLS/HTTP2 de Firefox via `curl_cffi`).
 
-Le seul cookie envoyé est celui du serveur, enregistré par `POST /api/babelio/cookie` (panneau **🔑 Cookie Babelio**). La requête du frontend ne transporte aucun cookie : un cookie joint par le client échapperait au contrôle d'âge (`BABELIO_COOKIE_MAX_AGE_SEC`), et un vieux `jstsToken` provoque un 403, que Babelio transforme en ban IP.
+Le seul cookie envoyé est celui du serveur, enregistré par `POST /api/babelio/cookie` (panneau **🔑 Cookie Babelio**). La requête du frontend ne transporte aucun cookie : un cookie joint par le client échapperait au contrôle d'âge (`BABELIO_COOKIE_MAX_AGE_SEC`), et un vieux cookie provoque un 403, que Babelio transforme en ban IP.
 
 ```python
 # Dans app.py

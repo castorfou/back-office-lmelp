@@ -2,7 +2,7 @@
 
 Cette requête part du navigateur qui vient de récupérer le cookie sur
 babelio.com : son User-Agent et son Accept-Language sont ceux pour lesquels
-Babelio a émis le jstsToken.
+Babelio a ouvert la session.
 """
 
 import pytest
@@ -28,7 +28,7 @@ def test_cookie_endpoint_records_browser_identity():
     client = TestClient(app)
     response = client.post(
         "/api/babelio/cookie",
-        json={"cookie": "jstsToken=<REDACTED>"},
+        json={"cookie": "PHPSESSID=<REDACTED>"},
         headers={"User-Agent": BROWSER_UA, "Accept-Language": BROWSER_LANGUAGE},
     )
     assert response.status_code == 200
@@ -42,7 +42,7 @@ def test_clearing_cookie_forgets_browser_identity():
     client = TestClient(app)
     client.post(
         "/api/babelio/cookie",
-        json={"cookie": "jstsToken=<REDACTED>"},
+        json={"cookie": "PHPSESSID=<REDACTED>"},
         headers={"User-Agent": BROWSER_UA},
     )
     client.delete("/api/babelio/cookie")

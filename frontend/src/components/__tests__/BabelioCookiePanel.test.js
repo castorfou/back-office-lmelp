@@ -51,11 +51,11 @@ describe('BabelioCookiePanel', () => {
 
   it('Enregistrer envoie le cookie collé, vide le champ et émet « saved »', async () => {
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-    await wrapper.find('textarea').setValue('  jstsToken=fresh; p=FR  ');
+    await wrapper.find('textarea').setValue('  PHPSESSID=fresh; p=FR  ');
     await wrapper.find('[data-test="cookie-save"]').trigger('click');
     await flushPromises();
 
-    expect(axios.post).toHaveBeenCalledWith('/api/babelio/cookie', { cookie: 'jstsToken=fresh; p=FR' });
+    expect(axios.post).toHaveBeenCalledWith('/api/babelio/cookie', { cookie: 'PHPSESSID=fresh; p=FR' });
     expect(wrapper.find('textarea').element.value).toBe('');
     expect(wrapper.emitted('saved')).toHaveLength(1);
     expect(wrapper.find('[data-test="cookie-saved-confirmation"]').exists()).toBe(true);
@@ -64,11 +64,11 @@ describe('BabelioCookiePanel', () => {
   it('un échec d\'enregistrement garde le champ et n\'émet rien', async () => {
     axios.post.mockRejectedValueOnce(new Error('network'));
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-    await wrapper.find('textarea').setValue('jstsToken=fresh');
+    await wrapper.find('textarea').setValue('PHPSESSID=fresh');
     await wrapper.find('[data-test="cookie-save"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.find('textarea').element.value).toBe('jstsToken=fresh');
+    expect(wrapper.find('textarea').element.value).toBe('PHPSESSID=fresh');
     expect(wrapper.emitted('saved')).toBeUndefined();
     expect(wrapper.find('[data-test="cookie-save-error"]').exists()).toBe(true);
   });
@@ -97,23 +97,23 @@ describe('BabelioCookiePanel', () => {
 
   it('envoie la valeur nettoyée (préfixe « Cookie: » retiré)', async () => {
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-    await wrapper.find('textarea').setValue('Cookie: jstsToken=fresh; p=FR');
+    await wrapper.find('textarea').setValue('Cookie: PHPSESSID=fresh; p=FR');
     expect(wrapper.find('[data-test="cookie-format-error"]').exists()).toBe(false);
 
     await wrapper.find('[data-test="cookie-save"]').trigger('click');
     await flushPromises();
 
-    expect(axios.post).toHaveBeenCalledWith('/api/babelio/cookie', { cookie: 'jstsToken=fresh; p=FR' });
+    expect(axios.post).toHaveBeenCalledWith('/api/babelio/cookie', { cookie: 'PHPSESSID=fresh; p=FR' });
   });
 
   it('affiche le motif d\'un refus du serveur (400)', async () => {
-    axios.post.mockRejectedValueOnce({ response: { status: 400, data: { detail: 'jstsToken absent : ...' } } });
+    axios.post.mockRejectedValueOnce({ response: { status: 400, data: { detail: 'PHPSESSID absent : ...' } } });
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-    await wrapper.find('textarea').setValue('jstsToken=fresh');
+    await wrapper.find('textarea').setValue('PHPSESSID=fresh');
     await wrapper.find('[data-test="cookie-save"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.find('[data-test="cookie-save-error"]').text()).toContain('jstsToken absent');
+    expect(wrapper.find('[data-test="cookie-save-error"]').text()).toContain('PHPSESSID absent');
   });
 
   describe('cookie actif côté serveur', () => {
@@ -130,7 +130,7 @@ describe('BabelioCookiePanel', () => {
       await wrapper.find('[data-test="cookie-replace"]').trigger('click');
       expect(wrapper.find('textarea').element.value).toBe('');
 
-      await wrapper.find('textarea').setValue('jstsToken=draft');
+      await wrapper.find('textarea').setValue('PHPSESSID=draft');
       await wrapper.find('[data-test="cookie-cancel"]').trigger('click');
       expect(wrapper.find('textarea').exists()).toBe(false);
 
@@ -155,7 +155,7 @@ describe('BabelioCookiePanel', () => {
     it('après un enregistrement réussi, le champ se referme', async () => {
       wrapper = mount(BabelioCookiePanel, { props: { status: ACTIVE } });
       await wrapper.find('[data-test="cookie-replace"]').trigger('click');
-      await wrapper.find('textarea').setValue('jstsToken=fresher');
+      await wrapper.find('textarea').setValue('PHPSESSID=fresher');
       await wrapper.find('[data-test="cookie-save"]').trigger('click');
       await flushPromises();
       await wrapper.setProps({ status: { ...ACTIVE, cookie_age_sec: 0 } });
@@ -172,7 +172,7 @@ describe('BabelioCookiePanel', () => {
   });
 
   it('n\'envoie jamais de cookie au montage', async () => {
-    localStorage.setItem('babelio_cookies', 'jstsToken=old');
+    localStorage.setItem('babelio_cookies', 'PHPSESSID=old');
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
     await flushPromises();
 
@@ -198,7 +198,7 @@ describe('BabelioCookiePanel', () => {
     it('affiche l\'avertissement renvoyé par le serveur à l\'enregistrement', async () => {
       axios.post.mockResolvedValueOnce({ data: { ok: true, warning: WARNING } });
       wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-      await wrapper.find('textarea').setValue('jstsToken=fresh; p=FR');
+      await wrapper.find('textarea').setValue('PHPSESSID=fresh; p=FR');
       await wrapper.find('[data-test="cookie-save"]').trigger('click');
       await flushPromises();
 
@@ -217,7 +217,7 @@ describe('BabelioCookiePanel', () => {
     it('pas d\'avertissement pour un cookie de session connectée', async () => {
       axios.post.mockResolvedValueOnce({ data: { ok: true, warning: null } });
       wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
-      await wrapper.find('textarea').setValue('jstsToken=fresh; id_user=1');
+      await wrapper.find('textarea').setValue('PHPSESSID=fresh; id_user=1');
       await wrapper.find('[data-test="cookie-save"]').trigger('click');
       await flushPromises();
       await wrapper.setProps({ status: { cookie_active: true, cookie_anonymous: false, cookie_age_sec: 0, cookie_max_age_sec: 300, cookie_expired: false } });
@@ -226,12 +226,12 @@ describe('BabelioCookiePanel', () => {
     });
   });
 
-  // Un collage refusé (jstsToken absent…) se vide d'un clic
+  // Un collage refusé (PHPSESSID absent…) se vide d'un clic
   it('« Vider » efface le texte collé et son erreur, sans toucher au cookie serveur', async () => {
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
     expect(wrapper.find('[data-test="cookie-input-clear"]').exists()).toBe(false);
 
-    await wrapper.find('textarea').setValue('p=FR; PHPSESSID=abc');
+    await wrapper.find('textarea').setValue('p=FR; disclaimer=1');
     expect(wrapper.find('[data-test="cookie-format-error"]').exists()).toBe(true);
 
     await wrapper.find('[data-test="cookie-input-clear"]').trigger('click');

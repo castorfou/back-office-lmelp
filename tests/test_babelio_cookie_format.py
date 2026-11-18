@@ -44,6 +44,22 @@ def test_accepts_cookie_header_copied_from_firefox(client):
     assert babelio_service.get_cookie() == FIREFOX_COOKIE
 
 
+# Noms des cookies d'un navigateur connecté depuis que Babelio ne pose plus de
+# jstsToken (Issue #367), valeurs factices.
+LOGGED_IN_COOKIE = (
+    "g_state={}; bbacml=0; disclaimer=1; _ga_XXXXXXXXXX=GS2.1.s1; _ga=GA1.2.3; "
+    "_gcl_au=1.1.1; __gads=ID=x; __gpi=UID=y; __eoi=ID=z; p=FR; "
+    "g_csrf_token=abc; PHPSESSID=fakesession123; "
+    "bbac=00000000000000000000000000000000; id_user=1"
+)
+
+
+def test_accepts_logged_in_cookie_without_jsts_token(client):
+    response = client.post("/api/babelio/cookie", json={"cookie": LOGGED_IN_COOKIE})
+    assert response.status_code == 200
+    assert babelio_service.get_cookie() == LOGGED_IN_COOKIE
+
+
 @pytest.mark.parametrize(
     "pasted",
     [
@@ -55,10 +71,10 @@ def test_accepts_cookie_header_copied_from_firefox(client):
         "Host: www.babelio.com\nCookie: jstsToken=AbCd; p=FR",
         # Le jeton seul, sans son nom
         "AbCd%2FeF%2BgH%3D%3D",
-        # Un cookie sans jstsToken
-        "disclaimer=1; p=FR; PHPSESSID=fakesession123",
-        # jstsToken vide
-        "jstsToken=; disclaimer=1",
+        # Fenêtre privée non connectée : pas de cookie de session
+        "p=FR; disclaimer=1; g_state={}",
+        # PHPSESSID vide
+        "PHPSESSID=; disclaimer=1",
     ],
 )
 def test_rejects_what_is_not_a_babelio_cookie_header(client, pasted):
@@ -73,9 +89,16 @@ def test_rejects_what_is_not_a_babelio_cookie_header(client, pasted):
 
 
 def test_strips_cookie_header_name_pasted_by_mistake():
-    assert normalize_cookie_header("Cookie: jstsToken=AbCd; p=FR") == (
-        "jstsToken=AbCd; p=FR"
+    assert normalize_cookie_header("Cookie: PHPSESSID=abc; p=FR") == (
+        "PHPSESSID=abc; p=FR"
     )
+
+
+def test_missing_session_cookie_tells_to_log_in(client):
+    response = client.post("/api/babelio/cookie", json={"cookie": "p=FR; disclaimer=1"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"].startswith("PHPSESSID absent : connectez-vous")
 
 
 def test_empty_cookie_still_clears(client):
@@ -123,7 +146,7 @@ def test_stale_id_user_is_not_detected_as_anonymous(client):
     couvre donc que le cas net (pas d'id_user) : son absence ne prouve rien,
     d'où la consigne de l'aide (être connecté, avatar visible).
     """
-    stale = "bbacml=0; disclaimer=1; p=FR; bbac=00ff; id_user=1; jstsToken=AbCd"
+    stale = "bbacml=0; disclaimer=1; p=FR; bbac=00ff; id_user=1; PHPSESSID=abc"
 
     response = client.post("/api/babelio/cookie", json={"cookie": stale})
 
