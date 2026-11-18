@@ -302,8 +302,10 @@ class BabelioService:
         # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
         # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
         # cookie expiré, et ses 403 se transforment en ban IP d'environ 24 h).
-        # Les 5 min par défaut viennent de la durée de vie du jstsToken, que
-        # Babelio ne pose plus : celle de la session reste à mesurer.
+        # Babelio revérifie le visiteur environ 5 min après lui avoir délivré
+        # la session, au chargement de la page ; le serveur ne date le cookie
+        # qu'à son enregistrement, après le copier-coller. Les 240 s par défaut
+        # gardent une minute de marge pour cet écart.
         self._cookie_set_at: float | None = None
         # Identité du navigateur qui a fourni le cookie : la session Babelio est
         # ouverte pour ce navigateur, les requêtes doivent porter le même User-Agent.
@@ -311,7 +313,7 @@ class BabelioService:
         self._browser_accept_language: str | None = None
         self.connect_timeout_sec = 10.0
         self.request_timeout_sec = 30.0
-        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "300"))
+        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "240"))
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
         # Motif d'ouverture : CIRCUIT_REASON_HTTP_403 (cookie) ou

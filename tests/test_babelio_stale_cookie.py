@@ -6,6 +6,7 @@ son enregistrement et refuse d'appeler Babelio au-delà de
 BABELIO_COOKIE_MAX_AGE_SEC, sans émettre la moindre requête.
 """
 
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -79,3 +80,26 @@ async def test_babelio_403_result_is_not_cookie_expired(monkeypatch, method):
 
     assert result["status"] == "blocked_403"
     assert result["reason"] is None
+
+
+# Issue #371 : Babelio compte la validité de sa session (~5 min) dès qu'il la
+# délivre, au chargement de la page ; lmelp ne date le cookie qu'à son
+# enregistrement, après le temps de copier-coller. Par défaut, le serveur garde
+# donc une marge et tient le cookie pour périmé avant 5 min.
+
+
+@pytest.mark.asyncio
+async def test_default_max_age_refuses_cookie_of_250s(monkeypatch):
+    monkeypatch.delenv("BABELIO_COOKIE_MAX_AGE_SEC", raising=False)
+    service = babelio_module.BabelioService()
+    service.min_interval = 0
+    with patch.object(babelio_module.time, "time", return_value=time.time() - 250):
+        service.set_cookie("jstsToken=<REDACTED>")
+
+    send = AsyncMock(side_effect=AssertionError("requête HTTP émise"))
+    with (
+        patch.object(service, "_send", new=send),
+        pytest.raises(babelio_module.BabelioBlockedError),
+    ):
+        await service.search("Ni de lait, ni de laine")
+    send.assert_not_awaited()
