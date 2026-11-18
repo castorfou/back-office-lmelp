@@ -379,7 +379,7 @@ Si le panneau affiche un message sous le champ (« Ce n'est pas un en-tête Cook
 absent »…), la valeur copiée n'est pas la bonne : vérifiez que vous êtes connecté à Babelio, puis
 reprenez l'étape 5.
 
-**Durée de validité :** Le cookie expire après ~5 minutes. Le badge indique le temps restant,
+**Durée de validité :** Le cookie expire 4 minutes après son enregistrement. Le badge indique le temps restant,
 puis passe à « ⏰ périmé — collez un cookie frais ». Si le blocage revient (nouvelle bannière
 rouge ou nouveau message contenant "403"), répétez la procédure.
 
