@@ -95,7 +95,7 @@ _Avoid_: enrichissement Babelio (ce n'est plus une étape distincte)
 Le cookie de session copié depuis un navigateur connecté à Babelio, sans lequel lmelp
 n'envoie aucune requête ; il est actif pendant une durée limitée après son enregistrement,
 puis expiré.
-_Avoid_: jstsToken (n'en est qu'une partie), cookie navigateur
+_Avoid_: jstsToken (jeton facultatif, ce n'est pas le cookie), cookie navigateur
 
 **Pause de validation**:
 L'arrêt temporaire d'une validation Babelio quand le cookie Babelio expire en cours de
