@@ -11,6 +11,16 @@ import { removeAccents } from '../utils/textUtils.js';
 const MIN_GROUND_TRUTH_TITLE_SCORE = 50;
 const MIN_GROUND_TRUTH_TITLE_SIMILARITY = 0.25;
 
+// Raison renvoyée par le serveur quand il refuse un appel Babelio parce que
+// le cookie a expiré (babelio_service.verify_book / verify_author)
+export const COOKIE_EXPIRED = 'cookie_expired';
+
+// Vrai si un résultat de validateBiblio est un refus pour cookie expiré
+export function isCookieExpiredResult(validationResult) {
+  return validationResult?.status === 'blocked_403'
+    && validationResult.data?.reason === COOKIE_EXPIRED;
+}
+
 export class BiblioValidationService {
   constructor(dependencies = {}) {
     this.fuzzySearchService = dependencies.fuzzySearchService;
@@ -22,6 +32,23 @@ export class BiblioValidationService {
     // Évite les appels API redondants lors de la validation de plusieurs livres
     // Key: episodeId, Value: Array<{author, title}>
     this._extractedBooksCache = new Map();
+
+    // Éditeur de chaque page Babelio vue par verifyBook (Issue #352) : la
+    // validation rend l'éditeur de la page dont elle retient l'URL.
+    // Key: babelio_url, Value: babelio_publisher
+    this._publisherByBabelioUrl = new Map();
+
+    // Nombre d'appels Babelio refusés pour cookie expiré (Issue #352). Un
+    // compteur plutôt qu'un drapeau : une validation lancée en parallèle ne
+    // peut pas effacer le refus vu par une autre, et un refus vu par l'une
+    // vaut pour toutes (le cookie est le même).
+    this._cookieExpiredCount = 0;
+  }
+
+  _noteCookieExpired(result) {
+    if (result?.status === 'blocked_403' && result.reason === COOKIE_EXPIRED) {
+      this._cookieExpiredCount += 1;
+    }
   }
 
   /**
@@ -48,6 +75,7 @@ export class BiblioValidationService {
    */
   async _verifyAuthorWithCapture(author) {
     const result = await this.babelioService.verifyAuthor(author);
+    this._noteCookieExpired(result);
 
     // Capturer l'appel si la capture est active
     if (fixtureCaptureService.isCapturing) {
@@ -67,6 +95,11 @@ export class BiblioValidationService {
    */
   async _verifyBookWithCapture(title, author) {
     const result = await this.babelioService.verifyBook(title, author);
+    this._noteCookieExpired(result);
+
+    if (result?.babelio_url && result.babelio_publisher) {
+      this._publisherByBabelioUrl.set(result.babelio_url, result.babelio_publisher);
+    }
 
     // Capturer l'appel si la capture est active
     if (fixtureCaptureService.isCapturing) {
@@ -295,6 +328,31 @@ export class BiblioValidationService {
    * @returns {Promise<Object>} Résultat de validation
    */
   async validateBiblio(author, title, publisher, episodeId) {
+    const cookieExpiredBefore = this._cookieExpiredCount;
+    const result = await this._validateBiblio(author, title, publisher, episodeId);
+    // Un refus pour cookie expiré, à n'importe quel appel, bloque tout le
+    // livre : son résultat ne doit jamais devenir « introuvable » (Issue #352)
+    if (this._cookieExpiredCount > cookieExpiredBefore) {
+      return {
+        status: 'blocked_403',
+        data: { original: { author, title, publisher }, reason: COOKIE_EXPIRED }
+      };
+    }
+    return this._withBabelioPublisher(result);
+  }
+
+  /**
+   * Ajoute l'éditeur Babelio de la page retenue (babelio_url) au résultat.
+   * @private
+   */
+  _withBabelioPublisher(result) {
+    const url = result?.data?.babelio_url;
+    const babelioPublisher = url && this._publisherByBabelioUrl.get(url);
+    if (!babelioPublisher || result.data.babelio_publisher) return result;
+    return { ...result, data: { ...result.data, babelio_publisher: babelioPublisher } };
+  }
+
+  async _validateBiblio(author, title, publisher, episodeId) {
     try {
       const original = { author, title, publisher };
 

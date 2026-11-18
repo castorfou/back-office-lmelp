@@ -9,7 +9,7 @@
     </div>
 
     <!-- Pas encore validé : aucune requête Babelio à l'affichage -->
-    <div v-else-if="!isLoading && !hasError && !validationResult"
+    <div v-else-if="!showLoading && !hasError && !validationResult"
          class="validation-status pending"
          data-testid="validation-pending">
       <span class="status-icon">○</span>
@@ -27,7 +27,7 @@
     </div>
 
     <!-- Loading state -->
-    <div v-else-if="isLoading" class="validation-status loading" data-testid="validation-loading">
+    <div v-else-if="showLoading" class="validation-status loading" data-testid="validation-loading">
       <span class="status-icon">⏳</span>
       <span class="status-text">Vérification...</span>
     </div>
@@ -145,6 +145,11 @@ export default {
     storedSuggestion: {
       type: Object,
       default: null
+    },
+    // Vrai pendant que « Valider avec Babelio » traite ce livre (Issue #352)
+    validating: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -175,6 +180,9 @@ export default {
   computed: {
     hasValidProps() {
       return this.author && this.author.trim().length > 0;
+    },
+    showLoading() {
+      return this.isLoading || this.validating;
     }
   },
 
@@ -190,6 +198,18 @@ export default {
 
   methods: {
     showStoredStatus() {
+      // Statut effacé (nouvelle validation de l'épisode) : retour à « À valider »
+      if (this.storedStatus === null && (this.validationResult || this.hasError)) {
+        this.validationResult = null;
+        this.hasError = false;
+        return;
+      }
+      // Statut transitoire « error » (jamais enregistré en cache, Issue #352)
+      if (this.storedStatus === 'error') {
+        this.validationResult = null;
+        this.hasError = true;
+        return;
+      }
       const status = this.mapStoredStatus(this.storedStatus);
       if (!this.hasValidProps || !status) return;
       this.validationResult = {
@@ -205,6 +225,8 @@ export default {
         case 'verified': return 'verified';
         case 'suggested': return 'corrected';
         case 'not_found': return 'not_found';
+        // Statut transitoire posé par la validation du tableau (Issue #352)
+        case 'blocked_403': return 'blocked_403';
         default: return null;
       }
     },

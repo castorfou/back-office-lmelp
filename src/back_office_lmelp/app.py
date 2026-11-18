@@ -314,9 +314,10 @@ def _babelio_blocked_response(error: Exception) -> JSONResponse | None:
     Un blocage (403 Babelio, cookie périmé, circuit breaker ouvert) n'est pas une
     panne serveur : le frontend doit inviter à coller un cookie frais. Comparaison
     par nom de classe : le module babelio_service peut être chargé en deux copies
-    (imports `src.` legacy dans les tests), cf. CLAUDE.md.
+    (imports `src.` legacy dans les tests), cf. CLAUDE.md. Le MRO couvre les
+    sous-classes (BabelioCookieExpiredError).
     """
-    if type(error).__name__ != "BabelioBlockedError":
+    if not any(cls.__name__ == "BabelioBlockedError" for cls in type(error).__mro__):
         return None
     return JSONResponse(
         status_code=403, content={"status": "blocked", "message": str(error)}
@@ -1036,13 +1037,13 @@ async def get_onkindle_books() -> dict[str, Any] | JSONResponse:
 
 @app.get("/api/livres-auteurs", response_model=list[dict[str, Any]])
 async def get_livres_auteurs(
-    episode_oid: str, limit: int | None = None, enrich_babelio: bool = False
+    episode_oid: str, limit: int | None = None
 ) -> list[dict[str, Any]]:
     """Récupère la liste des livres/auteurs extraits des avis critiques via parsing des tableaux markdown (format simplifié : auteur/titre/éditeur).
 
-    Sans cache pour l'épisode, les livres sont extraits du résumé. Ils ne sont
-    enrichis via Babelio que si enrich_babelio est vrai (bouton « Valider avec
-    Babelio ») : ouvrir la page ne doit jamais interroger Babelio.
+    Sans cache pour l'épisode, les livres sont extraits du résumé, sans jamais
+    interroger Babelio : seule la validation Babelio, livre par livre depuis la
+    page (« Valider avec Babelio »), le fait.
     """
     # Vérification mémoire
     memory_check = memory_guard.check_memory_limit()
@@ -1102,7 +1103,7 @@ async def get_livres_auteurs(
             try:
                 extracted_books = (
                     await books_extraction_service.extract_books_from_reviews(
-                        avis_critiques, enrich_babelio=enrich_babelio
+                        avis_critiques
                     )
                 )
                 all_books.extend(extracted_books)

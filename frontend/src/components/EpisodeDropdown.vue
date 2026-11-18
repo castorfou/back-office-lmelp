@@ -3,8 +3,10 @@
     <!-- Input avec valeur sélectionnée -->
     <div
       class="dropdown-input"
+      :class="{ disabled }"
       @click="toggleDropdown"
-      tabindex="0"
+      :tabindex="disabled ? -1 : 0"
+      :aria-disabled="disabled"
       @keydown.enter="toggleDropdown"
       @keydown.space.prevent="toggleDropdown"
       @keydown.escape="closeDropdown"
@@ -58,6 +60,11 @@ export default {
     episodes: {
       type: Array,
       required: true
+    },
+    // Changement d'épisode interdit (validation Babelio en cours, Issue #352)
+    disabled: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -128,6 +135,10 @@ export default {
     },
 
     toggleDropdown() {
+      if (this.disabled) {
+        this.isOpen = false;
+        return;
+      }
       this.isOpen = !this.isOpen;
       if (this.isOpen) {
         this.$nextTick(() => {
@@ -205,6 +216,11 @@ export default {
 .episode-dropdown {
   position: relative;
   width: 100%;
+}
+
+.dropdown-input.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .dropdown-input {

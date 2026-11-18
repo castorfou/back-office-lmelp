@@ -1,13 +1,14 @@
-"""GET /api/livres-auteurs n'interroge pas Babelio par défaut.
+"""GET /api/livres-auteurs n'interroge jamais Babelio.
 
-Ouvrir la page Livres et Auteurs sur un épisode sans cache déclenchait
-l'extraction des livres, enrichie par un verify_book() Babelio par livre. Les
-403 de Babelio se transformant en ban IP, cet enrichissement n'a lieu que sur
-geste explicite (« Valider avec Babelio » → enrich_babelio=true).
+Les 403 de Babelio se transforment en ban IP : seule la validation Babelio,
+livre par livre depuis la page (« Valider avec Babelio »), interroge Babelio.
+L'extraction des livres d'un épisode sans cache n'est jamais enrichie, même
+par un ancien paramètre enrich_babelio=true (Issue #352).
 """
 
 from unittest.mock import patch
 
+import pytest
 from bson import ObjectId
 from fastapi.testclient import TestClient
 
@@ -36,7 +37,8 @@ AVIS_CRITIQUES = [
 ]
 
 
-def test_get_livres_auteurs_does_not_call_babelio_by_default():
+@pytest.mark.parametrize("query", ["", "&enrich_babelio=true"])
+def test_get_livres_auteurs_never_calls_babelio(query):
     with (
         patch(
             "back_office_lmelp.app.mongodb_service.get_critical_reviews_by_episode_oid",
@@ -54,7 +56,9 @@ def test_get_livres_auteurs_does_not_call_babelio_by_default():
             return_value={"corrected": 0, "skipped": 0},
         ),
     ):
-        response = TestClient(app).get(f"/api/livres-auteurs?episode_oid={EPISODE_OID}")
+        response = TestClient(app).get(
+            f"/api/livres-auteurs?episode_oid={EPISODE_OID}{query}"
+        )
 
     assert response.status_code == 200
     books = response.json()

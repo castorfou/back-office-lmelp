@@ -155,10 +155,8 @@ describe('LivresAuteurs - ban IP Babelio (Issue #351)', () => {
     await wrapper.vm.validateWithBabelio();
 
     expect(axios.post).toHaveBeenCalledWith('/api/babelio/probe');
-    expect(livresAuteursService.getLivresAuteurs).toHaveBeenCalledWith({
-      episode_oid: EPISODE_ID,
-      enrich_babelio: true,
-    });
+    // Validation puis rechargement des statuts (Issue #352 : plus d'enrichissement)
+    expect(livresAuteursService.getLivresAuteurs).toHaveBeenCalledWith({ episode_oid: EPISODE_ID });
     expect(wrapper.find('[data-test="babelio-blocked-banner"]').exists()).toBe(false);
   });
 

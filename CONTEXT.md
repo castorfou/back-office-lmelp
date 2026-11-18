@@ -82,3 +82,23 @@ _Avoid_: hôte PGX, IP PGX (comme synonyme d'identité)
 Un extrait de quelques minutes d'une émission, consacré à un seul livre, publié séparément
 sur radiofrance.fr ; ce n'est jamais un épisode.
 _Avoid_: clip, extrait audio
+
+### Babelio
+
+**Validation Babelio**:
+Le geste explicite qui confronte, un par un, les livres d'une émission à Babelio et donne
+à chacun un résultat (vérifié, suggestion, introuvable, bloqué, erreur) ; c'est la seule
+occasion où lmelp interroge Babelio pour une émission.
+_Avoid_: enrichissement Babelio (ce n'est plus une étape distincte)
+
+**Cookie Babelio**:
+Le cookie de session copié depuis un navigateur connecté à Babelio, sans lequel lmelp
+n'envoie aucune requête ; il est actif pendant une durée limitée après son enregistrement,
+puis expiré.
+_Avoid_: jstsToken (jeton facultatif, ce n'est pas le cookie), cookie navigateur
+
+**Pause de validation**:
+L'arrêt temporaire d'une validation Babelio quand le cookie Babelio expire en cours de
+route : aucun livre n'est traité tant qu'un cookie actif n'est pas enregistré, puis la
+validation reprend au livre interrompu. Un vrai refus de Babelio n'est jamais une pause.
+_Avoid_: suspension, blocage (réservé au refus de Babelio)

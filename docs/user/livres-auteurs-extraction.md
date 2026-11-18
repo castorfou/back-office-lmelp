@@ -106,7 +106,12 @@ La validation affiche différents statuts :
 
 Ouvrir la page ou changer d'épisode **n'envoie aucune requête à Babelio** : chaque cellule affiche le statut déjà enregistré. Babelio transforme ses refus (403) en ban de l'IP pendant environ 24 h, donc chaque appel doit venir d'un geste explicite :
 
-- **🔍 Valider avec Babelio** : affiché quand des livres de l'épisode ne sont pas encore validés ; enrichit les livres (URL et éditeur Babelio) puis les valide
+- **🔍 Valider avec Babelio** : affiché quand des livres de l'épisode ne sont pas encore validés ; valide les livres un par un, ce qui fournit aussi leur URL et leur éditeur Babelio. Pendant la validation :
+    - le bouton affiche l'avancement et le temps restant du cookie (« ⏳ Validation 3/9 — titre · cookie ~2 min ») ;
+    - chaque ligne prend son statut dès que son livre est validé, et la ligne du livre en cours affiche « Vérification... » ;
+    - un livre bloqué (403) ou en erreur garde ce statut jusqu'à la prochaine validation ou au changement d'épisode, sans être enregistré ;
+    - le changement d'épisode est désactivé
+- **Pause de validation** : si le cookie Babelio expire en cours de route, la validation se met en pause avant d'envoyer la moindre requête (« ⏸ En pause — cookie expiré (5/9) ») et le panneau cookie s'ouvre. Dès qu'un cookie frais est enregistré, elle reprend au livre interrompu. **⏹ Arrêter** enregistre les livres déjà validés et laisse les autres « À valider ». Un vrai refus de Babelio (403) ne met pas en pause : le livre passe « Bloqué (403) »
 - **🔄 Relancer la validation** : sur la ligne du panneau **🔑 Cookie Babelio**, toujours visible ; vide le cache de l'épisode, réextrait les livres puis relance la validation de tous les livres
 - **Cookie requis** : tant que le cookie Babelio n'est pas actif (absent ou périmé), ces deux boutons sont grisés. Ils se grisent d'eux-mêmes quand le cookie expire, et se réactivent dès qu'un cookie frais est enregistré. Sans cette règle, **🔄** viderait le cache de l'épisode puis échouerait en 403
 - **↻** dans une cellule : vérifie ce seul livre

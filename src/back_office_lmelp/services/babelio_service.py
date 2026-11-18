@@ -133,6 +133,28 @@ class BabelioBlockedError(Exception):
     """
 
 
+class BabelioCookieExpiredError(BabelioBlockedError):
+    """Refus local, avant tout envoi : le cookie Babelio stocké a expiré.
+
+    Aucune requête n'est partie vers Babelio ; un cookie frais suffit pour
+    reprendre (pause de validation, Issue #352).
+    """
+
+
+REASON_COOKIE_EXPIRED = "cookie_expired"
+
+
+def _blocked_reason(error: Exception) -> str | None:
+    """Raison d'un blocage, exposée dans les résultats de vérification.
+
+    Comparaison par nom de classe : les tests rechargent ce module
+    (importlib.reload), ce qui crée une seconde copie des exceptions.
+    """
+    if type(error).__name__ == "BabelioCookieExpiredError":
+        return REASON_COOKIE_EXPIRED
+    return None
+
+
 class BabelioCaptchaError(Exception):
     """Levée quand Babelio affiche une page captcha (anti-bot challenge).
 
@@ -421,7 +443,7 @@ class BabelioService:
             return
         age = time.time() - self._cookie_set_at
         if age >= self.cookie_max_age_sec:
-            raise BabelioBlockedError(
+            raise BabelioCookieExpiredError(
                 f"Cookie Babelio périmé ({age:.0f}s, max "
                 f"{self.cookie_max_age_sec:.0f}s) — collez un cookie frais"
             )
@@ -1035,9 +1057,10 @@ class BabelioService:
                 "error_message": None,
             }
 
-        except BabelioBlockedError:
+        except BabelioBlockedError as e:
             return {
                 "status": "blocked_403",
+                "reason": _blocked_reason(e),
                 "original": author_name,
                 "babelio_suggestion": None,
                 "confidence_score": 0.0,
@@ -1301,9 +1324,10 @@ class BabelioService:
                 "error_message": None,
             }
 
-        except BabelioBlockedError:
+        except BabelioBlockedError as e:
             return {
                 "status": "blocked_403",
+                "reason": _blocked_reason(e),
                 "original_title": title,
                 "babelio_suggestion_title": None,
                 "original_author": author,
