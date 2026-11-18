@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from back_office_lmelp.app import app
 from back_office_lmelp.services.babelio_service import (
     babelio_service,
+    is_firefox_user_agent,
     normalize_cookie_header,
 )
 
@@ -151,3 +152,96 @@ def test_stale_id_user_is_not_detected_as_anonymous(client):
     response = client.post("/api/babelio/cookie", json={"cookie": stale})
 
     assert response.json()["warning"] is None
+
+
+# lmelp imite l'empreinte réseau de Firefox (TLS, HTTP/2) mais reprend le
+# User-Agent du navigateur qui enregistre le cookie. Depuis un autre navigateur,
+# empreinte et User-Agent se contredisent : l'anti-bot de Babelio peut répondre
+# 403, puis bannir l'IP. Le cookie est accepté, l'utilisateur est prévenu.
+FIREFOX_UA = (
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0"
+)
+VSCODE_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Code/1.146.0 Chrome/150.0.7871.250 Electron/43.8.6 Safari/537.36"
+)
+
+
+def test_cookie_from_non_firefox_browser_is_accepted_with_a_warning(client):
+    response = client.post(
+        "/api/babelio/cookie",
+        json={"cookie": LOGGED_IN_COOKIE},
+        headers={"User-Agent": VSCODE_UA},
+    )
+
+    assert response.status_code == 200
+    assert babelio_service.get_cookie() == LOGGED_IN_COOKIE
+    # Le cookie a pu être copié dans Firefox : c'est le navigateur où il est
+    # collé dans lmelp qui compte
+    assert "ouvrez aussi lmelp dans Firefox" in response.json()["browser_warning"]
+    status = client.get("/api/babelio/status").json()
+    assert status["cookie_browser_not_firefox"] is True
+
+
+def test_cookie_from_firefox_has_no_browser_warning(client):
+    response = client.post(
+        "/api/babelio/cookie",
+        json={"cookie": LOGGED_IN_COOKIE},
+        headers={"User-Agent": FIREFOX_UA},
+    )
+
+    assert response.json()["browser_warning"] is None
+    status = client.get("/api/babelio/status").json()
+    assert status["cookie_browser_not_firefox"] is False
+
+
+def test_no_cookie_has_no_browser_state(client):
+    client.post(
+        "/api/babelio/cookie", json={"cookie": ""}, headers={"User-Agent": VSCODE_UA}
+    )
+
+    assert (
+        client.get("/api/babelio/status").json()["cookie_browser_not_firefox"] is None
+    )
+
+
+def test_cookie_without_user_agent_has_no_browser_warning(client):
+    """Sans User-Agent, les requêtes partent avec DEFAULT_USER_AGENT (Firefox)."""
+    response = client.post(
+        "/api/babelio/cookie",
+        json={"cookie": LOGGED_IN_COOKIE},
+        headers={"User-Agent": ""},
+    )
+
+    assert response.json()["browser_warning"] is None
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "expected"),
+    [
+        # Firefox de bureau
+        (FIREFOX_UA, True),
+        # Firefox Android : moteur Gecko, même empreinte réseau
+        (
+            "Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0",
+            True,
+        ),
+        # Firefox iOS : moteur WebKit, empreinte d'un Safari
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/132.0 Mobile/15E148 "
+            "Safari/605.1.15",
+            False,
+        ),
+        # Edge : « like Gecko » sans « Gecko/ »
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+            False,
+        ),
+        # Navigateur intégré de VS Code
+        (VSCODE_UA, False),
+    ],
+)
+def test_firefox_user_agent_criterion(user_agent, expected):
+    assert is_firefox_user_agent(user_agent) is expected
