@@ -28,7 +28,7 @@ def mock_babelio_service():
         mock.get_recent_requests.return_value = []
         mock.min_interval = 2.0
         mock.get_cookie_age_sec.return_value = None
-        mock.get_cookie_max_age_sec.return_value = 300.0
+        mock.cookie_max_age_sec = 300.0
         mock.probe_reachability = AsyncMock(return_value="reachable")
         mock.get_circuit_reason.return_value = None
         mock.get_last_probe.return_value = None
@@ -45,7 +45,7 @@ def mock_cache_service(tmp_path):
         mock_svc.get_recent_requests.return_value = []
         mock_svc.min_interval = 2.0
         mock_svc.get_cookie_age_sec.return_value = None
-        mock_svc.get_cookie_max_age_sec.return_value = 300.0
+        mock_svc.cookie_max_age_sec = 300.0
         yield mock_svc, svc
 
 

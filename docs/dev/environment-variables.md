@@ -32,16 +32,15 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `BABELIO_MIN_INTERVAL` | Délai minimum (en secondes) entre deux requêtes HTTP vers babelio.com. S'applique à **toutes** les requêtes (scraping titre, éditeur, auteur, couverture). | `2.0` | `5.0` |
-| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur quand il porte un `jstsToken`. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `240` | `180` |
-| `BABELIO_SESSION_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio sans `jstsToken`, qui repose sur la session PHP (`PHPSESSID`). Même refus au-delà. | `240` | `1200` |
+| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `1800` | `900` |
 
-### Usage `BABELIO_COOKIE_MAX_AGE_SEC` et `BABELIO_SESSION_MAX_AGE_SEC`
+### Usage `BABELIO_COOKIE_MAX_AGE_SEC`
 
-Babelio répond 403 à un cookie expiré, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Un `jstsToken`, lui, vit environ 5 min à partir du chargement de la page qui l'a délivré : le défaut de 240 s garde une minute de marge pour le temps de copier-coller. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
+Babelio répond 403 à un cookie qu'il n'accepte plus, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
 
-La durée appliquée dépend du cookie enregistré : `BABELIO_COOKIE_MAX_AGE_SEC` s'il porte un `jstsToken` (durée de vie connue du jeton), `BABELIO_SESSION_MAX_AGE_SEC` sinon. Babelio ne pose plus de `jstsToken` : le cookie repose alors sur la session PHP, de durée de vie inconnue (24 min par défaut en PHP, mais Babelio a pu la changer). Tant qu'elle n'est pas mesurée, `BABELIO_SESSION_MAX_AGE_SEC` garde la valeur prudente de 240 s.
+**D'où viennent les 30 min** : un cookie connecté (`PHPSESSID`, avec ou sans `jstsToken`) a servi jusqu'à 1 h 51 d'âge, avec jusqu'à 30 min d'inactivité entre deux requêtes, sur la recherche comme sur les pages, sans aucun 403. Le `jstsToken` ne raccourcit pas cette durée. La session PHP expirant après une inactivité, une limite de 30 min garde à la fois l'âge et l'inactivité dans ce qui a été mesuré.
 
-**Mesurer la durée de session** : jamais par des requêtes serveur répétées, qui finissent en 403 puis en ban IP. Chaque 403 reçu pendant un usage réel note l'âge du cookie (champs `cookie_age_sec` et `cookie_max_age_sec`, la limite appliquée, de `GET /api/babelio/blocked-responses`, et ligne `Babelio 403 — âge du cookie` dans les logs). Une fois la durée connue, régler `BABELIO_SESSION_MAX_AGE_SEC` en dessous, avec une marge.
+**Revoir la durée** : jamais par des requêtes serveur répétées depuis l'IP habituelle, qui finissent en 403 puis en ban IP. Chaque 403 reçu note l'âge du cookie et la limite appliquée (champs `cookie_age_sec` et `cookie_max_age_sec` de `GET /api/babelio/blocked-responses`, ligne `Babelio 403 — âge du cookie` dans les logs). Pour une mesure dédiée, `scripts/measure_babelio_session.py` envoie une recherche par palier d'inactivité croissante et s'arrête au premier 403 : à lancer uniquement depuis un réseau jetable (partage de connexion mobile), le backend démarré avec `BABELIO_COOKIE_MAX_AGE_SEC=86400`.
 
 ### Usage `BABELIO_MIN_INTERVAL`
 

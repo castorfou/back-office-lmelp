@@ -179,16 +179,16 @@ Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et 
 | Badge | Signification |
 |---|---|
 | ⚠ non configuré (risque 403) | Le serveur n'a pas de cookie : le champ de saisie est affiché |
-| ✓ Actif côté serveur · enregistré à 16:04 · expire dans ~4 min | Cookie utilisable ; le temps restant diminue sans recharger la page |
+| ✓ Actif côté serveur · enregistré à 16:04 · expire dans ~27 min | Cookie utilisable ; le temps restant diminue sans recharger la page |
 | ⏰ périmé — collez un cookie frais | Le cookie a dépassé sa durée de vie : le champ de saisie réapparaît |
 
 **Le cookie se colle frais à chaque fois** : le navigateur n'en garde aucune copie, et le champ démarre toujours vide. Seul le serveur conserve le cookie et le joint à toutes les requêtes Babelio (validation, scraping de pages, liaison manuelle par URL, couvertures).
 
 **Le texte collé est vérifié avant l'envoi** : il doit s'agir de la valeur de l'en-tête **Cookie** de la requête, copiée en étant **connecté** à Babelio : elle contient alors un `PHPSESSID` (cookie de session). Les autres cookies (dont un éventuel `jstsToken`) sont envoyés tels quels. Un User-Agent, un en-tête `Set-Cookie` de la réponse ou plusieurs lignes d'en-têtes sont refusés avec un message qui indique quoi copier. Un préfixe `Cookie:` collé par erreur est retiré.
 
-**Durée de validité** : le cookie est considéré comme expiré 4 minutes après son enregistrement, par défaut. Un cookie qui porte un `jstsToken` vit environ 5 minutes, revérifié au chargement de la page : la minute de marge couvre le temps de copier et coller le cookie. Sans `jstsToken`, le cookie repose sur la session Babelio, dont la durée se règle à part (`BABELIO_SESSION_MAX_AGE_SEC`). Rafraîchissez-le avant de relancer un traitement long.
+**Durée de validité** : le cookie est considéré comme expiré 30 minutes après son enregistrement, par défaut, `jstsToken` ou pas. Babelio l'accepte plus longtemps, mais 30 minutes restent dans ce qui a été vérifié, même après une pause. Rafraîchissez-le avant de relancer un traitement long.
 
-**Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (cookie avec `jstsToken`) ou `BABELIO_SESSION_MAX_AGE_SEC` (sans), 240 s par défaut, refuse d'appeler Babelio plutôt que de risquer un 403.
+**Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (1800 s par défaut), refuse d'appeler Babelio plutôt que de risquer un 403.
 
 **Les requêtes portent l'identité de votre navigateur** : en cliquant sur **Enregistrer**, le navigateur transmet aussi son User-Agent et sa langue. Le serveur les reprend pour toutes les requêtes Babelio, avec l'empreinte réseau d'un Firefox (TLS et HTTP/2). Babelio ouvre la session pour ce navigateur : présenté par un client différent, le cookie trahit un robot. Récupérez donc le cookie dans Firefox, et enregistrez-le depuis ce même Firefox. La page **Contrôle Babelio** (`GET /api/babelio/status`) affiche l'identité retenue.
 

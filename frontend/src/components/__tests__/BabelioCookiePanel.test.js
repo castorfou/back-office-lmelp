@@ -23,7 +23,7 @@ describe('BabelioCookiePanel', () => {
   });
 
   it('annonce la durée de validité donnée par le serveur (Issue #370)', () => {
-    // Sans jstsToken, la durée suit BABELIO_SESSION_MAX_AGE_SEC : pas de « 4 min » en dur
+    // La durée suit BABELIO_COOKIE_MAX_AGE_SEC : pas de durée écrite en dur
     wrapper = mount(BabelioCookiePanel, {
       props: { status: { cookie_active: true, cookie_age_sec: 10, cookie_max_age_sec: 1200, cookie_expired: false } },
     });
@@ -83,7 +83,7 @@ describe('BabelioCookiePanel', () => {
 
   it('ne propose pas d\'effacer le cookie serveur', async () => {
     // Sans cookie, le serveur interroge Babelio avec des cookies génériques :
-    // effacer ne protège de rien, et le cookie se périme seul en 4 min.
+    // effacer ne protège de rien, et le cookie se périme seul.
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
     expect(wrapper.find('[data-test="cookie-clear"]').exists()).toBe(false);
 

@@ -22,7 +22,7 @@ def stale_cookie(monkeypatch):
     monkeypatch.setattr(babelio_service, "cache_service", None)
     monkeypatch.setattr(babelio_service, "min_interval", 0)
     babelio_service.set_cookie("jstsToken=<REDACTED>")
-    monkeypatch.setattr(babelio_service, "jsts_token_max_age_sec", 0)
+    monkeypatch.setattr(babelio_service, "cookie_max_age_sec", 0)
     yield
     babelio_service.set_cookie(None)
 

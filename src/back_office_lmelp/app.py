@@ -3489,7 +3489,7 @@ async def get_babelio_status(live_check: bool = False) -> dict[str, Any]:
     # Âge du cookie serveur : la seule référence pour savoir s'il est encore
     # utilisable (le navigateur ne garde plus de cookie).
     cookie_age_sec = babelio_service.get_cookie_age_sec()
-    cookie_max_age_sec = babelio_service.get_cookie_max_age_sec()
+    cookie_max_age_sec = babelio_service.cookie_max_age_sec
 
     return {
         "overall": overall,
