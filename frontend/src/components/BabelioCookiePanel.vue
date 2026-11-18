@@ -43,7 +43,7 @@
               <li>Ouvre les DevTools (F12) → onglet <strong>Réseau</strong></li>
               <li>Recharge la page, clique sur la requête <code>/</code> de babelio.com</li>
               <li>Dans <strong>En-têtes de requête</strong>, clic droit sur <strong>Cookie</strong> → Copier la valeur</li>
-              <li>Colle-la ci-dessous et clique Enregistrer</li>
+              <li>Colle-la ci-dessous et clique Enregistrer, depuis lmelp ouvert <strong>dans ce même Firefox</strong></li>
             </ol>
           </details>
           <textarea
@@ -113,9 +113,11 @@ const ANONYMOUS_COOKIE_WARNING =
 // Repli si le statut serveur signale un navigateur autre que Firefox
 // (même texte que BABELIO_NON_FIREFOX_WARNING côté serveur)
 const NON_FIREFOX_WARNING =
-  "Cookie enregistré depuis un navigateur qui n'est pas Firefox : lmelp imite "
-  + 'Firefox, Babelio risque de refuser les requêtes (403, puis ban IP). '
-  + 'Enregistrez le cookie depuis le Firefox connecté à Babelio.';
+  "Cookie collé dans lmelp depuis un navigateur qui n'est pas Firefox. "
+  + "lmelp reprend l'identité de ce navigateur, mais imite l'empreinte réseau "
+  + 'de Firefox : Babelio risque de refuser les requêtes (403, puis ban IP). '
+  + 'Copier le cookie dans Firefox ne suffit pas : ouvrez aussi lmelp dans '
+  + "Firefox pour l'y coller.";
 
 // Rafraîchissement du temps restant affiché (pas d'appel serveur)
 const CLOCK_TICK_MS = 5000;

@@ -175,7 +175,9 @@ def test_cookie_from_non_firefox_browser_is_accepted_with_a_warning(client):
 
     assert response.status_code == 200
     assert babelio_service.get_cookie() == LOGGED_IN_COOKIE
-    assert "pas Firefox" in response.json()["browser_warning"]
+    # Le cookie a pu être copié dans Firefox : c'est le navigateur où il est
+    # collé dans lmelp qui compte
+    assert "ouvrez aussi lmelp dans Firefox" in response.json()["browser_warning"]
     status = client.get("/api/babelio/status").json()
     assert status["cookie_browser_not_firefox"] is True
 
