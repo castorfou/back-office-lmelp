@@ -1469,7 +1469,7 @@ Changements concernés côté back-office-lmelp :
   `POST /api/pgx/transcription/start` ;
 - changement du réessai PGX (`pgx_transcription_retry_interval_hours`, toutes les heures),
   du rythme des requêtes Babelio (`BABELIO_FAIR_SEC`) ou de la durée de validité du cookie
-  Babelio (`BABELIO_COOKIE_MAX_AGE_SEC`) ;
+  Babelio (`BABELIO_COOKIE_MAX_AGE_SEC`, `BABELIO_SESSION_MAX_AGE_SEC`) ;
 - nouvelle notification ntfy, ou notification modifiée (`utils/ntfy.py`) ;
 - changement de la lecture de la copie Calibre (`metadata.db`) ;
 - workflow CI qui publie les images (`.github/workflows/docker-publish.yml`).

@@ -186,9 +186,9 @@ Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et 
 
 **Le texte collé est vérifié avant l'envoi** : il doit s'agir de la valeur de l'en-tête **Cookie** de la requête, copiée en étant **connecté** à Babelio : elle contient alors un `PHPSESSID` (cookie de session). Les autres cookies (dont un éventuel `jstsToken`) sont envoyés tels quels. Un User-Agent, un en-tête `Set-Cookie` de la réponse ou plusieurs lignes d'en-têtes sont refusés avec un message qui indique quoi copier. Un préfixe `Cookie:` collé par erreur est retiré.
 
-**Durée de validité** : le cookie est considéré comme expiré 4 minutes après son enregistrement. Babelio revérifie le visiteur environ 5 minutes après lui avoir délivré la session, au chargement de la page : la minute de marge couvre le temps de copier et coller le cookie. Rafraîchissez-le avant de relancer un traitement long.
+**Durée de validité** : le cookie est considéré comme expiré 4 minutes après son enregistrement, par défaut. Un cookie qui porte un `jstsToken` vit environ 5 minutes, revérifié au chargement de la page : la minute de marge couvre le temps de copier et coller le cookie. Sans `jstsToken`, le cookie repose sur la session Babelio, dont la durée se règle à part (`BABELIO_SESSION_MAX_AGE_SEC`). Rafraîchissez-le avant de relancer un traitement long.
 
-**Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (240 s par défaut), refuse d'appeler Babelio plutôt que de risquer un 403.
+**Le serveur n'envoie jamais un cookie périmé** : il date le cookie à l'enregistrement et, au-delà de `BABELIO_COOKIE_MAX_AGE_SEC` (cookie avec `jstsToken`) ou `BABELIO_SESSION_MAX_AGE_SEC` (sans), 240 s par défaut, refuse d'appeler Babelio plutôt que de risquer un 403.
 
 **Les requêtes portent l'identité de votre navigateur** : en cliquant sur **Enregistrer**, le navigateur transmet aussi son User-Agent et sa langue. Le serveur les reprend pour toutes les requêtes Babelio, avec l'empreinte réseau d'un Firefox (TLS et HTTP/2). Babelio ouvre la session pour ce navigateur : présenté par un client différent, le cookie trahit un robot. Récupérez donc le cookie dans Firefox, et enregistrez-le depuis ce même Firefox. La page **Contrôle Babelio** (`GET /api/babelio/status`) affiche l'identité retenue.
 
@@ -216,7 +216,7 @@ Le bouton **🔄 Rafraîchir** de la page **Contrôle Babelio** fait un simple e
 
 ### Comprendre un 403
 
-Avec un 403, Babelio renvoie une page qui en dit la raison : refus sec, défi anti-robots, message explicite. Le serveur garde les dix dernières réponses 403 (en-têtes reçus, début de la page, en-têtes envoyés avec le cookie masqué). On les lit sur `GET /api/babelio/blocked-responses`, sans envoyer de requête à Babelio. Elles sont perdues au redémarrage du serveur.
+Avec un 403, Babelio renvoie une page qui en dit la raison : refus sec, défi anti-robots, message explicite. Le serveur garde les dix dernières réponses 403 (en-têtes reçus, début de la page, en-têtes envoyés avec le cookie masqué, âge du cookie au refus). On les lit sur `GET /api/babelio/blocked-responses`, sans envoyer de requête à Babelio. Elles sont perdues au redémarrage du serveur.
 
 **Le disjoncteur suit l'essai** : un essai qui échoue l'ouvre (plus aucune requête ne part), un essai qui réussit referme un disjoncteur ouvert par un ban IP, sans exiger de nouveau cookie. Un disjoncteur ouvert par un 403 ou par une vérification humaine ne se referme qu'avec un nouveau cookie.
 

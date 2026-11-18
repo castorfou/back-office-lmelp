@@ -32,11 +32,16 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `BABELIO_MIN_INTERVAL` | Délai minimum (en secondes) entre deux requêtes HTTP vers babelio.com. S'applique à **toutes** les requêtes (scraping titre, éditeur, auteur, couverture). | `2.0` | `5.0` |
-| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `240` | `180` |
+| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur quand il porte un `jstsToken`. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `240` | `180` |
+| `BABELIO_SESSION_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio sans `jstsToken`, qui repose sur la session PHP (`PHPSESSID`). Même refus au-delà. | `240` | `1200` |
 
-### Usage `BABELIO_COOKIE_MAX_AGE_SEC`
+### Usage `BABELIO_COOKIE_MAX_AGE_SEC` et `BABELIO_SESSION_MAX_AGE_SEC`
 
-Babelio répond 403 à un cookie expiré, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Babelio, lui, compte environ 5 min à partir du chargement de la page qui a délivré la session : le défaut de 240 s garde une minute de marge pour le temps de copier-coller. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
+Babelio répond 403 à un cookie expiré, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Un `jstsToken`, lui, vit environ 5 min à partir du chargement de la page qui l'a délivré : le défaut de 240 s garde une minute de marge pour le temps de copier-coller. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
+
+La durée appliquée dépend du cookie enregistré : `BABELIO_COOKIE_MAX_AGE_SEC` s'il porte un `jstsToken` (durée de vie connue du jeton), `BABELIO_SESSION_MAX_AGE_SEC` sinon. Babelio ne pose plus de `jstsToken` : le cookie repose alors sur la session PHP, de durée de vie inconnue (24 min par défaut en PHP, mais Babelio a pu la changer). Tant qu'elle n'est pas mesurée, `BABELIO_SESSION_MAX_AGE_SEC` garde la valeur prudente de 240 s.
+
+**Mesurer la durée de session** : jamais par des requêtes serveur répétées, qui finissent en 403 puis en ban IP. Chaque 403 reçu pendant un usage réel note l'âge du cookie (champs `cookie_age_sec` et `cookie_max_age_sec`, la limite appliquée, de `GET /api/babelio/blocked-responses`, et ligne `Babelio 403 — âge du cookie` dans les logs). Une fois la durée connue, régler `BABELIO_SESSION_MAX_AGE_SEC` en dessous, avec une marge.
 
 ### Usage `BABELIO_MIN_INTERVAL`
 

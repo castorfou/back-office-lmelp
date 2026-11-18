@@ -84,14 +84,14 @@ def test_status_reports_cookie_age_and_expiry(client, service):
     service.set_cookie("jstsToken=fresh")
     data = client.get("/api/babelio/status").json()
     assert data["cookie_active"] is True
-    assert data["cookie_max_age_sec"] == service.cookie_max_age_sec
+    assert data["cookie_max_age_sec"] == service.get_cookie_max_age_sec()
     assert 0 <= data["cookie_age_sec"] < 5
     assert data["cookie_expired"] is False
 
-    service._cookie_set_at = time.time() - service.cookie_max_age_sec - 1
+    service._cookie_set_at = time.time() - service.get_cookie_max_age_sec() - 1
     data = client.get("/api/babelio/status").json()
     assert data["cookie_active"] is True
-    assert data["cookie_age_sec"] >= service.cookie_max_age_sec
+    assert data["cookie_age_sec"] >= service.get_cookie_max_age_sec()
     assert data["cookie_expired"] is True
 
 

@@ -22,6 +22,14 @@ describe('BabelioCookiePanel', () => {
     vi.useRealTimers();
   });
 
+  it('annonce la durée de validité donnée par le serveur (Issue #370)', () => {
+    // Sans jstsToken, la durée suit BABELIO_SESSION_MAX_AGE_SEC : pas de « 4 min » en dur
+    wrapper = mount(BabelioCookiePanel, {
+      props: { status: { cookie_active: true, cookie_age_sec: 10, cookie_max_age_sec: 1200, cookie_expired: false } },
+    });
+    expect(wrapper.find('.cookie-help').text()).toContain('Il reste actif 20 min après son enregistrement.');
+  });
+
   it('affiche « non configuré » tant que le statut serveur est inconnu', () => {
     wrapper = mount(BabelioCookiePanel, { props: { status: null } });
     expect(badgeText(wrapper)).toContain('non configuré');

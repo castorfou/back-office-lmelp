@@ -185,6 +185,15 @@ _SET_COOKIE_ATTRIBUTES = {
 }
 
 
+def _cookie_value(cookie: str, name: str) -> str:
+    """Valeur du cookie `name` dans un en-tête Cookie (chaîne vide s'il manque)."""
+    for part in cookie.split(";"):
+        part_name, _, value = part.partition("=")
+        if part_name.strip() == name:
+            return value.strip()
+    return ""
+
+
 def is_anonymous_cookie(cookie: str) -> bool:
     """True si le cookie est à coup sûr anonyme (pas d'`id_user`).
 
@@ -195,11 +204,12 @@ def is_anonymous_cookie(cookie: str) -> bool:
     session connectée (seules les valeurs de `bbac` et `PHPSESSID` diffèrent,
     état tenu côté serveur). False ne prouve donc pas qu'une session est ouverte.
     """
-    for part in cookie.split(";"):
-        name, _, value = part.partition("=")
-        if name.strip() == "id_user" and value.strip():
-            return False
-    return True
+    return not _cookie_value(cookie, "id_user")
+
+
+def has_jsts_token(cookie: str) -> bool:
+    """True si le cookie porte un `jstsToken` (jeton d'environ 5 min)."""
+    return bool(_cookie_value(cookie, "jstsToken"))
 
 
 def is_firefox_user_agent(user_agent: str | None) -> bool:
@@ -326,10 +336,13 @@ class BabelioService:
         # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
         # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
         # cookie expiré, et ses 403 se transforment en ban IP d'environ 24 h).
-        # Babelio revérifie le visiteur environ 5 min après lui avoir délivré
-        # la session, au chargement de la page ; le serveur ne date le cookie
-        # qu'à son enregistrement, après le copier-coller. Les 240 s par défaut
-        # gardent une minute de marge pour cet écart.
+        # La durée dépend du cookie (get_cookie_max_age_sec) : un jstsToken vit
+        # environ 5 min, revérifié au chargement de la page ; le serveur ne date
+        # le cookie qu'à son enregistrement, après le copier-coller, d'où les
+        # 240 s par défaut (une minute de marge). Sans jstsToken, le cookie
+        # repose sur la session PHP (PHPSESSID), de durée de vie inconnue :
+        # BABELIO_SESSION_MAX_AGE_SEC garde la même valeur prudente tant
+        # qu'elle n'est pas mesurée (Issue #370).
         self._cookie_set_at: float | None = None
         # Identité du navigateur qui a fourni le cookie : la session Babelio est
         # ouverte pour ce navigateur, les requêtes doivent porter le même User-Agent.
@@ -337,7 +350,12 @@ class BabelioService:
         self._browser_accept_language: str | None = None
         self.connect_timeout_sec = 10.0
         self.request_timeout_sec = 30.0
-        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "240"))
+        self.jsts_token_max_age_sec: float = float(
+            os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "240")
+        )
+        self.session_max_age_sec: float = float(
+            os.getenv("BABELIO_SESSION_MAX_AGE_SEC", "240")
+        )
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
         # Motif d'ouverture : CIRCUIT_REASON_HTTP_403 (cookie) ou
@@ -412,13 +430,29 @@ class BabelioService:
         request_headers: dict[str, str],
         response: "BabelioResponse",
     ) -> None:
-        """Conserve une réponse 403 pour diagnostic, cookie masqué."""
+        """Conserve une réponse 403 pour diagnostic, cookie masqué.
+
+        L'âge du cookie au refus sert à mesurer la durée de vie de la session
+        Babelio sur les usages réels (Issue #370) : la mesurer par des requêtes
+        répétées vaudrait un ban IP.
+        """
         sent = dict(request_headers)
         if "Cookie" in sent:
             sent["Cookie"] = _redact_cookie(sent["Cookie"])
+        cookie_age_sec = self.get_cookie_age_sec()
+        cookie_max_age_sec = self.get_cookie_max_age_sec()
+        if cookie_age_sec is not None:
+            logger.warning(
+                f"Babelio 403 — âge du cookie : {cookie_age_sec:.0f}s "
+                f"(max {cookie_max_age_sec:.0f}s)"
+            )
         self._blocked_responses.append(
             {
                 "timestamp": time.time(),
+                "cookie_age_sec": (
+                    round(cookie_age_sec, 1) if cookie_age_sec is not None else None
+                ),
+                "cookie_max_age_sec": cookie_max_age_sec,
                 "method": method,
                 "url": url,
                 "status": response.status,
@@ -474,10 +508,11 @@ class BabelioService:
         if self._stored_cookie is None or self._cookie_set_at is None:
             return
         age = time.time() - self._cookie_set_at
-        if age >= self.cookie_max_age_sec:
+        max_age = self.get_cookie_max_age_sec()
+        if age >= max_age:
             raise BabelioCookieExpiredError(
                 f"Cookie Babelio périmé ({age:.0f}s, max "
-                f"{self.cookie_max_age_sec:.0f}s) — collez un cookie frais"
+                f"{max_age:.0f}s) — collez un cookie frais"
             )
 
     def _open_circuit_on_connection_timeout(self) -> None:
@@ -591,6 +626,13 @@ class BabelioService:
         if self._stored_cookie is None or self._cookie_set_at is None:
             return None
         return time.time() - self._cookie_set_at
+
+    def get_cookie_max_age_sec(self) -> float:
+        """Âge maximal du cookie stocké : celui du jstsToken s'il en porte un,
+        sinon celui de la session Babelio."""
+        if self._stored_cookie and has_jsts_token(self._stored_cookie):
+            return self.jsts_token_max_age_sec
+        return self.session_max_age_sec
 
     # ── HTTP session helpers ───────────────────────────────────────────────
 
