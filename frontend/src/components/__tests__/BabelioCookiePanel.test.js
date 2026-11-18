@@ -75,7 +75,7 @@ describe('BabelioCookiePanel', () => {
 
   it('ne propose pas d\'effacer le cookie serveur', async () => {
     // Sans cookie, le serveur interroge Babelio avec des cookies génériques :
-    // effacer ne protège de rien, et le cookie se périme seul en 5 min.
+    // effacer ne protège de rien, et le cookie se périme seul en 4 min.
     wrapper = mount(BabelioCookiePanel, { props: { status: { cookie_active: false } } });
     expect(wrapper.find('[data-test="cookie-clear"]').exists()).toBe(false);
 
