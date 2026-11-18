@@ -22,7 +22,7 @@
       <div class="babelio-cookie-form">
         <p class="cookie-help">
           Le cookie de session d'un navigateur <strong>connecté</strong> à Babelio est requis pour éviter les blocages 403.
-          Il reste actif 4 min après son enregistrement.
+          <template v-if="lifetimeLabel">Il reste actif {{ lifetimeLabel }} après son enregistrement.</template>
           Il est stocké <strong>côté serveur</strong> et utilisé automatiquement par toutes les requêtes Babelio.
           Le navigateur n'en garde aucun : chaque cookie se colle frais.
           <slot />
@@ -181,6 +181,11 @@ export default {
       if (!st || !st.cookie_active) return 'missing';
       if (st.cookie_expired || (this.remainingSec !== null && this.remainingSec <= 0)) return 'expired';
       return 'active';
+    },
+    // Durée de validité appliquée par le serveur (dépend du cookie : jstsToken ou session)
+    lifetimeLabel() {
+      const max = this.status?.cookie_max_age_sec;
+      return typeof max === 'number' ? `${Math.round(max / 60)} min` : null;
     },
     savedAtLabel() {
       const age = this.status?.cookie_age_sec;

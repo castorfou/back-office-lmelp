@@ -32,11 +32,15 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
 | `BABELIO_MIN_INTERVAL` | Délai minimum (en secondes) entre deux requêtes HTTP vers babelio.com. S'applique à **toutes** les requêtes (scraping titre, éditeur, auteur, couverture). | `2.0` | `5.0` |
-| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `240` | `180` |
+| `BABELIO_COOKIE_MAX_AGE_SEC` | Âge maximal (en secondes) du cookie Babelio enregistré côté serveur. Au-delà, le serveur refuse d'appeler Babelio (`BabelioBlockedError`, sans requête HTTP) et demande un cookie frais. | `1800` | `900` |
 
 ### Usage `BABELIO_COOKIE_MAX_AGE_SEC`
 
-Babelio répond 403 à un cookie expiré, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Babelio, lui, compte environ 5 min à partir du chargement de la page qui a délivré la session : le défaut de 240 s garde une minute de marge pour le temps de copier-coller. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
+Babelio répond 403 à un cookie qu'il n'accepte plus, et transforme ses 403 en ban IP pare-feu d'environ 24 h. Le serveur date donc le cookie à son enregistrement (bouton « Enregistrer ») et ne l'envoie jamais au-delà de cet âge. Un traitement plus long que cette durée s'arrête avec le message « collez un cookie frais » : il suffit d'en coller un et de relancer, les réponses déjà obtenues sont servies par le cache.
+
+**D'où viennent les 30 min** : un cookie connecté (`PHPSESSID`, avec ou sans `jstsToken`) a servi jusqu'à 1 h 51 d'âge, avec jusqu'à 30 min d'inactivité entre deux requêtes, sur la recherche comme sur les pages, sans aucun 403. Le `jstsToken` ne raccourcit pas cette durée. La session PHP expirant après une inactivité, une limite de 30 min garde à la fois l'âge et l'inactivité dans ce qui a été mesuré.
+
+**Revoir la durée** : jamais par des requêtes serveur répétées depuis l'IP habituelle, qui finissent en 403 puis en ban IP. Chaque 403 reçu note l'âge du cookie et la limite appliquée (champs `cookie_age_sec` et `cookie_max_age_sec` de `GET /api/babelio/blocked-responses`, ligne `Babelio 403 — âge du cookie` dans les logs). Pour une mesure dédiée, `scripts/measure_babelio_session.py` envoie une recherche par palier d'inactivité croissante et s'arrête au premier 403 : à lancer uniquement depuis un réseau jetable (partage de connexion mobile), le backend démarré avec `BABELIO_COOKIE_MAX_AGE_SEC=86400`.
 
 ### Usage `BABELIO_MIN_INTERVAL`
 

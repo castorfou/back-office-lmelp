@@ -326,10 +326,10 @@ class BabelioService:
         # Date d'enregistrement du cookie : au-delà de cookie_max_age_sec, il est
         # considéré périmé et n'est jamais envoyé (Babelio répond 403 à un
         # cookie expiré, et ses 403 se transforment en ban IP d'environ 24 h).
-        # Babelio revérifie le visiteur environ 5 min après lui avoir délivré
-        # la session, au chargement de la page ; le serveur ne date le cookie
-        # qu'à son enregistrement, après le copier-coller. Les 240 s par défaut
-        # gardent une minute de marge pour cet écart.
+        # Mesure grandeur nature (Issue #370) : un cookie connecté (PHPSESSID,
+        # avec ou sans jstsToken) a servi jusqu'à 1 h 51 d'âge et 30 min
+        # d'inactivité sans 403. Les 1800 s par défaut gardent âge et
+        # inactivité dans ce qui a été mesuré.
         self._cookie_set_at: float | None = None
         # Identité du navigateur qui a fourni le cookie : la session Babelio est
         # ouverte pour ce navigateur, les requêtes doivent porter le même User-Agent.
@@ -337,7 +337,7 @@ class BabelioService:
         self._browser_accept_language: str | None = None
         self.connect_timeout_sec = 10.0
         self.request_timeout_sec = 30.0
-        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "240"))
+        self.cookie_max_age_sec = float(os.getenv("BABELIO_COOKIE_MAX_AGE_SEC", "1800"))
         # Circuit breaker: ouvert (True) dès qu'un 403 est reçu, fermé par set_cookie()
         self._circuit_open: bool = False
         # Motif d'ouverture : CIRCUIT_REASON_HTTP_403 (cookie) ou
@@ -412,13 +412,28 @@ class BabelioService:
         request_headers: dict[str, str],
         response: "BabelioResponse",
     ) -> None:
-        """Conserve une réponse 403 pour diagnostic, cookie masqué."""
+        """Conserve une réponse 403 pour diagnostic, cookie masqué.
+
+        L'âge du cookie au refus, avec la limite appliquée, permet de revoir
+        BABELIO_COOKIE_MAX_AGE_SEC sur les usages réels (Issue #370) : la
+        mesurer par des requêtes répétées vaudrait un ban IP.
+        """
         sent = dict(request_headers)
         if "Cookie" in sent:
             sent["Cookie"] = _redact_cookie(sent["Cookie"])
+        cookie_age_sec = self.get_cookie_age_sec()
+        if cookie_age_sec is not None:
+            logger.warning(
+                f"Babelio 403 — âge du cookie : {cookie_age_sec:.0f}s "
+                f"(max {self.cookie_max_age_sec:.0f}s)"
+            )
         self._blocked_responses.append(
             {
                 "timestamp": time.time(),
+                "cookie_age_sec": (
+                    round(cookie_age_sec, 1) if cookie_age_sec is not None else None
+                ),
+                "cookie_max_age_sec": self.cookie_max_age_sec,
                 "method": method,
                 "url": url,
                 "status": response.status,
