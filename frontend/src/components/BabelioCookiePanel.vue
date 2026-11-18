@@ -113,7 +113,7 @@ const ANONYMOUS_COOKIE_WARNING =
 // Repli si le statut serveur signale un navigateur autre que Firefox
 // (même texte que BABELIO_NON_FIREFOX_WARNING côté serveur)
 const NON_FIREFOX_WARNING =
-  "Cookie collé dans lmelp depuis un navigateur qui n'est pas Firefox. "
+  "Cookie collé dans lmelp dans un navigateur qui n'est pas Firefox. "
   + "lmelp reprend l'identité de ce navigateur, mais imite l'empreinte réseau "
   + 'de Firefox : Babelio risque de refuser les requêtes (403, puis ban IP). '
   + 'Copier le cookie dans Firefox ne suffit pas : ouvrez aussi lmelp dans '

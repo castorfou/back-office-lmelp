@@ -229,7 +229,7 @@ describe('BabelioCookiePanel', () => {
   // Issue #368 : lmelp imite l'empreinte réseau de Firefox ; un User-Agent
   // d'un autre navigateur la contredit (403, puis ban IP)
   describe('navigateur qui n\'est pas Firefox', () => {
-    const BROWSER_WARNING = "Cookie collé dans lmelp depuis un navigateur qui n'est pas Firefox. lmelp reprend l'identité de ce navigateur, mais imite l'empreinte réseau de Firefox : Babelio risque de refuser les requêtes (403, puis ban IP). Copier le cookie dans Firefox ne suffit pas : ouvrez aussi lmelp dans Firefox pour l'y coller.";
+    const BROWSER_WARNING = "Cookie collé dans lmelp dans un navigateur qui n'est pas Firefox. lmelp reprend l'identité de ce navigateur, mais imite l'empreinte réseau de Firefox : Babelio risque de refuser les requêtes (403, puis ban IP). Copier le cookie dans Firefox ne suffit pas : ouvrez aussi lmelp dans Firefox pour l'y coller.";
 
     it('affiche l\'avertissement renvoyé par le serveur à l\'enregistrement', async () => {
       axios.post.mockResolvedValueOnce({ data: { ok: true, warning: null, browser_warning: BROWSER_WARNING } });
