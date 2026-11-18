@@ -2,7 +2,7 @@
 
 Cette requête part du navigateur qui vient de récupérer le cookie sur
 babelio.com : son User-Agent et son Accept-Language sont ceux pour lesquels
-Babelio a émis le cookie.
+Babelio a ouvert la session.
 """
 
 import pytest

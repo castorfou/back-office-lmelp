@@ -46,7 +46,7 @@ def test_accepts_cookie_header_copied_from_firefox(client):
 
 # Noms des cookies d'un navigateur connecté depuis que Babelio ne pose plus de
 # jstsToken (Issue #367), valeurs factices.
-LOGGED_IN_COOKIE_WITHOUT_JSTS = (
+LOGGED_IN_COOKIE = (
     "g_state={}; bbacml=0; disclaimer=1; _ga_XXXXXXXXXX=GS2.1.s1; _ga=GA1.2.3; "
     "_gcl_au=1.1.1; __gads=ID=x; __gpi=UID=y; __eoi=ID=z; p=FR; "
     "g_csrf_token=abc; PHPSESSID=fakesession123; "
@@ -55,11 +55,9 @@ LOGGED_IN_COOKIE_WITHOUT_JSTS = (
 
 
 def test_accepts_logged_in_cookie_without_jsts_token(client):
-    response = client.post(
-        "/api/babelio/cookie", json={"cookie": LOGGED_IN_COOKIE_WITHOUT_JSTS}
-    )
+    response = client.post("/api/babelio/cookie", json={"cookie": LOGGED_IN_COOKIE})
     assert response.status_code == 200
-    assert babelio_service.get_cookie() == LOGGED_IN_COOKIE_WITHOUT_JSTS
+    assert babelio_service.get_cookie() == LOGGED_IN_COOKIE
 
 
 @pytest.mark.parametrize(

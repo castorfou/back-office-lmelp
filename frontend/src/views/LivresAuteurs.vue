@@ -144,7 +144,7 @@
           🧩 Babelio demande une vérification humaine : connectez-vous à Babelio, puis collez un nouveau cookie ci-dessous. Un cookie copié sans être connecté au compte déclenche cette vérification.
         </template>
         <template v-else>
-          ⚠️ Babelio a bloqué les requêtes (403). Le cookie est probablement expiré (TTL ~5 min) — collez un cookie frais ci-dessous.
+          ⚠️ Babelio a bloqué les requêtes (403). Le cookie Babelio est probablement expiré ou la session fermée — connectez-vous à babelio.com et collez un cookie frais ci-dessous.
         </template>
         <button @click="babelioBlocked = false" class="babelio-blocked-banner-close" aria-label="Fermer">✕</button>
       </div>

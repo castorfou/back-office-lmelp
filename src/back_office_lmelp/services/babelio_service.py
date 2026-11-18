@@ -173,6 +173,12 @@ def is_anonymous_cookie(cookie: str) -> bool:
     return True
 
 
+BLOCKED_403_MESSAGE = (
+    "Babelio a bloqué la requête (403). Le cookie Babelio est probablement "
+    "expiré ou la session fermée — connectez-vous à babelio.com et collez un "
+    "cookie frais."
+)
+
 PHPSESSID_MISSING_MESSAGE = (
     "PHPSESSID absent : connectez-vous à babelio.com, rechargez la page et "
     "copiez l'en-tête Cookie de la requête « / »."
@@ -1037,11 +1043,7 @@ class BabelioService:
                 "confidence_score": 0.0,
                 "babelio_data": None,
                 "babelio_url": None,
-                "error_message": (
-                    "Babelio a bloqué la requête (403). Le cookie Babelio est "
-                    "probablement expiré ou la session fermée — connectez-vous "
-                    "à babelio.com et collez un cookie frais."
-                ),
+                "error_message": BLOCKED_403_MESSAGE,
             }
         except (TimeoutError, aiohttp.ClientError):
             # Propager les erreurs réseau/timeout pour que le script de migration
@@ -1310,11 +1312,7 @@ class BabelioService:
                 "babelio_data": None,
                 "babelio_url": None,
                 "babelio_author_url": None,
-                "error_message": (
-                    "Babelio a bloqué la requête (403). Le cookie Babelio est "
-                    "probablement expiré ou la session fermée — connectez-vous "
-                    "à babelio.com et collez un cookie frais."
-                ),
+                "error_message": BLOCKED_403_MESSAGE,
             }
         except (TimeoutError, aiohttp.ClientError):
             # Propager les erreurs réseau/timeout pour que le script de migration

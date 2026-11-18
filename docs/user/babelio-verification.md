@@ -184,7 +184,7 @@ Une confirmation « ✓ Cookie enregistré » s'affiche, le champ se referme et 
 
 **Le cookie se colle frais à chaque fois** : le navigateur n'en garde aucune copie, et le champ démarre toujours vide. Seul le serveur conserve le cookie et le joint à toutes les requêtes Babelio (validation, scraping de pages, liaison manuelle par URL, couvertures).
 
-**Le texte collé est vérifié avant l'envoi** : il doit s'agir de la valeur de l'en-tête **Cookie** de la requête, copiée en étant **connecté** à Babelio : elle contient alors un `PHPSESSID` (cookie de session). Le `jstsToken` n'est plus requis ; s'il est présent, il est envoyé avec le reste. Un User-Agent, un en-tête `Set-Cookie` de la réponse ou plusieurs lignes d'en-têtes sont refusés avec un message qui indique quoi copier. Un préfixe `Cookie:` collé par erreur est retiré.
+**Le texte collé est vérifié avant l'envoi** : il doit s'agir de la valeur de l'en-tête **Cookie** de la requête, copiée en étant **connecté** à Babelio : elle contient alors un `PHPSESSID` (cookie de session). Les autres cookies (dont un éventuel `jstsToken`) sont envoyés tels quels. Un User-Agent, un en-tête `Set-Cookie` de la réponse ou plusieurs lignes d'en-têtes sont refusés avec un message qui indique quoi copier. Un préfixe `Cookie:` collé par erreur est retiré.
 
 **Durée de validité** : le cookie est considéré comme expiré 5 minutes après son enregistrement. Rafraîchissez-le avant de relancer un traitement long.
 

@@ -349,7 +349,7 @@ async def migrate_one_book_and_author(
                 # Issue #304: passer par _fetch_page() (le gateway centralisé
                 # de babelio_service) plutôt qu'un appel brut session.get() —
                 # _fetch_page() applique les bons headers de page ET le
-                # cookie jstsToken stocké côté serveur. Un appel brut
+                # cookie Babelio stocké côté serveur. Un appel brut
                 # utilisait une session créée avec des headers d'API AJAX
                 # (Content-Type: application/json, X-Requested-With:
                 # XMLHttpRequest) et SANS ce cookie, que Babelio détectait et
