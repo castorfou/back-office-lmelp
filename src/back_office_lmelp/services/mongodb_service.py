@@ -2741,6 +2741,64 @@ class MongoDBService:
         result = self.avis_collection.insert_many(avis_list)
         return [str(oid) for oid in result.inserted_ids]
 
+    def add_livre_ecarte(
+        self, avis_critique_id: ObjectId | str, titre: str, auteur: str
+    ) -> list[dict[str, Any]] | None:
+        """
+        Écarte un titre du résumé : il ne produira plus ni avis ni livre.
+
+        Le registre `avis_critiques.livres_ecartes` est lu par les deux
+        extractions. Idempotent sur le titre normalisé (Issue #380).
+
+        Returns:
+            Le registre à jour, ou None si l'avis critique n'existe pas
+        """
+        from ..utils.livres_ecartes import is_titre_ecarte
+
+        if self.avis_critiques_collection is None:
+            return None
+        oid = ObjectId(avis_critique_id)
+        doc = self.avis_critiques_collection.find_one({"_id": oid})
+        if doc is None:
+            return None
+        livres_ecartes: list[dict[str, Any]] = list(doc.get("livres_ecartes") or [])
+        if is_titre_ecarte(titre, livres_ecartes):
+            return livres_ecartes
+        livres_ecartes.append(
+            {"titre": titre, "auteur": auteur, "ecarte_le": datetime.now()}
+        )
+        self.avis_critiques_collection.update_one(
+            {"_id": oid}, {"$set": {"livres_ecartes": livres_ecartes}}
+        )
+        return livres_ecartes
+
+    def remove_livre_ecarte(
+        self, avis_critique_id: ObjectId | str, titre: str
+    ) -> list[dict[str, Any]] | None:
+        """
+        Rétablit un titre écarté (comparaison sur le titre normalisé).
+
+        Returns:
+            Le registre à jour, ou None si l'avis critique n'existe pas
+        """
+        from ..utils.livres_ecartes import is_titre_ecarte
+
+        if self.avis_critiques_collection is None:
+            return None
+        oid = ObjectId(avis_critique_id)
+        doc = self.avis_critiques_collection.find_one({"_id": oid})
+        if doc is None:
+            return None
+        livres_ecartes = [
+            entry
+            for entry in doc.get("livres_ecartes") or []
+            if not is_titre_ecarte(titre, [entry])
+        ]
+        self.avis_critiques_collection.update_one(
+            {"_id": oid}, {"$set": {"livres_ecartes": livres_ecartes}}
+        )
+        return livres_ecartes
+
     def delete_avis_by_emission(self, emission_oid: str) -> int:
         """
         Supprime tous les avis d'une émission.

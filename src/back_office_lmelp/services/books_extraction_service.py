@@ -7,6 +7,8 @@ from typing import Any
 import openai
 from dotenv import load_dotenv
 
+from ..utils.livres_ecartes import is_titre_ecarte
+
 
 load_dotenv()
 
@@ -66,7 +68,9 @@ class BooksExtractionService:
         for avis in avis_critiques:
             try:
                 books_from_review = await self._extract_books_from_single_review(avis)
-                all_extracted_books.extend(books_from_review)
+                all_extracted_books.extend(
+                    self._without_ecartes(books_from_review, avis)
+                )
             except ValueError as e:
                 # Propager les erreurs de validation de format markdown
                 # pour que l'utilisateur puisse corriger le problème
@@ -89,7 +93,9 @@ class BooksExtractionService:
                             avis.get("episode_title", ""),
                             avis.get("episode_date", ""),
                         )
-                        all_extracted_books.extend(fallback_books)
+                        all_extracted_books.extend(
+                            self._without_ecartes(fallback_books, avis)
+                        )
                     except Exception:
                         # Fallback échoué, continuer silencieusement
                         continue
@@ -98,6 +104,20 @@ class BooksExtractionService:
                     continue
 
         return all_extracted_books
+
+    @staticmethod
+    def _without_ecartes(
+        books: list[dict[str, Any]], avis_critique: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Retire les titres du registre `livres_ecartes` de l'avis critique."""
+        livres_ecartes = avis_critique.get("livres_ecartes")
+        if not livres_ecartes:
+            return books
+        return [
+            book
+            for book in books
+            if not is_titre_ecarte(book.get("titre", ""), livres_ecartes)
+        ]
 
     async def _extract_books_from_single_review(
         self, avis_critique: dict[str, Any]

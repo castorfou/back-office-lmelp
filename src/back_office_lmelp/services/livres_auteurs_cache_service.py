@@ -509,9 +509,35 @@ class LivresAuteursCacheService:
         result = cache_collection.delete_many({"episode_oid": episode_oid})
         return int(result.deleted_count)
 
-    def delete_cache_entry(self, cache_id: ObjectId) -> bool:
+    def delete_unvalidated_entries_by_title(self, episode_oid: str, titre: str) -> int:
         """
-        Supprime une entrée de cache précise par son `_id` (Issue #303).
+        Supprime les entrées non validées (status != "mongo") d'un titre écarté.
+
+        La comparaison des titres passe par `normalize_for_matching`. Une
+        entrée déjà en base (status "mongo") est conservée.
+
+        Returns:
+            Nombre d'entrées supprimées
+        """
+        from ..utils.livres_ecartes import is_titre_ecarte
+
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        ecarte = [{"titre": titre}]
+        ids = [
+            entry["_id"]
+            for entry in cache_collection.find(
+                {"episode_oid": episode_oid, "status": {"$ne": "mongo"}}
+            )
+            if is_titre_ecarte(entry.get("titre", ""), ecarte)
+        ]
+        if not ids:
+            return 0
+        result = cache_collection.delete_many({"_id": {"$in": ids}})
+        return int(result.deleted_count)
+
+    def delete_cache_entry(self, cache_id: ObjectId) -> dict[str, Any] | None:
+        """
+        Supprime une entrée de cache précise par son `_id`.
 
         Permet de retirer un livre détecté par erreur (mentionné en passant,
         pas au programme) avant qu'il ne soit validé/créé en base.
@@ -520,11 +546,14 @@ class LivresAuteursCacheService:
             cache_id: ObjectId de l'entrée de cache à supprimer
 
         Returns:
-            True si un document a été supprimé, False si aucune entrée ne correspondait
+            Le document supprimé (pour écarter son titre), ou None si aucune
+            entrée ne correspondait
         """
         cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
-        result = cache_collection.delete_one({"_id": cache_id})
-        return bool(result.deleted_count > 0)
+        deleted: dict[str, Any] | None = cache_collection.find_one_and_delete(
+            {"_id": cache_id}
+        )
+        return deleted
 
 
 # Instance globale du service
