@@ -1003,3 +1003,100 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     expect(push).toHaveBeenCalledWith('/ajout-emission');
   });
 });
+
+describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
+  let wrapper;
+  let router;
+
+  // Le compteur fait partie du payload caché de /api/dashboard/stats.
+  function dashboardPayload(papLivreesCount) {
+    return {
+      statistics: { lastUpdateDate: '2025-09-06T10:30:00Z' },
+      collections_statistics: { last_episode_date: '2024-12-10T20:00:00' },
+      critiques_manquants_count: 0,
+      duplicate_books_count: 0,
+      duplicate_authors_count: 0,
+      orphaned_avis_count: 0,
+      pap_livrees_count: papLivreesCount
+    };
+  }
+
+  function mockApi(dashboardStats) {
+    axios.get.mockImplementation((url) => {
+      if (url === '/api/dashboard/stats') return dashboardStats;
+      if (url === '/api/version') return Promise.resolve({ data: {} });
+      return Promise.reject(new Error(`URL non mockée: ${url}`));
+    });
+    axios.post.mockResolvedValue({ data: { status: 'ok' } });
+  }
+
+  async function mountDashboard() {
+    wrapper = mount(Dashboard, { global: { plugins: [router] } });
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await wrapper.vm.$nextTick();
+    return wrapper.find('[data-test="pap-livrees-card"]');
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    router = createRouter({
+      history: createWebHistory(),
+      routes: [{ path: '/', component: Dashboard }]
+    });
+    await router.push('/');
+  });
+
+  afterEach(() => {
+    if (wrapper) wrapper.unmount();
+  });
+
+  it('affiche le nombre d\'émissions livrées par pap, lu dans le payload dashboard', async () => {
+    mockApi(Promise.resolve({ data: dashboardPayload(12) }));
+
+    const card = await mountDashboard();
+
+    expect(card.exists()).toBe(true);
+    expect(card.find('.stat-value').text()).toBe('12');
+    expect(card.find('.stat-label').text()).toBe('Livrées par pap');
+    expect(axios.get).not.toHaveBeenCalledWith('/api/pap/livrees');
+  });
+
+  it('disparaît à 0, comme les autres tuiles (pap_remises vide ou absente)', async () => {
+    mockApi(Promise.resolve({ data: dashboardPayload(0) }));
+
+    const card = await mountDashboard();
+
+    expect(card.exists()).toBe(false);
+  });
+
+  it('reste affichée pendant le chargement', async () => {
+    mockApi(new Promise(() => {}));
+
+    const card = await mountDashboard();
+
+    expect(card.exists()).toBe(true);
+    expect(card.find('.stat-value').text()).toBe('...');
+  });
+
+  it('n\'est pas cliquable', async () => {
+    mockApi(Promise.resolve({ data: dashboardPayload(3) }));
+    const push = vi.spyOn(router, 'push');
+
+    const card = await mountDashboard();
+    await card.trigger('click');
+
+    expect(card.classes()).not.toContain('clickable-stat');
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('recharge le chiffre au clic sur "Actualiser"', async () => {
+    mockApi(Promise.resolve({ data: dashboardPayload(3) }));
+    await mountDashboard();
+    mockApi(Promise.resolve({ data: dashboardPayload(4) }));
+
+    await wrapper.find('[data-test="dashboard-refresh-button"]').trigger('click');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(wrapper.find('[data-test="pap-livrees-card"] .stat-value').text()).toBe('4');
+  });
+});

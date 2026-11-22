@@ -74,6 +74,7 @@ from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.manual_episode_service import manual_episode_service
 from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
+from .services.pap_remises_service import count_pap_livrees
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
 from .services.rss_sync_service import rss_sync_service
@@ -5617,8 +5618,21 @@ async def get_orphaned_avis_statistics() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
+def _safe_count_pap_livrees() -> int | None:
+    """Compte les émissions livrées par pap, sans casser le reste du dashboard.
+
+    Issue #376 : en cas d'échec (Mongo indisponible…), seule la tuile
+    « Livrées par pap » reste vide (None), pas les autres.
+    """
+    try:
+        return count_pap_livrees()
+    except Exception as e:
+        logger.error(f"Erreur lors du comptage des émissions livrées par pap: {e}")
+        return None
+
+
 async def _compute_dashboard_stats() -> dict[str, Any]:
-    """Agrège les 6 sources de statistiques consommées par le dashboard (Issue #279)."""
+    """Agrège les sources de statistiques consommées par le dashboard (Issue #279)."""
     critiques_manquants_response = await get_critiques_manquants_count()
     critiques_manquants_data = json.loads(bytes(critiques_manquants_response.body))
 
@@ -5628,12 +5642,18 @@ async def _compute_dashboard_stats() -> dict[str, Any]:
         duplicate_books_stats,
         duplicate_authors_stats,
         orphaned_avis_stats,
+        pap_livrees_count,
     ) = await asyncio.gather(
         get_statistics(),
         get_livres_auteurs_statistics(),
         duplicate_books_service.get_duplicate_statistics(),
         duplicate_books_service.get_duplicate_authors_statistics(),
         orphaned_avis_service.get_orphaned_statistics(),
+        # Issue #376 : lit pap_remises et teste les fichiers audio sur disque
+        # (I/O bloquantes) → thread. Les écritures de lmelp-pap échappent au
+        # listener d'invalidation : le compteur se rafraîchit à l'expiration
+        # du cache (5 min) ou par « Actualiser ».
+        asyncio.to_thread(_safe_count_pap_livrees),
     )
 
     return {
@@ -5643,6 +5663,7 @@ async def _compute_dashboard_stats() -> dict[str, Any]:
         "duplicate_books_count": duplicate_books_stats["total_duplicates"],
         "duplicate_authors_count": duplicate_authors_stats["total_duplicates"],
         "orphaned_avis_count": orphaned_avis_stats["orphaned_count"],
+        "pap_livrees_count": pap_livrees_count,
     }
 
 

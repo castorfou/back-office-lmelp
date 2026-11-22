@@ -15,7 +15,19 @@ db.episodes.find().sort({diffusion: -1}).limit(1)
 ```
 **Clic:** Ouvre la page interne de Monitoring RSS (`/rss-monitoring`).
 
-### 2. Épisodes sans transcription
+### 2. Livrées par pap
+**Valeur:** Nombre d'émissions livrées par [lmelp-pap](https://github.com/castorfou/lmelp-pap) (émissions anciennes, 1955-2016)
+**Collection:** `pap_remises` (écrite par lmelp-pap, lue seulement par le back-office)
+**Règle:** une émission est livrée quand elle a une fiche dans `pap_remises` **et** que son fichier audio `<dossier audio>/<audio_rel_filename>` est présent (dossier audio : `AUDIO_STORAGE_PATH`). Les fichiers audio du dossier qui n'ont pas de fiche pap (épisodes du flux RSS) ne sont pas comptés.
+**Clic:** aucun, la tuile n'est pas cliquable.
+**Mise à jour:** la valeur fait partie du cache du dashboard (5 min). Une nouvelle livraison apparaît à l'expiration du cache, ou tout de suite avec le bouton « Actualiser ».
+**Fichier absent:** chaque fiche dont le fichier manque est écrite dans les logs du back-office (`docker logs`) :
+```
+fiche pap <_id> : fichier absent dans <dossier audio>/<audio_rel_filename>
+```
+C'est le signe que le dossier audio n'est pas monté au même endroit pour les deux applications.
+
+### 3. Épisodes sans transcription
 **Valeur:** Nombre d'épisodes non masqués sans transcription
 **Collection:** `episodes`
 **Formule:**
@@ -34,7 +46,7 @@ db.episodes.count({
 **Clic:** Ouvre la page transcription PGX (`/transcription-pgx`), où la transcription peut être lancée directement depuis ce back-office — voir `docs/user/transcription-pgx.md`.
 **Note :** Cette métrique est intégrée au payload caché standard du dashboard (`/api/dashboard/stats`, cache 5 min), invalidé automatiquement à chaque écriture du champ `transcription` sur la collection `episodes`.
 
-### 3. Épisodes sans avis critiques
+### 4. Épisodes sans avis critiques
 **Valeur:** Nombre d'épisodes non masqués, avec transcription, sans avis critique
 **Collections:** `episodes`, `avis_critiques`
 **Formule:**
@@ -87,7 +99,7 @@ db.avis_critiques.aggregate([
 
 **Note importante:** Le calcul utilise une aggregation avec `$lookup` pour filtrer les avis critiques dont l'épisode est masqué. Cela garantit que seuls les épisodes non masqués sont comptés.
 
-### 4. Avis critiques sans analyse
+### 5. Avis critiques sans analyse
 **Valeur:** Épisodes avec avis critique mais sans extraction des livres
 **Collections:** `avis_critiques`, `livresauteurs_cache`, `episodes`
 **Formule:**
@@ -96,7 +108,7 @@ COUNT(DISTINCT avis_critiques.episode_oid WHERE episode.masked ≠ true)
 - COUNT(DISTINCT livresauteurs_cache.episode_oid WHERE episode.masked ≠ true)
 ```
 
-### 5. Livres suggérés
+### 6. Livres suggérés
 **Valeur:** Livres avec statut "suggested" dans le cache
 **Collection:** `livresauteurs_cache`
 **Requête:**
@@ -106,7 +118,7 @@ db.livresauteurs_cache.count({
 })
 ```
 
-### 6. Livres non trouvés
+### 7. Livres non trouvés
 **Valeur:** Livres avec statut "not_found" dans le cache
 **Collection:** `livresauteurs_cache`
 **Requête:**
@@ -116,7 +128,7 @@ db.livresauteurs_cache.count({
 })
 ```
 
-### 7. Livres sans lien Babelio
+### 8. Livres sans lien Babelio
 **Valeur:** Livres sans URL Babelio et non marqués "not_found"
 **Collection:** `livres`
 **Requête:**
@@ -129,12 +141,12 @@ db.livres.count({
 })
 ```
 
-### 8. Auteurs sans lien Babelio
+### 9. Auteurs sans lien Babelio
 **Valeur:** Auteurs sans URL Babelio et non marqués "not_found"
 **Collection:** `auteurs`
 **Requête:** Identique à "Livres sans lien Babelio"
 
-### 9. Critiques manquants
+### 10. Critiques manquants
 **Valeur:** Épisodes avec noms de critiques non présents en base
 **Collections:** `episodes`, `avis_critiques`, `critiques`
 **Logique:**
@@ -143,7 +155,7 @@ db.livres.count({
 3. Vérifier existence dans collection `critiques`
 4. Compter les épisodes avec au moins 1 critique manquant
 
-### 10. Épisodes sans émission
+### 11. Épisodes sans émission
 **Valeur:** Épisodes avec avis critique mais sans émission créée
 **Collections:** `avis_critiques`, `emissions`, `episodes`
 **Formule:**
@@ -226,6 +238,11 @@ db.emissions.count({})
 - `masked`: Boolean (épisode caché)
 - `transcription`: String (transcription texte)
 - `diffusion`: Date
+
+#### Collection `pap_remises`
+- `_id`: String (URL de l'enregistrement pap, pas un ObjectId)
+- `audio_rel_filename`: String (`<année>/<fichier>`, relatif au dossier audio)
+- `date_remise`: Date (UTC)
 
 #### Collection `avis_critiques`
 - `_id`: ObjectId

@@ -15,9 +15,17 @@ Structure du payload :
   "critiques_manquants_count": 0,
   "duplicate_books_count": 0,
   "duplicate_authors_count": 0,
-  "orphaned_avis_count": 0
+  "orphaned_avis_count": 0,
+  "pap_livrees_count": 0
 }
 ```
+
+`pap_livrees_count` (tuile « Livrées par pap ») est calculé par
+`pap_remises_service.count_pap_livrees()` : nombre de fiches `pap_remises` dont le fichier
+`<AUDIO_STORAGE_PATH>/<audio_rel_filename>` existe, une ligne `WARNING` par fichier absent.
+Ces lectures sont bloquantes (Mongo + disque) : `_compute_dashboard_stats()` les lance par
+`asyncio.to_thread()` dans son `asyncio.gather`. En cas d'échec, `_safe_count_pap_livrees()`
+renvoie `null` et les autres tuiles restent affichées.
 
 ## Cache : TTL et invalidation manuelle
 
@@ -53,6 +61,8 @@ Le listener intercepte toute commande `insert`, `update`, `delete`, `findAndModi
 Le `CommandListener` ci-dessus n'intercepte que les écritures passant par le `MongoClient` de ce backend. Une métrique dont les données source sont écrites par une **application externe** (un autre process, un autre service) échappe totalement à ce mécanisme et resterait figée jusqu'à expiration du TTL (5 min) si elle était intégrée telle quelle au payload caché.
 
 `episodes_without_transcription_count` (tuile "Épisodes sans transcription") en est un exemple : elle est intégrée au payload caché standard (`StatsService.get_cache_statistics()`) depuis que le pipeline de transcription PGX (Issue #302) écrit le champ `transcription` via ce même `MongoClient` — le listener l'observe donc nativement. Si une métrique future dépend d'une écriture réellement externe à ce backend, exposez-la via un endpoint dédié **non caché** plutôt que de l'ajouter au payload agrégé (voir `docs/dev/environment-variables.md` pour un exemple de service externe, ou tout futur cas similaire).
+
+Ce n'est pas une règle absolue : `pap_livrees_count` dépend d'écritures externes (lmelp-pap écrit `pap_remises`, le listener ne les voit pas) et reste pourtant dans le payload caché. Le recalculer à chaque affichage de l'accueil testerait chaque fichier sur le volume audio et réécrirait les mêmes warnings à chaque visite ; un retard d'au plus 5 minutes, levé par « Actualiser », coûte moins cher.
 
 ## Isolation par métrique dans `StatsService.get_cache_statistics()`
 

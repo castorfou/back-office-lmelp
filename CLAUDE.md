@@ -529,7 +529,7 @@ bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh
 ### MCP MongoDB Tools
 
 **Main Database**: `masque_et_la_plume`
-**Collections**: `livres`, `auteurs`, `episodes`, `avis_critiques`, `editeurs`, `emissions`, `critiques`, `logs`
+**Collections**: `livres`, `auteurs`, `episodes`, `avis_critiques`, `editeurs`, `emissions`, `critiques`, `logs`, `pap_remises` (écrite par lmelp-pap, lue seulement ici)
 
 **Common operations**:
 ```bash
@@ -1289,6 +1289,8 @@ self.client = MongoClient(self.mongo_url, event_listeners=[listener])
 **Example**: `src/back_office_lmelp/services/dashboard_stats_invalidation_listener.py` (Issue #279) — full details in [docs/dev/dashboard-stats-cache.md](docs/dev/dashboard-stats-cache.md)
 
 **Exception — metrics whose writes happen outside this MongoClient**: the `CommandListener` above only sees writes issued through this backend's own `MongoClient`. A metric whose source data is written by an *external* app cannot be invalidated by that listener — the write is invisible to it. Don't force such a metric into the shared 5-minute dashboard cache; expose it via its own **uncached** endpoint instead, loaded by a separate frontend call rather than folded into `collections_statistics`. (Historical example, no longer applicable: `episodes_without_transcription` used this pattern via `GET /api/episodes/without-transcription/count` while the PGX transcription pipeline still ran from the legacy lmelp Streamlit app — Issue #298. Since Issue #302 ported that pipeline into this backend's own `MongoClient`, the write is no longer external, and the metric was folded back into the standard cached `collections_statistics` payload.)
+
+**Trade-off, not an absolute rule**: when the metric is expensive or noisy to recompute (disk I/O on a mounted volume, a warning logged per anomaly), staying stale up to 5 minutes can be the better deal. `pap_livrees_count` (fiches `pap_remises` written by lmelp-pap, each checked against a file on disk) lives in the cached payload on purpose: the user chose up to 5 minutes of delay (or « Actualiser ») over re-testing every file and re-logging every missing one on each home page visit. Its computation runs through `asyncio.to_thread()` inside `_compute_dashboard_stats()`'s `gather`, wrapped so a failure only nulls its own tile.
 
 **Isolate each metric's own failure inside a multi-metric aggregator**: a single unguarded metric computation (e.g. one `count_documents()` call among a dozen in `StatsService.get_cache_statistics()`) that raises breaks the *entire* payload, not just its own field — the exception propagates through `asyncio.gather()` in `_compute_dashboard_stats()` and turns all 14 dashboard tiles into a 500, not just the one tied to the failing metric. Wrap each metric call in a small helper that catches, logs, and returns `None` on failure:
 
