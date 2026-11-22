@@ -170,7 +170,8 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
 - 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)
 - ➕ **Ajout manuel** : Saisie directe des livres non trouvés avec leurs métadonnées complètes
-- 🗑️ **Suppression manuelle** : Retrait d'une détection erronée (livre mentionné en passant, pas au programme) via bouton dédié et modal de confirmation, pour les entrées pas encore validées en base
+- 🗑️ **Suppression manuelle** : Retrait d'une détection erronée (livre mentionné en passant, pas au programme) via bouton dédié et modal de confirmation, pour les entrées pas encore validées en base. Le titre est écarté durablement : ni le rafraîchissement du cache ni l'extraction des avis ne le recréent
+- 🚫 **Titres écartés** : Sur la page Émissions, « Ignorer ce livre » écarte un titre du résumé qui ne désigne pas un livre (ex. toute une collection) ; la liste « Titres écartés » permet de le rétablir et signale un titre absent du résumé actuel. Le résumé n'est jamais modifié
 - 🔗 **Gestion des références** : Liaison automatique entre épisodes, avis critiques, auteurs et livres
 - 📚 **Collections MongoDB** : Création et maintenance des collections `auteurs` et `livres` avec références croisées
 - 🎯 **Workflow complet** : De l'extraction des avis critiques jusqu'aux collections finales structurées
@@ -338,6 +339,9 @@ POST /api/livres-auteurs/auto-process-verified  # Traitement automatique des liv
 GET /api/livres-auteurs/books/{status}       # Livres par statut (verified/suggested/not_found)
 POST /api/livres-auteurs/validate-suggestion # Validation manuelle d'une suggestion
 POST /api/livres-auteurs/add-manual-book     # Ajout manuel d'un livre not_found
+POST /api/livres-auteurs/ecarter             # Écarter un titre d'un épisode (« Supprimer »)
+POST /api/emissions/{id}/livres-ecartes      # Écarter un titre du résumé (« Ignorer ce livre »)
+DELETE /api/emissions/{id}/livres-ecartes?titre=  # Rétablir un titre écarté
 GET /api/authors                             # Tous les auteurs de la collection
 GET /api/books                               # Tous les livres de la collection
 

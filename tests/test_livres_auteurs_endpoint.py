@@ -414,7 +414,9 @@ class TestLivresAuteursCacheEndpoint:
         """Test de suppression d'une entrée de cache précise par son cache_id."""
         # Arrange
         cache_id = "64f1234567890abcdef99999"  # pragma: allowlist secret
-        mock_cache_service.delete_cache_entry = Mock(return_value=True)
+        mock_cache_service.delete_cache_entry = Mock(
+            return_value={"_id": ObjectId(cache_id), "titre": "", "auteur": ""}
+        )
 
         # Act
         response = client.delete(f"/api/livres-auteurs/cache/{cache_id}")
@@ -433,7 +435,7 @@ class TestLivresAuteursCacheEndpoint:
         """Test de suppression quand l'entrée de cache n'existe pas."""
         # Arrange
         cache_id = "64f1234567890abcdef00000"  # pragma: allowlist secret
-        mock_cache_service.delete_cache_entry = Mock(return_value=False)
+        mock_cache_service.delete_cache_entry = Mock(return_value=None)
 
         # Act
         response = client.delete(f"/api/livres-auteurs/cache/{cache_id}")

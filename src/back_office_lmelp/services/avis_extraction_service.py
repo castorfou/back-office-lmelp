@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from difflib import SequenceMatcher
 from typing import Any
 
+from ..utils.livres_ecartes import is_titre_ecarte
 from ..utils.text_utils import normalize_for_matching
 
 
@@ -26,7 +27,10 @@ class AvisExtractionService:
         ).lower() in ("1", "true")
 
     def extract_avis_from_summary(
-        self, summary: str, emission_oid: str
+        self,
+        summary: str,
+        emission_oid: str,
+        livres_ecartes: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Extrait tous les avis depuis un summary markdown.
@@ -34,6 +38,8 @@ class AvisExtractionService:
         Args:
             summary: Le contenu markdown du summary
             emission_oid: L'ID de l'émission
+            livres_ecartes: Registre `avis_critiques.livres_ecartes` : aucun
+                avis n'est produit pour ces titres
 
         Returns:
             Liste des avis extraits (non résolus)
@@ -45,6 +51,13 @@ class AvisExtractionService:
 
         # Extraire de la Section 2 (coups de cœur)
         avis_list.extend(self._extract_section2_avis(summary, emission_oid))
+
+        if livres_ecartes:
+            avis_list = [
+                avis
+                for avis in avis_list
+                if not is_titre_ecarte(avis["livre_titre_extrait"], livres_ecartes)
+            ]
 
         return avis_list
 

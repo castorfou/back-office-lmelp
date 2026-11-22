@@ -102,6 +102,18 @@ Affichage formaté du résumé complet de l'émission au format Markdown, inclua
 
 Le contenu Markdown est rendu avec mise en forme (titres, listes, gras, italique).
 
+### Titres du résumé qui ne sont pas des livres
+
+Le résumé contient parfois une ligne qui ne désigne pas un livre, par exemple un coup de cœur pour toute une collection (« Divers titres à l'École des loisirs »). Ce titre reste alors dans la liste **« Livres de l'avis critique sans livre correspondant en base »**, et l'émission garde un écart entre les livres cités et les livres en base.
+
+- **🚫 Ignorer ce livre** : à côté de chaque titre de cette liste. Le titre est écarté de l'émission : il ne produit plus ni avis, ni livre, ni note. Les avis sont ré-extraits aussitôt, et le compteur comme la pastille se mettent à jour.
+- **Titres écartés (n)** : la liste des titres écartés, affichée même quand l'émission est 🟢. Le bouton **↩️ Rétablir** remet le titre dans l'émission ; ses avis sont recréés aussitôt.
+- **(absent du résumé actuel)** : le titre écarté ne figure plus dans le résumé, en général parce que le résumé a été régénéré. Cette entrée n'écarte plus rien ; si la ligne réapparaît sous un autre libellé, il faut l'écarter à nouveau.
+
+Le résumé lui-même n'est jamais modifié : la ligne reste visible dans le texte affiché. La comparaison des titres ignore la casse, les accents et les apostrophes typographiques, mais pas les différences de libellé.
+
+Le bouton **🗑️ Supprimer** de la [validation Babelio](livres-auteurs-extraction.md#supprimer-une-detection-erronee) écarte le titre de la même façon.
+
 ## Navigation dans les détails
 
 ### Liens cliquables
@@ -204,7 +216,7 @@ Chaque émission contient :
 
 - `emissions` : Collection principale des émissions structurées
 - `episodes` : Episodes sources
-- `avis_critiques` : Résumés des émissions
+- `avis_critiques` : Résumés des émissions, et titres écartés (`livres_ecartes`)
 - `livres` : Livres discutés
 - `auteurs` : Auteurs des livres
 - `critiques` : Critiques participant aux émissions

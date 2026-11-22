@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import LivresAuteurs from '../../src/views/LivresAuteurs.vue';
 import { livresAuteursService, episodeService } from '../../src/services/api.js';
@@ -26,7 +26,7 @@ vi.mock('../../src/services/api.js', () => ({
     getAllBooks: vi.fn(),
     setValidationResults: vi.fn(),
     deleteCacheByEpisode: vi.fn(),
-    deleteCacheEntry: vi.fn(),
+    ecarterLivreEpisode: vi.fn(),
   },
   episodeService: {
     getAllEpisodes: vi.fn(),
@@ -624,26 +624,39 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       expect(modal.text()).toContain('Titre Test');
     });
 
-    it('appelle deleteCacheEntry avec le bon cache_id puis recharge la liste', async () => {
+    async function confirmDelete() {
+      await wrapper.find('[data-testid="delete-cache-entry-btn"]').trigger('click');
+      await wrapper.vm.$nextTick();
+      await wrapper.find('[data-testid="confirm-delete-btn"]').trigger('click');
+      await flushPromises();
+    }
+
+    it('écarte le titre de l\'épisode (Issue #380) puis recharge la liste', async () => {
       await mountWithBooks([mockBookNotFound]);
 
-      livresAuteursService.deleteCacheEntry.mockResolvedValueOnce({
-        deleted: true,
-        cache_id: mockBookNotFound.cache_id
-      });
+      livresAuteursService.ecarterLivreEpisode.mockResolvedValueOnce({ livres_ecartes: [] });
       livresAuteursService.getLivresAuteurs.mockResolvedValueOnce([]);
 
-      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
-      await deleteButton.trigger('click');
-      await wrapper.vm.$nextTick();
+      await confirmDelete();
 
-      const confirmButton = wrapper.find('[data-testid="confirm-delete-btn"]');
-      await confirmButton.trigger('click');
-      await wrapper.vm.$nextTick();
-      await wrapper.vm.$nextTick();
-
-      expect(livresAuteursService.deleteCacheEntry).toHaveBeenCalledWith(mockBookNotFound.cache_id);
+      expect(livresAuteursService.ecarterLivreEpisode).toHaveBeenCalledWith(
+        mockEpisode.id, mockBookNotFound.titre, mockBookNotFound.auteur
+      );
       expect(wrapper.vm.showDeleteConfirmModal).toBe(false);
+    });
+
+    it('écarte aussi un livre tout juste extrait, sans cache_id (Issue #380)', async () => {
+      const { cache_id, ...bookSansCacheId } = mockBookNotFound;
+      await mountWithBooks([bookSansCacheId]);
+
+      livresAuteursService.ecarterLivreEpisode.mockResolvedValueOnce({ livres_ecartes: [] });
+      livresAuteursService.getLivresAuteurs.mockResolvedValueOnce([]);
+
+      await confirmDelete();
+
+      expect(livresAuteursService.ecarterLivreEpisode).toHaveBeenCalledWith(
+        mockEpisode.id, bookSansCacheId.titre, bookSansCacheId.auteur
+      );
     });
 
     it('ferme le modal sans supprimer au clic sur Annuler', async () => {
@@ -657,25 +670,22 @@ describe('LivresAuteurs - Tests simplifiés', () => {
       await cancelButton.trigger('click');
       await wrapper.vm.$nextTick();
 
-      expect(livresAuteursService.deleteCacheEntry).not.toHaveBeenCalled();
+      expect(livresAuteursService.ecarterLivreEpisode).not.toHaveBeenCalled();
       expect(wrapper.vm.showDeleteConfirmModal).toBe(false);
     });
 
-    it('affiche une erreur si la suppression échoue côté API', async () => {
+    it('ferme le modal et affiche une erreur si la suppression échoue côté API', async () => {
       await mountWithBooks([mockBookNotFound]);
 
-      livresAuteursService.deleteCacheEntry.mockRejectedValueOnce(new Error('Network error'));
+      livresAuteursService.ecarterLivreEpisode.mockRejectedValueOnce(new Error('Network error'));
 
-      const deleteButton = wrapper.find('[data-testid="delete-cache-entry-btn"]');
-      await deleteButton.trigger('click');
-      await wrapper.vm.$nextTick();
+      await confirmDelete();
 
-      const confirmButton = wrapper.find('[data-testid="confirm-delete-btn"]');
-      await confirmButton.trigger('click');
-      await wrapper.vm.$nextTick();
-      await wrapper.vm.$nextTick();
-
-      expect(wrapper.vm.error).toBeTruthy();
+      expect(wrapper.vm.showDeleteConfirmModal).toBe(false);
+      expect(wrapper.vm.deleteError).toBeTruthy();
+      // La liste reste affichée derrière
+      expect(wrapper.find('[data-testid="delete-cache-entry-btn"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('Network error');
     });
   });
 

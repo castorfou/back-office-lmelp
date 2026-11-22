@@ -572,6 +572,19 @@ def auto_process_verified_books(self):
 
 **How to verify**: for a collection with a status/state field, confirm the write side (`create_*`, `update_*`) and every read side (`get_*_by_*status*`) all reference the *same* field name before adding a new consumer.
 
+### Titles Set Aside from a Summary — Every Extraction Reads the Registry
+
+`avis_critiques.livres_ecartes` (`[{titre, auteur, ecarte_le}]`) lists summary lines that are
+not books (e.g. a whole publisher's collection). The summary itself is never edited. Both
+extractions skip these titles: `AvisExtractionService.extract_avis_from_summary(...,
+livres_ecartes=)` and `BooksExtractionService.extract_books_from_reviews()`. **Any new code that
+extracts titles from a summary must filter with `is_titre_ecarte()`**
+(`utils/livres_ecartes.py`, exact match after `normalize_for_matching`, no fuzzy matching), or
+a set-aside title silently comes back.
+
+A book freshly extracted from the summary (empty or refreshed cache) has **no `cache_id`**:
+act on it by episode + title (`POST /api/livres-auteurs/ecarter`), never by cache id.
+
 ### Calibre SQLite File: Retry on Open, Cache on mtime, Test on a Real File
 
 The served Calibre library (`metadata.db`) is a file that Synology Drive can replace at any

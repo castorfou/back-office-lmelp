@@ -172,12 +172,19 @@ export const livresAuteursService = {
   },
 
   /**
-   * Supprime une entrée de cache précise (Issue #303)
-   * @param {string} cacheId - ID de l'entrée de cache à supprimer
-   * @returns {Promise<Object>} Résultat de la suppression
+   * Écarte un titre d'un épisode : « Supprimer » de la validation Babelio.
+   * Fonctionne aussi pour un livre pas encore enregistré en cache (Issue #380).
+   * @param {string} episodeOid - ID de l'épisode
+   * @param {string} titre - Titre tel qu'écrit dans le résumé
+   * @param {string} auteur - Auteur tel qu'écrit dans le résumé
+   * @returns {Promise<Object>} Registre à jour {livres_ecartes: [...]}
    */
-  async deleteCacheEntry(cacheId) {
-    const response = await api.delete(`/livres-auteurs/cache/${cacheId}`);
+  async ecarterLivreEpisode(episodeOid, titre, auteur) {
+    const response = await api.post('/livres-auteurs/ecarter', {
+      episode_oid: episodeOid,
+      titre,
+      auteur,
+    });
     return response.data;
   },
 };
@@ -603,6 +610,29 @@ export const avisService = {
    */
   async extractAvis(emissionId) {
     const response = await api.post(`/avis/extract/${emissionId}`);
+    return response.data;
+  },
+
+  /**
+   * Écarte un titre du résumé qui n'est pas un livre (Issue #380)
+   * @param {string} emissionId - ID de l'émission
+   * @param {string} titre - Titre tel qu'écrit dans le résumé
+   * @param {string} auteur - Auteur tel qu'écrit dans le résumé
+   * @returns {Promise<Object>} Registre à jour {livres_ecartes: [...]}
+   */
+  async ecarterLivre(emissionId, titre, auteur) {
+    const response = await api.post(`/emissions/${emissionId}/livres-ecartes`, { titre, auteur });
+    return response.data;
+  },
+
+  /**
+   * Rétablit un titre écarté (Issue #380)
+   * @param {string} emissionId - ID de l'émission
+   * @param {string} titre - Titre écarté
+   * @returns {Promise<Object>} Registre à jour {livres_ecartes: [...]}
+   */
+  async retablirLivre(emissionId, titre) {
+    const response = await api.delete(`/emissions/${emissionId}/livres-ecartes`, { params: { titre } });
     return response.data;
   },
 

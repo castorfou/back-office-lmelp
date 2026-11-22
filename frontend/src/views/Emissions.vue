@@ -175,8 +175,17 @@
               data-testid="livres-summary-sans-match"
             >
               <li>Livres de l'avis critique sans livre correspondant en base ({{ avisMatchingStats.livres_summary_sans_match.length }}) :</li>
-              <li v-for="livre in avisMatchingStats.livres_summary_sans_match" :key="livre.titre">
+              <li v-for="(livre, index) in avisMatchingStats.livres_summary_sans_match" :key="livre.titre">
                 {{ livre.auteur }} - <strong>{{ livre.titre }}</strong>
+                <button
+                  class="btn-ecarter-livre"
+                  :data-testid="`ignorer-livre-${index}`"
+                  :disabled="ecartingTitre !== null || avisLoading"
+                  title="Ce titre n'est pas un livre : il ne produira plus ni avis ni livre"
+                  @click="ecarterLivre(livre)"
+                >
+                  {{ ecartingTitre === livre.titre ? 'Écartement...' : '🚫 Ignorer ce livre' }}
+                </button>
               </li>
             </ul>
             <ul
@@ -209,6 +218,31 @@
               </li>
             </ul>
           </div>
+
+          <!-- Titres écartés du résumé, visibles même si l'émission est 🟢 (Issue #380) -->
+          <ul
+            v-if="!avisLoading && livresEcartes.length > 0"
+            class="livres-non-cites-list"
+            data-testid="livres-ecartes"
+          >
+            <li>Titres écartés ({{ livresEcartes.length }}) :</li>
+            <li v-for="(livre, index) in livresEcartes" :key="livre.titre">
+              {{ livre.auteur }} - <strong>{{ livre.titre }}</strong>
+              <span
+                v-if="livre.absent_du_resume"
+                class="ecarte-absent"
+                title="Le résumé a été régénéré : ce titre n'y figure plus, il n'écarte plus rien"
+              >(absent du résumé actuel)</span>
+              <button
+                class="btn-retablir-livre"
+                :data-testid="`retablir-livre-${index}`"
+                :disabled="ecartingTitre !== null"
+                @click="retablirLivre(livre)"
+              >
+                {{ ecartingTitre === livre.titre ? 'Rétablissement...' : '↩️ Rétablir' }}
+              </button>
+            </li>
+          </ul>
 
           <!-- Liste des livres (repliable avec mémoire) -->
           <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.books?.length > 0 && !isSelectedEmissionPerfect" class="collapsible-section">
@@ -359,6 +393,10 @@ export default {
     const avisExtracting = ref(false);
     const avisMatchingStats = ref(null);
 
+    // Titres du résumé écartés (pas des livres) — Issue #380
+    const livresEcartes = ref([]);
+    const ecartingTitre = ref(null);
+
     // Fusion de doublons probables (Issue #267)
     const mergingLivreOid = ref(null);
     const mergeResult = ref({});
@@ -401,12 +439,14 @@ export default {
       avisError.value = null;
       avisExtracting.value = false;
       avisMatchingStats.value = null;
+      livresEcartes.value = [];
 
       try {
         // 1. Essayer de charger les avis existants
         const result = await avisService.getAvisByEmission(emissionId);
         avis.value = result.avis || [];
         avisMatchingStats.value = result.matching_stats || null;
+        livresEcartes.value = result.livres_ecartes || [];
 
         // 2. Si pas d'avis, lancer l'extraction automatique
         if (avis.value.length === 0) {
@@ -419,6 +459,7 @@ export default {
               const reloadResult = await avisService.getAvisByEmission(emissionId);
               avis.value = reloadResult.avis || [];
               avisMatchingStats.value = reloadResult.matching_stats || null;
+              livresEcartes.value = reloadResult.livres_ecartes || [];
 
               // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
               try {
@@ -460,6 +501,7 @@ export default {
         const reloadResult = await avisService.getAvisByEmission(selectedEmissionId.value);
         avis.value = reloadResult.avis || [];
         avisMatchingStats.value = reloadResult.matching_stats || null;
+        livresEcartes.value = reloadResult.livres_ecartes || [];
 
         // Recharger la liste des émissions pour mettre à jour badge_status et compteurs
         try {
@@ -477,6 +519,43 @@ export default {
         avisLoading.value = false;
         avisExtracting.value = false;
       }
+    };
+
+    /**
+     * Écarte un titre du résumé qui n'est pas un livre, puis ré-extrait
+     * les avis pour mettre à jour compteurs et pastille (Issue #380)
+     */
+    const ecarterLivre = async (livre) => {
+      if (!selectedEmissionId.value) return;
+      ecartingTitre.value = livre.titre;
+      try {
+        const result = await avisService.ecarterLivre(selectedEmissionId.value, livre.titre, livre.auteur);
+        livresEcartes.value = result.livres_ecartes || [];
+      } catch (error) {
+        avisError.value = `Impossible d'écarter « ${livre.titre} » : ${error.message}`;
+        return;
+      } finally {
+        ecartingTitre.value = null;
+      }
+      await reextractAvis();
+    };
+
+    /**
+     * Rétablit un titre écarté, puis ré-extrait les avis (Issue #380)
+     */
+    const retablirLivre = async (livre) => {
+      if (!selectedEmissionId.value) return;
+      ecartingTitre.value = livre.titre;
+      try {
+        const result = await avisService.retablirLivre(selectedEmissionId.value, livre.titre);
+        livresEcartes.value = result.livres_ecartes || [];
+      } catch (error) {
+        avisError.value = `Impossible de rétablir « ${livre.titre} » : ${error.message}`;
+        return;
+      } finally {
+        ecartingTitre.value = null;
+      }
+      await reextractAvis();
     };
 
     /**
@@ -860,6 +939,11 @@ export default {
       avisExtracting,
       avisMatchingStats,
       reextractAvis,
+      // Titres écartés (Issue #380)
+      livresEcartes,
+      ecartingTitre,
+      ecarterLivre,
+      retablirLivre,
       // Fusion de doublons probables
       mergingLivreOid,
       mergeResult,
@@ -1458,6 +1542,31 @@ main {
 }
 
 .btn-merge-duplicate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ecarte-absent {
+  margin-left: 0.35rem;
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.btn-ecarter-livre,
+.btn-retablir-livre {
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #6c757d;
+  border-radius: 3px;
+  background: white;
+  color: #495057;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-ecarter-livre:disabled,
+.btn-retablir-livre:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

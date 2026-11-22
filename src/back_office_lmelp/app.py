@@ -95,6 +95,7 @@ recommendation_service = RecommendationService(
 )
 from .services.stats_service import stats_service
 from .utils.build_info import get_build_info, get_changelog
+from .utils.livres_ecartes import is_titre_ecarte
 from .utils.memory_guard import memory_guard
 from .utils.port_discovery import PortDiscovery
 from .utils.text_utils import normalize_for_matching
@@ -360,6 +361,19 @@ class MergeDuplicateAuthorsRequest(BaseModel):
 
     url_babelio: str
     auteur_ids: list[str]
+
+
+class EcarterLivreRequest(BaseModel):
+    """Titre du résumé à écarter : il ne produira ni avis ni livre (Issue #380)."""
+
+    titre: str
+    auteur: str = ""
+
+
+class EcarterLivreEpisodeRequest(EcarterLivreRequest):
+    """Titre à écarter depuis la validation Babelio, désigné par son épisode."""
+
+    episode_oid: str
 
 
 class MergeCritiquesRequest(BaseModel):
@@ -1592,6 +1606,111 @@ async def get_emission_by_date(date_str: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Erreur get_emission_by_date: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _serialize_livres_ecartes(
+    livres_ecartes: list[dict[str, Any]] | None,
+    summary: str | None = None,
+) -> list[dict[str, Any]]:
+    """Registre `livres_ecartes` au format JSON (dates en ISO).
+
+    Avec `summary`, chaque entrée indique `absent_du_resume` : le titre ne
+    figure plus dans le résumé actuel (résumé régénéré), donc il n'écarte
+    plus rien.
+    """
+    titres_du_resume = _titres_du_resume(summary) if summary is not None else None
+    serialized = []
+    for entry in livres_ecartes or []:
+        item: dict[str, Any] = {
+            "titre": entry.get("titre", ""),
+            "auteur": entry.get("auteur", ""),
+            "ecarte_le": entry["ecarte_le"].isoformat()
+            if hasattr(entry.get("ecarte_le"), "isoformat")
+            else entry.get("ecarte_le"),
+        }
+        if titres_du_resume is not None:
+            item["absent_du_resume"] = not any(
+                is_titre_ecarte(titre, [entry]) for titre in titres_du_resume
+            )
+        serialized.append(item)
+    return serialized
+
+
+def _titres_du_resume(summary: str) -> set[str]:
+    """Titres du résumé, tels que les lisent les deux extractions.
+
+    Réunion des titres des avis et de ceux des tableaux : une ligne sans
+    avis exploitable reste un titre du résumé.
+    """
+    from back_office_lmelp.services.avis_extraction_service import (
+        AvisExtractionService,
+    )
+
+    titres = {
+        avis["livre_titre_extrait"]
+        for avis in AvisExtractionService().extract_avis_from_summary(summary, "")
+    }
+    titres.update(
+        book.get("titre", "")
+        for book in books_extraction_service._extract_books_from_summary_fallback(
+            summary, "", "", ""
+        )
+    )
+    return titres
+
+
+def _get_emission_for_livres_ecartes(emission_id: str) -> dict[str, Any]:
+    """Émission avec son avis critique, sinon 404."""
+    if not ObjectId.is_valid(emission_id):
+        raise HTTPException(status_code=404, detail="Émission non trouvée")
+    emission = (
+        mongodb_service.emissions_collection.find_one({"_id": ObjectId(emission_id)})
+        if mongodb_service.emissions_collection is not None
+        else None
+    )
+    if not emission:
+        raise HTTPException(status_code=404, detail="Émission non trouvée")
+    if not emission.get("avis_critique_id"):
+        raise HTTPException(
+            status_code=404, detail="Émission sans avis critique associé"
+        )
+    return dict(emission)
+
+
+@app.post("/api/emissions/{emission_id}/livres-ecartes")
+def ecarter_livre(emission_id: str, request: EcarterLivreRequest) -> dict[str, Any]:
+    """Écarte un titre du résumé qui n'est pas un livre (Issue #380).
+
+    Le titre rejoint `avis_critiques.livres_ecartes` : la ré-extraction des
+    avis n'en crée plus, et l'extraction des livres du cache non plus. Les
+    entrées du cache encore non validées pour ce titre sont supprimées.
+    """
+    titre = request.titre.strip()
+    if not titre:
+        raise HTTPException(status_code=422, detail="Le titre est requis")
+    emission = _get_emission_for_livres_ecartes(emission_id)
+    livres_ecartes = mongodb_service.add_livre_ecarte(
+        str(emission["avis_critique_id"]), titre, request.auteur.strip()
+    )
+    if livres_ecartes is None:
+        raise HTTPException(status_code=404, detail="Avis critique non trouvé")
+    if emission.get("episode_id"):
+        livres_auteurs_cache_service.delete_unvalidated_entries_by_title(
+            str(emission["episode_id"]), titre
+        )
+    return {"livres_ecartes": _serialize_livres_ecartes(livres_ecartes)}
+
+
+@app.delete("/api/emissions/{emission_id}/livres-ecartes")
+def retablir_livre(emission_id: str, titre: str) -> dict[str, Any]:
+    """Rétablit un titre écarté : la ré-extraction suivante recrée ses avis."""
+    emission = _get_emission_for_livres_ecartes(emission_id)
+    livres_ecartes = mongodb_service.remove_livre_ecarte(
+        str(emission["avis_critique_id"]), titre
+    )
+    if livres_ecartes is None:
+        raise HTTPException(status_code=404, detail="Avis critique non trouvé")
+    return {"livres_ecartes": _serialize_livres_ecartes(livres_ecartes)}
 
 
 @app.get("/api/emissions/{emission_id}/details", response_model=dict[str, Any])
@@ -2949,26 +3068,67 @@ async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
 
 @app.delete("/api/livres-auteurs/cache/{cache_id}", response_model=dict[str, Any])
 async def delete_cache_entry(cache_id: str) -> dict[str, Any]:
-    """Supprime une entrée de cache précise (Issue #303).
+    """Supprime une entrée de cache précise et écarte durablement son titre.
 
     Permet de retirer manuellement un livre détecté par erreur (mentionné
     en passant dans l'épisode, pas au programme) avant qu'il ne soit
-    validé/créé en base livres/auteurs. Ne gère pas la suppression cascade
-    d'un livre déjà créé en base (status == "mongo") — hors scope.
+    validé/créé en base livres/auteurs. Le titre du résumé rejoint le
+    registre `avis_critiques.livres_ecartes` : ni l'extraction des avis ni
+    un rafraîchissement du cache ne le recréent. Ne gère pas la suppression
+    cascade d'un livre déjà créé en base (status == "mongo") — hors scope.
     """
     if len(cache_id) != 24 or not all(c in "0123456789abcdefABCDEF" for c in cache_id):
         raise HTTPException(status_code=404, detail="Entrée de cache non trouvée")
 
     try:
         object_id = ObjectId(cache_id)
-        deleted = livres_auteurs_cache_service.delete_cache_entry(object_id)
-        if not deleted:
+        deleted_entry = livres_auteurs_cache_service.delete_cache_entry(object_id)
+        if not deleted_entry:
             raise HTTPException(status_code=404, detail="Entrée de cache non trouvée")
+        if deleted_entry.get("avis_critique_id") and deleted_entry.get("titre"):
+            mongodb_service.add_livre_ecarte(
+                deleted_entry["avis_critique_id"],
+                deleted_entry["titre"],
+                deleted_entry.get("auteur", ""),
+            )
         return {"deleted": True, "cache_id": cache_id}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.post("/api/livres-auteurs/ecarter", response_model=dict[str, Any])
+def ecarter_livre_episode(request: EcarterLivreEpisodeRequest) -> dict[str, Any]:
+    """« Supprimer » de la validation Babelio : écarte un titre de l'épisode.
+
+    Fonctionne aussi pour un livre tout juste extrait du résumé, pas encore
+    enregistré en cache (sans cache_id). Le titre rejoint le registre
+    `avis_critiques.livres_ecartes` et ses entrées de cache non validées sont
+    supprimées (Issue #380).
+    """
+    titre = request.titre.strip()
+    if not titre:
+        raise HTTPException(status_code=422, detail="Le titre est requis")
+    avis_critiques = mongodb_service.get_critical_reviews_by_episode_oid(
+        request.episode_oid
+    )
+    if not avis_critiques:
+        raise HTTPException(
+            status_code=404, detail="Aucun avis critique pour cet épisode"
+        )
+    livres_ecartes: list[dict[str, Any]] = []
+    for avis_critique in avis_critiques:
+        livres_ecartes = (
+            mongodb_service.add_livre_ecarte(
+                avis_critique["_id"], titre, request.auteur.strip()
+            )
+            or []
+        )
+    livres_auteurs_cache_service.delete_unvalidated_entries_by_title(
+        request.episode_oid, titre
+    )
+    return {"livres_ecartes": _serialize_livres_ecartes(livres_ecartes)}
 
 
 # Note: add_manual_book endpoint removed - functionality unified with validate_suggestion
@@ -5348,8 +5508,28 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
             "unmatched": sum(1 for p in unique_titles.values() if p is None),
         }
 
+        # Titres écartés du résumé, pour les rétablir depuis la page (Issue #380)
+        livres_ecartes: list[dict[str, Any]] = []
+        if (
+            emission
+            and ObjectId.is_valid(emission.get("avis_critique_id"))
+            and mongodb_service.avis_critiques_collection is not None
+        ):
+            avis_critique = mongodb_service.avis_critiques_collection.find_one(
+                {"_id": ObjectId(emission["avis_critique_id"])}
+            )
+            if avis_critique and isinstance(avis_critique.get("livres_ecartes"), list):
+                livres_ecartes = _serialize_livres_ecartes(
+                    avis_critique["livres_ecartes"],
+                    summary=avis_critique.get("summary") or "",
+                )
+
         return JSONResponse(
-            content={"avis": enriched_avis, "matching_stats": matching_stats}
+            content={
+                "avis": enriched_avis,
+                "matching_stats": matching_stats,
+                "livres_ecartes": livres_ecartes,
+            }
         )
 
     except HTTPException:
@@ -5415,16 +5595,24 @@ async def extract_avis_from_emission(emission_id: str) -> JSONResponse:
 
         # 3. Extraire les avis du summary
         extraction_service = AvisExtractionService()
+        livres_ecartes = avis_critique.get("livres_ecartes") or []
         extracted_avis = extraction_service.extract_avis_from_summary(
-            summary, emission_id
+            summary, emission_id, livres_ecartes=livres_ecartes
         )
 
         if not extracted_avis:
+            # Si des titres sont écartés, leurs anciens avis ne doivent pas
+            # survivre à la ré-extraction (Issue #380)
+            deleted_count = (
+                mongodb_service.delete_avis_by_emission(emission_id)
+                if livres_ecartes
+                else 0
+            )
             return JSONResponse(
                 content={
                     "message": "Aucun avis extrait du summary",
                     "extracted_count": 0,
-                    "deleted_count": 0,
+                    "deleted_count": deleted_count,
                 }
             )
 
