@@ -8,6 +8,7 @@ import openai
 from dotenv import load_dotenv
 
 from ..utils.livres_ecartes import is_titre_ecarte
+from ..utils.text_utils import normalize_for_matching
 
 
 load_dotenv()
@@ -117,6 +118,51 @@ class BooksExtractionService:
             book
             for book in books
             if not is_titre_ecarte(book.get("titre", ""), livres_ecartes)
+        ]
+
+    def extract_books_from_summaries_markdown(
+        self, avis_critiques: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Extrait les livres des résumés par parsing markdown pur, sans LLM.
+
+        Sert à compléter un cache partiel à chaque chargement : un résumé au
+        format invalide est ignoré, les titres écartés sont retirés.
+        """
+        books: list[dict[str, Any]] = []
+        for avis in avis_critiques:
+            summary = avis.get("summary", "")
+            if not self._validate_markdown_format(summary)["valid"]:
+                continue
+            extracted = self._extract_books_from_summary_fallback(
+                summary,
+                avis.get("episode_oid", ""),
+                avis.get("episode_title", ""),
+                avis.get("episode_date", ""),
+            )
+            books.extend(self._without_ecartes(extracted, avis))
+        return books
+
+    @staticmethod
+    def books_missing_from_cache(
+        extracted: list[dict[str, Any]], cached: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Livres extraits dont le titre ne correspond à aucune entrée de cache.
+
+        Une entrée couvre son titre du résumé (`titre`), le titre proposé par
+        Babelio (`suggested_title`, que le ramasse-miettes réécrit dans le
+        résumé) et le titre validé (`validated_title`). Comparaison exacte après
+        `normalize_for_matching`.
+        """
+        known_titles = {
+            normalize_for_matching(entry[field])
+            for entry in cached
+            for field in ("titre", "suggested_title", "validated_title")
+            if entry.get(field)
+        }
+        return [
+            book
+            for book in extracted
+            if normalize_for_matching(book.get("titre", "")) not in known_titles
         ]
 
     async def _extract_books_from_single_review(

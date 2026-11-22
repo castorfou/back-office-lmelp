@@ -1133,6 +1133,26 @@ async def get_livres_auteurs(
             except Exception as extraction_error:
                 print(f"⚠️ Erreur extraction: {extraction_error}")
                 # En cas d'erreur d'extraction, continuer avec les données du cache uniquement
+        else:
+            # Cache partiel (ex: rafraîchissement qui garde les livres en base) :
+            # les livres du résumé sans entrée de cache reviennent sans statut.
+            # Seulement si le résumé compte plus de livres que le cache : un
+            # cache complet dont un titre diffère du résumé (« Peau d'ours » /
+            # « Peau d'ourse ») n'a aucun livre manquant.
+            try:
+                extracted = (
+                    books_extraction_service.extract_books_from_summaries_markdown(
+                        avis_critiques
+                    )
+                )
+                if len(extracted) > len(cached_books):
+                    all_books.extend(
+                        books_extraction_service.books_missing_from_cache(
+                            extracted, cached_books
+                        )
+                    )
+            except Exception as completion_error:
+                print(f"⚠️ Erreur complétion du cache: {completion_error}")
 
         # Pas de filtrage - afficher tous les livres (système unifié)
         books_for_frontend = all_books
@@ -3056,10 +3076,17 @@ async def validate_suggestion(request: ValidateSuggestionRequest) -> dict[str, A
     "/api/livres-auteurs/cache/episode/{episode_oid}", response_model=dict[str, Any]
 )
 async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
-    """Supprime toutes les entrées de cache pour un épisode donné."""
+    """Rafraîchit le cache d'un épisode : supprime ses entrées non validées.
+
+    Les entrées `status: "mongo"` (livres déjà en base) sont conservées et ne
+    repassent pas par Babelio. Les autres livres du résumé reviennent sans
+    statut au chargement suivant (`GET /api/livres-auteurs`).
+    """
     try:
-        deleted_count = livres_auteurs_cache_service.delete_cache_by_episode(
-            episode_oid
+        deleted_count = (
+            livres_auteurs_cache_service.delete_unvalidated_cache_by_episode(
+                episode_oid
+            )
         )
         return {"deleted_count": deleted_count, "episode_oid": episode_oid}
     except Exception as e:
@@ -5641,6 +5668,17 @@ async def extract_avis_from_emission(emission_id: str) -> JSONResponse:
                             "editeur": livre_cache.get("editeur", ""),
                         }
                     )
+
+                # Livres en base liés à l'épisode dont l'entrée de cache n'est
+                # pas (ou plus) en `mongo` : ils restent candidats au matching
+                if mongodb_service.livres_collection is not None:
+                    known_ids = {livre["_id"] for livre in livres}
+                    for livre_doc in mongodb_service.livres_collection.find(
+                        {"episodes": str(episode_id)}
+                    ):
+                        if livre_doc["_id"] not in known_ids:
+                            livres.append(livre_doc)
+                            known_ids.add(livre_doc["_id"])
 
                 # 4b. Mettre à jour les livres dont episodes[] ne contient pas cet épisode
                 # Cela corrige la navigation future

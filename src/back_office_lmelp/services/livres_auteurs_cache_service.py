@@ -509,6 +509,23 @@ class LivresAuteursCacheService:
         result = cache_collection.delete_many({"episode_oid": episode_oid})
         return int(result.deleted_count)
 
+    def delete_unvalidated_cache_by_episode(self, episode_oid: str) -> int:
+        """
+        Supprime les entrées de cache d'un épisode, sauf les livres déjà en base.
+
+        Les entrées `status: "mongo"` sont conservées : rafraîchir le cache ne
+        défait jamais un livre en base. Seule la génération du résumé peut
+        remettre en cause les livres d'un épisode (`delete_cache_by_episode`).
+
+        Returns:
+            Nombre de documents supprimés
+        """
+        cache_collection = self.mongodb_service.get_collection("livresauteurs_cache")
+        result = cache_collection.delete_many(
+            {"episode_oid": episode_oid, "status": {"$ne": "mongo"}}
+        )
+        return int(result.deleted_count)
+
     def delete_unvalidated_entries_by_title(self, episode_oid: str, titre: str) -> int:
         """
         Supprime les entrées non validées (status != "mongo") d'un titre écarté.
