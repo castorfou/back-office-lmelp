@@ -36,6 +36,15 @@
             <div class="stat-label">Dernière mise à jour</div>
           </div>
           <div
+            v-if="papLivreesCount !== 0"
+            class="stat-card"
+            data-test="pap-livrees-card"
+            :title="tooltips.papLivrees"
+          >
+            <div class="stat-value">{{ papLivreesCount !== null ? papLivreesCount : '...' }}</div>
+            <div class="stat-label">Livrées par pap</div>
+          </div>
+          <div
             v-if="collectionsStatistics && collectionsStatistics.episodes_without_transcription_count !== 0"
             class="stat-card clickable-stat"
             @click="navigateToPgxTranscription"
@@ -476,6 +485,7 @@ export default {
         last_episode_date: null
       },
       tooltips: {
+        papLivrees: `Émissions livrées par lmelp-pap dont le fichier audio est présent\nCollection: pap_remises\nRègle: fiche pap_remises ET fichier <dossier audio>/audio_rel_filename présent`,
         lastUpdate: `Date du dernier épisode en base\nCollection: episodes\nRequête: episodes.find().sort({diffusion: -1}).limit(1)`,
         episodesSansTranscription: `Épisodes non masqués sans transcription\nCollection: episodes\nRequête: episodes.find({masked: {$ne: true}, transcription: {$in: [null, ""]}})`,
         emissionsSansAvis: `Émissions avec pastille grise (⚪)\nCollection: emissions\nRequête: emissions.find({badge_status: "no_avis"})`,
@@ -500,6 +510,7 @@ export default {
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
       orphanedAvisCount: null,
+      papLivreesCount: null,
       versionInfo: null,
       loading: true,
       error: null,
@@ -624,6 +635,7 @@ export default {
         this.duplicateBooksCount = stats.duplicate_books_count;
         this.duplicateAuthorsCount = stats.duplicate_authors_count;
         this.orphanedAvisCount = stats.orphaned_avis_count;
+        this.papLivreesCount = stats.pap_livrees_count ?? null;
       } catch (error) {
         console.error('Erreur lors du chargement des statistiques du dashboard:', error);
         this.error = error.message;
@@ -665,6 +677,7 @@ export default {
         this.duplicateBooksCount = null;
         this.duplicateAuthorsCount = null;
         this.orphanedAvisCount = null;
+        this.papLivreesCount = null;
       } finally {
         this.loading = false;
       }
