@@ -1335,3 +1335,52 @@ class TestMatchingStatsLivresMongo:
             non_cites[0]["url_babelio"]
             == "https://www.babelio.com/livres/Dicker-LAffaire-Alaska-Sanders/1380950"
         )
+
+    def test_matching_stats_lists_summary_titles_without_match(self):
+        """
+        Le bandeau d'écart ne doit pas se limiter au compteur « Sans match » :
+        il nomme chaque livre de l'avis critique qui n'a trouvé aucun livre en
+        base (titre et auteur extraits du summary, une fois par titre).
+        """
+        emission_id = str(ObjectId())
+        episode_id = "6b0311fde1982eca85db03ab"  # pragma: allowlist secret
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.livres_collection = MagicMock()
+        self.mock_mongodb.auteurs_collection = MagicMock()
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": ObjectId(episode_id),
+        }
+
+        avis_sans_match = {
+            "emission_oid": emission_id,
+            "livre_oid": None,
+            "critique_oid": None,
+            "commentaire": "Géniaux",
+            "note": 10,
+            "section": "coup_de_coeur",
+            "livre_titre_extrait": "Divers titres à l'École des loisirs",
+            "auteur_nom_extrait": "Geneviève Brisac (dir.), Marie Desplechin",
+            "editeur_extrait": "L'École des loisirs",
+            "critique_nom_extrait": "Olivia de Lamberterie",
+            "match_phase": None,
+        }
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {**avis_sans_match, "_id": ObjectId()},
+            {**avis_sans_match, "_id": ObjectId(), "critique_nom_extrait": "Autre"},
+        ]
+        self.mock_mongodb.livres_collection.count_documents.return_value = 0
+        self.mock_mongodb.livres_collection.find.return_value = []
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        assert response.json()["matching_stats"]["livres_summary_sans_match"] == [
+            {
+                "titre": "Divers titres à l'École des loisirs",
+                "auteur": "Geneviève Brisac (dir.), Marie Desplechin",
+            }
+        ]

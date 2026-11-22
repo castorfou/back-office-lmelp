@@ -170,6 +170,16 @@
               </span>
             </div>
             <ul
+              v-if="avisMatchingStats.livres_summary_sans_match?.length > 0"
+              class="livres-non-cites-list"
+              data-testid="livres-summary-sans-match"
+            >
+              <li>Livres de l'avis critique sans livre correspondant en base ({{ avisMatchingStats.livres_summary_sans_match.length }}) :</li>
+              <li v-for="livre in avisMatchingStats.livres_summary_sans_match" :key="livre.titre">
+                {{ livre.auteur }} - <strong>{{ livre.titre }}</strong>
+              </li>
+            </ul>
+            <ul
               v-if="avisMatchingStats.livres_mongo_non_cites?.length > 0"
               class="livres-non-cites-list"
             >

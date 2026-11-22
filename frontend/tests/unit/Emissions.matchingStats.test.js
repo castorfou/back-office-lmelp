@@ -234,6 +234,30 @@ describe('Emissions - Livres Mongo non cités (TDD Issue #267)', () => {
     expect(html).toContain('Un roman');
   });
 
+  it('should name the books of the avis critique that found no book in base', async () => {
+    wrapper = await createWrapper();
+    await wrapper.vm.$nextTick();
+
+    wrapper.vm.selectedEmission = mockEmissions[0];
+    wrapper.vm.selectedEmissionDetails = mockEmissionDetailsWithEcart;
+    wrapper.vm.avisMatchingStats = {
+      ...mockEmissionDetailsWithEcart.avis_matching_stats,
+      livres_summary: 2,
+      livres_mongo: 1,
+      livres_mongo_non_cites: [],
+      unmatched: 1,
+      livres_summary_sans_match: [
+        { titre: "Divers titres à l'École des loisirs", auteur: 'Geneviève Brisac (dir.)' },
+      ],
+    };
+    await wrapper.vm.$nextTick();
+
+    const list = wrapper.find('[data-testid="livres-summary-sans-match"]');
+    expect(list.exists()).toBe(true);
+    expect(list.text()).toContain("Divers titres à l'École des loisirs");
+    expect(list.text()).toContain('Geneviève Brisac (dir.)');
+  });
+
   it('should use unambiguous labels for livres_summary and livres_mongo', async () => {
     /**
      * TDD (Issue #267): "Livres summary" et "Livres Mongo" sont des libellés
