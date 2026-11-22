@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from bson import ObjectId
 
 
 # Ajouter le répertoire tests au path pour les fixtures
@@ -1592,6 +1593,43 @@ class TestMatchingLivreParLivre:
         # Le calcul du badge se fait au niveau de l'API, mais ici on vérifie
         # que la condition est remplie : aucun avis non matché
         assert len(unmatched) == 0  # → Badge 🟢
+
+    def test_phase3_gives_remaining_livre_to_best_score_not_first_in_order(self):
+        """
+        Émission du 24 avril 2016 : le summary cite « Divers titres à l'École
+        des loisirs » (pas un vrai livre, retiré à la validation Babelio) AVANT
+        « Docteur écoutez ! ». Un seul livre MongoDB reste après la phase 1.
+
+        La phase 3 doit donner ce livre à « Docteur écoutez ! » (meilleur
+        score), pas au premier titre du summary qui dépasse le seuil.
+        """
+        ecole = {
+            "titre": "Divers titres à l'École des loisirs",
+            "auteur": (
+                "Geneviève Brisac (dir.), Marie Desplechin, Alice de Poncheville, "
+                "Chris Donner, Agnès Desarthe, Marie-Aude Murail, "
+                "Christophe Honoré, Christophe Donner"
+            ),
+        }
+        docteur = {
+            "titre": "Docteur écoutez !",
+            "auteur": "Anne Revah Levy, Laurence Verneuil",
+        }
+        livre_docteur_id = "6b0314f0e1982eca85db03e1"  # pragma: allowlist secret
+        livres_mongo = [
+            {
+                "_id": ObjectId(livre_docteur_id),
+                "titre": "Docteur, écoutez ! Pour soigner, il faut écouter",
+            }
+        ]
+
+        matches = self.service.match_livres([ecole, docteur], livres_mongo)
+
+        assert matches.get((docteur["titre"], docteur["auteur"])) == (
+            livre_docteur_id,
+            3,
+        )
+        assert (ecole["titre"], ecole["auteur"]) not in matches
 
 
 class TestExtractionWithoutTableSeparators:

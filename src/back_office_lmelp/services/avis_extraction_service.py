@@ -12,6 +12,9 @@ from ..utils.text_utils import normalize_for_matching
 
 logger = logging.getLogger(__name__)
 
+# Score minimal (0..1) d'un match de phase 3 (similarité)
+SIMILARITY_MIN_THRESHOLD = 0.3
+
 
 class AvisExtractionService:
     """Service pour extraire les avis structurés depuis les summaries."""
@@ -434,25 +437,45 @@ class AvisExtractionService:
                     if str(livre["_id"]) != livre_oid
                 ]
 
-        # Phase 3: Matching par similarité sur livres summary RESTANTS
-        for livre_summary in remaining_livres_summary[:]:
-            titre = livre_summary["titre"]
-            auteur = livre_summary["auteur"]
-            key = (titre, auteur)
-
-            livre_oid = self._find_matching_livre_by_similarity(
-                titre, auteur, livres_mongo_restants
-            )
-            if livre_oid:
-                livre_matches[key] = (livre_oid, 3)
-                matched_livre_mongo_ids.add(livre_oid)
-                remaining_livres_summary.remove(livre_summary)
-                # Mettre à jour la liste des livres MongoDB restants
-                livres_mongo_restants = [
-                    livre
-                    for livre in livres_mongo_restants
-                    if str(livre["_id"]) != livre_oid
-                ]
+        # Phase 3: Matching par similarité sur livres summary RESTANTS.
+        # Affectation par meilleur score global, pas dans l'ordre du summary :
+        # sinon un titre cité plus haut (même hors sujet) prend un livre qui
+        # correspondait bien mieux à un titre cité plus bas.
+        paires = sorted(
+            (
+                (self._similarity_score(ls["titre"], ls["auteur"], livre), i, livre)
+                for i, ls in enumerate(remaining_livres_summary)
+                for livre in livres_mongo_restants
+            ),
+            key=lambda p: (-p[0], p[1]),
+        )
+        summary_matches_phase3: set[int] = set()
+        for score, i, livre in paires:
+            livre_oid = str(livre["_id"])
+            if score < SIMILARITY_MIN_THRESHOLD:
+                break
+            if i in summary_matches_phase3 or livre_oid in matched_livre_mongo_ids:
+                continue
+            livre_summary = remaining_livres_summary[i]
+            key = (livre_summary["titre"], livre_summary["auteur"])
+            livre_matches[key] = (livre_oid, 3)
+            matched_livre_mongo_ids.add(livre_oid)
+            summary_matches_phase3.add(i)
+            if self._debug_log_enabled:
+                logger.info(
+                    f"🔍 [SIMILARITY] Match trouvé avec score {score:.2f}: "
+                    f"'{key[1]}' - '{key[0]}' -> livre_id={livre_oid}"
+                )
+        remaining_livres_summary = [
+            ls
+            for i, ls in enumerate(remaining_livres_summary)
+            if i not in summary_matches_phase3
+        ]
+        livres_mongo_restants = [
+            livre
+            for livre in livres_mongo_restants
+            if str(livre["_id"]) not in matched_livre_mongo_ids
+        ]
 
         # Phase 4: Fuzzy matching (si même nombre de livres restants)
         if len(remaining_livres_summary) > 0 and len(remaining_livres_summary) == len(
@@ -783,12 +806,47 @@ class AvisExtractionService:
 
         return None
 
+    def _similarity_score(
+        self, titre_extrait: str, auteur_extrait: str, livre: dict[str, Any]
+    ) -> float:
+        """
+        Score de similarité (0..1) entre un livre du summary et un livre MongoDB.
+
+        Maximum de quatre comparaisons avec le titre MongoDB normalisé : titre
+        extrait vs titre complet, titre extrait vs titre court (avant « : »),
+        auteur extrait vs titre complet, « auteur titre » vs titre complet.
+        """
+        normalized_titre = self._normalize_for_matching(titre_extrait)
+        normalized_auteur = self._normalize_for_matching(auteur_extrait)
+        livre_titre_complet = self._normalize_for_matching(livre.get("titre", ""))
+        if not livre_titre_complet:
+            return 0.0
+        livre_titre_court = livre_titre_complet.split(":")[0].strip()
+
+        candidats: list[str] = []
+        if normalized_titre:
+            candidats += [normalized_titre]
+        if normalized_auteur:
+            candidats += [normalized_auteur]
+        if normalized_titre and normalized_auteur:
+            candidats += [f"{normalized_auteur} {normalized_titre}"]
+
+        scores = [
+            SequenceMatcher(None, candidat, livre_titre_complet).ratio()
+            for candidat in candidats
+        ]
+        if normalized_titre and livre_titre_court:
+            scores.append(
+                SequenceMatcher(None, normalized_titre, livre_titre_court).ratio()
+            )
+        return max(scores, default=0.0)
+
     def _find_matching_livre_by_similarity(
         self,
         titre_extrait: str,
         auteur_extrait: str,
         livres: list[dict[str, Any]],
-        min_threshold: float = 0.3,
+        min_threshold: float = SIMILARITY_MIN_THRESHOLD,
     ) -> str | None:
         """
         Trouve le livre correspondant par similarité (pour les typos).
@@ -819,56 +877,12 @@ class AvisExtractionService:
         if not livres:
             return None
 
-        normalized_titre = self._normalize_for_matching(titre_extrait)
-        normalized_auteur = self._normalize_for_matching(auteur_extrait)
-
         best_match: tuple[str | None, float] = (None, 0.0)
 
         for livre in livres:
-            livre_id = str(livre.get("_id", ""))
-            livre_titre_complet = self._normalize_for_matching(livre.get("titre", ""))
-
-            # Extraire le titre court (avant ":" si sous-titre présent)
-            if ":" in livre_titre_complet:
-                livre_titre_court = livre_titre_complet.split(":")[0].strip()
-            else:
-                livre_titre_court = livre_titre_complet
-
-            max_score_for_livre = 0.0
-
-            # Stratégie 1: Similarité sur le titre complet
-            if normalized_titre and livre_titre_complet:
-                score = SequenceMatcher(
-                    None, normalized_titre, livre_titre_complet
-                ).ratio()
-                max_score_for_livre = max(max_score_for_livre, score)
-
-            # Stratégie 2: Similarité sur le titre court (sans sous-titre)
-            if normalized_titre and livre_titre_court:
-                score = SequenceMatcher(
-                    None, normalized_titre, livre_titre_court
-                ).ratio()
-                max_score_for_livre = max(max_score_for_livre, score)
-
-            # Stratégie 3: Similarité sur l'auteur vs titre complet
-            # (utile quand l'auteur est dans le titre: "Auteur, titre...")
-            if normalized_auteur and livre_titre_complet:
-                score = SequenceMatcher(
-                    None, normalized_auteur, livre_titre_complet
-                ).ratio()
-                max_score_for_livre = max(max_score_for_livre, score)
-
-            # Stratégie 4: Similarité sur le couple auteur-titre
-            if normalized_titre and normalized_auteur and livre_titre_complet:
-                combined_extrait = f"{normalized_auteur} {normalized_titre}"
-                score = SequenceMatcher(
-                    None, combined_extrait, livre_titre_complet
-                ).ratio()
-                max_score_for_livre = max(max_score_for_livre, score)
-
-            # Garder le meilleur match global
-            if max_score_for_livre > best_match[1]:
-                best_match = (livre_id, max_score_for_livre)
+            score = self._similarity_score(titre_extrait, auteur_extrait, livre)
+            if score > best_match[1]:
+                best_match = (str(livre.get("_id", "")), score)
 
         # Retourner le meilleur match s'il dépasse le seuil minimum
         if best_match[0] and best_match[1] >= min_threshold:

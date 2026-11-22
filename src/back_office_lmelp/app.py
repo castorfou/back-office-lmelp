@@ -5256,11 +5256,16 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
         # Calculer les statistiques de matching à partir des avis
         # Compter les livres uniques par phase de match
         unique_titles: dict[str, int | None] = {}  # titre -> match_phase
+        livres_summary_sans_match: list[dict[str, str]] = []
         for avis in avis_list:
             titre = avis.get("livre_titre_extrait", "")
             if titre and titre not in unique_titles:
                 # Utiliser match_phase sauvegardé dans l'avis
                 unique_titles[titre] = avis.get("match_phase")
+                if unique_titles[titre] is None:
+                    livres_summary_sans_match.append(
+                        {"titre": titre, "auteur": avis.get("auteur_nom_extrait", "")}
+                    )
 
         # Compter les livres Mongo liés à l'émission, et identifier ceux qui ne
         # sont cités par aucun avis extrait (Issue #267)
@@ -5335,6 +5340,7 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
             "livres_summary": len(unique_titles),
             "livres_mongo": livres_mongo_count,
             "livres_mongo_non_cites": livres_mongo_non_cites,
+            "livres_summary_sans_match": livres_summary_sans_match,
             "match_phase1": sum(1 for p in unique_titles.values() if p == 1),
             "match_phase2": sum(1 for p in unique_titles.values() if p == 2),
             "match_phase3": sum(1 for p in unique_titles.values() if p == 3),
