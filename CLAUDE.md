@@ -585,6 +585,21 @@ a set-aside title silently comes back.
 A book freshly extracted from the summary (empty or refreshed cache) has **no `cache_id`**:
 act on it by episode + title (`POST /api/livres-auteurs/ecarter`), never by cache id.
 
+### A Cache Refresh Never Undoes a Book Already in the Database
+
+Only saving a new summary (`save_avis_critique` → `delete_cache_by_episode()`) may clear the
+`status: "mongo"` entries of an episode. « 🔄 Relancer la validation » uses
+`delete_unvalidated_cache_by_episode()`, and the Babelio loop skips books with a settled
+status (`needsBabelioValidation()`). Two consequences:
+
+- `GET /api/livres-auteurs` completes a **partial** cache with the summary books that have
+  no entry, but only when the summary has **more books than the cache**. Summary titles
+  drift from cached ones (« Peau d'ours » / « Peau d'ourse »): an exact title comparison
+  alone added false duplicates to 11 of 188 real episodes. Measure any change to this
+  matching against every cached episode of the local database, not only against mocks.
+- Avis matching takes its candidates from `livres.episodes` too, not only from the `mongo`
+  cache entries: a book in the database stays a candidate whatever its cache status.
+
 ### Calibre SQLite File: Retry on Open, Cache on mtime, Test on a Real File
 
 The served Calibre library (`metadata.db`) is a file that Synology Drive can replace at any

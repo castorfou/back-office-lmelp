@@ -923,6 +923,31 @@ Rétablit un titre écarté (comparaison sur le titre normalisé). Réponse : `{
 
 ---
 
+### DELETE /api/livres-auteurs/cache/episode/{episode_oid}
+
+Rafraîchit le cache d'un épisode (bouton « 🔄 Relancer la validation »). Supprime les entrées `livresauteurs_cache` non validées (`status != "mongo"`) : un livre déjà en base n'est jamais défait par un rafraîchissement. Seul l'enregistrement d'un nouveau résumé (`save_avis_critique`) vide tout le cache de l'épisode.
+
+Réponse : `{"deleted_count": int, "episode_oid": str}`.
+
+### Cache partiel d'un épisode
+
+- `GET /api/livres-auteurs?episode_oid=...` renvoie les entrées du cache. Sans cache, il extrait les livres du résumé.
+- Quand le cache existe mais compte **moins** de livres que le résumé (après un rafraîchissement, ou une validation interrompue), les livres du résumé sans entrée de cache sont ajoutés, sans `status` ni `cache_id`. Ils sont extraits par parsing markdown, sans LLM (`BooksExtractionService.extract_books_from_summaries_markdown()`).
+- Un livre du résumé correspond à une entrée si son titre normalisé (`normalize_for_matching`) est égal au `titre`, au `suggested_title` ou au `validated_title` de l'entrée (`books_missing_from_cache()`).
+- Un cache aussi long que le résumé n'est jamais complété : le résumé porte souvent une variante du titre en cache (« Peau d'ours » / « Peau d'ourse »), qui n'est pas un livre manquant.
+- La validation Babelio du frontend ne traite que les livres sans statut définitif (`needsBabelioValidation()`, `frontend/src/utils/validationStatus.js`).
+
+### Livres candidats au matching des avis
+
+`POST /api/avis/extract/{emission_id}` matche les avis du résumé contre l'union, sans doublon d'`_id` :
+
+- des livres des entrées `mongo` du cache (`get_livres_from_collections()`) ;
+- des livres liés à l'épisode (`livres.find({"episodes": episode_id})`), la même source que « Livres en base mais absents de l'avis critique ».
+
+Un livre en base reste ainsi candidat même si son entrée de cache n'est plus en `mongo`.
+
+---
+
 ### GET /api/authors
 
 Récupère tous les auteurs de la collection.

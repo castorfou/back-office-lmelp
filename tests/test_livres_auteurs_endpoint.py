@@ -376,10 +376,10 @@ class TestLivresAuteursCacheEndpoint:
 
     @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     def test_delete_cache_by_episode_success(self, mock_cache_service, client):
-        """Test de suppression du cache pour un épisode spécifique."""
+        """Le rafraîchissement supprime les entrées non validées (Issue #383)."""
         # Arrange
         episode_oid = "68d98f74edbcf1765933a9b5"  # pragma: allowlist secret
-        mock_cache_service.delete_cache_by_episode = Mock(return_value=3)
+        mock_cache_service.delete_unvalidated_cache_by_episode = Mock(return_value=3)
 
         # Act
         response = client.delete(f"/api/livres-auteurs/cache/episode/{episode_oid}")
@@ -390,15 +390,17 @@ class TestLivresAuteursCacheEndpoint:
         assert result["deleted_count"] == 3
         assert result["episode_oid"] == episode_oid
 
-        # Vérifier que delete_cache_by_episode a été appelé avec le bon episode_oid
-        mock_cache_service.delete_cache_by_episode.assert_called_once_with(episode_oid)
+        # Les livres déjà en base (status mongo) sont conservés
+        mock_cache_service.delete_unvalidated_cache_by_episode.assert_called_once_with(
+            episode_oid
+        )
 
     @patch("back_office_lmelp.app.livres_auteurs_cache_service")
     def test_delete_cache_by_episode_not_found(self, mock_cache_service, client):
         """Test de suppression du cache quand aucun document n'est trouvé."""
         # Arrange
         episode_oid = "nonexistent_episode"
-        mock_cache_service.delete_cache_by_episode = Mock(return_value=0)
+        mock_cache_service.delete_unvalidated_cache_by_episode = Mock(return_value=0)
 
         # Act
         response = client.delete(f"/api/livres-auteurs/cache/episode/{episode_oid}")

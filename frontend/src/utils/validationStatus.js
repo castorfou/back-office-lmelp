@@ -26,3 +26,13 @@ export function toRowStatus(validationStatus) {
 export function isTransientStatus(rowStatus) {
   return TRANSIENT_STATUSES.has(rowStatus);
 }
+
+const SETTLED_STATUSES = new Set(['verified', 'suggested', 'mongo', 'not_found']);
+
+/**
+ * Un livre passe par Babelio seulement s'il n'a pas de statut enregistré en
+ * cache : un livre déjà en base (mongo) ou déjà validé n'y repasse jamais.
+ */
+export function needsBabelioValidation(book) {
+  return !book.status || !SETTLED_STATUSES.has(book.status);
+}

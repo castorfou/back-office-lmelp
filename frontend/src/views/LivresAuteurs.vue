@@ -724,7 +724,7 @@ import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { fixtureCaptureService } from '../services/FixtureCaptureService.js';
 import BiblioValidationService, { isCookieExpiredResult } from '../services/BiblioValidationService.js';
 import { buildBookDataForBackend } from '../utils/buildBookDataForBackend.js';
-import { toRowStatus, isTransientStatus } from '../utils/validationStatus.js';
+import { toRowStatus, isTransientStatus, needsBabelioValidation } from '../utils/validationStatus.js';
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
@@ -875,10 +875,7 @@ export default {
       return `⏳ Validation ${progress.index}/${progress.total} — ${progress.titre}${cookie}`;
     },
     booksNeedValidation() {
-      return (this.books || []).some(book =>
-        !book.status ||
-        !['verified', 'suggested', 'mongo', 'not_found'].includes(book.status)
-      );
+      return (this.books || []).some(needsBabelioValidation);
     },
     selectedEpisode() {
       if (!this.selectedEpisodeId) return null;
@@ -1992,8 +1989,9 @@ export default {
       try {
         const validatedBooks = [];
 
-        // Valider chaque livre avec BiblioValidationService
-        const booksToValidate = this.books;
+        // Valider avec BiblioValidationService les seuls livres sans statut
+        // enregistré : un livre déjà en base ne repasse pas par Babelio
+        const booksToValidate = this.books.filter(needsBabelioValidation);
         let index = 0;
         while (index < booksToValidate.length && !this._leftPage) {
           const book = booksToValidate[index];
