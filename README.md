@@ -165,7 +165,7 @@ Using backend target from discovery file: http://127.0.0.1:54323
 - 📊 **Dashboard statistiques optimisé** : Vue globale avec "Avis critiques analysés", ordre intelligent des métriques
 - ⚡ **Cache dashboard 5 min** : Statistiques agrégées (`/api/dashboard/stats`) mises en cache, invalidées automatiquement à chaque écriture MongoDB pertinente, avec bouton "Actualiser" pour forcer le rafraîchissement
 - 🎙️ **Tuile "Épisodes sans transcription"** : Métrique intégrée au payload caché standard du dashboard, navigue vers la page transcription PGX dédiée (`/transcription-pgx`)
-- 📦 **Tuile "Livrées par pap"** : Nombre d'émissions livrées par [lmelp-pap](https://github.com/castorfou/lmelp-pap) (fiche `pap_remises` dont le fichier audio est présent), lecture seule, incluse dans le payload caché du dashboard
+- 📦 **Remises pap** : Page `/remises-pap` et tuile "Remises à intégrer" : les émissions anciennes livrées par [lmelp-pap](https://github.com/castorfou/lmelp-pap) (fiche `pap_remises` dont le fichier audio est présent) s'intègrent comme épisodes, remise par remise (empreinte SHA-256 vérifiée, transcription PGX lancée, notification ntfy « pap »)
 - 🤖 **Traitement automatique** : Auto-intégration des livres vérifiés par Babelio dans les collections MongoDB
 - ✅ **Validation manuelle** : Interface dédiée pour corriger et valider les suggestions d'auteurs/livres
 - 🔗 **Auto-remplissage Babelio** : Champ URL optionnel dans modales validation/ajout pour extraction automatique (titre, auteur, éditeur)

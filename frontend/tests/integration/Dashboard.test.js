@@ -1004,12 +1004,12 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
   });
 });
 
-describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
+describe('Dashboard - Tuile "Remises à intégrer"', () => {
   let wrapper;
   let router;
 
   // Le compteur fait partie du payload caché de /api/dashboard/stats.
-  function dashboardPayload(papLivreesCount) {
+  function dashboardPayload(remisesCount) {
     return {
       statistics: { lastUpdateDate: '2025-09-06T10:30:00Z' },
       collections_statistics: { last_episode_date: '2024-12-10T20:00:00' },
@@ -1017,7 +1017,7 @@ describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
       duplicate_books_count: 0,
       duplicate_authors_count: 0,
       orphaned_avis_count: 0,
-      pap_livrees_count: papLivreesCount
+      pap_remises_a_integrer_count: remisesCount
     };
   }
 
@@ -1034,7 +1034,7 @@ describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
     wrapper = mount(Dashboard, { global: { plugins: [router] } });
     await new Promise(resolve => setTimeout(resolve, 50));
     await wrapper.vm.$nextTick();
-    return wrapper.find('[data-test="pap-livrees-card"]');
+    return wrapper.find('[data-test="pap-remises-card"]');
   }
 
   beforeEach(async () => {
@@ -1050,15 +1050,15 @@ describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
     if (wrapper) wrapper.unmount();
   });
 
-  it('affiche le nombre d\'émissions livrées par pap, lu dans le payload dashboard', async () => {
+  it('affiche le nombre de remises à intégrer, lu dans le payload dashboard', async () => {
     mockApi(Promise.resolve({ data: dashboardPayload(12) }));
 
     const card = await mountDashboard();
 
     expect(card.exists()).toBe(true);
     expect(card.find('.stat-value').text()).toBe('12');
-    expect(card.find('.stat-label').text()).toBe('Livrées par pap');
-    expect(axios.get).not.toHaveBeenCalledWith('/api/pap/livrees');
+    expect(card.find('.stat-label').text()).toBe('Remises à intégrer');
+    expect(axios.get).not.toHaveBeenCalledWith('/api/pap/remises');
   });
 
   it('disparaît à 0, comme les autres tuiles (pap_remises vide ou absente)', async () => {
@@ -1078,15 +1078,15 @@ describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
     expect(card.find('.stat-value').text()).toBe('...');
   });
 
-  it('n\'est pas cliquable', async () => {
+  it('mène à la page « Remises pap »', async () => {
     mockApi(Promise.resolve({ data: dashboardPayload(3) }));
     const push = vi.spyOn(router, 'push');
 
     const card = await mountDashboard();
     await card.trigger('click');
 
-    expect(card.classes()).not.toContain('clickable-stat');
-    expect(push).not.toHaveBeenCalled();
+    expect(card.classes()).toContain('clickable-stat');
+    expect(push).toHaveBeenCalledWith('/remises-pap');
   });
 
   it('recharge le chiffre au clic sur "Actualiser"', async () => {
@@ -1097,6 +1097,6 @@ describe('Dashboard - Tuile "Livrées par pap" (Issue #376)', () => {
     await wrapper.find('[data-test="dashboard-refresh-button"]').trigger('click');
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    expect(wrapper.find('[data-test="pap-livrees-card"] .stat-value').text()).toBe('4');
+    expect(wrapper.find('[data-test="pap-remises-card"] .stat-value').text()).toBe('4');
   });
 });

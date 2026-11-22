@@ -33,7 +33,7 @@ class TestDashboardStatsEndpoint:
             patch(
                 "back_office_lmelp.app.dashboard_stats_cache_service"
             ) as mock_cache_service,
-            patch("back_office_lmelp.app.count_pap_livrees", return_value=4),
+            patch("back_office_lmelp.app.pap_remises_service") as mock_pap,
         ):
             mock_stats_service.get_cache_statistics.return_value = (
                 mock_collections_statistics
@@ -54,6 +54,7 @@ class TestDashboardStatsEndpoint:
             )
             # Pas de cache actif dans ce test : get_cached() retourne None, puis set_cache() est appelé
             mock_cache_service.get_cached.return_value = None
+            mock_pap.count_a_integrer.return_value = 4
 
             response = client.get("/api/dashboard/stats")
 
@@ -65,7 +66,7 @@ class TestDashboardStatsEndpoint:
             assert data["duplicate_books_count"] == 2
             assert data["duplicate_authors_count"] == 1
             assert data["orphaned_avis_count"] == 5
-            assert data["pap_livrees_count"] == 4
+            assert data["pap_remises_a_integrer_count"] == 4
 
     def test_dashboard_stats_endpoint_should_return_cached_value_without_recomputing(
         self,

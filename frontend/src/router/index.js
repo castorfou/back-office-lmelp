@@ -227,6 +227,14 @@ const routes = [
     }
   },
   {
+    path: '/remises-pap',
+    name: 'RemisesPap',
+    component: () => import('../views/RemisesPap.vue'),
+    meta: {
+      title: 'Remises pap - lmelp'
+    }
+  },
+  {
     path: '/transcription-pgx',
     name: 'PgxTranscription',
     component: PgxTranscription,

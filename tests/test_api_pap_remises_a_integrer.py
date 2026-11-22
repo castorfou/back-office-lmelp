@@ -1,8 +1,9 @@
-"""Compteur « Livrées par pap » dans le payload caché du dashboard (Issue #376).
+"""Compteur « Remises à intégrer » dans le payload caché du dashboard.
 
 Le compteur fait partie de GET /api/dashboard/stats (cache 5 min) : le test
 des fichiers audio et les logs des fichiers absents ont lieu au plus une fois
-par cache, ou à chaque « Actualiser ».
+par cache, ou à chaque « Actualiser ». Une intégration écrit dans `episodes`,
+surveillée par le listener d'invalidation : la tuile baisse aussitôt.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -52,28 +53,30 @@ def _json_response(content):
     return JSONResponse(content=content)
 
 
-def test_le_payload_dashboard_contient_le_nombre_d_emissions_livrees(
+def test_le_payload_dashboard_contient_le_nombre_de_remises_a_integrer(
     autres_sources_du_dashboard,
 ):
-    with patch("back_office_lmelp.app.count_pap_livrees", return_value=12):
+    with patch("back_office_lmelp.app.pap_remises_service") as mock_pap:
+        mock_pap.count_a_integrer.return_value = 12
         response = client.get("/api/dashboard/stats")
 
     assert response.status_code == 200
-    assert response.json()["pap_livrees_count"] == 12
+    assert response.json()["pap_remises_a_integrer_count"] == 12
+    assert "pap_livrees_count" not in response.json()
     cached_payload = autres_sources_du_dashboard.set_cache.call_args.args[0]
-    assert cached_payload["pap_livrees_count"] == 12
+    assert cached_payload["pap_remises_a_integrer_count"] == 12
 
 
 def test_un_echec_du_comptage_pap_ne_casse_pas_les_autres_tuiles(
     autres_sources_du_dashboard,
 ):
-    with patch(
-        "back_office_lmelp.app.count_pap_livrees",
-        side_effect=Exception("Connexion MongoDB non établie"),
-    ):
+    with patch("back_office_lmelp.app.pap_remises_service") as mock_pap:
+        mock_pap.count_a_integrer.side_effect = Exception(
+            "Connexion MongoDB non établie"
+        )
         response = client.get("/api/dashboard/stats")
 
     assert response.status_code == 200
     data = response.json()
-    assert data["pap_livrees_count"] is None
+    assert data["pap_remises_a_integrer_count"] is None
     assert data["orphaned_avis_count"] == 0
