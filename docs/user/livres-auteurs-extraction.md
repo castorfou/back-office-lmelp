@@ -112,7 +112,7 @@ Ouvrir la page ou changer d'épisode **n'envoie aucune requête à Babelio** : c
     - un livre bloqué (403) ou en erreur garde ce statut jusqu'à la prochaine validation ou au changement d'épisode, sans être enregistré ;
     - le changement d'épisode est désactivé
 - **Pause de validation** : si le cookie Babelio expire en cours de route, la validation se met en pause avant d'envoyer la moindre requête (« ⏸ En pause — cookie expiré (5/9) ») et le panneau cookie s'ouvre. Dès qu'un cookie frais est enregistré, elle reprend au livre interrompu. **⏹ Arrêter** enregistre les livres déjà validés et laisse les autres « À valider ». Un vrai refus de Babelio (403) ne met pas en pause : le livre passe « Bloqué (403) »
-- **🔄 Relancer la validation** : sur la ligne du panneau **🔑 Cookie Babelio**, toujours visible ; vide le cache de l'épisode, réextrait les livres puis relance la validation de tous les livres
+- **🔄 Relancer la validation** : sur la ligne du panneau **🔑 Cookie Babelio**, toujours visible ; revalide les livres de l'épisode qui ne sont pas encore en base. Les livres déjà en base (✅ Traité) gardent leur statut et ne repassent pas par Babelio : seule la génération d'un nouveau résumé peut les remettre en cause
 - **Cookie requis** : tant que le cookie Babelio n'est pas actif (absent ou périmé), ces deux boutons sont grisés. Ils se grisent d'eux-mêmes quand le cookie expire, et se réactivent dès qu'un cookie frais est enregistré. Sans cette règle, **🔄** viderait le cache de l'épisode puis échouerait en 403
 - **↻** dans une cellule : vérifie ce seul livre
 - **Rate limiting** : le serveur espace les requêtes vers Babelio (`BABELIO_FAIR_SEC`)
