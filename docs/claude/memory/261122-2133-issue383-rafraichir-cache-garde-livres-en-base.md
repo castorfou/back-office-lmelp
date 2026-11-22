@@ -24,9 +24,9 @@ Correctif : la condition `len(extracted) > len(cached_books)`, c'est-à-dire le 
 
 Corollaire : la complétion ramène aussi les livres perdus par une validation interrompue (erreur réseau non persistée). Avant, ils disparaissaient tant que le cache n'était pas vide.
 
-## Bug existant repéré (hors périmètre)
+## Bug existant repéré (hors périmètre, issue #385)
 
-`BooksExtractionService._extract_books_from_single_review()` fait `await self.client.chat.completions.create(...)` sur un client `openai.AzureOpenAI` **synchrone**. Si Azure est configuré, la requête part (facturée et bloquante), puis l'`await` lève `TypeError`, attrapé par `except Exception`, et le code retombe sur le parsing markdown. En pratique, les livres extraits viennent toujours du parsing. C'est pourquoi la complétion du cache utilise directement le parsing.
+La branche LLM de `BooksExtractionService._extract_books_from_single_review()` ne sert jamais. Le service lit `AZURE_OPENAI_ENDPOINT`/`AZURE_OPENAI_API_KEY`, alors que le `.env` et les autres services utilisent `AZURE_ENDPOINT`/`AZURE_API_KEY` : le client reste `None` et l'extraction passe toujours par le parsing markdown. Elle est aussi cassée : `await` sur un client `openai.AzureOpenAI` synchrone. Si ces variables étaient définies, un appel facturé partirait pour rien, puis le code retomberait sur le parsing. La complétion du cache appelle donc directement le parsing.
 
 ## Tests
 
