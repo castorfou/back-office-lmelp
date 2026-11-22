@@ -53,9 +53,28 @@ _Avoid_: latence, retard de synchro
 
 **Épisode**:
 Un enregistrement du Masque et la Plume consacré aux livres, entré dans la base avec son
-audio (par le flux RSS ou par un ajout depuis sa page radiofrance.fr), en attente ou non de
-transcription.
+audio (par le flux RSS, par un ajout depuis sa page radiofrance.fr ou par l'intégration
+d'une remise), en attente ou non de transcription.
 _Avoid_: émission (tant que les avis critiques ne sont pas générés)
+
+**Remise**:
+Un enregistrement que lmelp-pap met à la disposition de lmelp : il en copie l'audio dans le
+dossier audio de lmelp et en écrit la fiche. pap décrit l'émission (titre, date de première
+diffusion, durée, description, empreinte de l'audio) ; lmelp décide de l'épisode qu'elle
+devient. pap garantit qu'une remise n'est pas une émission déjà présente dans lmelp :
+lmelp ne recherche pas les doublons à l'intégration. Une remise ne se retire pas.
+Dans l'interface, une remise s'affiche comme une « émission ancienne » : le mot remise
+reste au code, à l'API et aux échanges avec pap.
+_Avoid_: émission pap, fiche pap (comme synonyme), import
+
+**Remise livrée**:
+Une remise dont le fichier audio est présent dans le dossier audio de lmelp ; une remise
+dont le fichier manque n'est pas livrée et ne peut pas être intégrée.
+_Avoid_: remise reçue, remise disponible
+
+**Intégration**:
+Le geste explicite, remise par remise, qui fait d'une remise livrée un épisode de lmelp.
+_Avoid_: import, synchronisation pap
 
 **Émission**:
 Un épisode dont les avis critiques ont été générés : il apparaît alors dans la page

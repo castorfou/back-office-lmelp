@@ -78,4 +78,5 @@ un épisode déjà ajouté est signalé comme existant.
 
 - [Monitoring RSS](rss-monitoring.md) : arrivée automatique des nouveaux épisodes
 - [Transcription PGX](transcription-pgx.md) : étape suivante
+- [Émissions anciennes](emissions-anciennes.md) : émissions 1955-2016 livrées par lmelp-pap
 - `docs/dev/ajout-emission.md` : détail technique

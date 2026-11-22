@@ -74,7 +74,7 @@ from .services.livres_auteurs_cache_service import livres_auteurs_cache_service
 from .services.manual_episode_service import manual_episode_service
 from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
-from .services.pap_remises_service import count_pap_livrees
+from .services.pap_remises_service import pap_remises_service
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
 from .services.rss_sync_service import rss_sync_service
@@ -288,6 +288,12 @@ class AddEpisodeFromRadiofrancePageRequest(BaseModel):
     """Ajout manuel d'une émission depuis sa page radiofrance.fr (Issue #334)."""
 
     url: str
+
+
+class IntegrerRemisePapRequest(BaseModel):
+    """Intégration d'une remise pap : son identifiant est une URL, d'où le corps."""
+
+    remise_id: str
 
 
 class TriggerPgxTranscriptionRequest(BaseModel):
@@ -3696,6 +3702,34 @@ async def add_episode_from_radiofrance_page(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
+@app.get("/api/pap/remises")
+def get_pap_remises_a_integrer() -> list[dict[str, Any]]:
+    """Remises livrées par lmelp-pap pas encore intégrées, plus récentes d'abord."""
+    try:
+        return pap_remises_service.list_a_integrer()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.post("/api/pap/remises/integrer")
+async def integrer_pap_remise(request: IntegrerRemisePapRequest) -> dict[str, Any]:
+    """Fait d'une remise livrée un épisode, puis lance sa transcription PGX.
+
+    Refus : 404 remise inconnue, 409 déjà intégrée, 422 fichier absent ou
+    empreinte SHA-256 différente de la fiche.
+    """
+    try:
+        return await pap_remises_service.integrer(request.remise_id)
+    except Exception as e:
+        # Comparaison par nom : voir CLAUDE.md, imports `src.` vs sans préfixe
+        if type(e).__name__ == "PapRemiseError":
+            raise HTTPException(
+                status_code=e.status_code,  # type: ignore[attr-defined]
+                detail=e.message,  # type: ignore[attr-defined]
+            ) from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
 # ── End of RSS Masque Et La Plume sync endpoints ──────────────────────────────
 
 
@@ -5618,16 +5652,16 @@ async def get_orphaned_avis_statistics() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
-def _safe_count_pap_livrees() -> int | None:
-    """Compte les émissions livrées par pap, sans casser le reste du dashboard.
+def _safe_count_pap_remises_a_integrer() -> int | None:
+    """Compte les remises pap à intégrer, sans casser le reste du dashboard.
 
-    Issue #376 : en cas d'échec (Mongo indisponible…), seule la tuile
-    « Livrées par pap » reste vide (None), pas les autres.
+    En cas d'échec (Mongo indisponible…), seule la tuile « Émissions anciennes à intégrer »
+    reste vide (None), pas les autres.
     """
     try:
-        return count_pap_livrees()
+        return pap_remises_service.count_a_integrer()
     except Exception as e:
-        logger.error(f"Erreur lors du comptage des émissions livrées par pap: {e}")
+        logger.error(f"Erreur lors du comptage des remises pap à intégrer: {e}")
         return None
 
 
@@ -5642,18 +5676,19 @@ async def _compute_dashboard_stats() -> dict[str, Any]:
         duplicate_books_stats,
         duplicate_authors_stats,
         orphaned_avis_stats,
-        pap_livrees_count,
+        pap_remises_a_integrer_count,
     ) = await asyncio.gather(
         get_statistics(),
         get_livres_auteurs_statistics(),
         duplicate_books_service.get_duplicate_statistics(),
         duplicate_books_service.get_duplicate_authors_statistics(),
         orphaned_avis_service.get_orphaned_statistics(),
-        # Issue #376 : lit pap_remises et teste les fichiers audio sur disque
-        # (I/O bloquantes) → thread. Les écritures de lmelp-pap échappent au
-        # listener d'invalidation : le compteur se rafraîchit à l'expiration
-        # du cache (5 min) ou par « Actualiser ».
-        asyncio.to_thread(_safe_count_pap_livrees),
+        # Lit pap_remises et episodes, teste les fichiers audio sur disque
+        # (I/O bloquantes) → thread. Une intégration écrit dans `episodes`,
+        # surveillée par le listener : la tuile baisse aussitôt. Les écritures
+        # de lmelp-pap lui échappent : une nouvelle remise apparaît à
+        # l'expiration du cache (5 min) ou par « Actualiser ».
+        asyncio.to_thread(_safe_count_pap_remises_a_integrer),
     )
 
     return {
@@ -5663,7 +5698,7 @@ async def _compute_dashboard_stats() -> dict[str, Any]:
         "duplicate_books_count": duplicate_books_stats["total_duplicates"],
         "duplicate_authors_count": duplicate_authors_stats["total_duplicates"],
         "orphaned_avis_count": orphaned_avis_stats["orphaned_count"],
-        "pap_livrees_count": pap_livrees_count,
+        "pap_remises_a_integrer_count": pap_remises_a_integrer_count,
     }
 
 

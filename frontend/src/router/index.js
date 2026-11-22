@@ -227,6 +227,14 @@ const routes = [
     }
   },
   {
+    path: '/emissions-anciennes',
+    name: 'RemisesPap',
+    component: () => import('../views/RemisesPap.vue'),
+    meta: {
+      title: 'Émissions anciennes - lmelp'
+    }
+  },
+  {
     path: '/transcription-pgx',
     name: 'PgxTranscription',
     component: PgxTranscription,
