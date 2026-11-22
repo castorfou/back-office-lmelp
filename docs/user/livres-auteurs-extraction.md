@@ -125,6 +125,12 @@ Ouvrir la page ou changer d'épisode **n'envoie aucune requête à Babelio** : c
 - **Correction automatique** : Voir les suggestions de correction orthographique
 - **Validation qualité** : S'assurer de la fiabilité des données extraites
 
+### Supprimer une détection erronée
+
+Le bouton **🗑️ Supprimer**, sur chaque livre pas encore en base, retire un titre détecté par erreur : livre mentionné en passant, ou ligne du résumé qui ne désigne pas un livre (toute une collection, par exemple).
+
+Le titre est écarté durablement de l'émission : ni le rafraîchissement du cache ni l'extraction des avis ne le recréent. Il apparaît dans la liste « Titres écartés » de la [page Émissions](emissions.md#titres-du-resume-qui-ne-sont-pas-des-livres), d'où on peut le rétablir.
+
 ## Source et fiabilité des données
 
 ### Extraction des tableaux markdown

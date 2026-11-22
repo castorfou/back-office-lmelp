@@ -873,6 +873,56 @@ Ajoute manuellement un livre marqué comme "not_found" avec saisie utilisateur.
 
 ---
 
+### POST /api/livres-auteurs/ecarter
+
+Écarte un titre d'un épisode (bouton « Supprimer » de la validation Babelio). Le titre rejoint le registre `avis_critiques.livres_ecartes` de chaque avis critique de l'épisode, et les entrées `livresauteurs_cache` non validées (`status != "mongo"`) de ce titre sont supprimées. Fonctionne aussi pour un livre tout juste extrait du résumé, qui n'a pas encore de `cache_id`.
+
+#### Request Body
+
+```json
+{
+  "episode_oid": "6b0311fde1982eca85db03ab",  // pragma: allowlist secret
+  "titre": "Divers titres à l'École des loisirs",
+  "auteur": "Geneviève Brisac (dir.)"
+}
+```
+
+#### Réponse
+
+**200 OK**
+```json
+{
+  "livres_ecartes": [
+    {
+      "titre": "Divers titres à l'École des loisirs",
+      "auteur": "Geneviève Brisac (dir.)",
+      "ecarte_le": "2026-11-22T18:07:56.936000"
+    }
+  ]
+}
+```
+
+**404** : aucun avis critique pour cet épisode. **422** : titre vide.
+
+---
+
+### POST /api/emissions/{emission_id}/livres-ecartes
+
+Écarte un titre du résumé d'une émission (bouton « Ignorer ce livre » de la page Émissions). Même effet que ci-dessus, pour l'avis critique de l'émission. Body : `{"titre": str, "auteur": str}`. Réponse : `{"livres_ecartes": [...]}`. **404** : émission ou avis critique absent. **422** : titre vide.
+
+### DELETE /api/emissions/{emission_id}/livres-ecartes?titre=...
+
+Rétablit un titre écarté (comparaison sur le titre normalisé). Réponse : `{"livres_ecartes": [...]}`.
+
+### Registre `livres_ecartes`
+
+- Stocké sur `avis_critiques` : `[{"titre": str, "auteur": str, "ecarte_le": datetime}]`. Le résumé n'est jamais modifié.
+- Lu par `AvisExtractionService.extract_avis_from_summary(..., livres_ecartes=)` (`POST /api/avis/extract/{emission_id}`) et par `BooksExtractionService.extract_books_from_reviews()` (cache des livres) : aucun avis ni livre n'est produit pour un titre écarté.
+- Comparaison : `is_titre_ecarte()` (`utils/livres_ecartes.py`), égalité après `normalize_for_matching`, sans rapprochement approximatif.
+- `GET /api/avis/by-emission/{emission_id}` renvoie `livres_ecartes`, chaque entrée avec `absent_du_resume` : `true` si le titre ne figure plus dans le résumé actuel (titres des avis et des tableaux).
+
+---
+
 ### GET /api/authors
 
 Récupère tous les auteurs de la collection.
