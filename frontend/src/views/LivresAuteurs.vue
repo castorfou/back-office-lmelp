@@ -121,6 +121,10 @@
             </div>
           </div>
         </div>
+      <div v-if="deleteError" class="alert alert-error" data-testid="delete-error">
+        {{ deleteError }}
+      </div>
+
       <!-- Bloc Babelio : validation des livres, juste au-dessus de la liste -->
       <!-- Validation Babelio : seulement sur geste explicite (ses 403 se transforment en ban IP) -->
       <div v-if="selectedEpisodeId && !loading && (booksNeedValidation || validatingWithBabelio)" class="babelio-validate-bar">
@@ -683,7 +687,10 @@
           <strong>{{ bookToDelete.titre }}</strong>
           de <strong>{{ bookToDelete.auteur }}</strong> ?
         </p>
-        <p class="warning-text">Cette action est irréversible.</p>
+        <p class="warning-text">
+          Le titre sera écarté durablement de cette émission : il ne produira plus
+          ni avis ni livre. Il peut être rétabli depuis la page Émissions.
+        </p>
 
         <div class="modal-actions">
           <button
@@ -795,6 +802,7 @@ export default {
       // Modal de confirmation de suppression (Issue #303)
       showDeleteConfirmModal: false,
       bookToDelete: null,
+      deleteError: null,
 
       // Contrôle d'affichage de la colonne YAML
       showYamlColumn: false,
@@ -1910,13 +1918,19 @@ export default {
      */
     async deleteCacheEntry() {
       if (!this.bookToDelete) return;
+      const book = this.bookToDelete;
+      this.showDeleteConfirmModal = false;
+      this.bookToDelete = null;
+      this.deleteError = null;
       try {
-        await livresAuteursService.deleteCacheEntry(this.bookToDelete.cache_id);
-        this.showDeleteConfirmModal = false;
-        this.bookToDelete = null;
+        // Écarte le titre par épisode : marche aussi pour un livre tout juste
+        // extrait, pas encore en cache (sans cache_id) — Issue #380
+        await livresAuteursService.ecarterLivreEpisode(
+          this.selectedEpisodeId, book.titre, book.auteur
+        );
         await this.loadBooksForEpisode();
       } catch (error) {
-        this.error = 'Erreur lors de la suppression du livre.';
+        this.deleteError = `Suppression de « ${book.titre} » impossible : ${error.message}`;
       }
     },
 
