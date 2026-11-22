@@ -20,7 +20,7 @@ Structure du payload :
 }
 ```
 
-`pap_remises_a_integrer_count` (tuile « Remises à intégrer ») est calculé par
+`pap_remises_a_integrer_count` (tuile « Émissions anciennes à intégrer ») est calculé par
 `pap_remises_service.count_a_integrer()` : la taille de la liste servie par
 `GET /api/pap/remises` (une seule règle). Les fiches `pap_remises` dont l'`_id` figure dans
 `episodes.pap_remise_id` (valeurs distinctes, épisodes masqués compris) sont écartées sans

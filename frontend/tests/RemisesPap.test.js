@@ -1,5 +1,5 @@
 /**
- * Tests de la vue RemisesPap (Issue #378) : intégration des remises livrées
+ * Tests de la vue RemisesPap, page « Émissions anciennes » (Issue #378) : intégration des remises livrées
  * par lmelp-pap comme épisodes, remise par remise.
  *
  * Réponses calquées sur PapRemisesService.list_a_integrer() / integrer(),
@@ -120,7 +120,7 @@ describe('RemisesPap', () => {
       response: {
         status: 422,
         data: {
-          detail: 'Empreinte SHA-256 du fichier audio différente de celle de la remise : copie incomplète ou corrompue',
+          detail: 'Empreinte SHA-256 du fichier audio différente de celle donnée par lmelp-pap : copie incomplète ou corrompue',
         },
       },
     });
@@ -142,7 +142,7 @@ describe('RemisesPap', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="remises-empty"]').text()).toBe('Aucune remise à intégrer.');
+    expect(wrapper.find('[data-testid="remises-empty"]').text()).toBe('Aucune émission ancienne à intégrer.');
   });
 
   it('affiche l\'état de chargement, puis l\'erreur de chargement', async () => {

@@ -1,4 +1,4 @@
-"""Compteur « Remises à intégrer » dans le payload caché du dashboard.
+"""Compteur « Émissions anciennes à intégrer » dans le payload caché du dashboard.
 
 Le compteur fait partie de GET /api/dashboard/stats (cache 5 min) : le test
 des fichiers audio et les logs des fichiers absents ont lieu au plus une fois

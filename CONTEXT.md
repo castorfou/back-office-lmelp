@@ -63,6 +63,8 @@ dossier audio de lmelp et en écrit la fiche. pap décrit l'émission (titre, da
 diffusion, durée, description, empreinte de l'audio) ; lmelp décide de l'épisode qu'elle
 devient. pap garantit qu'une remise n'est pas une émission déjà présente dans lmelp :
 lmelp ne recherche pas les doublons à l'intégration. Une remise ne se retire pas.
+Dans l'interface, une remise s'affiche comme une « émission ancienne » : le mot remise
+reste au code, à l'API et aux échanges avec pap.
 _Avoid_: émission pap, fiche pap (comme synonyme), import
 
 **Remise livrée**:

@@ -983,8 +983,27 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     expect([...podcastCards].map((el) => el.dataset.testid)).toEqual([
       'function-rss-monitoring',
       'function-ajout-emission',
+      'function-emissions-anciennes',
       'function-pgx-transcription',
     ]);
+  });
+
+  it('navigue vers /emissions-anciennes au clic sur la tuile Émissions anciennes, toujours visible', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const card = wrapper.find('[data-testid="function-emissions-anciennes"]');
+    expect(card.find('h3').text()).toBe('Émissions anciennes');
+    await card.trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/emissions-anciennes');
   });
 
   it('navigue vers /ajout-emission au clic sur la tuile Ajouter une émission (Issue #334)', async () => {
@@ -1004,7 +1023,7 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
   });
 });
 
-describe('Dashboard - Tuile "Remises à intégrer"', () => {
+describe('Dashboard - Tuile "Émissions anciennes à intégrer"', () => {
   let wrapper;
   let router;
 
@@ -1050,14 +1069,14 @@ describe('Dashboard - Tuile "Remises à intégrer"', () => {
     if (wrapper) wrapper.unmount();
   });
 
-  it('affiche le nombre de remises à intégrer, lu dans le payload dashboard', async () => {
+  it('affiche le nombre d\'émissions anciennes à intégrer, lu dans le payload dashboard', async () => {
     mockApi(Promise.resolve({ data: dashboardPayload(12) }));
 
     const card = await mountDashboard();
 
     expect(card.exists()).toBe(true);
     expect(card.find('.stat-value').text()).toBe('12');
-    expect(card.find('.stat-label').text()).toBe('Remises à intégrer');
+    expect(card.find('.stat-label').text()).toBe('Émissions anciennes à intégrer');
     expect(axios.get).not.toHaveBeenCalledWith('/api/pap/remises');
   });
 
@@ -1078,7 +1097,7 @@ describe('Dashboard - Tuile "Remises à intégrer"', () => {
     expect(card.find('.stat-value').text()).toBe('...');
   });
 
-  it('mène à la page « Remises pap »', async () => {
+  it('mène à la page « Émissions anciennes »', async () => {
     mockApi(Promise.resolve({ data: dashboardPayload(3) }));
     const push = vi.spyOn(router, 'push');
 
@@ -1086,7 +1105,7 @@ describe('Dashboard - Tuile "Remises à intégrer"', () => {
     await card.trigger('click');
 
     expect(card.classes()).toContain('clickable-stat');
-    expect(push).toHaveBeenCalledWith('/remises-pap');
+    expect(push).toHaveBeenCalledWith('/emissions-anciennes');
   });
 
   it('recharge le chiffre au clic sur "Actualiser"', async () => {

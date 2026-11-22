@@ -227,11 +227,11 @@ const routes = [
     }
   },
   {
-    path: '/remises-pap',
+    path: '/emissions-anciennes',
     name: 'RemisesPap',
     component: () => import('../views/RemisesPap.vue'),
     meta: {
-      title: 'Remises pap - lmelp'
+      title: 'Émissions anciennes - lmelp'
     }
   },
   {

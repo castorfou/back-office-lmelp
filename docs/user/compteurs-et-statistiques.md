@@ -15,12 +15,12 @@ db.episodes.find().sort({diffusion: -1}).limit(1)
 ```
 **Clic:** Ouvre la page interne de Monitoring RSS (`/rss-monitoring`).
 
-### 2. Remises à intégrer
-**Valeur:** Nombre de remises livrées par [lmelp-pap](https://github.com/castorfou/lmelp-pap) (émissions anciennes, 1955-2016) pas encore intégrées comme épisodes
+### 2. Émissions anciennes à intégrer
+**Valeur:** Nombre d'émissions anciennes (1955-2016) livrées par [lmelp-pap](https://github.com/castorfou/lmelp-pap) et pas encore intégrées comme épisodes
 **Collections:** `pap_remises` (écrite par lmelp-pap, lue seulement par lmelp) et `episodes`
-**Règle:** une remise est à intégrer quand elle a une fiche dans `pap_remises`, que son fichier audio `<dossier audio>/<audio_rel_filename>` est présent (dossier audio : `AUDIO_STORAGE_PATH`) **et** qu'aucun épisode ne porte son identifiant (`episodes.pap_remise_id`, épisodes masqués compris). C'est exactement la liste de la page [Remises pap](remises-pap.md). Les fichiers audio du dossier qui n'ont pas de fiche pap (épisodes du flux RSS) ne sont pas comptés.
-**Clic:** ouvre la page [Remises pap](remises-pap.md) (`/remises-pap`).
-**Mise à jour:** la valeur fait partie du cache du dashboard (5 min). Une intégration la fait baisser aussitôt (écriture dans `episodes`, qui vide le cache). Une nouvelle remise de pap apparaît à l'expiration du cache, ou tout de suite avec le bouton « Actualiser ».
+**Règle:** une émission ancienne est à intégrer quand elle a une fiche dans `pap_remises`, que son fichier audio `<dossier audio>/<audio_rel_filename>` est présent (dossier audio : `AUDIO_STORAGE_PATH`) **et** qu'aucun épisode ne porte son identifiant (`episodes.pap_remise_id`, épisodes masqués compris). C'est exactement la liste de la page [Émissions anciennes](emissions-anciennes.md). Les fichiers audio du dossier qui n'ont pas de fiche pap (épisodes du flux RSS) ne sont pas comptés.
+**Clic:** ouvre la page [Émissions anciennes](emissions-anciennes.md) (`/emissions-anciennes`).
+**Mise à jour:** la valeur fait partie du cache du dashboard (5 min). Une intégration la fait baisser aussitôt (écriture dans `episodes`, qui vide le cache). Une nouvelle émission livrée par lmelp-pap apparaît à l'expiration du cache, ou tout de suite avec le bouton « Actualiser ».
 **Fichier absent:** chaque fiche pas encore intégrée dont le fichier manque est écrite dans les logs de lmelp (`docker logs`) :
 ```
 fiche pap <_id> : fichier absent dans <dossier audio>/<audio_rel_filename>

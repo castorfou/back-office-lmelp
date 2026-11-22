@@ -1,18 +1,18 @@
 <template>
   <div class="remises-pap">
-    <Navigation pageTitle="Remises pap" />
+    <Navigation pageTitle="Émissions anciennes" />
 
     <main>
       <section class="card">
-        <h2>📦 Remises pap à intégrer</h2>
+        <h2>📼 Émissions anciennes à intégrer</h2>
         <p class="section-help">
-          Émissions anciennes livrées par lmelp-pap (audio copié dans le dossier audio
-          de lmelp). « Intégrer » en fait un épisode, vérifie l'empreinte du fichier,
-          puis lance sa transcription, comme pour un épisode du flux RSS.
+          Émissions de 1955 à 2016 retrouvées par lmelp-pap, qui en a copié l'audio dans
+          le dossier audio de lmelp. « Intégrer » vérifie l'empreinte du fichier, en fait
+          un épisode, puis lance sa transcription, comme pour un épisode du flux RSS.
         </p>
 
         <div v-if="lastResult" class="integration-result" data-testid="integration-result">
-          <p class="success-title">✅ Remise intégrée : {{ lastResult.titre }} ({{ formatDate(lastResult.date) }})</p>
+          <p class="success-title">✅ Émission intégrée : {{ lastResult.titre }} ({{ formatDate(lastResult.date) }})</p>
           <p class="transcription-status">
             {{ transcriptionStatusLabel(lastResult.transcription_status) }}
           </p>
@@ -23,7 +23,7 @@
         </div>
 
         <div v-if="loading" class="loading" data-testid="remises-loading">
-          Chargement des remises…
+          Chargement des émissions anciennes…
         </div>
 
         <div v-else-if="loadError" class="error-message" data-testid="remises-load-error">
@@ -31,7 +31,7 @@
         </div>
 
         <p v-else-if="remises.length === 0" class="empty" data-testid="remises-empty">
-          Aucune remise à intégrer.
+          Aucune émission ancienne à intégrer.
         </p>
 
         <ul v-else class="remises-list">
@@ -112,7 +112,7 @@ export default {
         const res = await axios.get('/api/pap/remises');
         this.remises = res.data;
       } catch (e) {
-        this.loadError = `Erreur lors du chargement des remises : ${e.response?.data?.detail || e.message}`;
+        this.loadError = `Erreur lors du chargement des émissions anciennes : ${e.response?.data?.detail || e.message}`;
       } finally {
         this.loading = false;
       }

@@ -275,7 +275,7 @@ async def test_refuse_une_remise_inconnue(tmp_path, runner, notify):
     error = await _refus(mongo, tmp_path, runner, notify, _remise_id(9))
 
     assert error.status_code == 404
-    assert error.message == "Remise inconnue"
+    assert error.message == "Émission inconnue de lmelp-pap"
 
 
 @pytest.mark.asyncio
@@ -289,7 +289,7 @@ async def test_refuse_une_remise_deja_integree_meme_si_son_episode_est_masque(
     error = await _refus(mongo, tmp_path, runner, notify, _remise_id(1))
 
     assert error.status_code == 409
-    assert error.message == "Remise déjà intégrée"
+    assert error.message == "Émission déjà intégrée"
 
 
 @pytest.mark.asyncio
@@ -319,8 +319,8 @@ async def test_refuse_une_copie_dont_l_empreinte_differe_de_la_fiche(
 
     assert error.status_code == 422
     assert error.message == (
-        "Empreinte SHA-256 du fichier audio différente de celle de la remise : "
-        "copie incomplète ou corrompue"
+        "Empreinte SHA-256 du fichier audio différente de celle donnée par "
+        "lmelp-pap : copie incomplète ou corrompue"
     )
 
 
@@ -343,7 +343,7 @@ async def test_un_double_clic_n_integre_jamais_deux_fois_la_meme_remise(
     assert len(mongo.inserted) == 1
     refus = [r for r in results if isinstance(r, PapRemiseError)]
     assert [(e.status_code, e.message) for e in refus] == [
-        (409, "Remise déjà intégrée")
+        (409, "Émission déjà intégrée")
     ]
 
 

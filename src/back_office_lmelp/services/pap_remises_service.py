@@ -101,7 +101,7 @@ class PapRemisesService:
         return fiches
 
     def list_a_integrer(self) -> list[dict[str, Any]]:
-        """Remises à intégrer, telles que la page « Remises pap » les affiche."""
+        """Remises à intégrer, telles que la page « Émissions anciennes » les affiche."""
         return [
             {
                 "remise_id": fiche["_id"],
@@ -124,9 +124,9 @@ class PapRemisesService:
         """Fait de la remise livrée un épisode, puis lance sa transcription."""
         fiche = self._remises().find_one({"_id": remise_id})
         if fiche is None:
-            raise PapRemiseError("Remise inconnue", 404)
+            raise PapRemiseError("Émission inconnue de lmelp-pap", 404)
         if remise_id in self._en_cours or remise_id in self._ids_integres():
-            raise PapRemiseError("Remise déjà intégrée", 409)
+            raise PapRemiseError("Émission déjà intégrée", 409)
         self._en_cours.add(remise_id)
         try:
             return await self._integrer(remise_id, fiche)
@@ -145,8 +145,8 @@ class PapRemisesService:
         empreinte = await asyncio.to_thread(sha256_of_file, path)
         if empreinte != str(fiche.get("sha256", "")).lower():
             raise PapRemiseError(
-                "Empreinte SHA-256 du fichier audio différente de celle de la "
-                "remise : copie incomplète ou corrompue",
+                "Empreinte SHA-256 du fichier audio différente de celle donnée "
+                "par lmelp-pap : copie incomplète ou corrompue",
                 422,
             )
         episode_id = self.mongodb_service.insert_episode(

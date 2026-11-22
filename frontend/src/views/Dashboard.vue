@@ -43,7 +43,7 @@
             :title="tooltips.papRemises"
           >
             <div class="stat-value">{{ papRemisesCount !== null ? papRemisesCount : '...' }}</div>
-            <div class="stat-label">Remises à intégrer</div>
+            <div class="stat-label">Émissions anciennes à intégrer</div>
           </div>
           <div
             v-if="collectionsStatistics && collectionsStatistics.episodes_without_transcription_count !== 0"
@@ -428,6 +428,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-emissions-anciennes"
+            @click="navigateToRemisesPap"
+          >
+            <div class="function-icon">📼</div>
+            <h3>Émissions anciennes</h3>
+            <p>Intégrer les émissions anciennes (1955-2016) retrouvées par lmelp-pap</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-pgx-transcription"
             @click="navigateToPgxTranscription"
           >
@@ -486,7 +497,7 @@ export default {
         last_episode_date: null
       },
       tooltips: {
-        papRemises: `Remises livrées par lmelp-pap pas encore intégrées comme épisodes\nCollections: pap_remises, episodes\nRègle: fiche pap_remises ET fichier <dossier audio>/audio_rel_filename présent ET aucun épisode avec ce pap_remise_id`,
+        papRemises: `Émissions anciennes livrées par lmelp-pap (remises) pas encore intégrées comme épisodes\nCollections: pap_remises, episodes\nRègle: fiche pap_remises ET fichier <dossier audio>/audio_rel_filename présent ET aucun épisode avec ce pap_remise_id`,
         lastUpdate: `Date du dernier épisode en base\nCollection: episodes\nRequête: episodes.find().sort({diffusion: -1}).limit(1)`,
         episodesSansTranscription: `Épisodes non masqués sans transcription\nCollection: episodes\nRequête: episodes.find({masked: {$ne: true}, transcription: {$in: [null, ""]}})`,
         emissionsSansAvis: `Émissions avec pastille grise (⚪)\nCollection: emissions\nRequête: emissions.find({badge_status: "no_avis"})`,
@@ -752,7 +763,7 @@ export default {
     },
 
     navigateToRemisesPap() {
-      this.$router.push('/remises-pap');
+      this.$router.push('/emissions-anciennes');
     },
 
     navigateToAdvancedSearch() {

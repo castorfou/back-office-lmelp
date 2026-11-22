@@ -1,4 +1,4 @@
-"""Endpoints de la page « Remises pap » (Issue #378).
+"""Endpoints de la page « Émissions anciennes » (Issue #378).
 
 GET  /api/pap/remises            → remises livrées pas encore intégrées
 POST /api/pap/remises/integrer   {"remise_id": "<URL de l'enregistrement pap>"}
@@ -72,8 +72,8 @@ def test_integre_la_remise_passee_dans_le_corps(client, mock_service):
 @pytest.mark.parametrize(
     ("status_code", "message"),
     [
-        (404, "Remise inconnue"),
-        (409, "Remise déjà intégrée"),
+        (404, "Émission inconnue de lmelp-pap"),
+        (409, "Émission déjà intégrée"),
         (422, "Fichier audio absent du dossier audio de lmelp : 2016/x.m4a"),
     ],
 )

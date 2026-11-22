@@ -5655,7 +5655,7 @@ async def get_orphaned_avis_statistics() -> dict[str, Any]:
 def _safe_count_pap_remises_a_integrer() -> int | None:
     """Compte les remises pap à intégrer, sans casser le reste du dashboard.
 
-    En cas d'échec (Mongo indisponible…), seule la tuile « Remises à intégrer »
+    En cas d'échec (Mongo indisponible…), seule la tuile « Émissions anciennes à intégrer »
     reste vide (None), pas les autres.
     """
     try:
