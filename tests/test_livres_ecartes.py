@@ -196,7 +196,6 @@ class TestExtractBooksIgnoresEcartes:
         )
 
         service = BooksExtractionService()
-        service.client = None  # parsing des tableaux, sans LLM
         books = await service.extract_books_from_reviews([avis_critique])
         return {book["titre"] for book in books}
 

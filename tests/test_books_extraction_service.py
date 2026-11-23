@@ -1,6 +1,6 @@
-"""Tests pour le service d'extraction LLM des livres/auteurs/éditeurs."""
+"""Tests du service d'extraction des livres/auteurs/éditeurs d'un résumé."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import patch
 
 import pytest
 
@@ -9,8 +9,14 @@ from back_office_lmelp.services.books_extraction_service import BooksExtractionS
 
 @pytest.fixture
 def books_service():
-    """Service LLM pour les tests."""
+    """Service d'extraction pour les tests."""
     return BooksExtractionService()
+
+
+@pytest.fixture
+def books_service_factory():
+    """Crée le service après la mise en place de l'environnement du test."""
+    return BooksExtractionService
 
 
 @pytest.fixture
@@ -95,33 +101,37 @@ class TestBooksExtractionService:
         assert hasattr(books_service, "extract_books_from_reviews")
 
     @pytest.mark.asyncio
+    async def test_extraction_never_creates_azure_client(
+        self, books_service_factory, mock_avis_critique, monkeypatch
+    ):
+        """L'extraction des livres n'appelle jamais un LLM (Issue #385).
+
+        Même avec des variables Azure définies, aucun client n'est créé : les
+        livres viennent des tableaux markdown du résumé.
+        """
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com/")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "fake-key")
+        monkeypatch.setenv("AZURE_ENDPOINT", "https://example.openai.azure.com/")
+        monkeypatch.setenv("AZURE_API_KEY", "fake-key")
+
+        with patch("openai.AzureOpenAI") as mock_azure:
+            service = books_service_factory()
+            result = await service.extract_books_from_reviews([mock_avis_critique])
+
+        mock_azure.assert_not_called()
+        assert [(b["auteur"], b["titre"]) for b in result] == [
+            ("Test Auteur", "Test Livre"),
+            ("Autre Auteur", "Autre Livre"),
+        ]
+
+    @pytest.mark.asyncio
     async def test_extract_books_from_reviews_basic(
         self, books_service, mock_avis_critique
     ):
-        """Test l'extraction basique de livres depuis un avis critique."""
-        # Mock de la réponse OpenAI
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = """[
-{
-    "auteur": "Test Auteur",
-    "titre": "Test Livre",
-    "editeur": "Test Éditeur",
-    "note_moyenne": 8.0,
-    "nb_critiques": 1,
-    "coups_de_coeur": ["Critique"]
-}
-]"""
-
-        # Mock le client Azure directement sur l'instance du service
-        mock_client = Mock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        books_service.client = mock_client
-
+        """Les livres du tableau « au programme » sont extraits du résumé."""
         result = await books_service.extract_books_from_reviews([mock_avis_critique])
 
-        assert len(result) == 1
+        assert len(result) == 2
         book = result[0]
         assert (
             book["episode_oid"]
@@ -132,54 +142,7 @@ class TestBooksExtractionService:
         assert book["auteur"] == "Test Auteur"
         assert book["titre"] == "Test Livre"
         assert book["editeur"] == "Test Éditeur"
-        assert book["note_moyenne"] == 8.0
-
-    @pytest.mark.asyncio
-    async def test_extract_books_from_reviews_multiple_books(
-        self, books_service, mock_avis_critique
-    ):
-        """Test l'extraction de plusieurs livres depuis un avis critique."""
-        # Mock de la réponse OpenAI avec plusieurs livres
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = """[
-{
-    "auteur": "Test Auteur",
-    "titre": "Test Livre",
-    "editeur": "Test Éditeur",
-    "note_moyenne": 8.0,
-    "nb_critiques": 1,
-    "coups_de_coeur": ["Critique"]
-},
-{
-    "auteur": "Autre Auteur",
-    "titre": "Autre Livre",
-    "editeur": "Autre Éditeur",
-    "note_moyenne": 6.0,
-    "nb_critiques": 1,
-    "coups_de_coeur": []
-}
-]"""
-
-        # Mock le client Azure directement sur l'instance du service
-        mock_client = Mock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        books_service.client = mock_client
-
-        result = await books_service.extract_books_from_reviews([mock_avis_critique])
-
-        assert len(result) == 2
-        # Vérifier que les métadonnées d'épisode sont propagées
-        for book in result:
-            assert (
-                book["episode_oid"]
-                == "6865f995a1418e3d7c63d076"  # pragma: allowlist secret
-            )
-            assert book["episode_title"] == "Test Episode"
-            assert book["episode_date"] == "01 jan. 2025"
-
-        assert result[0]["auteur"] == "Test Auteur"
+        assert book["programme"] is True
         assert result[1]["auteur"] == "Autre Auteur"
 
     @pytest.mark.asyncio
@@ -187,47 +150,6 @@ class TestBooksExtractionService:
         """Test l'extraction avec une liste vide d'avis critiques."""
         result = await books_service.extract_books_from_reviews([])
         assert result == []
-
-    @pytest.mark.asyncio
-    async def test_extract_books_from_reviews_api_error(
-        self, books_service, mock_avis_critique
-    ):
-        """Test la gestion d'erreur de l'API OpenAI avec fallback parsing."""
-        # Mock le client Azure directement sur l'instance du service avec une erreur
-        mock_client = Mock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=Exception("API Error")
-        )
-        books_service.client = mock_client
-
-        # Le service doit continuer avec le fallback parsing quand l'API échoue
-        result = await books_service.extract_books_from_reviews([mock_avis_critique])
-
-        # Avec le fallback, nous devons extraire les livres du markdown
-        assert len(result) == 2  # 2 livres extraits du tableau markdown
-        assert result[0]["auteur"] == "Test Auteur"
-        assert result[0]["titre"] == "Test Livre"
-        assert result[1]["auteur"] == "Autre Auteur"
-        assert result[1]["titre"] == "Autre Livre"
-
-    @pytest.mark.asyncio
-    async def test_extract_books_from_reviews_invalid_json_response(
-        self, books_service, mock_avis_critique
-    ):
-        """Test la gestion d'une réponse JSON invalide."""
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = "Invalid JSON response"
-
-        # Mock le client Azure directement sur l'instance du service
-        mock_client = Mock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        books_service.client = mock_client
-
-        # Le service doit continuer et ne pas propager l'exception pour un seul avis
-        result = await books_service.extract_books_from_reviews([mock_avis_critique])
-        assert result == []  # Liste vide car le parsing JSON a échoué
 
     def test_format_books_for_display(self, books_service):
         """Test le formatage des livres pour l'affichage."""
@@ -288,25 +210,6 @@ class TestBooksExtractionService:
 """,
         }
 
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = """[
-{
-    "auteur": "Auteur X",
-    "titre": "Livre Y",
-    "editeur": "Editeur Z",
-    "note_moyenne": 7.5,
-    "nb_critiques": 3,
-    "coups_de_coeur": []
-}
-]"""
-
-        # Mock le client Azure directement sur l'instance du service
-        mock_client = Mock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        books_service.client = mock_client
-
         result = await books_service.extract_books_from_reviews([mock_avis])
 
         assert len(result) == 1
@@ -320,7 +223,7 @@ class TestBooksExtractionService:
     ):
         """Test TDD: extraction des 2 tableaux (programme + coups de cœur)."""
         # Test que la méthode fallback extrait des 2 tableaux
-        result = books_service._extract_books_from_summary_fallback(
+        result = books_service._parse_summary_tables(
             mock_avis_critique_with_two_tables["summary"],
             mock_avis_critique_with_two_tables["episode_oid"],
             mock_avis_critique_with_two_tables["episode_title"],
@@ -362,7 +265,7 @@ class TestBooksExtractionService:
         self, books_service, mock_avis_critique_with_two_tables
     ):
         """Test TDD: extraction simplifiée avec seulement auteur/titre/éditeur."""
-        result = books_service._extract_books_from_summary_fallback(
+        result = books_service._parse_summary_tables(
             mock_avis_critique_with_two_tables["summary"],
             mock_avis_critique_with_two_tables["episode_oid"],
             mock_avis_critique_with_two_tables["episode_title"],
@@ -392,7 +295,7 @@ class TestBooksExtractionService:
         self, books_service, mock_avis_critique_editeur_manquant
     ):
         """Test TDD: gestion gracieuse des éditeurs manquants."""
-        result = books_service._extract_books_from_summary_fallback(
+        result = books_service._parse_summary_tables(
             mock_avis_critique_editeur_manquant["summary"],
             mock_avis_critique_editeur_manquant["episode_oid"],
             mock_avis_critique_editeur_manquant["episode_title"],
