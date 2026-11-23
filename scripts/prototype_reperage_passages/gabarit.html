@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype Passages</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --line:#deded8; --card:#fff;
+  --s1:#2f7d5b; --s2:#b5602b; --ok:#2f7d5b; --ko:#b23a3a; --play:#e8f0ec; }
+@media (prefers-color-scheme: dark) { :root { --bg:#1a1b1a; --fg:#ebebe6; --muted:#9a9a93;
+  --line:#3a3b39; --card:#232422; --s1:#5fb98f; --s2:#e0915a; --play:#2b3a33; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+  font:15px/1.45 system-ui, sans-serif; max-width:1100px; margin-inline:auto; }
+h1 { font-size:20px; margin:0 0 4px; } .muted { color:var(--muted); font-size:13px; }
+.banner { border:1px dashed var(--muted); padding:6px 10px; border-radius:6px; margin:8px 0 14px;
+  font-size:13px; }
+.tabs button { margin-right:6px; }
+button { font:inherit; font-size:13px; padding:3px 8px; border:1px solid var(--line);
+  background:var(--card); color:var(--fg); border-radius:5px; cursor:pointer; }
+button:hover { border-color:var(--muted); } button.on { background:var(--fg); color:var(--bg); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px;
+  margin:10px 0; }
+.timeline { position:relative; height:28px; background:var(--line); border-radius:4px;
+  margin:10px 0 4px; cursor:pointer; }
+.timeline .b { position:absolute; top:3px; bottom:3px; border-radius:3px; opacity:.85; }
+.timeline .cur { position:absolute; top:0; bottom:0; width:2px; background:var(--fg); }
+.p { border-left:4px solid var(--s1); } .p.s2 { border-left-color:var(--s2); }
+.p.playing { background:var(--play); }
+.row { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; }
+.t { font-variant-numeric:tabular-nums; font-weight:600; }
+.edge { font-size:13px; color:var(--muted); margin-top:6px; white-space:normal; }
+.edge b { color:var(--fg); font-weight:600; }
+.edge .cut { color:var(--s2); font-weight:700; }
+details { margin-top:6px; font-size:13px; } select, input[type=text] { font:inherit; font-size:13px; }
+input[type=text] { width:100%; margin-top:6px; padding:3px 6px; background:var(--bg);
+  color:var(--fg); border:1px solid var(--line); border-radius:4px; }
+textarea { width:100%; height:180px; font:12px ui-monospace, monospace; background:var(--bg);
+  color:var(--fg); border:1px solid var(--line); }
+audio { width:100%; margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>Repérage des Passages — prototype</h1>
+<div class="muted">Wayfinder « Repérer les Passages d'un épisode témoin ». Bornes calculées
+  automatiquement depuis les segments whisper.cpp et le résumé ; à juger à l'écoute.</div>
+<div class="banner">PROTOTYPE JETABLE. Rien n'est enregistré : les corrections vivent dans la page.
+  À la fin, « Copier le bilan » et coller dans le ticket.</div>
+
+<div class="tabs" id="tabs"></div>
+<div class="card">
+  <div id="epTitre"></div>
+  <div class="muted">Audio attendu : <code id="epAudio"></code></div>
+  <div style="margin-top:8px">Choisir ce fichier audio sur votre machine :
+    <input type="file" id="file" accept="audio/*"></div>
+  <audio id="audio" controls></audio>
+  <div class="timeline" id="timeline"><div class="cur" id="cur"></div></div>
+  <div class="muted">Vert : section 1 (débattus) — orange : section 2 (coups de cœur).
+    Cliquer la frise pour sauter. Marge d'élargissement : ±<span id="marge"></span> s.</div>
+  <div id="nonTrouves" class="muted"></div>
+</div>
+<div id="liste"></div>
+<div class="card">
+  <button id="bilanBtn">Copier le bilan</button>
+  <textarea id="bilan" readonly></textarea>
+</div>
+
+<script>
+const EPISODES = /*DONNEES*/null;
+const MARGE = /*MARGE*/0;
+const etat = {};            // corrections par épisode → par index de passage
+let ep = 0, arret = null, enCours = null;
+const audio = document.getElementById('audio');
+const hms = t => { t = Math.max(0, Math.round(t)); return String(Math.floor(t/60)).padStart(2,'0')
+  + ':' + String(t%60).padStart(2,'0'); };
+const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+document.getElementById('marge').textContent = MARGE;
+
+function corr(i) {
+  const e = etat[EPISODES[ep].id] ??= {};
+  const p = EPISODES[ep].passages[i];
+  return e[i] ??= { debut: p.debut_large, fin: p.fin_large, verdict: '', note: '' };
+}
+
+function jouer(de, a, i) {
+  if (!audio.src) { alert("Choisir d'abord le fichier audio de l'épisode."); return; }
+  audio.currentTime = de; arret = a; enCours = i; audio.play(); rendreListe();
+}
+audio.addEventListener('timeupdate', () => {
+  const ref = EPISODES[ep];
+  const dur = ref.segments.at(-1).fin;
+  document.getElementById('cur').style.left = (100 * audio.currentTime / dur) + '%';
+  if (arret !== null && audio.currentTime >= arret) { audio.pause(); arret = null; enCours = null;
+    rendreListe(); }
+});
+document.getElementById('file').addEventListener('change', ev => {
+  const f = ev.target.files[0]; if (f) audio.src = URL.createObjectURL(f);
+});
+document.getElementById('timeline').addEventListener('click', ev => {
+  if (ev.target.classList.contains('b')) return;
+  const r = ev.currentTarget.getBoundingClientRect();
+  const dur = EPISODES[ep].segments.at(-1).fin;
+  if (audio.src) { audio.currentTime = dur * (ev.clientX - r.left) / r.width; audio.play(); }
+});
+
+function texteAutour(t, avant, apres) {
+  const segs = EPISODES[ep].segments;
+  const morceaux = segs.filter(s => s.fin > t - avant && s.debut < t + apres);
+  let marque = false, out = '';
+  for (const s of morceaux) {
+    if (!marque && s.debut >= t) { out += ' <span class="cut">‖</span> '; marque = true; }
+    out += esc(s.texte) + ' ';
+  }
+  if (!marque) out += ' <span class="cut">‖</span>';
+  return out;
+}
+
+function rendreTabs() {
+  document.getElementById('tabs').innerHTML = EPISODES.map((e, k) =>
+    `<button class="${k===ep?'on':''}" onclick="choisir(${k})">${e.date}</button>`).join('');
+}
+function choisir(k) { ep = k; audio.pause(); audio.removeAttribute('src');
+  document.getElementById('file').value = ''; arret = null; rendreTout(); }
+
+function rendreTimeline() {
+  const e = EPISODES[ep], dur = e.segments.at(-1).fin;
+  const tl = document.getElementById('timeline');
+  tl.querySelectorAll('.b').forEach(n => n.remove());
+  e.passages.forEach((p, i) => {
+    const c = corr(i), d = document.createElement('div');
+    d.className = 'b'; d.title = p.titre;
+    d.style.left = (100*c.debut/dur)+'%'; d.style.width = (100*(c.fin-c.debut)/dur)+'%';
+    d.style.background = `var(--s${p.section})`;
+    d.onclick = () => jouer(c.debut, c.fin, i);
+    tl.appendChild(d);
+  });
+}
+
+function rendreListe() {
+  const e = EPISODES[ep];
+  document.getElementById('liste').innerHTML = e.passages.map((p, i) => {
+    const c = corr(i);
+    const qui = p.section === 2 ? ` — coup de cœur de ${esc(p.critique||'')}` : '';
+    const dd = c.debut - p.debut_large, df = c.fin - p.fin_large;
+    const delta = (dd || df) ? ` <span class="muted">(corrigé : début ${dd>=0?'+':''}${dd} s,
+      fin ${df>=0?'+':''}${df} s)</span>` : '';
+    return `<div class="card p s${p.section} ${enCours===i?'playing':''}">
+      <div class="row"><b>${esc(p.titre)}</b><span class="muted">${esc(p.auteur)}${qui}</span></div>
+      <div class="row" style="margin-top:6px">
+        <span class="t">${hms(c.debut)} → ${hms(c.fin)}</span>
+        <span class="muted">${hms(c.fin-c.debut)}</span>${delta}
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button onclick="jouer(${c.debut}, ${c.fin}, ${i})">▶ Passage entier</button>
+        <span>Début :
+          <button onclick="decaler(${i},'debut',-5)">−5</button>
+          <button onclick="decaler(${i},'debut',-1)">−1</button>
+          <button onclick="jouer(${c.debut}, ${c.debut+20}, ${i})">▶ 20 s</button>
+          <button onclick="jouer(${c.debut-15}, ${c.debut+10}, ${i})">▶ autour</button>
+          <button onclick="decaler(${i},'debut',1)">+1</button>
+          <button onclick="decaler(${i},'debut',5)">+5</button></span>
+        <span>Fin :
+          <button onclick="decaler(${i},'fin',-5)">−5</button>
+          <button onclick="decaler(${i},'fin',-1)">−1</button>
+          <button onclick="jouer(${c.fin-20}, ${c.fin}, ${i})">▶ 20 s</button>
+          <button onclick="jouer(${c.fin-10}, ${c.fin+15}, ${i})">▶ autour</button>
+          <button onclick="decaler(${i},'fin',1)">+1</button>
+          <button onclick="decaler(${i},'fin',5)">+5</button></span>
+        <select onchange="verdict(${i}, this.value)">
+          ${['', 'juste', 'début décalé', 'fin décalée', 'les deux décalés', 'faux (mauvais endroit)']
+            .map(v => `<option ${v===c.verdict?'selected':''} value="${v}">${v||'verdict…'}</option>`)
+            .join('')}
+        </select>
+      </div>
+      <div class="edge"><b>Début</b> … ${texteAutour(c.debut, 15, 20)}</div>
+      <div class="edge"><b>Fin</b> … ${texteAutour(c.fin, 20, 15)}</div>
+      <input type="text" placeholder="note (échec typique, ce qu'on entend…)" value="${esc(c.note)}"
+        onchange="corr(${i}).note = this.value; rendreBilan()">
+      <details><summary>${p.mentions.length} mentions repérées</summary>
+        ${p.mentions.map(m => `<a href="#" onclick="jouer(${m.t}, ${m.t+8}, ${i});return false">
+          ${hms(m.t)}</a> ${esc(m.raison)}`).join(' · ')}</details>
+    </div>`;
+  }).join('');
+}
+
+function decaler(i, cle, s) { corr(i)[cle] += s; rendreTimeline(); rendreListe(); rendreBilan(); }
+function verdict(i, v) { corr(i).verdict = v; rendreBilan(); }
+
+function rendreBilan() {
+  let out = '';
+  for (const [k, e] of EPISODES.entries()) {
+    const saved = ep; ep = k;
+    out += `### ${e.date} (${e.id})\n\n| Livre | S | Calculé | Corrigé | Δ début | Δ fin | Verdict | Note |\n|---|---|---|---|---|---|---|---|\n`;
+    e.passages.forEach((p, i) => {
+      const c = corr(i);
+      out += `| ${p.titre} | ${p.section} | ${hms(p.debut_large)}–${hms(p.fin_large)} | ` +
+        `${hms(c.debut)}–${hms(c.fin)} | ${c.debut-p.debut_large} | ${c.fin-p.fin_large} | ` +
+        `${c.verdict} | ${c.note} |\n`;
+    });
+    if (e.non_trouves.length) out += `\nNon trouvés : ${e.non_trouves.join(', ')}\n`;
+    out += '\n'; ep = saved;
+  }
+  document.getElementById('bilan').value = out;
+}
+document.getElementById('bilanBtn').onclick = () => {
+  const t = document.getElementById('bilan'); t.select();
+  navigator.clipboard?.writeText(t.value);
+};
+
+function rendreTout() {
+  const e = EPISODES[ep];
+  rendreTabs();
+  document.getElementById('epTitre').innerHTML = `<b>${esc(e.titre)}</b>`;
+  document.getElementById('epAudio').textContent = e.audio.split('/').pop();
+  document.getElementById('nonTrouves').textContent = e.non_trouves.length
+    ? 'Livres non trouvés : ' + e.non_trouves.join(', ') : '';
+  rendreTimeline(); rendreListe(); rendreBilan();
+}
+rendreTout();
+</script>
+</body>
+</html>
