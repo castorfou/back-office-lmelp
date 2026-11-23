@@ -23,9 +23,7 @@ def test_parse_program_and_coups_de_coeur_tables():
 | Auteur B | Livre B | Editeur B |
 """
 
-    result = service._extract_books_from_summary_fallback(
-        summary, "oid1", "Titre", "2025-01-01"
-    )
+    result = service._parse_summary_tables(summary, "oid1", "Titre", "2025-01-01")
 
     # We expect two books with flags set accordingly
     assert any(b for b in result if b["titre"] == "Livre A" and b["programme"] is True)

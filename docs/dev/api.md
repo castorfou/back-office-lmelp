@@ -932,7 +932,7 @@ Réponse : `{"deleted_count": int, "episode_oid": str}`.
 ### Cache partiel d'un épisode
 
 - `GET /api/livres-auteurs?episode_oid=...` renvoie les entrées du cache. Sans cache, il extrait les livres du résumé.
-- Quand le cache existe mais compte **moins** de livres que le résumé (après un rafraîchissement, ou une validation interrompue), les livres du résumé sans entrée de cache sont ajoutés, sans `status` ni `cache_id`. Ils sont extraits par parsing markdown, sans LLM (`BooksExtractionService.extract_books_from_summaries_markdown()`).
+- Quand le cache existe mais compte **moins** de livres que le résumé (après un rafraîchissement, ou une validation interrompue), les livres du résumé sans entrée de cache sont ajoutés, sans `status` ni `cache_id`. Ils sont lus dans les tableaux markdown du résumé (`BooksExtractionService.extract_books_from_summaries_markdown()`).
 - Un livre du résumé correspond à une entrée si son titre normalisé (`normalize_for_matching`) est égal au `titre`, au `suggested_title` ou au `validated_title` de l'entrée (`books_missing_from_cache()`).
 - Un cache aussi long que le résumé n'est jamais complété : le résumé porte souvent une variante du titre en cache (« Peau d'ours » / « Peau d'ourse »), qui n'est pas un livre manquant.
 - La validation Babelio du frontend ne traite que les livres sans statut définitif (`needsBabelioValidation()`, `frontend/src/utils/validationStatus.js`).

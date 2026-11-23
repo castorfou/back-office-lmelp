@@ -1,109 +1,39 @@
 """Service d'extraction de livres/auteurs/éditeurs depuis les tableaux markdown des avis critiques."""
 
-import json
-import os
 from typing import Any
-
-import openai
-from dotenv import load_dotenv
 
 from ..utils.livres_ecartes import is_titre_ecarte
 from ..utils.text_utils import normalize_for_matching
 
 
-load_dotenv()
-
-
 class BooksExtractionService:
-    """Service pour extraire les informations bibliographiques via parsing des tableaux markdown."""
-
-    def __init__(self):
-        """Initialise le service d'extraction de livres."""
-
-        # Configuration Azure OpenAI (à adapter selon vos credentials)
-        self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
-        self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
-
-        # Configuration du client OpenAI pour Azure - TOUTES les variables doivent être présentes
-        if (
-            self.azure_endpoint
-            and self.api_key
-            and self.azure_endpoint.strip()
-            and self.api_key.strip()
-        ):
-            try:
-                self.client = openai.AzureOpenAI(
-                    api_key=self.api_key,
-                    api_version=self.api_version,
-                    azure_endpoint=self.azure_endpoint,
-                )
-            except Exception:
-                # Si la création du client échoue, utiliser le fallback
-                self.client = None
-        else:
-            # Pour les tests et le développement sans credentials Azure complets
-            self.client = None
+    """Extrait les livres d'un résumé en lisant ses tableaux markdown, sans LLM."""
 
     async def extract_books_from_reviews(
         self, avis_critiques: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """
-        Extrait les informations bibliographiques depuis les tableaux markdown des avis critiques.
-        Parse les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES CRITIQUES".
-        N'interroge jamais Babelio : l'URL et l'éditeur Babelio viennent de la
-        validation livre par livre (« Valider avec Babelio »).
+        Extrait les livres des tableaux markdown des avis critiques.
+
+        Lit les sections "LIVRES DISCUTÉS AU PROGRAMME" et "COUPS DE CŒUR DES
+        CRITIQUES" et retire les titres écartés. N'interroge ni Babelio ni un
+        LLM : l'URL et l'éditeur Babelio viennent de la validation livre par
+        livre (« Valider avec Babelio »).
 
         Args:
             avis_critiques: Liste des avis critiques avec leurs summaries
 
         Returns:
             Liste des livres extraits avec métadonnées (auteur/titre/éditeur)
+
+        Raises:
+            ValueError: « Format markdown invalide » si un résumé n'a pas les
+                deux sections attendues
         """
-        if not avis_critiques:
-            return []
-
-        all_extracted_books = []
-
+        all_extracted_books: list[dict[str, Any]] = []
         for avis in avis_critiques:
-            try:
-                books_from_review = await self._extract_books_from_single_review(avis)
-                all_extracted_books.extend(
-                    self._without_ecartes(books_from_review, avis)
-                )
-            except ValueError as e:
-                # Propager les erreurs de validation de format markdown
-                # pour que l'utilisateur puisse corriger le problème
-                if "Format markdown invalide" in str(e):
-                    raise
-                # Autres ValueError, continuer
-                continue
-            except Exception as e:
-                error_msg = str(e)
-
-                # Si c'est une erreur de connexion Azure OpenAI, essayer le fallback silencieusement
-                if (
-                    "Connection error" in error_msg
-                    or "Client Azure OpenAI non configuré" in error_msg
-                ):
-                    try:
-                        fallback_books = self._extract_books_from_summary_fallback(
-                            avis.get("summary", ""),
-                            avis.get("episode_oid", ""),
-                            avis.get("episode_title", ""),
-                            avis.get("episode_date", ""),
-                        )
-                        all_extracted_books.extend(
-                            self._without_ecartes(fallback_books, avis)
-                        )
-                    except Exception:
-                        # Fallback échoué, continuer silencieusement
-                        continue
-                else:
-                    # Autres erreurs, continuer sans fallback
-                    continue
-
+            books = self._extract_books_from_single_review(avis)
+            all_extracted_books.extend(self._without_ecartes(books, avis))
         return all_extracted_books
 
     @staticmethod
@@ -123,7 +53,7 @@ class BooksExtractionService:
     def extract_books_from_summaries_markdown(
         self, avis_critiques: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Extrait les livres des résumés par parsing markdown pur, sans LLM.
+        """Extrait les livres des résumés, en ignorant ceux au format invalide.
 
         Sert à compléter un cache partiel à chaque chargement : un résumé au
         format invalide est ignoré, les titres écartés sont retirés.
@@ -133,7 +63,7 @@ class BooksExtractionService:
             summary = avis.get("summary", "")
             if not self._validate_markdown_format(summary)["valid"]:
                 continue
-            extracted = self._extract_books_from_summary_fallback(
+            extracted = self._parse_summary_tables(
                 summary,
                 avis.get("episode_oid", ""),
                 avis.get("episode_title", ""),
@@ -165,16 +95,13 @@ class BooksExtractionService:
             if normalize_for_matching(book.get("titre", "")) not in known_titles
         ]
 
-    async def _extract_books_from_single_review(
+    def _extract_books_from_single_review(
         self, avis_critique: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Extrait les livres depuis un seul avis critique."""
+        """Extrait les livres d'un avis critique, après validation du format."""
         summary = avis_critique.get("summary", "")
         episode_oid = avis_critique.get("episode_oid", "")
-        episode_title = avis_critique.get("episode_title", "")
-        episode_date = avis_critique.get("episode_date", "")
 
-        # Valider le format markdown avant extraction
         validation = self._validate_markdown_format(summary)
         if not validation["valid"]:
             raise ValueError(
@@ -183,66 +110,12 @@ class BooksExtractionService:
                 f"Régénérez le résumé via {validation['help_url']}"
             )
 
-        # Prompt pour l'extraction
-        system_prompt = """Tu es un expert en extraction d'informations bibliographiques depuis des critiques littéraires.
-À partir du résumé d'émission fourni, extrait UNIQUEMENT les livres mentionnés dans les tableaux "LIVRES DISCUTÉS AU PROGRAMME".
-Ignore les "COUPS DE CŒUR" qui sont des recommandations séparées.
-
-Pour chaque livre trouvé, retourne un objet JSON avec exactement ces champs:
-- "auteur": string (nom de l'auteur)
-- "titre": string (titre du livre)
-- "editeur": string (nom de l'éditeur)
-- "note_moyenne": number (note moyenne calculée depuis les avis, ou 0 si non disponible)
-- "nb_critiques": number (nombre de critiques pour ce livre)
-- "coups_de_coeur": array of strings (noms des critiques ayant donné un coup de cœur)
-
-Retourne une liste JSON valide, même si vide: []"""
-
-        user_prompt = f"""Résumé d'émission à analyser:
-{summary}
-
-Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
-
-        # Appel à l'API Azure OpenAI
-        if self.client is None:
-            # Mode démo/développement : retourner des données d'exemple parsées du contenu
-            return self._extract_books_from_summary_fallback(
-                summary, episode_oid, episode_title, episode_date
-            )
-
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.1,  # Peu de créativité pour l'extraction factuelle
-                max_tokens=2000,
-            )
-
-            # Parse de la réponse
-            content = response.choices[0].message.content.strip()
-            books_data = json.loads(content)
-
-            # Ajouter les métadonnées d'épisode à chaque livre
-            enriched_books = []
-            for book in books_data:
-                enriched_book = book.copy()
-                enriched_book["episode_oid"] = episode_oid
-                enriched_book["episode_title"] = episode_title
-                enriched_book["episode_date"] = episode_date
-                enriched_books.append(enriched_book)
-
-            return enriched_books
-
-        except (json.JSONDecodeError, KeyError, IndexError) as e:
-            raise Exception(f"Erreur lors du parsing de la réponse LLM: {e}") from e
-        except Exception:
-            # En cas d'erreur Azure OpenAI, utiliser le fallback
-            return self._extract_books_from_summary_fallback(
-                summary, episode_oid, episode_title, episode_date
-            )
+        return self._parse_summary_tables(
+            summary,
+            episode_oid,
+            avis_critique.get("episode_title", ""),
+            avis_critique.get("episode_date", ""),
+        )
 
     def _validate_markdown_format(self, summary: str) -> dict[str, Any]:
         """
@@ -286,13 +159,10 @@ Extrait les livres du tableau "LIVRES DISCUTÉS AU PROGRAMME" uniquement."""
             "help_url": "/avis_critiques",
         }
 
-    def _extract_books_from_summary_fallback(
+    def _parse_summary_tables(
         self, summary: str, episode_oid: str, episode_title: str, episode_date: str
     ) -> list[dict[str, Any]]:
-        """
-        Mode fallback : extrait les livres directement du summary sans LLM.
-        Parse les DEUX tableaux markdown pour extraire les informations de livres.
-        """
+        """Lit les DEUX tableaux markdown du résumé (programme, coups de cœur)."""
         import re
 
         books: list[dict[str, Any]] = []

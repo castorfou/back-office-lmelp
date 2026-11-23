@@ -20,12 +20,14 @@ Ce document liste toutes les variables d'environnement supportées par l'applica
 
 ## Variables Azure OpenAI
 
+Utilisées par la génération des avis critiques, l'extraction des métadonnées des pages RadioFrance sans JSON-LD et la classification des épisodes de la synchronisation RSS. L'extraction des livres d'un résumé n'en dépend pas : elle lit les tableaux markdown.
+
 | Variable | Description | Valeur par défaut | Exemple |
 |----------|-------------|------------------|---------|
-| `AZURE_OPENAI_ENDPOINT` | URL de l'endpoint Azure OpenAI | Aucune (requis) | `https://your-resource.openai.azure.com/` |
-| `AZURE_OPENAI_API_KEY` | Clé API Azure OpenAI | Aucune (requis) | `your-api-key-here` |
-| `AZURE_OPENAI_API_VERSION` | Version API Azure OpenAI | `2024-02-01` | `2024-02-15-preview` |
-| `AZURE_OPENAI_DEPLOYMENT_NAME` | Nom du déploiement | `gpt-4` | `gpt-35-turbo` |
+| `AZURE_ENDPOINT` | URL de l'endpoint Azure OpenAI | Aucune (requis pour les fonctions LLM) | `https://your-resource.openai.azure.com/` |
+| `AZURE_API_KEY` | Clé API Azure OpenAI | Aucune (requis pour les fonctions LLM) | `your-api-key-here` |
+| `AZURE_API_VERSION` | Version API Azure OpenAI | `2024-09-01-preview` | `2024-09-01-preview` |
+| `AZURE_DEPLOYMENT_NAME` | Nom du déploiement | `gpt-4o` | `gpt-4o` |
 
 ## Configuration Babelio
 
@@ -218,11 +220,11 @@ ENVIRONMENT=development
 # Base de données
 MONGODB_URL=mongodb://localhost:27017/masque_et_la_plume
 
-# Azure OpenAI (optionnel - fallback manuel si non configuré)
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_KEY=your-api-key-here
-AZURE_OPENAI_API_VERSION=2024-02-01
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
+# Azure OpenAI (génération des avis critiques, métadonnées RadioFrance, classification RSS)
+AZURE_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_API_KEY=your-api-key-here
+AZURE_API_VERSION=2024-09-01-preview
+AZURE_DEPLOYMENT_NAME=gpt-4o
 
 # Debug (désactivé par défaut en production)
 AVIS_CRITIQUES_DEBUG_LOG=0
@@ -234,7 +236,7 @@ BABELIO_DEBUG_LOG=0
 
 ## Notes importantes
 
-- Les variables Azure OpenAI sont **optionnelles**. Si non configurées, l'application utilise un mode fallback avec parsing manuel
+- Les variables Azure OpenAI sont **optionnelles** : sans elles, la génération des avis critiques est indisponible, et RadioFrance comme la synchronisation RSS se passent de leur étape LLM. L'extraction des livres d'un résumé fonctionne toujours
 - `API_PORT` utilise un système d'auto-découverte si non définie (ports 54321-54350)
 - `BABELIO_CACHE_LOG` est **désactivé par défaut** depuis la v1.1 pour réduire la verbosité
 - Toutes les variables peuvent être définies via fichier `.env` ou export shell

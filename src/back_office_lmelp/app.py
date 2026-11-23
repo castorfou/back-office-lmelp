@@ -1672,9 +1672,7 @@ def _titres_du_resume(summary: str) -> set[str]:
     }
     titres.update(
         book.get("titre", "")
-        for book in books_extraction_service._extract_books_from_summary_fallback(
-            summary, "", "", ""
-        )
+        for book in books_extraction_service._parse_summary_tables(summary, "", "", "")
     )
     return titres
 
