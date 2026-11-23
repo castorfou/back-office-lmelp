@@ -61,10 +61,10 @@ API_HOST=0.0.0.0
 API_PORT=8000
 
 # Azure OpenAI (requis pour génération LLM d'avis critiques)
-AZURE_OPENAI_API_KEY=your_key_here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2025-03-01-preview
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
+AZURE_API_KEY=your_key_here
+AZURE_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_API_VERSION=2024-09-01-preview
+AZURE_DEPLOYMENT_NAME=gpt-4o
 ```
 
 ## 🎮 Lancement
