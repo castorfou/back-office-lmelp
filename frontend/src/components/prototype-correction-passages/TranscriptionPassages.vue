@@ -1,9 +1,17 @@
 <template>
   <!-- PROTOTYPE JETABLE (#398) : lire la transcription horodatée et poser les bornes sur un Segment -->
   <div class="edition">
-  <FriseApercu class="apercu" @cibler="cibler" />
+  <FriseApercu class="apercu" @cibler="cibler" @ecouter-trou="ecouterTrou" />
   <div class="vc">
     <aside ref="cartes">
+      <div v-if="livresSansPassage.length" class="a-placer">
+        <div class="a-placer-titre">À placer · glisser le livre sur un trou ▨ (frise ou texte)</div>
+        <div v-for="l in livresSansPassage" :key="l.titre" class="puce" draggable="true"
+          :title="`Glisser « ${l.titre} » sur un trou de la frise ou du texte`"
+          @dragstart="glisser(l, $event)" @dragend="finGlisser">
+          <span class="poignee">⠿</span> {{ l.titre }} <small>{{ l.auteur }}</small>
+        </div>
+      </div>
       <div v-for="p in liste" :key="p.id" :data-carte="p.id"
         :class="['carte', p.origine, { arme: arme && arme.id === p.id, choisi: choisi === p.id, autre: choisi && choisi !== p.id }]"
         :style="{ borderLeftColor: couleur(p), '--c': couleur(p) }" @click="selectionner(p)">
@@ -32,10 +40,6 @@
             @click="confirmerSuppression(p)">🗑</button>
         </div>
       </div>
-      <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
-        ⚠️ sans Passage : {{ l.titre }}
-        <button class="btn btn-secondary btn-sm" @click="placerArme(l)">⇤ Poser son début</button>
-      </div>
       <div class="manque" v-for="p in supprimes" :key="p.id">🗑 {{ p.titre }} <button class="btn btn-secondary btn-sm" @click="restaurer(p.id)">Restaurer</button></div>
     </aside>
 
@@ -43,10 +47,17 @@
       <p v-if="arme" class="consigne">Cliquer le Segment où {{ arme.borne === 'debut' ? 'commence' : 'finit' }}
         « {{ arme.titre }} » · <a href="#" @click.prevent="arme = null">annuler</a></p>
       <template v-for="(sg, i) in segments" :key="i">
+        <div v-for="t in trousA(i)" :key="t.id" :data-trou="t.id" class="trou-entete">
+          ▨ Trou {{ fmt(t.debut) }}–{{ fmt(t.fin) }} · aucun livre
+          <button class="ico" title="Écouter le trou" @click="ecouterTrou(t)">▶</button>
+          <small v-if="glisse">déposer le livre sur la phrase où il commence</small>
+        </div>
         <div v-for="p in debutsA(i)" :key="'h' + p.id" class="entete" :data-borne="`debut-${p.id}`" :style="{ background: couleur(p) }">
           ⇤ {{ p.titre }} <small>{{ fmt(p.debut) }}</small></div>
-        <div :ref="'s' + i" :class="['seg', { courant: courant === i, cible: !!arme, transition: estTransition(sg[2]), 'dans-choisi': dansChoisi(i) }]"
-          :style="{ boxShadow: bandes(sg, i) }" @click="cliquer(sg)">
+        <div :ref="'s' + i" :class="['seg', { courant: courant === i, cible: !!arme, transition: estTransition(sg[2]),
+            'dans-choisi': dansChoisi(i), 'dans-trou': !!trouDe(i), depot: glisse && trouDe(i), survol: survol === i }]"
+          :style="{ boxShadow: bandes(sg, i) }" @click="cliquer(sg)"
+          @dragover="surSurvol(i, $event)" @dragleave="survol = null" @drop="deposerSur(i, $event)">
           <span class="h" @click.stop="jouer(sg[0])">{{ fmt(sg[0]) }}</span> {{ sg[2] }}
         </div>
         <div v-for="p in finsA(i)" :key="'f' + p.id" class="pied" :data-borne="`fin-${p.id}`" :style="{ color: couleur(p) }">
@@ -66,10 +77,18 @@ const TRANSITION = /\bon (commence|encha[iî]ne|continue|termine|poursuit|passe|
 export default {
   name: 'TranscriptionPassages',
   components: { FriseApercu },
-  data: () => ({ arme: null, ECOUTE_S: 15 }),
+  data: () => ({ arme: null, ECOUTE_S: 15, survol: null }),
   computed: {
     segments: () => s.etat.ep.segments,
     choisi: () => s.etat.choisi,
+    glisse: () => s.etat.glisse,
+    // trous de l'émission et Segments qu'ils couvrent
+    idxTrous() {
+      const sg = this.segments;
+      const d = (t) => { const i = sg.findIndex((x) => x[0] >= t - 0.01); return i < 0 ? sg.length - 1 : i; };
+      const f = (t) => { let i = -1; sg.forEach((x, k) => { if (x[1] <= t + 0.01) i = k; }); return Math.max(i, 0); };
+      return s.trous().map((t) => ({ ...t, d: d(t.debut), f: f(t.fin) }));
+    },
     liste() { return s.visibles(); },
     supprimes() { return s.etat.ep.passages.filter((p) => p.supprime); },
     livresSansPassage() { return s.etat.ep.livresSansPassage; },
@@ -106,17 +125,15 @@ export default {
     finsA(i) { return this.liste.filter((p) => this.idx[p.id]?.f === i); },
     bandes(sg, i) {
       const ps = this.liste.filter((p) => this.idx[p.id] && this.idx[p.id].d <= i && i <= this.idx[p.id].f);
-      return ps.map((p, k) => `inset ${4 + k * 4}px 0 0 ${this.couleur(p)}`).join(', ') || 'none';
+      return ps.map((p, k) => `inset ${4 + k * 4}px 0 0 ${this.couleur(p)}`).join(', ') || null;
     },
     estTransition(txt) { return TRANSITION.test(txt); },
     estArme(p, b) { return this.arme && this.arme.id === p.id && this.arme.borne === b; },
     armer(p, borne) { this.arme = this.estArme(p, borne) ? null : { id: p.id, titre: p.titre, borne }; },
-    placerArme(l) { this.arme = { livre: l, titre: l.titre, borne: 'debut' }; },
     cliquer(sg) {
       if (!this.arme) return s.jouer(sg[0]);
       const a = this.arme;
       this.arme = null;
-      if (a.livre) return s.placer(a.livre, sg[0], sg[0] + 60);
       // heure exacte du Segment : deux Segments de la même seconde restent distincts
       if (a.borne === 'debut') s.setDebut(a.id, sg[0]);
       else s.setFin(a.id, sg[1]); // = début du Segment suivant
@@ -129,6 +146,30 @@ export default {
     confirmerSuppression(p) {
       if (!confirm(`Supprimer le Passage « ${p.titre} » (${s.fmt(p.debut)}–${s.fmt(p.fin)}) ?\nUne relance du repérage ne le recréera pas.`)) return;
       s.supprimer(p.id);
+    },
+    trousA(i) { return this.idxTrous.filter((t) => t.d === i); },
+    trouDe(i) { return this.idxTrous.find((t) => t.d <= i && i <= t.f) || null; },
+    glisser(l, ev) {
+      s.etat.glisse = l;
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', l.titre);
+    },
+    finGlisser() { s.etat.glisse = null; this.survol = null; },
+    surSurvol(i, ev) {
+      if (!s.etat.glisse || !this.trouDe(i)) return;
+      ev.preventDefault(); // autorise le dépôt sur un Segment d'un trou
+      this.survol = i;
+    },
+    // dépôt dans le texte : le livre commence à la phrase choisie
+    deposerSur(i, ev) {
+      ev.preventDefault();
+      const t = this.trouDe(i);
+      if (s.etat.glisse && t) s.deposer(s.etat.glisse, t, this.segments[i][0]);
+      this.finGlisser();
+    },
+    ecouterTrou(t) {
+      s.jouer(t.debut, t.fin);
+      this.$nextTick(() => this.defiler(this.$refs.texte, this.$refs.texte?.querySelector(`[data-trou="${t.id}"]`), 8));
     },
     dansChoisi(i) {
       const r = this.choisi && this.idx[this.choisi];
@@ -209,6 +250,17 @@ aside { width: 345px; flex: none; overflow-y: auto; }
 .btn-sm { padding: .3rem .6rem; font-size: .8rem; font-weight: 500; }
 
 .manque { font-size: .8rem; margin: .4rem 0; }
+.a-placer { border: 1px dashed #f0ad4e; background: #fff8e6; border-radius: 4px; padding: .3rem .4rem; margin-bottom: .4rem; }
+.a-placer-titre { font-size: .72rem; color: #8a5a00; margin-bottom: .2rem; }
+.puce { background: #fff; border: 1px solid #f0ad4e; border-radius: 4px; padding: .2rem .4rem; margin: .2rem 0;
+  font-size: .82rem; font-weight: 600; cursor: grab; }
+.puce small { font-weight: normal; color: #777; } .puce .poignee { color: #bbb; margin-right: .2rem; }
+.puce:active { cursor: grabbing; }
+.trou-entete { margin: .6rem 0 .1rem; padding: .15rem .5rem; border-radius: 3px; font-size: .8rem; font-weight: 600; color: #555;
+  background: repeating-linear-gradient(45deg, #eee 0 6px, #f8f8f8 6px 12px); border: 1px dashed #aaa; }
+.trou-entete small { font-weight: normal; color: #8a5a00; margin-left: .4rem; }
+.seg.dans-trou { color: #666; box-shadow: inset 4px 0 0 #ccc; }
+.seg.depot { outline: 1px dashed #f0ad4e; } .seg.survol { background: #ffe0a3 !important; }
 .texte { flex: 1; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: .5rem 1rem; font-size: .88rem; line-height: 1.45; }
 .seg { padding: 1px 0 1px 18px; cursor: pointer; }
 .seg:hover { background: #f5f5f5; } .seg.cible:hover { background: #fff59d; }

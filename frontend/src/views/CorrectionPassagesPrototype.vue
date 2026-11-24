@@ -15,6 +15,7 @@
             🟢 {{ compte.passages_valides }} validées / 🟠 {{ compte.segments_dispo }} à corriger /
             🔴 {{ compte.segments_absents }} sans Segments)
             <span class="bandeau">PROTOTYPE · rien n'est enregistré (rechargement = remise à zéro)</span>
+            <span v-if="etat.ep && etat.ep.simulation" class="bandeau">SIMULATION · {{ etat.ep.simulation }}</span>
           </label>
           <div class="ligne-selecteur">
             <button class="nav-episode-btn" :disabled="index <= 0" @click="decaler(-1)">◀️ Précédent</button>

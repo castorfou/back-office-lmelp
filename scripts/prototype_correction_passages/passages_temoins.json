@@ -53,25 +53,7 @@
     "titre": "Le Livre des souterrains",
     "auteur": "Phoebe Hadjimarkos Clarke",
     "debut": 2418,
-    "fin": 2520,
-    "origine": "auto",
-    "supprime": false
-   },
-   {
-    "id": "2026-11-15-6",
-    "titre": "Vivre après",
-    "auteur": "Jérôme Garcin",
-    "debut": 2510,
-    "fin": 2592,
-    "origine": "auto",
-    "supprime": false
-   },
-   {
-    "id": "2026-11-15-7",
-    "titre": "Je demande à en finir avec la vie",
-    "auteur": "Angélica Liddell",
-    "debut": 2582,
-    "fin": 2693,
+    "fin": 2510,
     "origine": "auto",
     "supprime": false
    },
@@ -85,7 +67,17 @@
     "supprime": false
    }
   ],
-  "livres_sans_passage": []
+  "livres_sans_passage": [
+   {
+    "titre": "Vivre après",
+    "auteur": "Jérôme Garcin"
+   },
+   {
+    "titre": "Je demande à en finir avec la vie",
+    "auteur": "Angélica Liddell"
+   }
+  ],
+  "simulation": "livre(s) retiré(s) pour simuler un repérage manqué : Vivre après, Je demande à en finir avec la vie"
  },
  "2026-10-04": {
   "date": "2026-10-04",
@@ -114,16 +106,7 @@
     "titre": "Je change de nom",
     "auteur": "Christine Angot",
     "debut": 1079,
-    "fin": 1547,
-    "origine": "auto",
-    "supprime": false
-   },
-   {
-    "id": "2026-10-04-3",
-    "titre": "Décolorer sa fille",
-    "auteur": "Lucie Bérard",
-    "debut": 1537,
-    "fin": 1964,
+    "fin": 1537,
     "origine": "auto",
     "supprime": false
    },
@@ -173,6 +156,12 @@
     "supprime": false
    }
   ],
-  "livres_sans_passage": []
+  "livres_sans_passage": [
+   {
+    "titre": "Décolorer sa fille",
+    "auteur": "Lucie Bérard"
+   }
+  ],
+  "simulation": "livre(s) retiré(s) pour simuler un repérage manqué : Décolorer sa fille"
  }
 }

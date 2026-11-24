@@ -14,7 +14,7 @@ import { reactive } from 'vue';
 
 // episode_id -> { passages, initial, livresSansPassage, segments, journal }
 const parEpisode = {};
-export const etat = reactive({ ep: null, valides: new Set(), choisi: null });
+export const etat = reactive({ ep: null, valides: new Set(), choisi: null, glisse: null });
 
 // Retire le recouvrement du repérage : la fin d'un Passage s'arrête au début du suivant.
 const sansRecouvrement = (liste) => {
@@ -31,6 +31,7 @@ export function charger(data) {
       initial: sansRecouvrement(JSON.parse(JSON.stringify(data.passages))),
       passages: sansRecouvrement(JSON.parse(JSON.stringify(data.passages))),
       livresSansPassage: [...data.livres_sans_passage],
+      simulation: data.simulation || null,
       journal: [],
     });
   }
@@ -63,9 +64,18 @@ const voisins = (p) => {
   return { prev: i > 0 ? v[i - 1] : null, next: i >= 0 && i + 1 < v.length ? v[i + 1] : null };
 };
 
+// Toute correction retire la validation de l'émission (#400 : elle repasse en 🟠).
+const devalider = () => {
+  if (etat.valides.has(etat.ep.id)) {
+    etat.valides.delete(etat.ep.id);
+    log('↳ émission repassée en 🟠 (correction après validation)');
+  }
+};
+
 const marquer = (p) => {
   p.origine = 'corrige';
   p.corrige_le = new Date().toISOString();
+  devalider();
 };
 
 export function setDebut(id, s) {
@@ -74,9 +84,11 @@ export function setDebut(id, s) {
   if (s == null || s < 0 || s >= p.fin) return log(`refusé : début ${fmt(s)} ≥ fin de « ${p.titre} »`);
   if (prev && s <= prev.debut) return log(`refusé : début ${fmt(s)} avant le début de « ${prev.titre} »`);
   log(`début de « ${p.titre} » ${fmt(p.debut)} → ${fmt(s)}`);
+  // frontière partagée seulement si les deux Passages se touchaient (un trou entre eux reste un trou)
+  const collait = prev && Math.abs(prev.fin - p.debut) < 0.01;
   p.debut = s;
   marquer(p);
-  if (prev && prev.fin !== s) {
+  if (prev && prev.fin !== s && (collait || prev.fin > s)) {
     log(`↳ fin de « ${prev.titre} » suit : ${fmt(prev.fin)} → ${fmt(s)}`);
     prev.fin = s;
     marquer(prev);
@@ -89,9 +101,10 @@ export function setFin(id, s) {
   if (s == null || s <= p.debut) return log(`refusé : fin ${fmt(s)} ≤ début de « ${p.titre} »`);
   if (next && s >= next.fin) return log(`refusé : fin ${fmt(s)} après la fin de « ${next.titre} »`);
   log(`fin de « ${p.titre} » ${fmt(p.fin)} → ${fmt(s)}`);
+  const collait = next && Math.abs(next.debut - p.fin) < 0.01;
   p.fin = s;
   marquer(p);
-  if (next && next.debut !== s) {
+  if (next && next.debut !== s && (collait || next.debut < s)) {
     log(`↳ début de « ${next.titre} » suit : ${fmt(next.debut)} → ${fmt(s)}`);
     next.debut = s;
     marquer(next);
@@ -111,15 +124,34 @@ export function restaurer(id) {
   sansRecouvrement(etat.ep.passages);
 }
 
-// Question ouverte : placer à la main un livre sans Passage ?
-export function placer(livre, debut, fin) {
+// Trous : zones entre deux Passages voisins qu'aucun Passage ne couvre (repérage qui a
+// manqué un livre, ou Passage supprimé). Le début et la fin de l'émission n'en sont pas.
+export const trous = () => {
+  const v = visibles();
+  const t = [];
+  v.forEach((p, k) => {
+    if (k + 1 < v.length && v[k + 1].debut - p.fin > 0.5) {
+      t.push({ id: `trou-${p.id}`, debut: p.fin, fin: v[k + 1].debut });
+    }
+  });
+  return t;
+};
+
+// Glisser-déposer un livre sans Passage sur un trou. Le livre prend le trou à partir du
+// point de dépôt jusqu'à la fin du trou ; ce qui reste avant reste un trou (partage entre
+// plusieurs livres). Déposé près du début du trou (premiers 10 %), il prend tout le trou.
+export function deposer(livre, trou, t) {
   const l = etat.ep.livresSansPassage;
-  l.splice(l.indexOf(livre), 1);
+  const i = l.indexOf(livre);
+  if (i < 0) return;
+  const debut = t - trou.debut < 0.1 * (trou.fin - trou.debut) ? trou.debut : t;
+  l.splice(i, 1);
   const p = { id: `m${Date.now()}`, titre: livre.titre, auteur: livre.auteur,
-    debut, fin, origine: 'corrige', supprime: false };
+    debut, fin: trou.fin, origine: 'corrige', supprime: false };
   etat.ep.passages.push(p);
-  log(`« ${livre.titre} » placé à la main ${fmt(debut)}–${fmt(fin)}`);
-  sansRecouvrement(etat.ep.passages);
+  etat.choisi = p.id;
+  log(`« ${livre.titre} » déposé dans le trou ${fmt(trou.debut)}–${fmt(trou.fin)} : ${fmt(debut)}–${fmt(trou.fin)}`);
+  devalider();
 }
 
 export function basculerValidation() {

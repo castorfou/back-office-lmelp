@@ -55,6 +55,7 @@ def episode(episode_id: str, date: str) -> dict:
         "segments": segments,
         "passages": fx.get("passages", []),
         "livres_sans_passage": fx.get("livres_sans_passage", []),
+        "simulation": fx.get("simulation"),
     }
 
 
