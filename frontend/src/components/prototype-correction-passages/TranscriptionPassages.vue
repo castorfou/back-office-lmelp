@@ -1,17 +1,19 @@
 <template>
   <!-- PROTOTYPE JETABLE (#398) : lire la transcription horodatée et poser les bornes sur un Segment -->
   <div class="edition">
-  <FriseApercu class="apercu" @cibler="cibler" @ecouter-trou="ecouterTrou" />
+  <div class="haut">
+    <FriseApercu class="apercu" @cibler="cibler" @ecouter-trou="ecouterTrou" />
+    <div v-if="livresSansPassage.length" class="a-placer">
+      <div class="a-placer-titre" title="Glisser sur un trou ▨ : sur la frise, le livre prend tout le trou ; dans le texte, il commence à la phrase choisie">⚠️ À placer ({{ livresSansPassage.length }}) · glisser sur un trou ▨</div>
+      <div v-for="l in livresSansPassage" :key="l.titre" class="puce" draggable="true"
+        :title="`Glisser « ${l.titre} » sur un trou de la frise, ou sur la phrase où il commence dans le texte`"
+        @dragstart="glisser(l, $event)" @dragend="finGlisser">
+        <span class="poignee">⠿</span> {{ l.titre }} <small>{{ l.auteur }}</small>
+      </div>
+    </div>
+  </div>
   <div class="vc">
     <aside ref="cartes">
-      <div v-if="livresSansPassage.length" class="a-placer">
-        <div class="a-placer-titre">À placer · glisser le livre sur un trou ▨ (frise ou texte)</div>
-        <div v-for="l in livresSansPassage" :key="l.titre" class="puce" draggable="true"
-          :title="`Glisser « ${l.titre} » sur un trou de la frise ou du texte`"
-          @dragstart="glisser(l, $event)" @dragend="finGlisser">
-          <span class="poignee">⠿</span> {{ l.titre }} <small>{{ l.auteur }}</small>
-        </div>
-      </div>
       <div v-for="p in liste" :key="p.id" :data-carte="p.id"
         :class="['carte', p.origine, { arme: arme && arme.id === p.id, choisi: choisi === p.id, autre: choisi && choisi !== p.id }]"
         :style="{ borderLeftColor: couleur(p), '--c': couleur(p) }" @click="selectionner(p)">
@@ -55,7 +57,7 @@
         <div v-for="p in debutsA(i)" :key="'h' + p.id" class="entete" :data-borne="`debut-${p.id}`" :style="{ background: couleur(p) }">
           ⇤ {{ p.titre }} <small>{{ fmt(p.debut) }}</small></div>
         <div :ref="'s' + i" :class="['seg', { courant: courant === i, cible: !!arme, transition: estTransition(sg[2]),
-            'dans-choisi': dansChoisi(i), 'dans-trou': !!trouDe(i), depot: glisse && trouDe(i), survol: survol === i }]"
+            'dans-choisi': dansChoisi(i), 'dans-trou': !!trouDe(i), depot: glisse && zoneDe(i), survol: survol === i }]"
           :style="{ boxShadow: bandes(sg, i) }" @click="cliquer(sg)"
           @dragover="surSurvol(i, $event)" @dragleave="survol = null" @drop="deposerSur(i, $event)">
           <span class="h" @click.stop="jouer(sg[0])">{{ fmt(sg[0]) }}</span> {{ sg[2] }}
@@ -155,16 +157,26 @@ export default {
       ev.dataTransfer.setData('text/plain', l.titre);
     },
     finGlisser() { s.etat.glisse = null; this.survol = null; },
+    // phrase où l'on peut déposer : dans un trou, ou dans un Passage placé à la main
+    // (sauf sa première phrase, qui est déjà son début)
+    zoneDe(i) {
+      const t = this.trouDe(i);
+      if (t) return { trou: t };
+      const p = this.liste.find((x) => x.place_main && this.idx[x.id] && this.idx[x.id].d < i && i <= this.idx[x.id].f);
+      return p ? { passage: p } : null;
+    },
     surSurvol(i, ev) {
-      if (!s.etat.glisse || !this.trouDe(i)) return;
+      if (!s.etat.glisse || !this.zoneDe(i)) return;
       ev.preventDefault(); // autorise le dépôt sur un Segment d'un trou
       this.survol = i;
     },
     // dépôt dans le texte : le livre commence à la phrase choisie
     deposerSur(i, ev) {
       ev.preventDefault();
-      const t = this.trouDe(i);
-      if (s.etat.glisse && t) s.deposer(s.etat.glisse, t, this.segments[i][0]);
+      const z = this.zoneDe(i);
+      const l = s.etat.glisse;
+      if (l && z?.trou) s.deposer(l, z.trou, i === z.trou.d ? null : this.segments[i][0]);
+      else if (l && z?.passage) s.deposerDansPassage(l, z.passage, this.segments[i][0]);
       this.finGlisser();
     },
     ecouterTrou(t) {
@@ -222,7 +234,9 @@ export default {
 /* 4/5 édition, 1/5 aperçu */
 .edition { display: flex; flex-direction: column; gap: .6rem; min-height: 0; }
 .vc { flex: 4; display: flex; gap: 1rem; min-height: 0; }
-.apercu { flex: 1; min-height: 70px; }
+.haut { flex: 1; min-height: 70px; display: flex; gap: .6rem; }
+.apercu { flex: 1; min-width: 0; }
+.a-placer { width: 300px; flex: none; overflow-y: auto; }
 aside { width: 345px; flex: none; overflow-y: auto; }
 .carte { border-left: 5px solid; padding: .25rem .5rem; margin-bottom: .3rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }
@@ -250,9 +264,9 @@ aside { width: 345px; flex: none; overflow-y: auto; }
 .btn-sm { padding: .3rem .6rem; font-size: .8rem; font-weight: 500; }
 
 .manque { font-size: .8rem; margin: .4rem 0; }
-.a-placer { border: 1px dashed #f0ad4e; background: #fff8e6; border-radius: 4px; padding: .3rem .4rem; margin-bottom: .4rem; }
-.a-placer-titre { font-size: .72rem; color: #8a5a00; margin-bottom: .2rem; }
-.puce { background: #fff; border: 1px solid #f0ad4e; border-radius: 4px; padding: .2rem .4rem; margin: .2rem 0;
+.a-placer { border: 1px dashed #f0ad4e; background: #fff8e6; border-radius: 4px; padding: .3rem .4rem; box-sizing: border-box; }
+.a-placer-titre { font-size: .72rem; color: #8a5a00; margin-bottom: .1rem; cursor: help; }
+.puce { background: #fff; border: 1px solid #f0ad4e; border-radius: 4px; padding: .1rem .4rem; margin: .15rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-size: .82rem; font-weight: 600; cursor: grab; }
 .puce small { font-weight: normal; color: #777; } .puce .poignee { color: #bbb; margin-right: .2rem; }
 .puce:active { cursor: grabbing; }

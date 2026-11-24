@@ -8,8 +8,8 @@
       <div class="tete" :style="{ left: pct(lecteur.t) }"></div>
       <div v-for="t in trous" :key="t.id" :class="['trou', { depot: !!glisse, survol: survol === t.id }]"
         :style="{ left: pct(t.debut), width: pct(t.fin - t.debut) }"
-        :title="`Trou ${fmt(t.debut)}–${fmt(t.fin)} : aucun livre. Écouter, puis y glisser un livre « À placer »`"
-        @dragover.prevent="survol = t.id" @dragleave="survol = null" @drop.prevent="deposer(t, $event)">
+        :title="`Trou ${fmt(t.debut)}–${fmt(t.fin)} : aucun livre. Écouter, puis y glisser un livre « À placer » (il prend tout le trou)`"
+        @dragover.prevent="survol = t.id" @dragleave="survol = null" @drop.prevent="deposer(t)">
         <button class="ecouter" title="Écouter le trou" @click.stop="$emit('ecouter-trou', t)">▶</button>
         <span>?</span>
       </div>
@@ -46,17 +46,10 @@ export default {
     fmt: s.fmt,
     couleur: s.couleur,
     pct(sec) { return `${(sec / this.duree) * 100}%`; },
-    // dépôt sur la frise : le livre commence à la phrase sous le point de dépôt
-    deposer(trou, ev) {
+    // dépôt sur la frise : le livre prend tout le trou, en tête (le point de lâcher est imprécis)
+    deposer(trou) {
       this.survol = null;
-      const livre = s.etat.glisse;
-      if (!livre) return;
-      const r = this.$refs.piste.getBoundingClientRect();
-      const t = ((ev.clientX - r.left) / r.width) * this.duree;
-      const sg = s.etat.ep.segments;
-      let debut = trou.debut;
-      sg.forEach((x) => { if (x[0] <= t && x[0] >= trou.debut - 0.01 && x[0] < trou.fin) debut = x[0]; });
-      s.deposer(livre, trou, debut);
+      if (s.etat.glisse) s.deposer(s.etat.glisse, trou);
       s.etat.glisse = null;
     },
   },

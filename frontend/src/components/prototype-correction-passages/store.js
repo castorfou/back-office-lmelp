@@ -137,21 +137,36 @@ export const trous = () => {
   return t;
 };
 
-// Glisser-déposer un livre sans Passage sur un trou. Le livre prend le trou à partir du
-// point de dépôt jusqu'à la fin du trou ; ce qui reste avant reste un trou (partage entre
-// plusieurs livres). Déposé près du début du trou (premiers 10 %), il prend tout le trou.
-export function deposer(livre, trou, t) {
+// Glisser-déposer un livre sans Passage (#401).
+// - sur un trou, depuis la frise (t absent) : le livre prend tout le trou, en tête ;
+// - sur un trou, depuis le texte (t = début de la phrase) : le livre commence à cette phrase,
+//   ce qui précède reste un trou ;
+// - sur un Passage placé à la main, depuis le texte : ce Passage s'arrête à la phrase et le
+//   livre prend la suite (partage d'un trou entre plusieurs livres).
+const creer = (livre, debut, fin) => {
   const l = etat.ep.livresSansPassage;
-  const i = l.indexOf(livre);
-  if (i < 0) return;
-  const debut = t - trou.debut < 0.1 * (trou.fin - trou.debut) ? trou.debut : t;
-  l.splice(i, 1);
+  l.splice(l.indexOf(livre), 1);
   const p = { id: `m${Date.now()}`, titre: livre.titre, auteur: livre.auteur,
-    debut, fin: trou.fin, origine: 'corrige', supprime: false };
+    debut, fin, origine: 'corrige', supprime: false, place_main: true };
   etat.ep.passages.push(p);
   etat.choisi = p.id;
-  log(`« ${livre.titre} » déposé dans le trou ${fmt(trou.debut)}–${fmt(trou.fin)} : ${fmt(debut)}–${fmt(trou.fin)}`);
   devalider();
+  return p;
+};
+
+export function deposer(livre, trou, t = null) {
+  if (!etat.ep.livresSansPassage.includes(livre)) return;
+  const debut = t == null ? trou.debut : t;
+  creer(livre, debut, trou.fin);
+  log(`« ${livre.titre} » déposé dans le trou ${fmt(trou.debut)}–${fmt(trou.fin)} : ${fmt(debut)}–${fmt(trou.fin)}`);
+}
+
+export function deposerDansPassage(livre, passage, t) {
+  if (!etat.ep.livresSansPassage.includes(livre) || t <= passage.debut + 0.01 || t >= passage.fin) return;
+  const fin = passage.fin;
+  passage.fin = t;
+  creer(livre, t, fin);
+  log(`« ${livre.titre} » déposé dans « ${passage.titre} » : ${fmt(t)}–${fmt(fin)} ; « ${passage.titre} » s'arrête à ${fmt(t)}`);
 }
 
 export function basculerValidation() {
