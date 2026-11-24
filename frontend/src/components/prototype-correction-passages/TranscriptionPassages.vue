@@ -10,8 +10,14 @@
         <div class="act">
           <button :class="['btn', 'btn-sm', estArme(p, 'debut') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'debut')">⇤ Début</button>
           <button :class="['btn', 'btn-sm', estArme(p, 'fin') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'fin')">⇥ Fin</button>
-          <button class="btn btn-secondary btn-sm" title="Écouter le Passage" @click="jouer(p.debut, p.fin)">▶</button>
           <button class="btn btn-danger btn-sm" title="Ce n'est pas un Passage" @click="confirmerSuppression(p)">Supprimer</button>
+        </div>
+        <div class="act">
+          <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.debut)} à ${fmt(p.debut + ECOUTE_S)}`"
+            @click="jouer(p.debut, p.debut + ECOUTE_S)">▶ début</button>
+          <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.fin - ECOUTE_S)} à ${fmt(p.fin)}`"
+            @click="jouer(p.fin - ECOUTE_S, p.fin)">▶ fin</button>
+          <button class="btn btn-secondary btn-sm" title="Écouter tout le Passage" @click="jouer(p.debut, p.fin)">▶ tout</button>
         </div>
       </div>
       <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
@@ -46,7 +52,7 @@ const TRANSITION = /\bon (commence|encha[iî]ne|continue|termine|poursuit|passe|
 
 export default {
   name: 'TranscriptionPassages',
-  data: () => ({ arme: null }),
+  data: () => ({ arme: null, ECOUTE_S: 15 }),
   computed: {
     segments: () => s.etat.ep.segments,
     liste() { return s.visibles(); },
