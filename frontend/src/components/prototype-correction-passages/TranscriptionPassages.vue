@@ -34,7 +34,7 @@
         <div v-for="p in debutsA(i)" :key="'h' + p.id" class="entete" :data-borne="`debut-${p.id}`" :style="{ background: couleur(p) }">
           ⇤ {{ p.titre }} <small>{{ fmt(p.debut) }}</small></div>
         <div :ref="'s' + i" :class="['seg', { courant: courant === i, cible: !!arme, transition: estTransition(sg[2]) }]"
-          :style="{ boxShadow: bandes(sg) }" @click="cliquer(sg)">
+          :style="{ boxShadow: bandes(sg, i) }" @click="cliquer(sg)">
           <span class="h" @click.stop="jouer(sg[0])">{{ fmt(sg[0]) }}</span> {{ sg[2] }}
         </div>
         <div v-for="p in finsA(i)" :key="'f' + p.id" class="pied" :data-borne="`fin-${p.id}`" :style="{ color: couleur(p) }">
@@ -65,9 +65,11 @@ export default {
     // index du segment qui contient chaque borne
     idx() {
       const sg = this.segments;
-      // Segment qui contient t : le dernier qui commence avant t + 1 s (bornes arrondies à la seconde)
-      const at = (t) => { let i = 0; while (i + 1 < sg.length && sg[i + 1][0] < t + 1) i += 1; return i; };
-      return Object.fromEntries(this.liste.map((p) => [p.id, { d: at(p.debut), f: at(p.fin - 1) }]));
+      // Bornes en secondes entières, Segments tronqués à la seconde :
+      // début -> 1er Segment qui commence à partir du début ; fin -> dernier Segment fini à la fin.
+      const d = (t) => { const i = sg.findIndex((x) => Math.floor(x[0]) >= t); return i < 0 ? sg.length - 1 : i; };
+      const f = (t) => { let i = -1; sg.forEach((x, k) => { if (Math.floor(x[1]) <= t) i = k; }); return Math.max(i, 0); };
+      return Object.fromEntries(this.liste.map((p) => [p.id, { d: d(p.debut), f: f(p.fin) }]));
     },
   },
   watch: {
@@ -81,8 +83,8 @@ export default {
     couleur(p) { const i = s.etat.ep.passages.indexOf(p); return PALETTE[(i < 0 ? 0 : i) % PALETTE.length]; },
     debutsA(i) { return this.liste.filter((p) => this.idx[p.id]?.d === i); },
     finsA(i) { return this.liste.filter((p) => this.idx[p.id]?.f === i); },
-    bandes(sg) {
-      const ps = this.liste.filter((p) => sg[1] > p.debut && sg[0] < p.fin);
+    bandes(sg, i) {
+      const ps = this.liste.filter((p) => this.idx[p.id] && this.idx[p.id].d <= i && i <= this.idx[p.id].f);
       return ps.map((p, k) => `inset ${4 + k * 4}px 0 0 ${this.couleur(p)}`).join(', ') || 'none';
     },
     estTransition(txt) { return TRANSITION.test(txt); },
@@ -95,7 +97,7 @@ export default {
       this.arme = null;
       if (a.livre) return s.placer(a.livre, Math.floor(sg[0]), Math.floor(sg[0]) + 60);
       if (a.borne === 'debut') s.setDebut(a.id, Math.floor(sg[0]));
-      else s.setFin(a.id, Math.ceil(sg[1]));
+      else s.setFin(a.id, Math.floor(sg[1])); // = début du Segment suivant, tronqué
       // garder la borne déplacée sous les yeux
       this.$nextTick(() => {
         const el = this.$refs.texte?.querySelector(`[data-borne="${a.borne}-${a.id}"]`);
