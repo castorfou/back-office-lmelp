@@ -6,8 +6,8 @@
     <aside ref="cartes">
       <div v-for="p in liste" :key="p.id" :data-carte="p.id"
         :class="['carte', p.origine, { arme: arme && arme.id === p.id, choisi: choisi === p.id, autre: choisi && choisi !== p.id }]"
-        :style="{ borderLeftColor: couleur(p), '--c': couleur(p) }">
-        <div class="t" @click="cibler(p)">{{ p.titre }}</div>
+        :style="{ borderLeftColor: couleur(p), '--c': couleur(p) }" @click="selectionner(p)">
+        <div class="t" @click.stop="cibler(p)">{{ p.titre }}</div>
         <div class="b">{{ fmt(p.debut) }}–{{ fmt(p.fin) }} · {{ fmt(p.fin - p.debut) }}
           <span :class="['badge', p.origine]">{{ p.origine === 'auto' ? 'repéré auto' : 'corrigé' }}</span></div>
         <div class="act">
@@ -116,6 +116,12 @@ export default {
     dansChoisi(i) {
       const r = this.choisi && this.idx[this.choisi];
       return !!r && r.d <= i && i <= r.f;
+    },
+    // Tout clic dans une carte (lecture, Début, Fin…) met son livre en avant à gauche et
+    // dans la frise, sans déplacer le texte (pendant la lecture, il suit déjà l'audio).
+    selectionner(p) {
+      if (s.etat.choisi === p.id) return;
+      s.etat.choisi = p.id;
     },
     // Cibler un Passage (frise ou titre de carte) : carte mise en avant à gauche,
     // texte amené à son début et ses Segments surlignés.
