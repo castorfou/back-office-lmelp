@@ -11,7 +11,7 @@
           <button :class="['btn', 'btn-sm', estArme(p, 'debut') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'debut')">⇤ Début</button>
           <button :class="['btn', 'btn-sm', estArme(p, 'fin') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'fin')">⇥ Fin</button>
           <button class="btn btn-secondary btn-sm" title="Écouter le Passage" @click="jouer(p.debut, p.fin)">▶</button>
-          <button class="btn btn-danger btn-sm" title="Ce n'est pas un Passage" @click="supprimer(p.id)">Supprimer</button>
+          <button class="btn btn-danger btn-sm" title="Ce n'est pas un Passage" @click="confirmerSuppression(p)">Supprimer</button>
         </div>
       </div>
       <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
@@ -25,13 +25,13 @@
       <p v-if="arme" class="consigne">Cliquer le Segment où {{ arme.borne === 'debut' ? 'commence' : 'finit' }}
         « {{ arme.titre }} » · <a href="#" @click.prevent="arme = null">annuler</a></p>
       <template v-for="(sg, i) in segments" :key="i">
-        <div v-for="p in debutsA(i)" :key="'h' + p.id" class="entete" :style="{ background: couleur(p) }">
+        <div v-for="p in debutsA(i)" :key="'h' + p.id" class="entete" :data-borne="`debut-${p.id}`" :style="{ background: couleur(p) }">
           ⇤ {{ p.titre }} <small>{{ fmt(p.debut) }}</small></div>
         <div :ref="'s' + i" :class="['seg', { courant: courant === i, cible: !!arme, transition: estTransition(sg[2]) }]"
           :style="{ boxShadow: bandes(sg) }" @click="cliquer(sg)">
           <span class="h" @click.stop="jouer(sg[0])">{{ fmt(sg[0]) }}</span> {{ sg[2] }}
         </div>
-        <div v-for="p in finsA(i)" :key="'f' + p.id" class="pied" :style="{ color: couleur(p) }">
+        <div v-for="p in finsA(i)" :key="'f' + p.id" class="pied" :data-borne="`fin-${p.id}`" :style="{ color: couleur(p) }">
           ⇥ fin de {{ p.titre }} <small>{{ fmt(p.fin) }}</small></div>
       </template>
     </div>
@@ -59,8 +59,9 @@ export default {
     // index du segment qui contient chaque borne
     idx() {
       const sg = this.segments;
-      const at = (t) => { const i = sg.findIndex((x) => x[1] > t); return i < 0 ? sg.length - 1 : i; };
-      return Object.fromEntries(this.liste.map((p) => [p.id, { d: at(p.debut), f: at(p.fin - 0.01) }]));
+      // Segment qui contient t : le dernier qui commence avant t + 1 s (bornes arrondies à la seconde)
+      const at = (t) => { let i = 0; while (i + 1 < sg.length && sg[i + 1][0] < t + 1) i += 1; return i; };
+      return Object.fromEntries(this.liste.map((p) => [p.id, { d: at(p.debut), f: at(p.fin - 1) }]));
     },
   },
   watch: {
@@ -89,6 +90,15 @@ export default {
       if (a.livre) return s.placer(a.livre, Math.floor(sg[0]), Math.floor(sg[0]) + 60);
       if (a.borne === 'debut') s.setDebut(a.id, Math.floor(sg[0]));
       else s.setFin(a.id, Math.ceil(sg[1]));
+      // garder la borne déplacée sous les yeux
+      this.$nextTick(() => {
+        const el = this.$refs.texte?.querySelector(`[data-borne="${a.borne}-${a.id}"]`);
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    },
+    confirmerSuppression(p) {
+      if (!confirm(`Supprimer le Passage « ${p.titre} » (${s.fmt(p.debut)}–${s.fmt(p.fin)}) ?\nUne relance du repérage ne le recréera pas.`)) return;
+      s.supprimer(p.id);
     },
     aller(t) {
       const i = this.segments.findIndex((sg) => sg[1] > t);
