@@ -42,7 +42,7 @@ const log = (msg) => etat.ep.journal.unshift(`${new Date().toLocaleTimeString()}
 
 export const fmt = (s) => {
   if (s == null || Number.isNaN(s)) return '—';
-  const v = Math.max(0, Math.floor(s)); // tronqué, comme les bornes
+  const v = Math.max(0, Math.floor(s)); // affichage tronqué ; les bornes gardent les centièmes du Segment
   return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
 };
 

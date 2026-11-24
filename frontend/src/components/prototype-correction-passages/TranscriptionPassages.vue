@@ -82,8 +82,9 @@ export default {
       const sg = this.segments;
       // Bornes en secondes entières, Segments tronqués à la seconde :
       // début -> 1er Segment qui commence à partir du début ; fin -> dernier Segment fini à la fin.
-      const d = (t) => { const i = sg.findIndex((x) => Math.floor(x[0]) >= t); return i < 0 ? sg.length - 1 : i; };
-      const f = (t) => { let i = -1; sg.forEach((x, k) => { if (Math.floor(x[1]) <= t) i = k; }); return Math.max(i, 0); };
+      // Bornes à l'heure exacte d'un Segment (centièmes) : comparaison avec une tolérance de 10 ms.
+      const d = (t) => { const i = sg.findIndex((x) => x[0] >= t - 0.01); return i < 0 ? sg.length - 1 : i; };
+      const f = (t) => { let i = -1; sg.forEach((x, k) => { if (x[1] <= t + 0.01) i = k; }); return Math.max(i, 0); };
       return Object.fromEntries(this.liste.map((p) => [p.id, { d: d(p.debut), f: f(p.fin) }]));
     },
   },
@@ -115,9 +116,10 @@ export default {
       if (!this.arme) return s.jouer(sg[0]);
       const a = this.arme;
       this.arme = null;
-      if (a.livre) return s.placer(a.livre, Math.floor(sg[0]), Math.floor(sg[0]) + 60);
-      if (a.borne === 'debut') s.setDebut(a.id, Math.floor(sg[0]));
-      else s.setFin(a.id, Math.floor(sg[1])); // = début du Segment suivant, tronqué
+      if (a.livre) return s.placer(a.livre, sg[0], sg[0] + 60);
+      // heure exacte du Segment : deux Segments de la même seconde restent distincts
+      if (a.borne === 'debut') s.setDebut(a.id, sg[0]);
+      else s.setFin(a.id, sg[1]); // = début du Segment suivant
       // garder la borne déplacée sous les yeux
       this.$nextTick(() => {
         const el = this.$refs.texte?.querySelector(`[data-borne="${a.borne}-${a.id}"]`);
