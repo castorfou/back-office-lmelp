@@ -7,20 +7,29 @@
       <div v-for="p in liste" :key="p.id" :data-carte="p.id"
         :class="['carte', p.origine, { arme: arme && arme.id === p.id, choisi: choisi === p.id, autre: choisi && choisi !== p.id }]"
         :style="{ borderLeftColor: couleur(p), '--c': couleur(p) }" @click="selectionner(p)">
-        <div class="t" @click.stop="cibler(p)">{{ p.titre }}</div>
-        <div class="b">{{ fmt(p.debut) }}–{{ fmt(p.fin) }} · {{ fmt(p.fin - p.debut) }}
-          <span :class="['badge', p.origine]">{{ p.origine === 'auto' ? 'repéré auto' : 'corrigé' }}</span></div>
-        <div class="act">
-          <button :class="['btn', 'btn-sm', estArme(p, 'debut') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'debut')">⇤ Début</button>
-          <button :class="['btn', 'btn-sm', estArme(p, 'fin') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'fin')">⇥ Fin</button>
-          <button class="btn btn-danger btn-sm" title="Ce n'est pas un Passage" @click="confirmerSuppression(p)">Supprimer</button>
+        <!-- Variante B : icônes seules, infobulles -->
+        <div class="entete-carte">
+          <span class="t" @click.stop="cibler(p)" title="Amener le texte au début de ce Passage">{{ p.titre }}</span>
+          <span class="duree">{{ fmt(p.fin - p.debut) }}</span>
+          <span :class="['badge', p.origine]">{{ p.origine === 'auto' ? 'repéré auto' : 'corrigé' }}</span>
         </div>
-        <div class="act">
-          <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.debut)} à ${fmt(p.debut + ECOUTE_S)}`"
-            @click="ecouter(p, p.debut, p.debut + ECOUTE_S)">▶ début</button>
-          <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.fin - ECOUTE_S)} à ${fmt(p.fin)}`"
-            @click="ecouter(p, p.fin - ECOUTE_S, p.fin)">▶ fin</button>
-          <button class="btn btn-secondary btn-sm" title="Écouter tout le Passage" @click="ecouter(p, p.debut, p.fin)">▶ tout</button>
+        <div class="bornes">
+          <span class="borne" title="Début du Passage">⇤ {{ fmt(p.debut) }}</span>
+          <button class="ico" :title="`Écouter le début (${fmt(p.debut)} → ${fmt(p.debut + ECOUTE_S)})`"
+            @click="ecouter(p, p.debut, p.debut + ECOUTE_S)">🎧</button>
+          <button :class="['ico', { arme: estArme(p, 'debut') }]" title="Placer le début : puis cliquer le Segment dans le texte"
+            @click="armer(p, 'debut')">📍</button>
+          <span class="sep"></span>
+          <span class="borne" title="Fin du Passage">⇥ {{ fmt(p.fin) }}</span>
+          <button class="ico" :title="`Écouter la fin (${fmt(p.fin - ECOUTE_S)} → ${fmt(p.fin)})`"
+            @click="ecouter(p, p.fin - ECOUTE_S, p.fin)">🎧</button>
+          <button :class="['ico', { arme: estArme(p, 'fin') }]" title="Placer la fin : puis cliquer le Segment dans le texte"
+            @click="armer(p, 'fin')">📍</button>
+          <span class="sep"></span>
+          <button class="ico" :title="`Écouter tout le Passage (${fmt(p.debut)} → ${fmt(p.fin)})`"
+            @click="ecouter(p, p.debut, p.fin)">▶</button>
+          <button class="ico danger" title="Supprimer ce Passage (ce n'est pas un Passage)"
+            @click="confirmerSuppression(p)">🗑</button>
         </div>
       </div>
       <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
@@ -171,13 +180,24 @@ export default {
 .edition { display: flex; flex-direction: column; gap: .6rem; min-height: 0; }
 .vc { flex: 4; display: flex; gap: 1rem; min-height: 0; }
 .apercu { flex: 1; min-height: 70px; }
-aside { width: 300px; flex: none; overflow-y: auto; }
+aside { width: 345px; flex: none; overflow-y: auto; }
 .carte { border-left: 5px solid; padding: .25rem .5rem; margin-bottom: .3rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }
 .carte { transition: opacity .2s, box-shadow .2s; }
 .carte.choisi { box-shadow: 0 0 0 2px var(--c), 0 3px 10px rgba(0,0,0,.15); background: #fff; }
 .carte.autre { opacity: .55; } .carte.autre:hover { opacity: 1; }
-.carte .t { font-weight: 600; cursor: pointer; } .carte .b { color: #555; font-family: monospace; font-size: .75rem; }
+.entete-carte { display: flex; align-items: baseline; gap: .4rem; }
+.carte .t { font-weight: 600; cursor: pointer; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.carte .t:hover { text-decoration: underline; }
+.duree { font-family: monospace; font-size: .75rem; color: #555; }
+.bornes { display: flex; align-items: center; gap: .2rem; margin-top: .3rem; flex-wrap: wrap; }
+.borne { font-family: monospace; font-size: .78rem; color: #333; margin-right: .1rem; }
+.sep { width: .35rem; }
+.ico { background: #fff; border: 1px solid #ced4da; border-radius: 4px; padding: .1rem .3rem; font-size: .85rem;
+  line-height: 1.2; cursor: pointer; transition: background .15s, border-color .15s; }
+.ico:hover { background: #e9ecef; border-color: #adb5bd; }
+.ico.arme { background: #007bff; border-color: #007bff; }
+.ico.danger { margin-left: auto; border-color: #f1b0b7; } .ico.danger:hover { background: #fdecea; border-color: #dc3545; }
 .act { display: flex; gap: .25rem; margin-top: .25rem; } .manque .btn { margin-left: .3rem; }
 /* Boutons : .btn/.btn-primary globaux (style.css), variantes reprises de BabelioControl.vue */
 .btn-secondary { background: #6c757d; color: white; }
