@@ -4,8 +4,8 @@
 // - une correction passe le Passage en `corrige` ;
 // - corriger un début recale la fin du Passage `auto` précédent (début + 10 s) ;
 // - supprimer = `supprime: true`, conservé ;
-// - relancer : les `auto` sont recalculés (ici : remis aux valeurs du repérage),
-//   `corrige` et `supprime` restent.
+// Pas de bouton « Relancer le repérage » (décidé en #398 : un meilleur algorithme
+// passera par une reprise des données, pas par un bouton par émission).
 import { reactive } from 'vue';
 
 const RECOUVREMENT_S = 10;
@@ -95,16 +95,6 @@ export function placer(livre, debut, fin) {
   etat.ep.passages.push(p);
   log(`« ${livre.titre} » placé à la main ${fmt(debut)}–${fmt(fin)}`);
   recaler(p);
-}
-
-export function relancer() {
-  for (const p of etat.ep.passages) {
-    if (p.origine !== 'auto') continue;
-    const r = etat.ep.initial.find((x) => x.id === p.id);
-    if (r) { p.debut = r.debut; p.fin = r.fin; }
-  }
-  for (const p of etat.ep.passages.filter((x) => x.origine === 'corrige' && !x.supprime)) recaler(p);
-  log('🔄 repérage relancé : Passages auto recalculés, corrections et suppressions conservées');
 }
 
 export function basculerValidation() {

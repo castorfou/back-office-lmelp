@@ -40,7 +40,6 @@
             </div>
             <div class="actions">
               <span class="resume">{{ nbPassages }} Passages · {{ etat.ep.livresSansPassage.length }} livre(s) sans Passage</span>
-              <button @click="relancer">🔄 Relancer le repérage</button>
               <button :class="['valider', { fait: valide }]" @click="basculerValidation">
                 {{ valide ? '🟢 Passages validés (annuler)' : '✅ Valider les Passages' }}</button>
             </div>
