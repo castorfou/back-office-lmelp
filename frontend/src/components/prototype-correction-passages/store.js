@@ -161,6 +161,31 @@ export function deposer(livre, trou, t = null) {
   log(`« ${livre.titre} » déposé dans le trou ${fmt(trou.debut)}–${fmt(trou.fin)} : ${fmt(debut)}–${fmt(trou.fin)}`);
 }
 
+// Milieu d'un trou, calé sur le début de la phrase la plus proche.
+const milieu = (trou) => {
+  const m = (trou.debut + trou.fin) / 2;
+  let best = m;
+  let ecart = Infinity;
+  for (const x of etat.ep.segments) {
+    if (x[0] > trou.debut + 0.01 && x[0] < trou.fin - 0.01 && Math.abs(x[0] - m) < ecart) {
+      ecart = Math.abs(x[0] - m);
+      best = x[0];
+    }
+  }
+  return best;
+};
+
+// Dépôt sur la frise : 'tete' = première moitié (un autre livre reste à placer après),
+// 'tout' = tout le trou, 'fin' = seconde moitié (un autre livre reste à placer avant).
+export function deposerSurFrise(livre, trou, zone) {
+  if (!etat.ep.livresSansPassage.includes(livre)) return;
+  const m = milieu(trou);
+  const [debut, fin] = zone === 'tete' ? [trou.debut, m] : zone === 'fin' ? [m, trou.fin] : [trou.debut, trou.fin];
+  creer(livre, debut, fin);
+  const reste = zone === 'tete' ? ' ; reste un trou après' : zone === 'fin' ? ' ; reste un trou avant' : '';
+  log(`« ${livre.titre} » déposé ${zone === 'tete' ? 'en tête du' : zone === 'fin' ? 'en fin du' : 'dans tout le'} trou : ${fmt(debut)}–${fmt(fin)}${reste}`);
+}
+
 export function deposerDansPassage(livre, passage, t) {
   if (!etat.ep.livresSansPassage.includes(livre) || t <= passage.debut + 0.01 || t >= passage.fin) return;
   const fin = passage.fin;
