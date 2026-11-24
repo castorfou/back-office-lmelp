@@ -1,0 +1,178 @@
+{
+ "2026-11-15": {
+  "date": "2026-11-15",
+  "titre": "CRITIQUE : Elise Lespade, Pierric Bailly, Giuliano da Empoli, Jul & Achdé : quels sont les livres à lire cette semaine ?",
+  "passages": [
+   {
+    "id": "2026-11-15-0",
+    "titre": "Le Fondateur",
+    "auteur": "Giuliano da Empoli",
+    "debut": 447,
+    "fin": 813,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-1",
+    "titre": "Paradisi Gloria",
+    "auteur": "Elise Lespade",
+    "debut": 803,
+    "fin": 1169,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-2",
+    "titre": "Dans les grandes lignes",
+    "auteur": "Philippe Vasset",
+    "debut": 1159,
+    "fin": 1623,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-3",
+    "titre": "Rouge Truite",
+    "auteur": "Pierric Bailly",
+    "debut": 1613,
+    "fin": 2031,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-4",
+    "titre": "Saint Lucky Luke",
+    "auteur": "Jul (scénario), Achdé (dessin), d'après Morris",
+    "debut": 2021,
+    "fin": 2428,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-5",
+    "titre": "Le Livre des souterrains",
+    "auteur": "Phoebe Hadjimarkos Clarke",
+    "debut": 2418,
+    "fin": 2520,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-6",
+    "titre": "Vivre après",
+    "auteur": "Jérôme Garcin",
+    "debut": 2510,
+    "fin": 2592,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-7",
+    "titre": "Je demande à en finir avec la vie",
+    "auteur": "Angélica Liddell",
+    "debut": 2582,
+    "fin": 2693,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-8",
+    "titre": "Comment j'ai cessé d'être une petite fasciste",
+    "auteur": "Maylis Adhémar",
+    "debut": 2683,
+    "fin": 2781,
+    "origine": "auto",
+    "supprime": false
+   }
+  ],
+  "livres_sans_passage": []
+ },
+ "2026-10-04": {
+  "date": "2026-10-04",
+  "titre": "Patrick Modiano, Luz, Christine Angot, Lucie Bérard, Ananda Devi : quels sont les livres à lire cette semaine ?",
+  "passages": [
+   {
+    "id": "2026-10-04-0",
+    "titre": "L'Éléphant",
+    "auteur": "Patrick Modiano",
+    "debut": 248,
+    "fin": 630,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-1",
+    "titre": "Chronique d'un royaume perdu",
+    "auteur": "Ananda Devi",
+    "debut": 620,
+    "fin": 1089,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-2",
+    "titre": "Je change de nom",
+    "auteur": "Christine Angot",
+    "debut": 1079,
+    "fin": 1547,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-3",
+    "titre": "Décolorer sa fille",
+    "auteur": "Lucie Bérard",
+    "debut": 1537,
+    "fin": 1964,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-4",
+    "titre": "Un diamant dans les gravats",
+    "auteur": "Luz",
+    "debut": 1954,
+    "fin": 2374,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-5",
+    "titre": "Les Noms de Feliza",
+    "auteur": "Juan Gabriel Vásquez",
+    "debut": 2364,
+    "fin": 2470,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-6",
+    "titre": "Abdallah superstar",
+    "auteur": "Iman Ahmed",
+    "debut": 2460,
+    "fin": 2548,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-7",
+    "titre": "Sur la route du retour",
+    "auteur": "Franck Maubert",
+    "debut": 2538,
+    "fin": 2666,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-8",
+    "titre": "La Maison d'été",
+    "auteur": "Masashi Matsuie",
+    "debut": 2656,
+    "fin": 2731,
+    "origine": "auto",
+    "supprime": false
+   }
+  ],
+  "livres_sans_passage": []
+ }
+}

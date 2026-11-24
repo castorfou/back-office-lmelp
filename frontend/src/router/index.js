@@ -242,6 +242,15 @@ const routes = [
       title: 'Transcription PGX - lmelp'
     }
   },
+  // PROTOTYPE JETABLE (#398), jamais fusionné
+  {
+    path: '/correction-passages',
+    name: 'CorrectionPassages',
+    component: () => import('../views/CorrectionPassagesPrototype.vue'),
+    meta: {
+      title: 'Correction des passages - lmelp'
+    }
+  },
   {
     path: '/about',
     name: 'About',

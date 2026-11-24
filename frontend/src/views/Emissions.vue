@@ -324,9 +324,6 @@
           </div>
         </div>
       </section>
-
-      <!-- PROTOTYPE JETABLE (#398) : correction des Passages, jamais en production -->
-      <PassagesCorrectionPrototype v-if="prototypeActif" />
     </main>
   </div>
 </template>
@@ -337,7 +334,6 @@ import { useRoute, useRouter } from 'vue-router';
 import Navigation from '../components/Navigation.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import AvisTable from '../components/AvisTable.vue';
-import PassagesCorrectionPrototype from '../components/prototype-correction-passages/PassagesCorrectionPrototype.vue';
 import { emissionsService, episodeService, avisService } from '../services/api';
 import { marked } from 'marked';
 
@@ -348,7 +344,6 @@ export default {
     Navigation,
     EpisodeDropdown,
     AvisTable,
-    PassagesCorrectionPrototype,
   },
 
   setup() {
@@ -909,7 +904,6 @@ export default {
     });
 
     return {
-      prototypeActif: !import.meta.env.PROD,
       emissions,
       emissionsLoading,
       emissionsError,

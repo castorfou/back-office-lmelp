@@ -1,5 +1,5 @@
 <template>
-  <!-- Variante C : lire la transcription horodatée et poser les bornes sur un Segment -->
+  <!-- PROTOTYPE JETABLE (#398) : lire la transcription horodatée et poser les bornes sur un Segment -->
   <div class="vc">
     <aside>
       <div v-for="p in liste" :key="p.id" :class="['carte', p.origine, { arme: arme && arme.id === p.id }]"
@@ -45,20 +45,21 @@ const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#f4511e', '#00897b', '#6d4c41
 const TRANSITION = /\bon (commence|encha[iî]ne|continue|termine|poursuit|passe|finit)\b|\bapr[eè]s (ce|cette)\b|\b[A-Z][a-zé]+ \?$/i;
 
 export default {
-  name: 'VariantTranscription',
+  name: 'TranscriptionPassages',
   data: () => ({ arme: null }),
   computed: {
-    segments: () => s.segments,
+    segments: () => s.etat.ep.segments,
     liste() { return s.visibles(); },
-    supprimes() { return s.passages.filter((p) => p.supprime); },
-    livresSansPassage() { return s.livresSansPassage; },
+    supprimes() { return s.etat.ep.passages.filter((p) => p.supprime); },
+    livresSansPassage() { return s.etat.ep.livresSansPassage; },
     courant() {
       const t = s.lecteur.t;
-      return s.segments.findIndex((sg) => t >= sg[0] && t < sg[1]);
+      return this.segments.findIndex((sg) => t >= sg[0] && t < sg[1]);
     },
     // index du segment qui contient chaque borne
     idx() {
-      const at = (t) => { const i = s.segments.findIndex((sg) => sg[1] > t); return i < 0 ? s.segments.length - 1 : i; };
+      const sg = this.segments;
+      const at = (t) => { const i = sg.findIndex((x) => x[1] > t); return i < 0 ? sg.length - 1 : i; };
       return Object.fromEntries(this.liste.map((p) => [p.id, { d: at(p.debut), f: at(p.fin - 0.01) }]));
     },
   },
@@ -70,7 +71,7 @@ export default {
   },
   methods: {
     ...s,
-    couleur(p) { return PALETTE[Number(String(p.livre_oid).replace(/\D/g, '') || 9) % PALETTE.length]; },
+    couleur(p) { const i = s.etat.ep.passages.indexOf(p); return PALETTE[(i < 0 ? 0 : i) % PALETTE.length]; },
     debutsA(i) { return this.liste.filter((p) => this.idx[p.id]?.d === i); },
     finsA(i) { return this.liste.filter((p) => this.idx[p.id]?.f === i); },
     bandes(sg) {
@@ -85,12 +86,12 @@ export default {
       if (!this.arme) return s.jouer(sg[0]);
       const a = this.arme;
       this.arme = null;
-      if (a.livre) return s.placer(a.livre.livre_oid, Math.floor(sg[0]), Math.floor(sg[0]) + 60);
+      if (a.livre) return s.placer(a.livre, Math.floor(sg[0]), Math.floor(sg[0]) + 60);
       if (a.borne === 'debut') s.setDebut(a.id, Math.floor(sg[0]));
       else s.setFin(a.id, Math.ceil(sg[1]));
     },
     aller(t) {
-      const i = s.segments.findIndex((sg) => sg[1] > t);
+      const i = this.segments.findIndex((sg) => sg[1] > t);
       this.$refs['s' + i]?.[0]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     },
   },
@@ -98,7 +99,7 @@ export default {
 </script>
 
 <style scoped>
-.vc { display: flex; gap: 1rem; height: 70vh; }
+.vc { display: flex; gap: 1rem; height: calc(100vh - 260px); min-height: 400px; }
 aside { width: 300px; flex: none; overflow-y: auto; }
 .carte { border-left: 5px solid; padding: .35rem .5rem; margin-bottom: .4rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }

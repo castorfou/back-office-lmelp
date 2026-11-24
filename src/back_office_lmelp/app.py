@@ -441,6 +441,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# PROTOTYPE JETABLE (#398) : page « Correction des passages », jamais fusionné
+from .prototype_correction_passages import router as _proto_passages  # noqa: E402
+
+
+app.include_router(_proto_passages)
+
 # Initialize migration service (Issue #124)
 babelio_migration_service = BabelioMigrationService(
     mongodb_service=mongodb_service,

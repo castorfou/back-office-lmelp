@@ -105,6 +105,16 @@ export default {
           case 'no_avis':
             prefix = '⚪ ';  // Pas d'avis extraits
             break;
+          // PROTOTYPE (#398) : page Correction des passages
+          case 'passages_valides':
+            prefix = '🟢 ';
+            break;
+          case 'segments_dispo':
+            prefix = '🟠 ';
+            break;
+          case 'segments_absents':
+            prefix = '🔴 ';
+            break;
           default:
             prefix = '';
         }
