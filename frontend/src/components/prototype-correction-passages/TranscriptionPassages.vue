@@ -6,7 +6,7 @@
         :style="{ borderLeftColor: couleur(p) }">
         <div class="t" @click="aller(p.debut)">{{ p.titre }}</div>
         <div class="b">{{ fmt(p.debut) }}–{{ fmt(p.fin) }} · {{ fmt(p.fin - p.debut) }}
-          <span :class="['badge', p.origine]">{{ p.origine }}</span></div>
+          <span :class="['badge', p.origine]">{{ p.origine === 'auto' ? 'repéré auto' : 'corrigé' }}</span></div>
         <div class="act">
           <button :class="{ on: estArme(p, 'debut') }" @click="armer(p, 'debut')">⇤ poser le début</button>
           <button :class="{ on: estArme(p, 'fin') }" @click="armer(p, 'fin')">⇥ poser la fin</button>
@@ -99,12 +99,12 @@ export default {
 </script>
 
 <style scoped>
-.vc { display: flex; gap: 1rem; height: calc(100vh - 260px); min-height: 400px; }
+.vc { display: flex; gap: 1rem; min-height: 0; }
 aside { width: 300px; flex: none; overflow-y: auto; }
-.carte { border-left: 5px solid; padding: .35rem .5rem; margin-bottom: .4rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
+.carte { border-left: 5px solid; padding: .25rem .5rem; margin-bottom: .3rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }
 .carte .t { font-weight: 600; cursor: pointer; } .carte .b { color: #555; font-family: monospace; font-size: .75rem; }
-.act button, .manque button { font-size: .7rem; margin: .15rem .1rem 0 0; cursor: pointer; }
+.act button, .manque button { font-size: .7rem; margin: .1rem .1rem 0 0; cursor: pointer; padding: 0 .25rem; }
 .act button.on { background: #000; color: #fff; }
 .manque { font-size: .8rem; margin: .4rem 0; }
 .texte { flex: 1; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: .5rem 1rem; font-size: .88rem; line-height: 1.45; }

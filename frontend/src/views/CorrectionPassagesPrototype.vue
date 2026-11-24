@@ -7,8 +7,6 @@
   <div class="correction-passages">
     <Navigation pageTitle="Correction des passages" />
     <main>
-      <div class="bandeau">PROTOTYPE · rien n'est enregistré (rechargement = remise à zéro)</div>
-
       <section class="selecteur card">
         <div v-if="chargement">Chargement des émissions…</div>
         <div v-else class="form-group">
@@ -16,6 +14,7 @@
             Choisir une émission ({{ emissions.length }} :
             🟢 {{ compte.passages_valides }} validées / 🟠 {{ compte.segments_dispo }} à corriger /
             🔴 {{ compte.segments_absents }} sans Segments)
+            <span class="bandeau">PROTOTYPE · rien n'est enregistré (rechargement = remise à zéro)</span>
           </label>
           <div class="ligne-selecteur">
             <button class="nav-episode-btn" :disabled="index <= 0" @click="decaler(-1)">◀️ Précédent</button>
@@ -34,8 +33,8 @@
           <div class="barre">
             <div class="lecture">
               <button @click="basculerLecture">{{ lecteur.enLecture ? '⏸' : '▶' }}</button>
-              <button @click="avancer(-10)">−10 s</button>
-              <button @click="avancer(10)">+10 s</button>
+              <button v-for="d in [-60, -30, -10]" :key="d" @click="avancer(d)">{{ d }} s</button>
+              <button v-for="d in [10, 30, 60]" :key="d" @click="avancer(d)">+{{ d }} s</button>
               <span class="pos">{{ fmt(lecteur.t) }} / {{ fmt(lecteur.duree) }}
                 <span v-if="lecteur.arret != null"> · arrêt à {{ fmt(lecteur.arret) }}</span></span>
             </div>
@@ -126,21 +125,27 @@ export default {
 </script>
 
 <style scoped>
-main { max-width: 1400px; margin: 0 auto; padding: 1rem; }
-.card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1rem; margin-bottom: 1rem; }
+.correction-passages :deep(.navigation) { margin-bottom: 0; }
+.correction-passages { position: fixed; inset: 0; z-index: 10; background: #f5f6fa; display: flex; flex-direction: column; overflow: hidden; }
+main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; padding: .6rem 1rem;
+  display: flex; flex-direction: column; box-sizing: border-box; }
+.selecteur { flex: none; padding: .6rem 1rem; }
+.corps { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-bottom: 0; }
+.corps > :deep(.vc) { flex: 1; min-height: 0; height: auto; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1rem; margin-bottom: .6rem; }
 .bandeau { background: repeating-linear-gradient(45deg, #ffeb3b 0 12px, #fff59d 12px 24px);
-  font: 600 12px monospace; padding: .25rem .6rem; border-radius: 4px; margin-bottom: .8rem; }
+  font: 600 11px monospace; padding: .1rem .5rem; border-radius: 4px; margin-left: 1rem; }
 .ligne-selecteur { display: flex; gap: .5rem; align-items: center; }
 .ligne-selecteur :deep(select) { flex: 1; }
 .form-label { display: block; margin-bottom: .4rem; font-weight: 600; }
 .nav-episode-btn { white-space: nowrap; cursor: pointer; }
 .barre { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem;
-  padding-bottom: .6rem; margin-bottom: .6rem; border-bottom: 1px solid #eee; }
+  padding-bottom: .6rem; margin-bottom: .6rem; border-bottom: 1px solid #eee; flex: none; }
 .lecture button, .actions button { cursor: pointer; margin-right: .3rem; }
 .lecture button:first-child { font-size: 1.1rem; width: 2.4rem; }
 .pos { font-family: monospace; margin-left: .4rem; }
 .resume { color: #666; font-size: .85rem; margin-right: .6rem; }
 .valider { font-weight: 600; } .valider.fait { background: #e8f5e9; }
 .vide { padding: 2rem; text-align: center; color: #555; }
-.journal { margin-top: .8rem; font-size: .8rem; }
+.journal { flex: none; margin-top: .5rem; font-size: .8rem; max-height: 25vh; overflow-y: auto; }
 </style>
