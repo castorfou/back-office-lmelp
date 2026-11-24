@@ -1,5 +1,6 @@
 <template>
   <!-- PROTOTYPE JETABLE (#398) : lire la transcription horodatée et poser les bornes sur un Segment -->
+  <div class="edition">
   <div class="vc">
     <aside>
       <div v-for="p in liste" :key="p.id" :class="['carte', p.origine, { arme: arme && arme.id === p.id }]"
@@ -42,16 +43,19 @@
       </template>
     </div>
   </div>
+  <FriseApercu class="apercu" @aller="aller" />
+  </div>
 </template>
 
 <script>
 import * as s from './store.js';
+import FriseApercu from './FriseApercu.vue';
 
-const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#f4511e', '#00897b', '#6d4c41', '#c0ca33', '#d81b60', '#3949ab', '#fb8c00'];
 const TRANSITION = /\bon (commence|encha[iî]ne|continue|termine|poursuit|passe|finit)\b|\bapr[eè]s (ce|cette)\b|\b[A-Z][a-zé]+ \?$/i;
 
 export default {
   name: 'TranscriptionPassages',
+  components: { FriseApercu },
   data: () => ({ arme: null, ECOUTE_S: 15 }),
   computed: {
     segments: () => s.etat.ep.segments,
@@ -80,7 +84,6 @@ export default {
   },
   methods: {
     ...s,
-    couleur(p) { const i = s.etat.ep.passages.indexOf(p); return PALETTE[(i < 0 ? 0 : i) % PALETTE.length]; },
     debutsA(i) { return this.liste.filter((p) => this.idx[p.id]?.d === i); },
     finsA(i) { return this.liste.filter((p) => this.idx[p.id]?.f === i); },
     bandes(sg, i) {
@@ -117,7 +120,10 @@ export default {
 </script>
 
 <style scoped>
-.vc { display: flex; gap: 1rem; min-height: 0; }
+/* 4/5 édition, 1/5 aperçu */
+.edition { display: flex; flex-direction: column; gap: .6rem; min-height: 0; }
+.vc { flex: 4; display: flex; gap: 1rem; min-height: 0; }
+.apercu { flex: 1; min-height: 70px; }
 aside { width: 300px; flex: none; overflow-y: auto; }
 .carte { border-left: 5px solid; padding: .25rem .5rem; margin-bottom: .3rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }

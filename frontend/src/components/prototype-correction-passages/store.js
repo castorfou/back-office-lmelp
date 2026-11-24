@@ -36,6 +36,12 @@ export const fmt = (s) => {
   return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
 };
 
+const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#f4511e', '#00897b', '#6d4c41', '#c0ca33', '#d81b60', '#3949ab', '#fb8c00'];
+export const couleur = (p) => {
+  const i = etat.ep ? etat.ep.passages.indexOf(p) : 0;
+  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+};
+
 export const visibles = () =>
   (etat.ep?.passages || []).filter((p) => !p.supprime).sort((a, b) => a.debut - b.debut);
 

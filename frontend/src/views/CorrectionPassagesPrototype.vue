@@ -33,8 +33,8 @@
           <div class="barre">
             <div class="lecture">
               <button class="btn btn-primary btn-sm lire" @click="basculerLecture">{{ lecteur.enLecture ? '⏸ Pause' : '▶ Lire' }}</button>
-              <button v-for="d in [-60, -30, -10]" :key="d" class="btn btn-secondary btn-sm" @click="avancer(d)">{{ d }} s</button>
-              <button v-for="d in [10, 30, 60]" :key="d" class="btn btn-secondary btn-sm" @click="avancer(d)">+{{ d }} s</button>
+              <button v-for="d in [-60, -30, -10]" :key="d" :class="['btn', 'btn-sm', 'saut', 'recul', `i${Math.abs(d)}`]" @click="avancer(d)">{{ d }} s</button>
+              <button v-for="d in [10, 30, 60]" :key="d" :class="['btn', 'btn-sm', 'saut', 'avance', `i${d}`]" @click="avancer(d)">+{{ d }} s</button>
               <span class="pos">{{ fmt(lecteur.t) }} / {{ fmt(lecteur.duree) }}
                 <span v-if="lecteur.arret != null"> · arrêt à {{ fmt(lecteur.arret) }}</span></span>
             </div>
@@ -130,7 +130,7 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
   display: flex; flex-direction: column; box-sizing: border-box; }
 .selecteur { flex: none; padding: .6rem 1rem; }
 .corps { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-bottom: 0; }
-.corps > :deep(.vc) { flex: 1; min-height: 0; height: auto; }
+.corps > :deep(.edition) { flex: 1; min-height: 0; }
 .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 1rem; margin-bottom: .6rem; }
 .bandeau { background: repeating-linear-gradient(45deg, #ffeb3b 0 12px, #fff59d 12px 24px);
   font: 600 11px monospace; padding: .1rem .5rem; border-radius: 4px; margin-left: 1rem; }
@@ -153,6 +153,13 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
   padding-bottom: .6rem; margin-bottom: .6rem; border-bottom: 1px solid #eee; flex: none; }
 .lecture .btn, .actions .btn { margin-right: .3rem; }
 .lecture .lire { min-width: 5.5rem; }
+/* sauts : fond blanc, rouge pour reculer, vert pour avancer, plus marqué quand le saut est grand */
+.saut { background: #fff; border: 1px solid; min-width: 3.6rem; }
+.recul.i10 { color: #e57373; border-color: #f1b0b7; } .recul.i30 { color: #d32f2f; border-color: #e57373; }
+.recul.i60 { color: #a71d2a; border-color: #a71d2a; border-width: 2px; }
+.avance.i10 { color: #66bb6a; border-color: #a5d6a7; } .avance.i30 { color: #2e7d32; border-color: #66bb6a; }
+.avance.i60 { color: #1b5e20; border-color: #1b5e20; border-width: 2px; }
+.recul:hover { background: #fdecea; } .avance:hover { background: #e8f5e9; }
 .pos { font-family: monospace; margin-left: .4rem; }
 .resume { color: #666; font-size: .85rem; margin-right: .6rem; }
 .vide { padding: 2rem; text-align: center; color: #555; }
