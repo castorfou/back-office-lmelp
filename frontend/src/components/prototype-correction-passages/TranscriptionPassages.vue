@@ -17,10 +17,10 @@
         </div>
         <div class="act">
           <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.debut)} à ${fmt(p.debut + ECOUTE_S)}`"
-            @click="jouer(p.debut, p.debut + ECOUTE_S)">▶ début</button>
+            @click="ecouter(p, p.debut, p.debut + ECOUTE_S)">▶ début</button>
           <button class="btn btn-secondary btn-sm" :title="`Écouter de ${fmt(p.fin - ECOUTE_S)} à ${fmt(p.fin)}`"
-            @click="jouer(p.fin - ECOUTE_S, p.fin)">▶ fin</button>
-          <button class="btn btn-secondary btn-sm" title="Écouter tout le Passage" @click="jouer(p.debut, p.fin)">▶ tout</button>
+            @click="ecouter(p, p.fin - ECOUTE_S, p.fin)">▶ fin</button>
+          <button class="btn btn-secondary btn-sm" title="Écouter tout le Passage" @click="ecouter(p, p.debut, p.fin)">▶ tout</button>
         </div>
       </div>
       <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
@@ -79,9 +79,15 @@ export default {
     },
   },
   watch: {
+    // Suivi de lecture : ne bouge le texte que si la ligne en cours sort de la zone visible,
+    // et la remet alors en haut (pas de recentrage permanent).
     courant(i) {
       const el = this.$refs['s' + i]?.[0];
-      if (el && s.lecteur.enLecture) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const cont = this.$refs.texte;
+      if (!el || !cont || !s.lecteur.enLecture) return;
+      const r = el.getBoundingClientRect();
+      const c = cont.getBoundingClientRect();
+      if (r.top < c.top || r.bottom > c.bottom) this.defiler(cont, el, 8);
     },
   },
   methods: {
@@ -128,14 +134,28 @@ export default {
     cibler(p) {
       s.etat.choisi = p.id;
       this.$nextTick(() => {
-        // deux scrollIntoView doux simultanés s'interrompent : on fait défiler chaque conteneur
-        const defiler = (cont, el, marge) => {
-          if (!cont || !el) return;
-          const top = cont.scrollTop + el.getBoundingClientRect().top - cont.getBoundingClientRect().top - marge;
-          cont.scrollTo({ top, behavior: 'smooth' });
-        };
-        defiler(this.$refs.cartes, this.$refs.cartes?.querySelector(`[data-carte="${p.id}"]`), 8);
-        defiler(this.$refs.texte, this.$refs.texte?.querySelector(`[data-borne="debut-${p.id}"]`), 8);
+        this.defiler(this.$refs.cartes, this.$refs.cartes?.querySelector(`[data-carte="${p.id}"]`), 8);
+        this.defiler(this.$refs.texte, this.$refs.texte?.querySelector(`[data-borne="debut-${p.id}"]`), 8);
+      });
+    },
+    // deux scrollIntoView doux simultanés s'interrompent : on fait défiler chaque conteneur
+    defiler(cont, el, marge) {
+      if (!cont || !el) return;
+      const top = cont.scrollTop + el.getBoundingClientRect().top - cont.getBoundingClientRect().top - marge;
+      cont.scrollTo({ top, behavior: 'smooth' });
+    },
+    // Boutons de lecture d'une carte : le texte part du haut, au bandeau du livre si la
+    // lecture commence à son début, sinon au Segment où elle commence.
+    ecouter(p, de, jusqua) {
+      s.jouer(de, jusqua);
+      this.$nextTick(() => {
+        const t = this.$refs.texte;
+        let el = de === p.debut ? t?.querySelector(`[data-borne="debut-${p.id}"]`) : null;
+        if (!el) {
+          const i = this.segments.findIndex((sg) => sg[1] > de);
+          el = this.$refs['s' + i]?.[0];
+        }
+        this.defiler(t, el, 8);
       });
     },
     aller(t) {
