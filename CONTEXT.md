@@ -102,6 +102,24 @@ Un extrait de quelques minutes d'une émission, consacré à un seul livre, publ
 sur radiofrance.fr ; ce n'est jamais un épisode.
 _Avoid_: clip, extrait audio
 
+**Passage**:
+La portion de l'audio d'une émission, repérée par lmelp, où les critiques parlent d'un
+livre, débat compris ; un livre a un passage par émission qui le discute. Contrairement à
+la séquence, il est tiré de l'audio de lmelp, pas publié par radiofrance.fr.
+_Avoid_: extrait, clip, séquence (comme synonyme)
+
+**Segment**:
+Un morceau de la transcription d'un épisode, de quelques secondes, avec son instant de
+début et de fin dans l'audio ; mis bout à bout, les segments d'un épisode redonnent sa
+transcription. Le repérage des passages s'appuie sur eux.
+_Avoid_: horodatage, timestamp, séquence
+
+**Clé d'écoute**:
+Le secret partagé par le petit cercle des auditeurs, sans lequel l'audio des émissions
+n'est pas écoutable depuis internet ; lmelp la remet sous forme de QR code, et la changer
+oblige chacun à la reprendre.
+_Avoid_: token, mot de passe, jeton
+
 ### Babelio
 
 **Validation Babelio**:
