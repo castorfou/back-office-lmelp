@@ -32,15 +32,15 @@
         <template v-else>
           <div class="barre">
             <div class="lecture">
-              <button @click="basculerLecture">{{ lecteur.enLecture ? '⏸' : '▶' }}</button>
-              <button v-for="d in [-60, -30, -10]" :key="d" @click="avancer(d)">{{ d }} s</button>
-              <button v-for="d in [10, 30, 60]" :key="d" @click="avancer(d)">+{{ d }} s</button>
+              <button class="btn btn-primary btn-sm lire" @click="basculerLecture">{{ lecteur.enLecture ? '⏸ Pause' : '▶ Lire' }}</button>
+              <button v-for="d in [-60, -30, -10]" :key="d" class="btn btn-secondary btn-sm" @click="avancer(d)">{{ d }} s</button>
+              <button v-for="d in [10, 30, 60]" :key="d" class="btn btn-secondary btn-sm" @click="avancer(d)">+{{ d }} s</button>
               <span class="pos">{{ fmt(lecteur.t) }} / {{ fmt(lecteur.duree) }}
                 <span v-if="lecteur.arret != null"> · arrêt à {{ fmt(lecteur.arret) }}</span></span>
             </div>
             <div class="actions">
               <span class="resume">{{ nbPassages }} Passages · {{ etat.ep.livresSansPassage.length }} livre(s) sans Passage</span>
-              <button :class="['valider', { fait: valide }]" @click="basculerValidation">
+              <button :class="['btn', 'btn-sm', valide ? 'btn-secondary' : 'btn-primary']" @click="basculerValidation">
                 {{ valide ? '🟢 Passages validés (annuler)' : '✅ Valider les Passages' }}</button>
             </div>
           </div>
@@ -137,14 +137,24 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
 .ligne-selecteur { display: flex; gap: .5rem; align-items: center; }
 .ligne-selecteur :deep(select) { flex: 1; }
 .form-label { display: block; margin-bottom: .4rem; font-weight: 600; }
-.nav-episode-btn { white-space: nowrap; cursor: pointer; }
+/* repris de Emissions.vue */
+.nav-episode-btn { padding: .5rem 1rem; background: #0066cc; color: white; border: none; border-radius: 4px;
+  cursor: pointer; font-size: .9rem; white-space: nowrap; transition: background-color .2s; }
+.nav-episode-btn:hover:not(:disabled) { background: #0052a3; }
+.nav-episode-btn:disabled { background: #ccc; cursor: not-allowed; opacity: .6; }
+/* Boutons : .btn/.btn-primary globaux (style.css), variantes reprises de BabelioControl.vue */
+.btn-secondary { background: #6c757d; color: white; }
+.btn-secondary:hover:not(:disabled) { background: #545b62; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover:not(:disabled) { background: #a71d2a; }
+.btn-sm { padding: .3rem .6rem; font-size: .8rem; font-weight: 500; }
+
 .barre { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem;
   padding-bottom: .6rem; margin-bottom: .6rem; border-bottom: 1px solid #eee; flex: none; }
-.lecture button, .actions button { cursor: pointer; margin-right: .3rem; }
-.lecture button:first-child { font-size: 1.1rem; width: 2.4rem; }
+.lecture .btn, .actions .btn { margin-right: .3rem; }
+.lecture .lire { min-width: 5.5rem; }
 .pos { font-family: monospace; margin-left: .4rem; }
 .resume { color: #666; font-size: .85rem; margin-right: .6rem; }
-.valider { font-weight: 600; } .valider.fait { background: #e8f5e9; }
 .vide { padding: 2rem; text-align: center; color: #555; }
 .journal { flex: none; margin-top: .5rem; font-size: .8rem; max-height: 25vh; overflow-y: auto; }
 </style>

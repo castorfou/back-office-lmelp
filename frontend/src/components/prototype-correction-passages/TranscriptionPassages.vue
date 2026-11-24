@@ -8,17 +8,17 @@
         <div class="b">{{ fmt(p.debut) }}–{{ fmt(p.fin) }} · {{ fmt(p.fin - p.debut) }}
           <span :class="['badge', p.origine]">{{ p.origine === 'auto' ? 'repéré auto' : 'corrigé' }}</span></div>
         <div class="act">
-          <button :class="{ on: estArme(p, 'debut') }" @click="armer(p, 'debut')">⇤ poser le début</button>
-          <button :class="{ on: estArme(p, 'fin') }" @click="armer(p, 'fin')">⇥ poser la fin</button>
-          <button @click="jouer(p.debut, p.fin)">▶</button>
-          <button class="danger" @click="supprimer(p.id)">🗑</button>
+          <button :class="['btn', 'btn-sm', estArme(p, 'debut') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'debut')">⇤ Début</button>
+          <button :class="['btn', 'btn-sm', estArme(p, 'fin') ? 'btn-primary' : 'btn-secondary']" @click="armer(p, 'fin')">⇥ Fin</button>
+          <button class="btn btn-secondary btn-sm" title="Écouter le Passage" @click="jouer(p.debut, p.fin)">▶</button>
+          <button class="btn btn-danger btn-sm" title="Ce n'est pas un Passage" @click="supprimer(p.id)">Supprimer</button>
         </div>
       </div>
       <div class="manque" v-for="l in livresSansPassage" :key="l.livre_oid">
         ⚠️ sans Passage : {{ l.titre }}
-        <button @click="placerArme(l)">⇤ poser son début</button>
+        <button class="btn btn-secondary btn-sm" @click="placerArme(l)">⇤ Poser son début</button>
       </div>
-      <div class="manque" v-for="p in supprimes" :key="p.id">🗑 {{ p.titre }} <button @click="restaurer(p.id)">↩</button></div>
+      <div class="manque" v-for="p in supprimes" :key="p.id">🗑 {{ p.titre }} <button class="btn btn-secondary btn-sm" @click="restaurer(p.id)">Restaurer</button></div>
     </aside>
 
     <div class="texte" ref="texte">
@@ -104,8 +104,14 @@ aside { width: 300px; flex: none; overflow-y: auto; }
 .carte { border-left: 5px solid; padding: .25rem .5rem; margin-bottom: .3rem; background: #fafafa; border-radius: 3px; font-size: .82rem; }
 .carte.corrige { background: #fff8e1; } .carte.arme { outline: 2px dashed #000; }
 .carte .t { font-weight: 600; cursor: pointer; } .carte .b { color: #555; font-family: monospace; font-size: .75rem; }
-.act button, .manque button { font-size: .7rem; margin: .1rem .1rem 0 0; cursor: pointer; padding: 0 .25rem; }
-.act button.on { background: #000; color: #fff; }
+.act { display: flex; gap: .25rem; margin-top: .25rem; } .manque .btn { margin-left: .3rem; }
+/* Boutons : .btn/.btn-primary globaux (style.css), variantes reprises de BabelioControl.vue */
+.btn-secondary { background: #6c757d; color: white; }
+.btn-secondary:hover:not(:disabled) { background: #545b62; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover:not(:disabled) { background: #a71d2a; }
+.btn-sm { padding: .3rem .6rem; font-size: .8rem; font-weight: 500; }
+
 .manque { font-size: .8rem; margin: .4rem 0; }
 .texte { flex: 1; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: .5rem 1rem; font-size: .88rem; line-height: 1.45; }
 .seg { padding: 1px 0 1px 18px; cursor: pointer; }
