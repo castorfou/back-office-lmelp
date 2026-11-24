@@ -1,15 +1,15 @@
 <template>
-  <!-- PROTOTYPE JETABLE (#398) : vue d'ensemble des Passages, en lecture seule (frise de la variante B) -->
+  <!-- PROTOTYPE JETABLE (#398) : vue d'ensemble des Passages, sert de menu pour cibler un Passage (rien n'y est modifiable) -->
   <div class="frise">
     <div class="graduations">
       <span v-for="m in minutes" :key="m" :style="{ left: pct(m * 60) }">{{ m }}′</span>
     </div>
     <div class="piste">
       <div class="tete" :style="{ left: pct(lecteur.t) }"></div>
-      <div v-for="(p, i) in liste" :key="p.id" :class="['bloc', p.origine]"
+      <div v-for="(p, i) in liste" :key="p.id" :class="['bloc', p.origine, { choisi: choisi === p.id, autre: choisi && choisi !== p.id }]"
         :style="{ left: pct(p.debut), width: pct(p.fin - p.debut), top: (i % 2) * 50 + '%', background: couleur(p) }"
         :title="`${p.titre} · ${fmt(p.debut)}–${fmt(p.fin)} · ${p.origine === 'auto' ? 'repéré auto' : 'corrigé'}`"
-        @click="$emit('aller', p.debut)">
+        @click="$emit('cibler', p)">
         <span>{{ p.titre }}</span>
       </div>
     </div>
@@ -21,9 +21,10 @@ import * as s from './store.js';
 
 export default {
   name: 'FriseApercu',
-  emits: ['aller'],
+  emits: ['cibler'],
   computed: {
     lecteur: () => s.lecteur,
+    choisi: () => s.etat.choisi,
     liste() { return s.visibles(); },
     duree() {
       const sg = s.etat.ep?.segments || [];
@@ -50,4 +51,6 @@ export default {
 .bloc.corrige { border: 2px solid #212121; opacity: 1; }
 .bloc span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
 .bloc:hover { opacity: 1; }
+.bloc.autre { opacity: .45; }
+.bloc.choisi { opacity: 1; outline: 3px solid #212121; outline-offset: -1px; z-index: 2; font-weight: 600; }
 </style>

@@ -12,7 +12,7 @@ const RECOUVREMENT_S = 10;
 
 // episode_id -> { passages, initial, livresSansPassage, segments, journal }
 const parEpisode = {};
-export const etat = reactive({ ep: null, valides: new Set() });
+export const etat = reactive({ ep: null, valides: new Set(), choisi: null });
 
 export function charger(data) {
   if (!parEpisode[data.episode_id]) {
@@ -26,6 +26,7 @@ export function charger(data) {
     });
   }
   etat.ep = parEpisode[data.episode_id];
+  etat.choisi = null;
 }
 
 const log = (msg) => etat.ep.journal.unshift(`${new Date().toLocaleTimeString()} — ${msg}`);
