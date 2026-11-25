@@ -156,13 +156,16 @@ db.livres.count({
 4. Compter les épisodes avec au moins 1 critique manquant
 
 ### 11. Épisodes sans émission
-**Valeur:** Épisodes avec avis critique mais sans émission créée
-**Collections:** `avis_critiques`, `emissions`, `episodes`
+**Valeur:** Épisodes déjà passés dans Livres et Auteurs mais sans émission créée
+**Collections:** `livresauteurs_cache`, `emissions`, `episodes`
 **Formule:**
 ```
-COUNT(DISTINCT avis_critiques.episode_oid WHERE episode.masked ≠ true)
-- COUNT(DISTINCT emissions.episode_id)
+COUNT(DISTINCT livresauteurs_cache.episode_oid WHERE episode.masked ≠ true
+      AND episode_oid ∉ emissions.episode_id)
 ```
+Un épisode compte dès qu'il a des entrées dans le cache, quel que soit le statut
+Babelio de ses livres. Un épisode pas encore traité dans Livres et Auteurs n'apparaît
+que dans « Épisodes non traités » : les deux compteurs ne se recouvrent pas.
 
 ---
 

@@ -510,7 +510,7 @@ export default {
         auteursSansLienBabelio: `Auteurs sans URL Babelio et non marqués "not_found"\nCollection: auteurs\nFiltres: url_babelio IS NULL AND babelio_not_found ≠ true`,
         livresSansCouverture: `Livres avec URL Babelio mais sans couverture enregistrée\nCollection: livres\nFiltres: url_babelio IS NOT NULL AND url_cover IS NULL`,
         critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
-        episodesSansEmission: `Épisodes avec avis critique mais sans émission créée\nCollections: avis_critiques, emissions, episodes\nFormule: COUNT(avis non masqués) - COUNT(emissions)`,
+        episodesSansEmission: `Épisodes passés dans Livres et Auteurs mais sans émission créée\nCollections: livresauteurs_cache, emissions, episodes\nFormule: COUNT(épisodes du cache non masqués) - COUNT(emissions)`,
         doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`,
         avisOrphelins: `Avis dont le livre associé a été supprimé (fusion de doublons)\nCollection: avis\nRequête: avis dont livre_oid ne correspond à aucun livres._id`
       },
