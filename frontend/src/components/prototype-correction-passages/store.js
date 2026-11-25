@@ -14,7 +14,7 @@ import { reactive } from 'vue';
 
 // episode_id -> { passages, initial, livresSansPassage, segments, journal }
 const parEpisode = {};
-export const etat = reactive({ ep: null, valides: new Set(), choisi: null, glisse: null });
+export const etat = reactive({ ep: null, valides: new Set(), choisi: null, glisse: null, retour: null });
 
 // Retire le recouvrement du repérage : la fin d'un Passage s'arrête au début du suivant.
 const sansRecouvrement = (liste) => {
@@ -32,6 +32,8 @@ export function charger(data) {
       passages: sansRecouvrement(JSON.parse(JSON.stringify(data.passages))),
       livresSansPassage: [...data.livres_sans_passage],
       simulation: data.simulation || null,
+      // la liste « À placer » reste affichée pour une émission qui avait des livres à placer
+      avaitAPlacer: data.livres_sans_passage.length > 0,
       journal: [],
     });
   }
@@ -141,8 +143,7 @@ export const trous = () => {
 // - sur un trou, depuis la frise (t absent) : le livre prend tout le trou, en tête ;
 // - sur un trou, depuis le texte (t = début de la phrase) : le livre commence à cette phrase,
 //   ce qui précède reste un trou ;
-// - sur un Passage placé à la main, depuis le texte : ce Passage s'arrête à la phrase et le
-//   livre prend la suite (partage d'un trou entre plusieurs livres).
+// Puis un clic sur le livre placé : tout / première partie / dernière partie (occuper()).
 const creer = (livre, debut, fin) => {
   const l = etat.ep.livresSansPassage;
   l.splice(l.indexOf(livre), 1);
@@ -157,8 +158,9 @@ const creer = (livre, debut, fin) => {
 export function deposer(livre, trou, t = null) {
   if (!etat.ep.livresSansPassage.includes(livre)) return;
   const debut = t == null ? trou.debut : t;
-  creer(livre, debut, trou.fin);
+  const p = creer(livre, debut, trou.fin);
   log(`« ${livre.titre} » déposé dans le trou ${fmt(trou.debut)}–${fmt(trou.fin)} : ${fmt(debut)}–${fmt(trou.fin)}`);
+  return p;
 }
 
 // Milieu d'un trou, calé sur le début de la phrase la plus proche.
@@ -175,23 +177,35 @@ const milieu = (trou) => {
   return best;
 };
 
-// Dépôt sur la frise : 'tete' = première moitié (un autre livre reste à placer après),
-// 'tout' = tout le trou, 'fin' = seconde moitié (un autre livre reste à placer avant).
-export function deposerSurFrise(livre, trou, zone) {
-  if (!etat.ep.livresSansPassage.includes(livre)) return;
-  const m = milieu(trou);
-  const [debut, fin] = zone === 'tete' ? [trou.debut, m] : zone === 'fin' ? [m, trou.fin] : [trou.debut, trou.fin];
-  creer(livre, debut, fin);
-  const reste = zone === 'tete' ? ' ; reste un trou après' : zone === 'fin' ? ' ; reste un trou avant' : '';
-  log(`« ${livre.titre} » déposé ${zone === 'tete' ? 'en tête du' : zone === 'fin' ? 'en fin du' : 'dans tout le'} trou : ${fmt(debut)}–${fmt(fin)}${reste}`);
+// Espace libre autour d'un Passage placé à la main : de la fin du Passage précédent au début
+// du suivant (lui-même et les trous qui le bordent).
+const espaceLibre = (p) => {
+  const autres = visibles().filter((x) => x.id !== p.id);
+  const prev = autres.filter((x) => x.debut < p.debut).pop();
+  const next = autres.find((x) => x.debut >= p.debut);
+  return { debut: Math.min(prev ? prev.fin : p.debut, p.debut), fin: Math.max(next ? next.debut : p.fin, p.fin) };
+};
+
+// Deuxième clic sur un livre placé : 'tout' = tout l'espace libre ; 'tete' = coupé en deux,
+// le livre en première partie ; 'fin' = coupé en deux, le livre en dernière partie.
+export function occuper(p, mode) {
+  const z = espaceLibre(p);
+  const m = milieu(z);
+  [p.debut, p.fin] = mode === 'tete' ? [z.debut, m] : mode === 'fin' ? [m, z.fin] : [z.debut, z.fin];
+  const quoi = mode === 'tete' ? 'première partie' : mode === 'fin' ? 'dernière partie' : 'tout le trou';
+  log(`« ${p.titre} » : ${quoi}, ${fmt(p.debut)}–${fmt(p.fin)}`);
+  devalider();
 }
 
-export function deposerDansPassage(livre, passage, t) {
-  if (!etat.ep.livresSansPassage.includes(livre) || t <= passage.debut + 0.01 || t >= passage.fin) return;
-  const fin = passage.fin;
-  passage.fin = t;
-  creer(livre, t, fin);
-  log(`« ${livre.titre} » déposé dans « ${passage.titre} » : ${fmt(t)}–${fmt(fin)} ; « ${passage.titre} » s'arrête à ${fmt(t)}`);
+// Reprendre un livre placé à la main et le remettre dans « À placer » (son trou réapparaît).
+export function remettre(p) {
+  if (!p.place_main) return;
+  const ps = etat.ep.passages;
+  ps.splice(ps.indexOf(p), 1);
+  etat.ep.livresSansPassage.push({ titre: p.titre, auteur: p.auteur });
+  if (etat.choisi === p.id) etat.choisi = null;
+  log(`« ${p.titre} » remis à placer`);
+  devalider();
 }
 
 export function basculerValidation() {

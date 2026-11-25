@@ -3,13 +3,17 @@
   <div class="edition">
   <div class="haut">
     <FriseApercu class="apercu" @cibler="cibler" @ecouter-trou="ecouterTrou" />
-    <div v-if="livresSansPassage.length" class="a-placer">
-      <div class="a-placer-titre" title="Glisser sur un trou ▨ : sur la frise, le livre prend tout le trou ; dans le texte, il commence à la phrase choisie">⚠️ À placer ({{ livresSansPassage.length }}) · glisser sur un trou ▨</div>
+    <div v-if="avaitAPlacer || livresSansPassage.length" :class="['a-placer', { retour: !!retour, survol: survolRetour }]"
+      @dragover="surRetour($event)" @dragleave="survolRetour = false" @drop="deposerRetour($event)">
+      <div class="a-placer-titre" title="Glisser un livre sur un trou ▨ de la frise : il prend tout le trou ; cliquer ensuite sur le livre placé pour choisir tout le trou, la première ou la dernière partie">
+        ⚠️ À placer ({{ livresSansPassage.length }}) · glisser sur un trou ▨</div>
       <div v-for="l in livresSansPassage" :key="l.titre" class="puce" draggable="true"
-        :title="`Glisser « ${l.titre} » sur un trou de la frise, ou sur la phrase où il commence dans le texte`"
+        :title="`Glisser « ${l.titre} » sur un trou de la frise`"
         @dragstart="glisser(l, $event)" @dragend="finGlisser">
         <span class="poignee">⠿</span> {{ l.titre }} <small>{{ l.auteur }}</small>
       </div>
+      <div v-if="!livresSansPassage.length" class="tous-places">✓ Tous les livres sont placés</div>
+      <div v-if="retour" class="retour-aide">↩ Déposer ici pour remettre « {{ retour.titre }} » à placer</div>
     </div>
   </div>
   <div class="vc">
@@ -79,11 +83,13 @@ const TRANSITION = /\bon (commence|encha[iî]ne|continue|termine|poursuit|passe|
 export default {
   name: 'TranscriptionPassages',
   components: { FriseApercu },
-  data: () => ({ arme: null, ECOUTE_S: 15, survol: null }),
+  data: () => ({ arme: null, ECOUTE_S: 15, survol: null, survolRetour: false }),
   computed: {
     segments: () => s.etat.ep.segments,
     choisi: () => s.etat.choisi,
     glisse: () => s.etat.glisse,
+    retour: () => s.etat.retour,
+    avaitAPlacer: () => !!s.etat.ep?.avaitAPlacer,
     // trous de l'émission et Segments qu'ils couvrent
     idxTrous() {
       const sg = this.segments;
@@ -157,13 +163,22 @@ export default {
       ev.dataTransfer.setData('text/plain', l.titre);
     },
     finGlisser() { s.etat.glisse = null; this.survol = null; },
-    // phrase où l'on peut déposer : dans un trou, ou dans un Passage placé à la main
-    // (sauf sa première phrase, qui est déjà son début)
+    // reprendre un livre placé : glissé depuis la frise vers « À placer »
+    surRetour(ev) {
+      if (!s.etat.retour) return;
+      ev.preventDefault();
+      this.survolRetour = true;
+    },
+    deposerRetour(ev) {
+      ev.preventDefault();
+      if (s.etat.retour) s.remettre(s.etat.retour);
+      s.etat.retour = null;
+      this.survolRetour = false;
+    },
+    // phrase où l'on peut déposer : dans un trou
     zoneDe(i) {
       const t = this.trouDe(i);
-      if (t) return { trou: t };
-      const p = this.liste.find((x) => x.place_main && this.idx[x.id] && this.idx[x.id].d < i && i <= this.idx[x.id].f);
-      return p ? { passage: p } : null;
+      return t ? { trou: t } : null;
     },
     surSurvol(i, ev) {
       if (!s.etat.glisse || !this.zoneDe(i)) return;
@@ -176,7 +191,6 @@ export default {
       const z = this.zoneDe(i);
       const l = s.etat.glisse;
       if (l && z?.trou) s.deposer(l, z.trou, i === z.trou.d ? null : this.segments[i][0]);
-      else if (l && z?.passage) s.deposerDansPassage(l, z.passage, this.segments[i][0]);
       this.finGlisser();
     },
     ecouterTrou(t) {
@@ -265,6 +279,9 @@ aside { width: 345px; flex: none; overflow-y: auto; }
 
 .manque { font-size: .8rem; margin: .4rem 0; }
 .a-placer { border: 1px dashed #f0ad4e; background: #fff8e6; border-radius: 4px; padding: .3rem .4rem; box-sizing: border-box; }
+.a-placer.retour { border: 2px dashed #8a5a00; } .a-placer.survol { background: #ffe0a3; }
+.tous-places { font-size: .8rem; color: #2e7d32; padding: .2rem 0; }
+.retour-aide { font-size: .75rem; color: #8a5a00; font-weight: 600; padding: .2rem 0; }
 .a-placer-titre { font-size: .72rem; color: #8a5a00; margin-bottom: .1rem; cursor: help; }
 .puce { background: #fff; border: 1px solid #f0ad4e; border-radius: 4px; padding: .1rem .4rem; margin: .15rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-size: .82rem; font-weight: 600; cursor: grab; }
