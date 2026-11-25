@@ -149,9 +149,7 @@ class AvisExtractionService:
 
             # Parser la ligne du tableau
             if line.strip().startswith("|"):
-                columns = [col.strip() for col in line.split("|")]
-                # Enlever les colonnes vides au début et à la fin
-                columns = [c for c in columns if c]
+                columns = self._split_table_row(line)
 
                 if len(columns) >= 4:
                     auteur = columns[0]
@@ -209,9 +207,7 @@ class AvisExtractionService:
 
             # Parser la ligne du tableau
             if line.strip().startswith("|"):
-                columns = [col.strip() for col in line.split("|")]
-                # Enlever les colonnes vides au début et à la fin
-                columns = [c for c in columns if c]
+                columns = self._split_table_row(line)
 
                 # Format Section 2: Auteur | Titre | Éditeur | Critique | Note | Commentaire
                 if len(columns) >= 6:
@@ -221,6 +217,11 @@ class AvisExtractionService:
                     critique = columns[3]
                     note_cell = columns[4]
                     commentaire = columns[5]
+
+                    # Pas de critique nommé (cellule vide, ou remarque du LLM
+                    # entre parenthèses) : la ligne ne donne pas d'avis.
+                    if not critique or critique.startswith("("):
+                        continue
 
                     # Nettoyer les guillemets du commentaire (Issue #185)
                     commentaire = commentaire.strip('"')
@@ -242,6 +243,48 @@ class AvisExtractionService:
                     )
 
         return avis_list
+
+    def find_merged_book_rows(self, summary: str) -> list[str]:
+        """Titres de lignes qui regroupent deux livres (« Titre A / Titre B »).
+
+        Une telle ligne ne donne qu'un avis, rattaché à un seul des deux livres.
+        Plusieurs auteurs sur une ligne ne suffisent pas : c'est le plus souvent
+        un livre co-écrit (correspondance, BD scénariste et dessinateur).
+
+        Returns:
+            Titres concernés, sections 1 puis 2, dans l'ordre du résumé
+        """
+        if not summary:
+            return []
+
+        merged = []
+        for section in re.findall(
+            r"##\s*[12]\..*?\n(.*?)(?=##\s*\d\.|$)", summary, re.DOTALL
+        ):
+            for line in section.split("\n"):
+                row = line.strip()
+                if not row.startswith("|") or row.startswith("|-"):
+                    continue
+                columns = self._split_table_row(row)
+                if len(columns) < 2 or columns[1] == "Titre":
+                    continue
+                if " / " in columns[1]:
+                    merged.append(columns[1])
+        return merged
+
+    @staticmethod
+    def _split_table_row(line: str) -> list[str]:
+        """Découpe une ligne de tableau markdown en cellules, par position.
+
+        Seules les barres des bords sont retirées : une cellule vide (éditeur,
+        note ou commentaire absent) garde sa place, sinon les colonnes suivantes
+        glissent d'un cran et la ligne est mal lue ou ignorée.
+        """
+        row = line.strip()
+        # Une seule barre par bord : strip("|") avalerait aussi les cellules
+        # vides finales (« |Critique||| » perdrait Note et Commentaire).
+        row = row.removeprefix("|").removesuffix("|")
+        return [cell.strip() for cell in row.split("|")]
 
     def _parse_note_from_text(self, text: str) -> int | None:
         """
