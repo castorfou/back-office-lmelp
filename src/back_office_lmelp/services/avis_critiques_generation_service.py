@@ -359,6 +359,12 @@ Un livre qui apparaît déjà dans le Tableau 1 (programme) ne doit JAMAIS appar
 Si un critique donne un livre du programme comme coup de cœur, son avis est DÉJÀ capturé dans le Tableau 1 — NE PAS le dupliquer ici.
 Exemple: Si "Lettres à Véra" est discuté au programme (Tableau 1) → NE PAS le remettre en coup de cœur (Tableau 2), même si un critique le recommande.
 
+⚠️ RÈGLE UN LIVRE = UNE LIGNE (aussi pour les coups de cœur):
+Un critique recommande souvent DEUX livres d'un coup, même liés entre eux (un essai sur un auteur et un livre de cet auteur, deux livres du même auteur, deux tomes).
+Chaque livre DOIT avoir sa propre ligne, avec son auteur, et le même critique sur chaque ligne.
+JAMAIS deux titres dans la même cellule: "Titre 1 / Titre 2" et "Titre 1 & Titre 2" sont INTERDITS.
+Un seul livre écrit à plusieurs (correspondance, BD scénariste et dessinateur) reste UNE ligne, avec ses auteurs ensemble.
+
 INCLUT TOUS TYPES D'OUVRAGES : romans, essais, BD, guides, biographies, etc.
 
 Format de tableau pour ces recommandations personnelles:
@@ -756,6 +762,11 @@ COMMENCE DIRECTEMENT PAR "## 1. LIVRES DISCUTÉS AU PROGRAMME" et termine par le
             summary_phase1, metadata, page_content
         )
         logger.info("✅ Phase 2 terminée")
+
+        # Deux livres sur une ligne : un seul recevrait l'avis. On prévient
+        # sans bloquer, la ligne se corrige avant de valider les livres.
+        for titre in AvisExtractionService().find_merged_book_rows(summary_phase2):
+            warnings.append(f"Deux livres probables sur la même ligne : « {titre} »")
 
         # Detect corrections (simple diff)
         corrections_applied = self._detect_corrections(summary_phase1, summary_phase2)

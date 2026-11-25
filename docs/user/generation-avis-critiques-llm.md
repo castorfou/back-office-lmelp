@@ -147,6 +147,19 @@ Le système affiche **uniquement le résumé final** (Phase 2 corrigée) :
 
 **Contenu** : Liste des warnings retournés par l'API
 
+#### Deux livres sur la même ligne
+
+**Message** : « Deux livres probables sur la même ligne : « Titre A / Titre B » »
+
+**Quand** : Une ligne d'un des deux tableaux a un titre qui contient ` / `. Le LLM a
+regroupé deux livres, le plus souvent deux coups de cœur d'un même critique. Plusieurs
+auteurs sur une ligne ne déclenchent rien : c'est en général un seul livre co-écrit.
+
+**Conséquence** : la ligne ne donne qu'un avis, rattaché à un seul des deux livres ; la
+page Émission signale alors l'autre comme « en base mais absent de l'avis critique ».
+
+**Action** : Régénérer. L'enregistrement n'est pas bloqué.
+
 ## Validation du résumé
 
 Le système applique 5 critères de validation automatique :
