@@ -74,7 +74,8 @@ dev = [
     "mkdocs-awesome-nav",
     "pymdown-extensions",
     "mkdocs-rtd-dropdown",
-    "nbdev>=2.4.6"
+    "nbdev>=2.4.6",
+    "mongomock>=4.3.0",
 ]
 
 [project.urls]
