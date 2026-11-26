@@ -576,6 +576,11 @@ class DuplicateBooksService:
         primary_auteur = auteurs[0]
         duplicates = auteurs[1:]
 
+        # Nom introuvable sur Babelio (page sans titre, erreur de lecture) :
+        # garder le nom de l'auteur primaire plutôt que d'écrire nom: None
+        if not official_nom:
+            official_nom = primary_auteur.get("nom")
+
         # Étape 3: Fusionner livres (union)
         all_livres = []
         for auteur in auteurs:

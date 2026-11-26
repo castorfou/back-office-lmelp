@@ -244,6 +244,8 @@ class TestApplyRefresh:
         # Mock update methods
         mock_mongodb.update_livre_from_refresh = MagicMock(return_value=True)
         mock_mongodb.update_auteur_name_and_url = MagicMock(return_value=True)
+        # Aucun autre auteur ne porte cette URL Babelio (Issue #406)
+        mock_mongodb.auteurs_collection.find_one.return_value = None
 
         response = client.post(
             f"/api/livres/{livre_id}/apply-refresh",
