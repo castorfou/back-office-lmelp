@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -2072,6 +2073,53 @@ class MongoDBService:
             )
             # Ne pas raise pour ne pas bloquer la création du livre
 
+    def _reuse_existing_book(
+        self,
+        existing_book: dict[str, Any],
+        book_data: dict[str, Any],
+        editeur_oid: ObjectId | None,
+        author_id: ObjectId,
+    ) -> ObjectId:
+        """Rattache les épisodes/avis de book_data à un livre déjà en base.
+
+        Le titre du livre existant n'est pas modifié : chaque appelant décide
+        ensuite s'il le remplace par le titre Babelio validé.
+        """
+        assert self.livres_collection is not None
+        book_id = ObjectId(existing_book["_id"])
+
+        # Préparer les mises à jour
+        update_ops: dict[str, Any] = {}
+
+        # Issue #189: Migrer editeur string → editeur_id
+        if editeur_oid and not existing_book.get("editeur_id"):
+            update_ops["$set"] = {
+                "editeur_id": editeur_oid,
+                "updated_at": datetime.now(),
+            }
+            update_ops["$unset"] = {"editeur": ""}
+
+        # Issue #96 Bug Fix: Ajouter les nouveaux épisodes/avis_critiques avec $addToSet
+        # $addToSet évite les doublons automatiquement
+        addtoset_ops: dict[str, Any] = {}
+
+        for field in ("episodes", "avis_critiques"):
+            for item_id in book_data.get(field) or []:
+                if item_id:  # Vérifier que l'ID n'est pas vide
+                    addtoset_ops.setdefault(field, {"$each": []})
+                    addtoset_ops[field]["$each"].append(item_id)
+
+        if addtoset_ops:
+            update_ops["$addToSet"] = addtoset_ops
+
+        # Appliquer les mises à jour si nécessaire
+        if update_ops:
+            self.livres_collection.update_one({"_id": book_id}, update_ops)
+
+        # S'assurer que l'auteur a la référence au livre existant
+        self._add_book_to_author(author_id, book_id)
+        return book_id
+
     def create_book_if_not_exists(self, book_data: dict[str, Any]) -> ObjectId:
         """Crée un livre s'il n'existe pas déjà."""
         if self.livres_collection is None:
@@ -2085,6 +2133,29 @@ class MongoDBService:
             editeur_oid = None
             if editeur_name and editeur_name.strip():
                 editeur_oid, _ = self.get_or_create_editeur(editeur_name)
+
+            # Même URL Babelio = même livre, quel que soit le titre : Babelio
+            # renvoie parfois un titre plus complet que celui en base
+            # (« … : Lettres à Pierre Boncenne »), et l'auteur passé peut être
+            # un doublon créé par son nom. Comparaison insensible à la casse,
+            # comme la détection des doublons.
+            url_babelio = book_data.get("url_babelio")
+            if url_babelio:
+                same_url_book = self.livres_collection.find_one(
+                    {
+                        "url_babelio": {
+                            "$regex": f"^{re.escape(url_babelio)}$",
+                            "$options": "i",
+                        }
+                    }
+                )
+                if same_url_book is not None:
+                    return self._reuse_existing_book(
+                        same_url_book,
+                        book_data,
+                        editeur_oid,
+                        author_id=same_url_book["auteur_id"],
+                    )
 
             # Vérifier si le livre existe déjà (même titre + même auteur).
             # Comparaison insensible casse/accents/apostrophes (Issue #267) :
@@ -2104,47 +2175,12 @@ class MongoDBService:
                     existing_book = candidate
                     break
             if existing_book:
-                book_id = ObjectId(existing_book["_id"])
-
-                # Préparer les mises à jour
-                update_ops: dict[str, Any] = {}
-
-                # Issue #189: Migrer editeur string → editeur_id
-                if editeur_oid and not existing_book.get("editeur_id"):
-                    update_ops["$set"] = {
-                        "editeur_id": editeur_oid,
-                        "updated_at": datetime.now(),
-                    }
-                    update_ops["$unset"] = {"editeur": ""}
-
-                # Issue #96 Bug Fix: Ajouter les nouveaux épisodes/avis_critiques avec $addToSet
-                # $addToSet évite les doublons automatiquement
-                addtoset_ops: dict[str, Any] = {}
-
-                if book_data.get("episodes"):
-                    # Ajouter chaque épisode individuellement pour éviter les doublons
-                    for episode_id in book_data["episodes"]:
-                        if episode_id:  # Vérifier que l'ID n'est pas vide
-                            addtoset_ops.setdefault("episodes", {"$each": []})
-                            addtoset_ops["episodes"]["$each"].append(episode_id)
-
-                if book_data.get("avis_critiques"):
-                    # Ajouter chaque avis_critique individuellement pour éviter les doublons
-                    for avis_id in book_data["avis_critiques"]:
-                        if avis_id:  # Vérifier que l'ID n'est pas vide
-                            addtoset_ops.setdefault("avis_critiques", {"$each": []})
-                            addtoset_ops["avis_critiques"]["$each"].append(avis_id)
-
-                if addtoset_ops:
-                    update_ops["$addToSet"] = addtoset_ops
-
-                # Appliquer les mises à jour si nécessaire
-                if update_ops:
-                    self.livres_collection.update_one({"_id": book_id}, update_ops)
-
-                # S'assurer que l'auteur a la référence au livre existant
-                self._add_book_to_author(book_data["auteur_id"], book_id)
-                return book_id
+                return self._reuse_existing_book(
+                    existing_book,
+                    book_data,
+                    editeur_oid,
+                    author_id=book_data["auteur_id"],
+                )
 
             # Issue #189: Préparer book_data avec editeur_id pour l'insertion
             insert_data = dict(book_data)
