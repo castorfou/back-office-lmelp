@@ -143,6 +143,8 @@ Un encadré rouge s'affiche avec le message d'erreur :
 
 Un auteur est créé par son nom, avant que son URL Babelio soit connue : deux noms différents (une faute de transcription comme « Patrick J. Rogers », et « Patrick Roegiers ») peuvent désigner la même fiche Babelio. Quand la validation d'un livre ou le bouton **↻ Ré-extraire** d'une fiche livre trouve une URL d'auteur déjà portée par un autre auteur, les deux auteurs sont fusionnés aussitôt, comme depuis cette page : l'auteur le plus ancien est conservé, avec le nom officiel Babelio et tous les livres.
 
+De même pour les livres : quand la validation d'un livre reçoit de Babelio une URL déjà portée par un livre en base, ce livre est réutilisé (l'émission lui est rattachée) au lieu d'en créer un second, même si Babelio renvoie un titre plus complet que celui en base (« Quand vous viendrez me voir aux Antipodes : Lettres à Pierre Boncenne » pour « Quand vous viendrez me voir aux antipodes »).
+
 ## Fusion par Lot (Batch)
 
 Pour fusionner plusieurs groupes automatiquement :
