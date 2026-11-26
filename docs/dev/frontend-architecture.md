@@ -48,7 +48,7 @@ Composant d'édition d'épisodes (inchangé).
 
 #### BabelioCookiePanel (`src/components/BabelioCookiePanel.vue`)
 
-Panneau **🔑 Cookie Babelio**, partagé par Livres et Auteurs (page et modales), Liaison Babelio des livres et Contrôle Babelio. Le serveur est la seule source du cookie : le panneau lit `status` (réponse de `GET /api/babelio/status`, chargée par la page) et ne garde aucun cookie dans le navigateur.
+Panneau **🔑 Cookie Babelio**, partagé par Livres et Auteurs (page et modales), Liaison Babelio des livres, Contrôle Babelio, Gestion des doublons, la fiche livre et Recherche Babelio. Le serveur est la seule source du cookie : le panneau lit `status` (réponse de `GET /api/babelio/status`, chargée par la page) et ne garde aucun cookie dans le navigateur.
 
 | Interface | Rôle |
 |---|---|
@@ -59,6 +59,21 @@ Panneau **🔑 Cookie Babelio**, partagé par Livres et Auteurs (page et modales
 | événement `cookie-state` | `'missing'`, `'expired'` ou `'active'`, émis au montage et à chaque changement, compte à rebours compris |
 | événement `cookie-remaining` | Temps restant d'un cookie actif (`'~3 min'`, `'< 1 min'`) ou `null`, émis au montage et à chaque changement |
 | emplacement `actions` | Boutons de la page hôte, alignés à droite sur la ligne du badge |
+
+#### babelioCookieGuardMixin (`src/utils/babelioCookieGuard.js`)
+
+Mixin des pages qui lisent Babelio à la demande hors Livres et Auteurs : Gestion des doublons (`DuplicateBooks.vue`), fiche livre (`LivreDetail.vue`, « Ré-extraire »), Recherche Babelio (`BabelioTest.vue`).
+
+| Interface | Rôle |
+|---|---|
+| `babelioServiceStatus` | Réponse de `GET /api/babelio/status`, à passer en `status` au panneau |
+| `babelioCookieState` | Mis à jour par `@cookie-state` du panneau |
+| `babelioCookieActive` | Calculé : désactive les actions Babelio tant qu'il est faux |
+| `loadBabelioServiceStatus()` | Charge le statut ; appelé par la page dans son `mounted`, après ses propres données, et après un échec |
+| `probeBabelio()` | `POST /api/babelio/probe` avant l'appel ; `false` seulement si Babelio est injoignable |
+| `BABELIO_UNREACHABLE` | Message affiché quand la sonde échoue |
+
+Le mixin n'a pas de `mounted` : celui d'un mixin s'exécute avant celui de la page, et le contenu de la page doit se charger d'abord.
 
 **Seule source de l'état du cookie** : une page qui doit griser une action Babelio écoute `cookie-state` au lieu de refaire le calcul de l'expiration. Livres et Auteurs grise ainsi **Valider avec Babelio** et **🔄 Relancer la validation** (`babelioCookieUsable`), et leurs méthodes ne font rien sans cookie actif. Pendant **Valider avec Babelio**, la boucle relit `babelioCookieUsable` avant chaque livre : un cookie expiré met la validation en pause (`pauseBabelioValidation()`), que l'événement `saved` reprend une fois le cookie actif. Le serveur signale aussi l'expiration par `reason: "cookie_expired"` dans les résultats `blocked_403` de `verify_book`/`verify_author`, que `BiblioValidationService` remonte dans `data.reason`.
 

@@ -151,7 +151,9 @@ db.livres.count({
 **Collections:** `episodes`, `avis_critiques`, `critiques`
 **Logique:**
 1. Pour chaque épisode avec avis critique non masqué
-2. Extraire les noms de critiques depuis le summary
+2. Extraire les noms de critiques depuis le summary. Une cellule Critique entre parenthèses
+   (remarque du LLM, ex. « (Déjà dans le programme principal, ne pas dupliquer) ») n'est pas
+   un nom de critique et n'est pas comptée
 3. Vérifier existence dans collection `critiques`
 4. Compter les épisodes avec au moins 1 critique manquant
 
