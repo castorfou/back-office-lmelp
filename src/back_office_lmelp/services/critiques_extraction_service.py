@@ -3,6 +3,7 @@
 import re
 from typing import Any
 
+from back_office_lmelp.services.avis_extraction_service import AvisExtractionService
 from back_office_lmelp.utils.text_utils import normalize_for_matching
 
 
@@ -57,18 +58,21 @@ class CritiquesExtractionService:
 
             for line in lines:
                 if line.strip().startswith("|"):
-                    columns = [col.strip() for col in line.split("|")]
+                    # Même découpage par position que l'extraction des avis
+                    columns = AvisExtractionService._split_table_row(line)
 
-                    # Vérifier qu'on a au moins 5 colonnes (pour atteindre la colonne Critique)
-                    # Structure: colonne 0 vide, puis Auteur, Titre, Éditeur, Critique, Note, Commentaire
-                    if len(columns) >= 5:
-                        critique_name = columns[4].strip()
+                    # Structure: Auteur, Titre, Éditeur, Critique, Note, Commentaire
+                    if len(columns) >= 4:
+                        critique_name = columns[3]
 
-                        # Filtrer les headers et les séparateurs
+                        # Filtrer les headers, les séparateurs et les remarques
+                        # du LLM entre parenthèses (« (Déjà dans le programme
+                        # principal…) »), que l'extraction des avis ignore aussi
                         if (
                             critique_name
                             and " " in critique_name  # Au moins prénom + nom
                             and not critique_name.startswith("-")  # Pas un séparateur
+                            and not critique_name.startswith("(")  # Remarque du LLM
                             and critique_name.lower() != "critique"  # Pas le header
                             and critique_name not in seen
                         ):
