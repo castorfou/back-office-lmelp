@@ -3,6 +3,17 @@
     <!-- Navigation -->
     <Navigation pageTitle="Détail du livre" />
 
+    <!-- Cookie Babelio : « Ré-extraire » lit la page du livre sur Babelio -->
+    <section class="babelio-cookie-section">
+      <BabelioCookiePanel
+        :status="babelioServiceStatus"
+        @saved="loadBabelioServiceStatus"
+        @cookie-state="babelioCookieState = $event"
+      >
+        « Ré-extraire » relit le titre, l'éditeur et l'auteur sur Babelio.
+      </BabelioCookiePanel>
+    </section>
+
     <!-- État de chargement -->
     <div v-if="loading" class="loading-state" data-test="loading">
       <div class="loading-spinner"></div>
@@ -51,8 +62,8 @@
                   v-if="livre.url_babelio"
                   @click="refreshFromBabelio"
                   class="btn-refresh-babelio"
-                  :disabled="refreshLoading"
-                  :title="refreshLoading ? 'Chargement...' : 'Ré-extraire depuis Babelio'"
+                  :disabled="refreshLoading || !babelioCookieActive"
+                  :title="refreshLoading ? 'Chargement...' : (babelioCookieActive ? 'Ré-extraire depuis Babelio' : 'Collez un cookie Babelio frais pour ré-extraire')"
                   data-test="refresh-babelio-btn"
                 >
                   <span :class="{ 'spinning': refreshLoading }">&#x21BB;</span> Ré-extraire
@@ -292,12 +303,16 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
+import { babelioCookieGuardMixin, BABELIO_UNREACHABLE } from '../utils/babelioCookieGuard.js';
 
 export default {
   name: 'LivreDetail',
   components: {
-    Navigation
+    Navigation,
+    BabelioCookiePanel
   },
+  mixins: [babelioCookieGuardMixin],
   data() {
     return {
       livre: null,
@@ -367,6 +382,8 @@ export default {
       this.loadAnnasArchiveUrl(),
       this.loadAvis()
     ]);
+    // Cookie Babelio ensuite : le contenu du livre d'abord
+    this.loadBabelioServiceStatus();
   },
   beforeUnmount() {
     if (this.toastTimer) {
@@ -497,6 +514,13 @@ export default {
     async refreshFromBabelio() {
       this.refreshLoading = true;
 
+      if (!(await this.probeBabelio())) {
+        this.showToast('error', BABELIO_UNREACHABLE);
+        this.refreshLoading = false;
+        await this.loadBabelioServiceStatus();
+        return;
+      }
+
       try {
         const livreId = this.$route.params.id;
         // Le cookie Babelio est celui du serveur, jamais celui du navigateur
@@ -522,6 +546,8 @@ export default {
       } catch (err) {
         const message = err.response?.data?.detail || 'Erreur lors du rafraîchissement';
         this.showToast('error', message);
+        // Le panneau cookie affiche la cause (403 cookie, captcha, ban)
+        await this.loadBabelioServiceStatus();
       } finally {
         this.refreshLoading = false;
       }
@@ -544,6 +570,13 @@ export default {
 .livre-detail-page {
   min-height: 100vh;
   background-color: #f5f5f5;
+}
+
+/* Cookie Babelio */
+.babelio-cookie-section {
+  max-width: 1200px;
+  margin: 1rem auto 0;
+  padding: 0 1rem;
 }
 
 /* États loading et error */

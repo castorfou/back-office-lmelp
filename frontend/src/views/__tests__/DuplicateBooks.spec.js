@@ -79,7 +79,8 @@ describe('DuplicateBooks.vue', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
     await wrapper.vm.$nextTick();
 
-    expect(axios.get).toHaveBeenCalledTimes(4);
+    // 4 endpoints doublons + /api/babelio/status (panneau cookie, Issue #406)
+    expect(axios.get).toHaveBeenCalledTimes(5);
     expect(wrapper.vm.statistics).toEqual(mockStatistics);
     expect(wrapper.vm.duplicateGroups).toEqual(mockDuplicateGroups);
   });

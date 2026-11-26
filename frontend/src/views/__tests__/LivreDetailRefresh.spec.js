@@ -104,6 +104,9 @@ describe('LivreDetail - Refresh Babelio (Issue #189)', () => {
     await wrapper.vm.$nextTick();
     await new Promise((resolve) => setTimeout(resolve, 50));
 
+    // Sonde Babelio avant la ré-extraction (Issue #406)
+    axios.post.mockResolvedValueOnce({ data: { reachable: true } });
+
     // Mock preview: changes detected
     axios.post.mockResolvedValueOnce({
       data: {
@@ -127,8 +130,8 @@ describe('LivreDetail - Refresh Babelio (Issue #189)', () => {
     expect(wrapper.vm.showRefreshModal).toBe(false);
     expect(wrapper.vm.toast).not.toBeNull();
     expect(wrapper.vm.toast.type).toBe('success');
-    // apply-refresh was called automatically
-    expect(axios.post).toHaveBeenCalledTimes(2);
+    // probe + refresh + apply-refresh appelé automatiquement
+    expect(axios.post).toHaveBeenCalledTimes(3);
     expect(axios.post).toHaveBeenLastCalledWith(
       expect.stringContaining('/apply-refresh'),
       expect.objectContaining({ editeur: 'P.O.L' })
@@ -140,6 +143,9 @@ describe('LivreDetail - Refresh Babelio (Issue #189)', () => {
     const wrapper = mountWithLivre();
     await wrapper.vm.$nextTick();
     await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Sonde Babelio avant la ré-extraction (Issue #406)
+    axios.post.mockResolvedValueOnce({ data: { reachable: true } });
 
     axios.post.mockResolvedValueOnce({
       data: {
@@ -157,7 +163,7 @@ describe('LivreDetail - Refresh Babelio (Issue #189)', () => {
     // Toast info, no apply called
     expect(wrapper.vm.toast).not.toBeNull();
     expect(wrapper.vm.toast.type).toBe('info');
-    expect(axios.post).toHaveBeenCalledTimes(1); // Only preview, no apply
+    expect(axios.post).toHaveBeenCalledTimes(2); // probe + preview, no apply
   });
 
   it('should show error toast on refresh failure', async () => {

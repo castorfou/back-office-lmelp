@@ -1914,8 +1914,41 @@ async def _enrich_livre_from_babelio_page(
                 author_id, url_babelio=author_url
             )
             logger.info(f"👤 URL auteur mise à jour: {author_url}")
+            await _merge_if_author_url_taken(author_id, author_url)
     except Exception as e:
         logger.warning(f"URL auteur non récupérée pour {babelio_url}: {e}")
+
+
+async def _merge_if_author_url_taken(author_id: str, url_babelio: str) -> None:
+    """Fusionne l'auteur avec celui qui porte déjà son URL Babelio.
+
+    Appelé juste après avoir posé l'URL d'un auteur. Un auteur est créé par son
+    nom, avant que son URL Babelio soit connue : si un autre auteur porte déjà
+    cette URL (comparaison insensible à la casse, comme la détection des
+    doublons), c'est le même auteur sous un autre nom. La fusion des doublons
+    garde le plus ancien, lui donne le nom officiel Babelio et y rattache les
+    livres.
+    """
+    if mongodb_service.auteurs_collection is None:
+        return
+    existing = mongodb_service.auteurs_collection.find_one(
+        {
+            "_id": {"$ne": ObjectId(author_id)},
+            "url_babelio": {"$regex": f"^{re.escape(url_babelio)}$", "$options": "i"},
+        },
+        {"_id": 1},
+    )
+    if existing is None:
+        return
+
+    result = await duplicate_books_service.merge_duplicate_authors(
+        url_babelio=url_babelio,
+        auteur_ids=[str(existing["_id"]), author_id],
+    )
+    logger.info(
+        f"👥 Auteur {author_id} fusionné avec {existing['_id']} "
+        f"(même URL Babelio {url_babelio}) : {result.get('logs')}"
+    )
 
 
 @app.post("/api/set-validation-results", response_model=dict[str, Any])
@@ -2836,6 +2869,8 @@ async def apply_livre_refresh(
             nom=request.auteur_nom,
             url_babelio=request.auteur_url_babelio,
         )
+        if request.auteur_url_babelio:
+            await _merge_if_author_url_taken(auteur_id_str, request.auteur_url_babelio)
 
     return {
         "status": "success",

@@ -4,6 +4,20 @@
     <Navigation pageTitle="Gestion des Doublons" />
 
     <main>
+      <!-- Cookie Babelio : la fusion lit le nom officiel sur Babelio -->
+      <section class="babelio-cookie-section">
+        <BabelioCookiePanel
+          :status="babelioServiceStatus"
+          @saved="loadBabelioServiceStatus"
+          @cookie-state="babelioCookieState = $event"
+        >
+          La fusion lit le nom officiel de l'auteur ou du livre sur Babelio.
+        </BabelioCookiePanel>
+        <p v-if="!babelioCookieActive" class="cookie-required">
+          Collez un cookie Babelio frais pour fusionner : sans lui, Babelio répond 403.
+        </p>
+      </section>
+
       <!-- Statistics Card -->
       <section v-if="statistics || authorsStatistics" class="card statistics-card">
         <h2>Statistiques</h2>
@@ -49,7 +63,7 @@
       <div v-if="!loading && !error && (duplicateAuthors.length > 0 || duplicateGroups.length > 0)" class="global-batch-container">
         <button
           class="btn btn-primary btn-large"
-          :disabled="isGlobalBatchRunning"
+          :disabled="isGlobalBatchRunning || !babelioCookieActive"
           @click="startGlobalBatchMerge"
         >
           {{ isGlobalBatchRunning ? globalBatchStatus : 'Tout fusionner (auteurs puis livres)' }}
@@ -98,7 +112,7 @@
               <div class="group-actions">
                 <button
                   class="btn btn-merge"
-                  :disabled="processingAuthorGroup === group.url_babelio"
+                  :disabled="processingAuthorGroup === group.url_babelio || !babelioCookieActive"
                   @click="mergeAuthorGroup(group)"
                 >
                   {{ processingAuthorGroup === group.url_babelio ? 'Fusion...' : 'Fusionner' }}
@@ -173,7 +187,7 @@
                 </label>
                 <button
                   class="btn btn-merge"
-                  :disabled="processingGroup === group.url_babelio"
+                  :disabled="processingGroup === group.url_babelio || !babelioCookieActive"
                   @click="mergeGroup(group)"
                 >
                   {{ processingGroup === group.url_babelio ? 'Fusion...' : 'Fusionner' }}
@@ -221,13 +235,18 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
+import { babelioCookieGuardMixin, BABELIO_UNREACHABLE } from '../utils/babelioCookieGuard.js';
 
 export default {
   name: 'DuplicateBooks',
 
   components: {
-    Navigation
+    Navigation,
+    BabelioCookiePanel
   },
+
+  mixins: [babelioCookieGuardMixin],
 
   data() {
     return {
@@ -271,9 +290,11 @@ export default {
 
   mounted() {
     this.loadData();
+    this.loadBabelioServiceStatus();
   },
 
   methods: {
+
     async loadData() {
       this.loading = true;
       this.error = null;
@@ -317,6 +338,13 @@ export default {
       this.processingGroup = group.url_babelio;
       this.error = null;
 
+      if (!(await this.probeBabelio())) {
+        this.mergeResults[group.url_babelio] = { success: false, error: BABELIO_UNREACHABLE };
+        this.processingGroup = null;
+        await this.loadBabelioServiceStatus();
+        return false;
+      }
+
       try {
         const response = await axios.post(
           '/api/books/duplicates/merge',
@@ -340,6 +368,7 @@ export default {
           // Reload statistics
           this.loadStatistics();
         }, 2000);
+        return true;
 
       } catch (err) {
         this.mergeResults[group.url_babelio] = {
@@ -347,6 +376,9 @@ export default {
           error: err.response?.data?.detail || err.message
         };
         console.error('Merge error:', err);
+        // Le panneau cookie affiche la cause (403 cookie, captcha, ban)
+        await this.loadBabelioServiceStatus();
+        return false;
       } finally {
         this.processingGroup = null;
       }
@@ -391,6 +423,13 @@ export default {
       this.processingAuthorGroup = group.url_babelio;
       this.error = null;
 
+      if (!(await this.probeBabelio())) {
+        this.authorMergeResults[group.url_babelio] = { success: false, error: BABELIO_UNREACHABLE };
+        this.processingAuthorGroup = null;
+        await this.loadBabelioServiceStatus();
+        return false;
+      }
+
       try {
         const response = await axios.post(
           '/api/authors/duplicates/merge',
@@ -414,6 +453,7 @@ export default {
           // Reload statistics
           this.loadData();
         }, 2000);
+        return true;
 
       } catch (err) {
         this.authorMergeResults[group.url_babelio] = {
@@ -421,6 +461,8 @@ export default {
           error: err.response?.data?.detail || err.message
         };
         console.error('Merge author error:', err);
+        await this.loadBabelioServiceStatus();
+        return false;
       } finally {
         this.processingAuthorGroup = null;
       }
@@ -432,6 +474,7 @@ export default {
       this.isGlobalBatchRunning = true;
       this.globalBatchProgress.current = 0;
       this.globalBatchProgress.total = this.duplicateAuthors.length + this.duplicateGroups.length;
+      let aborted = false;
 
       // Phase 1: Merge all authors first
       if (this.duplicateAuthors.length > 0) {
@@ -441,19 +484,24 @@ export default {
           const group = this.duplicateAuthors[i];
           this.globalBatchStatus = `Fusion des auteurs (${i + 1}/${this.duplicateAuthors.length})...`;
 
-          await this.mergeAuthorGroup(group);
+          const merged = await this.mergeAuthorGroup(group);
           this.globalBatchProgress.current++;
+          // Un échec (403, ban) se répéterait sur les groupes suivants
+          if (!merged) {
+            aborted = true;
+            break;
+          }
 
           // Small delay between merges
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         // Reload data after all authors are merged to get updated book groups
-        await this.loadData();
+        if (!aborted) await this.loadData();
       }
 
       // Phase 2: Merge all books
-      if (this.duplicateGroups.length > 0) {
+      if (!aborted && this.duplicateGroups.length > 0) {
         this.globalBatchStatus = `Fusion des livres (0/${this.duplicateGroups.length})...`;
 
         // Get current snapshot of book groups (after author merges)
@@ -470,8 +518,9 @@ export default {
 
           this.globalBatchStatus = `Fusion des livres (${i + 1}/${bookGroups.length})...`;
 
-          await this.mergeGroup(group);
+          const merged = await this.mergeGroup(group);
           this.globalBatchProgress.current++;
+          if (!merged) break;
 
           // Small delay between merges
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -585,6 +634,16 @@ main {
   background: #f8d7da;
   color: #721c24;
   border: 1px solid #f5c6cb;
+}
+
+/* Cookie Babelio */
+.babelio-cookie-section {
+  margin-bottom: 1.5rem;
+}
+
+.cookie-required {
+  margin: 0.5rem 0 0;
+  color: #856404;
 }
 
 /* Global Batch Container */

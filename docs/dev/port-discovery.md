@@ -224,6 +224,8 @@ function getBackendConfig() {
 
 ## Tests
 
+Un test ne doit jamais toucher au vrai `.dev-ports.json` de la racine du repo : les services lancés par `start-dev.sh` s'en servent pendant que pytest tourne. Le nettoyage de l'app (`signal_handler()`, fin de `main()`) supprime `PortDiscovery.get_unified_port_file_path()`, c'est-à-dire `Path.cwd() / ".dev-ports.json"` ; un test qui l'appelle patche ce chemin vers `tmp_path`. La fixture autouse `_protect_real_dev_ports_file` (`tests/conftest.py`) remet le fichier en place et fait échouer le test qui l'a modifié.
+
 ### Tests backend
 
 ```python

@@ -450,7 +450,7 @@ Un livre validé avec son URL Babelio n'a plus à passer par la page Liaison Bab
     - `addBabelioFields()` envoie l'URL collée si elle est valide (`isValidBabelioUrl`), sinon celle du cache.
     - `babelio_publisher` n'est envoyé que si l'URL envoyée est celle du cache.
 4. **Backend** (`handle_book_validation()`) : `url_babelio` est posée à la création. `update_livre_from_refresh()` la pose aussi sur un livre déjà existant, que `create_book_if_not_exists()` ne modifie pas.
-5. **Enrichissement** (`_enrich_livre_from_babelio_page()` dans `app.py`) : couverture et URL Babelio de l'auteur, comme pour le chemin `verified` de `set-validation-results`.
+5. **Enrichissement** (`_enrich_livre_from_babelio_page()` dans `app.py`) : couverture et URL Babelio de l'auteur, comme pour le chemin `verified` de `set-validation-results`. L'auteur a été créé par son nom (`create_author_if_not_exists`) ; une fois son URL posée, `_merge_if_author_url_taken()` le fusionne avec l'auteur qui porte déjà cette URL, s'il y en a un (comparaison insensible à la casse, fusion par `merge_duplicate_authors()`). `POST /api/livres/{id}/apply-refresh` fait de même.
 
 ---
 

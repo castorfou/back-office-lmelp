@@ -4,6 +4,7 @@ import asyncio
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import ExitStack
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +14,36 @@ from httpx import ASGITransport, AsyncClient
 
 from back_office_lmelp.app import app
 from back_office_lmelp.services.babelio_service import babelio_service
+
+
+# Fichier de découverte des services de dev (start-dev.sh), à la racine du repo
+_REAL_DEV_PORTS_FILE = Path(__file__).resolve().parent.parent / ".dev-ports.json"
+
+
+@pytest.fixture(autouse=True)
+def _protect_real_dev_ports_file():
+    """Aucun test ne doit toucher au vrai .dev-ports.json.
+
+    Les services lancés par start-dev.sh s'en servent pendant que les tests
+    tournent. Le nettoyage de l'app (signal_handler, fin de main) supprime
+    `Path.cwd() / ".dev-ports.json"` : appelé tel quel depuis un test lancé à
+    la racine du repo, il effaçait le fichier des services en cours. Un test
+    qui le modifie est signalé en échec, et le fichier est remis en place.
+    """
+    before = (
+        _REAL_DEV_PORTS_FILE.read_bytes() if _REAL_DEV_PORTS_FILE.exists() else None
+    )
+    yield
+    after = _REAL_DEV_PORTS_FILE.read_bytes() if _REAL_DEV_PORTS_FILE.exists() else None
+    if after != before:
+        if before is None:
+            _REAL_DEV_PORTS_FILE.unlink()
+        else:
+            _REAL_DEV_PORTS_FILE.write_bytes(before)
+        pytest.fail(
+            f"Ce test a modifié {_REAL_DEV_PORTS_FILE} (fichier des services de "
+            "dev en cours) : remis en place. Isoler le chemin avec tmp_path."
+        )
 
 
 @pytest.fixture(autouse=True)
