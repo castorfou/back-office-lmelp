@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { createRouter, createWebHistory } from 'vue-router';
 import BabelioTest from '../../src/views/BabelioTest.vue';
 import axios from 'axios';
@@ -11,6 +11,7 @@ import axios from 'axios';
 // Mock d'axios
 vi.mock('axios', () => ({
   default: {
+    get: vi.fn(),
     post: vi.fn()
   }
 }));
@@ -158,13 +159,17 @@ describe('BabelioTest - Tests d\'intégration', () => {
   });
 
   it('active les boutons quand les champs obligatoires sont remplis', async () => {
+    // Cookie Babelio actif côté serveur (Issue #406) : seuls les champs comptent
+    axios.get.mockResolvedValue({
+      data: { cookie_active: true, cookie_age_sec: 60, cookie_max_age_sec: 1200, cookie_expired: false }
+    });
     wrapper = mount(BabelioTest, {
       global: {
         plugins: [router]
       }
     });
 
-    await wrapper.vm.$nextTick();
+    await flushPromises();
 
     // Remplir le champ auteur
     const authorInput = wrapper.find('#author-name');
