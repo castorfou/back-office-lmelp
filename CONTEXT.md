@@ -120,6 +120,12 @@ n'est pas écoutable depuis internet ; lmelp la remet sous forme de QR code, et 
 oblige chacun à la reprendre.
 _Avoid_: token, mot de passe, jeton
 
+**Signalement**:
+La remontée anonyme d'un auditeur qui juge un passage mal découpé ou mal attribué, avec
+un motif et l'instant d'écoute où il l'a remarqué ; il reste ouvert jusqu'à ce que le
+passage soit corrigé ou que le signalement soit rejeté.
+_Avoid_: ticket, bug, réclamation
+
 ### Babelio
 
 **Validation Babelio**:
