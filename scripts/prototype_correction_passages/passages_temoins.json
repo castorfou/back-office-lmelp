@@ -169,30 +169,12 @@
   "titre": "Repérage brut du prototype #391 sur une émission de 2024 (format ancien) : « Quiche ta » est le titre du résumé",
   "passages": [
    {
-    "id": "2024-07-21-0",
-    "titre": "Bungalow",
-    "auteur": "Julien Blanc-Gras",
-    "debut": 35.7,
-    "fin": 38.18,
-    "origine": "auto",
-    "supprime": false
-   },
-   {
-    "id": "2024-07-21-1",
-    "titre": "L'Oiseau des Français",
-    "auteur": "Yasmina Liassine",
-    "debut": 38.18,
-    "fin": 44.18,
-    "origine": "auto",
-    "supprime": false
-   },
-   {
     "id": "2024-07-21-2",
     "titre": "L'Imposture",
     "auteur": "Zadie Smith",
-    "debut": 44.18,
+    "debut": 289.96,
     "fin": 982.92,
-    "origine": "auto",
+    "origine": "corrige",
     "supprime": false
    },
    {
@@ -200,8 +182,26 @@
     "titre": "Ni de lait ni de laine",
     "auteur": "Emmanuelle Salasc",
     "debut": 982.92,
-    "fin": 1453.48,
-    "origine": "auto",
+    "fin": 1433.26,
+    "origine": "corrige",
+    "supprime": false
+   },
+   {
+    "id": "2024-07-21-1",
+    "titre": "L'Oiseau des Français",
+    "auteur": "Yasmina Liassine",
+    "debut": 1433.26,
+    "fin": 1901.08,
+    "origine": "corrige",
+    "supprime": false
+   },
+   {
+    "id": "2024-07-21-0",
+    "titre": "Bungalow",
+    "auteur": "Julien Blanc-Gras",
+    "debut": 1901.08,
+    "fin": 2259.16,
+    "origine": "corrige",
     "supprime": false
    },
    {
@@ -251,6 +251,6 @@
    }
   ],
   "livres_sans_passage": [],
-  "simulation": null
+  "simulation": "Bornes de L'Imposture, Ni de lait ni de laine, L'Oiseau des Français et Bungalow corrigées à la main (le repérage #391 les avait mises dans le sommaire)"
  }
 }
