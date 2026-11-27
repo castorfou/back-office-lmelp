@@ -30,8 +30,8 @@ export default {
 
 <style scoped>
 .sig { position: relative; display: inline-flex; align-items: center; }
-.sig-btn { border: 1px solid #ddd; background: #fff; border-radius: 6px; font-size: .75rem; cursor: pointer; padding: 0 .3rem; }
-.sig-menu { position: absolute; bottom: 120%; right: 0; z-index: 50; background: #fff; border: 1px solid #ccc;
+.sig-btn { border: none; background: none; border-radius: 6px; font-size: .75rem; cursor: pointer; padding: 0 .3rem; }
+.sig-menu { position: absolute; bottom: 120%; right: -2rem; z-index: 50; background: #fff; border: 1px solid #ccc;
   border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); padding: .4rem; display: flex; flex-direction: column;
   gap: .2rem; min-width: 14rem; font-size: .8rem; }
 .sig-menu button { text-align: left; border: none; background: #f6f6f6; border-radius: 4px; padding: .2rem .4rem; cursor: pointer; }
