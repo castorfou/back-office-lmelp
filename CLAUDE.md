@@ -444,6 +444,20 @@ server: {
 
 **Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns) in developer guide.
 
+### A Book's Publisher Is Text or a Reference — Read Both
+
+A book carries **either** a text `editeur` (older books) **or** an `editeur_id` (ObjectId,
+collection `editeurs`) with no text field: every create or refresh `$unset`s the text.
+Reading `livre.get("editeur")` alone shows nothing for recent books, and the UI then falls
+back to `editeur_extrait` (the LLM summary's publisher), hiding the one the user validated.
+
+- **Display**: call `mongodb_service.fill_editeur_names(livres)` on the fetched books
+  (one batched query, text wins), then read `livre["editeur"]`. A `$project` must keep
+  `editeur_id`.
+- **Search by publisher**: match `editeur` **and** `editeur_id ∈` the ids of `editeurs`
+  whose `nom` matches (`search_emissions` does both).
+- **UI**: show `avis.editeur || avis.editeur_extrait`, never `editeur_extrait` alone.
+
 ### Livres avec Co-Auteurs - Limitation Modèle Actuel
 
 **IMPORTANT** : Le modèle de données actuel ne supporte **qu'un seul auteur par livre** via le champ `auteur_id`.

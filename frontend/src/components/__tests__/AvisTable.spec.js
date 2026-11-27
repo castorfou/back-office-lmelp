@@ -231,4 +231,34 @@ describe('AvisTable.vue', () => {
       expect(unresolvedSpan.text()).toContain('Jean-Louisine');
     });
   });
+
+  describe('Éditeur des coups de cœur (Issue #404)', () => {
+    const coupDeCoeur = (overrides = {}) => ({
+      id: 'avis-cdc',
+      section: 'coup_de_coeur',
+      livre_oid: 'livre-1',
+      livre_titre: 'Conférence, n°40',
+      livre_titre_extrait: 'Conférence, n°40',
+      auteur_nom_extrait: 'Revue Conférence',
+      editeur_extrait: 'Revue Conférence',
+      critique_nom_extrait: 'Michel Crépu',
+      commentaire: 'Plus belle revue, discrète',
+      note: 8,
+      ...overrides,
+    });
+
+    it('should display the official publisher of the book, not the extracted one', async () => {
+      const wrapper = createWrapper({ avis: [coupDeCoeur({ editeur: 'Conférence' })] });
+      await router.isReady();
+
+      expect(wrapper.find('.editeur-cell').text()).toBe('Conférence');
+    });
+
+    it('should fall back to the extracted publisher when the book has none', async () => {
+      const wrapper = createWrapper({ avis: [coupDeCoeur({ livre_oid: null })] });
+      await router.isReady();
+
+      expect(wrapper.find('.editeur-cell').text()).toBe('Revue Conférence');
+    });
+  });
 });

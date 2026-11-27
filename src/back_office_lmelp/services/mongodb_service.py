@@ -3,6 +3,7 @@
 import contextlib
 import os
 import re
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -898,6 +899,8 @@ class MongoDBService:
                 self.livres_collection.find(search_query).skip(offset).limit(limit)
             )
 
+            self.fill_editeur_names(livres)
+
             # Conversion ObjectId en string et enrichissement avec nom auteur
             results = []
             for livre in livres:
@@ -966,12 +969,11 @@ class MongoDBService:
                         "_id": 1,
                         "nom": 1,
                         "url_babelio": 1,
-                        "livres": {
-                            "_id": 1,
-                            "titre": 1,
-                            "editeur": 1,
-                            "episodes": 1,  # Issue #190
-                        },
+                        "livres._id": 1,
+                        "livres.titre": 1,
+                        "livres.editeur": 1,
+                        "livres.editeur_id": 1,
+                        "livres.episodes": 1,  # Issue #190
                     }
                 },
             ]
@@ -983,6 +985,7 @@ class MongoDBService:
 
             auteur_data = result[0]
             livres = auteur_data.get("livres", [])
+            self.fill_editeur_names(livres)
 
             # Issue #190: Pour chaque livre, récupérer les avis et émissions
             livres_formatted = []
@@ -1309,17 +1312,8 @@ class MongoDBService:
             )
 
             # Issue #189: Résoudre editeur - soit string, soit via editeur_id
+            self.fill_editeur_names([livre_data])
             editeur_nom = livre_data.get("editeur", "")
-            if (
-                not editeur_nom
-                and livre_data.get("editeur_id")
-                and self.editeurs_collection is not None
-            ):
-                editeur_doc = self.editeurs_collection.find_one(
-                    {"_id": livre_data["editeur_id"]}
-                )
-                if editeur_doc:
-                    editeur_nom = editeur_doc.get("nom", "")
 
             return {
                 "livre_id": str(livre_data["_id"]),
@@ -1604,16 +1598,23 @@ class MongoDBService:
                 matching_avis_by_id[avis_id] = avis
 
             # Pass 2 : livres dont le titre ou l'éditeur matche → avis liés via livre_oid
+            # L'éditeur est un champ texte (livres anciens) ou un editeur_id
             if self.livres_collection is not None:
+                livres_conditions: list[dict[str, Any]] = [
+                    {"titre": regex_query},
+                    {"editeur": regex_query},
+                ]
+                if self.editeurs_collection is not None:
+                    editeur_ids = [
+                        e["_id"]
+                        for e in self.editeurs_collection.find(
+                            {"nom": regex_query}, {"_id": 1}
+                        )
+                    ]
+                    if editeur_ids:
+                        livres_conditions.append({"editeur_id": {"$in": editeur_ids}})
                 matching_livres = list(
-                    self.livres_collection.find(
-                        {
-                            "$or": [
-                                {"titre": regex_query},
-                                {"editeur": regex_query},
-                            ]
-                        }
-                    )
+                    self.livres_collection.find({"$or": livres_conditions})
                 )
                 if matching_livres:
                     # livres._id est ObjectId, avis.livre_oid est String
@@ -2600,6 +2601,7 @@ class MongoDBService:
                     )
                     for doc in livres_docs:
                         livres_map[str(doc["_id"])] = doc
+                    self.fill_editeur_names(livres_docs)
 
             # 4. Batch-lookup auteurs pour les livres trouvés
             auteur_ids = {
@@ -2684,7 +2686,9 @@ class MongoDBService:
                     "livre_titre": livre_titre,
                     "auteur_nom": auteur_nom,
                     "auteur_oid": auteur_oid_str,
-                    "editeur": avis.get("editeur_extrait", ""),
+                    # Éditeur officiel du livre, fallback vers extrait
+                    "editeur": (livre_doc or {}).get("editeur")
+                    or avis.get("editeur_extrait", ""),
                     "note": avis.get("note"),
                     "commentaire": avis.get("commentaire", ""),
                     "section": avis.get("section", ""),
@@ -3124,6 +3128,43 @@ class MongoDBService:
                 result: dict[str, Any] = editeur
                 return result
         return None
+
+    def fill_editeur_names(self, livres: Iterable[dict[str, Any]]) -> None:
+        """Pose le nom de l'éditeur sur les livres qui n'ont que editeur_id.
+
+        Un livre porte soit un champ texte ``editeur`` (livres anciens), soit un
+        ``editeur_id`` (réf. collection editeurs) sans champ texte. Toute lecture
+        qui affiche l'éditeur d'un livre passe par ici avant de lire
+        ``livre["editeur"]``. Le champ texte, s'il est renseigné, prime.
+        Une seule requête pour tout le lot. Modifie les livres en place.
+        """
+        a_resoudre = [
+            livre
+            for livre in livres
+            if not livre.get("editeur") and livre.get("editeur_id")
+        ]
+        if not a_resoudre or self.editeurs_collection is None:
+            return
+
+        def as_oid(value: Any) -> ObjectId | None:
+            if isinstance(value, ObjectId):
+                return value
+            try:
+                return ObjectId(str(value))
+            except Exception:
+                return None
+
+        ids = {oid for livre in a_resoudre if (oid := as_oid(livre["editeur_id"]))}
+        noms = {
+            doc["_id"]: doc.get("nom", "")
+            for doc in self.editeurs_collection.find(
+                {"_id": {"$in": list(ids)}}, {"nom": 1}
+            )
+        }
+        for livre in a_resoudre:
+            nom = noms.get(as_oid(livre["editeur_id"]))
+            if nom:
+                livre["editeur"] = nom
 
     def create_editeur(self, name: str) -> ObjectId:
         """Crée un nouvel éditeur avec timestamps.
