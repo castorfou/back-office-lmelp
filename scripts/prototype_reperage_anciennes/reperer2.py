@@ -29,12 +29,16 @@ TRANSITION = re.compile(
     r"\bon (commence|enchaine|continue|termine|poursuit|passe|finit)\b"
     r"|\bon va (parler|maintenant|debattre|continuer|terminer|finir|passer)\b"
     r"|\bpassons\b|\bapres (ce|cette)\b"
-    r"|\bqui ouvre\b|\bpremier livre\b|\ble livre suivant\b"
+    r"|\bqui ouvre\b|\bj'ouvre\b|\bouvre le programme\b|\bpremier livre\b|\ble livre suivant\b"
     # présentation d'un livre : « c'est La nuit des Valènes-âmes, chez Gallimard »
     r"|\bc'est\b.{0,80}\bchez\b"
 )
 SOMMAIRE_FIN_S = 360  # le sommaire est dans les 6 premières minutes
 SOMMAIRE_MIN_LIVRES = 3
+# R1 (#421, à l'essai) : "comptage" = sommaire écarté s'il cite >= 3 livres ;
+# "grappe" = pas de sommaire, le premier débattu commence à la transition qui
+# précède sa grappe de mentions la plus dense (son vrai débat)
+DEPART = "grappe"
 
 
 def noms_auteur(auteur: str) -> list[str]:
@@ -149,7 +153,7 @@ def reperer_passages(segments: list[dict], livres: list[dict]) -> dict:
     )
     for t0 in instants:
         n = sum(any(t0 <= m["t"] <= t0 + 90 for m in lv["mentions"]) for lv in s1)
-        if n >= SOMMAIRE_MIN_LIVRES:
+        if DEPART == "comptage" and n >= SOMMAIRE_MIN_LIVRES:
             ignorees.append((t0, t0 + 90))
     for livre in livres:
         livre["utiles"] = [
@@ -167,6 +171,7 @@ def reperer_passages(segments: list[dict], livres: list[dict]) -> dict:
         grappes = [[m for m in u if m0["t"] <= m["t"] <= m0["t"] + 300] for m0 in u]
         meilleure = max(grappes, key=lambda g: (len(g), any(m["titre"] for m in g)))
         livre["centre"] = statistics.median(m["t"] for m in meilleure)
+        livre["grappe_debut"] = min(m["t"] for m in meilleure)
 
     trouves = sorted(
         (lv for lv in livres if lv["centre"] is not None),
@@ -207,7 +212,16 @@ def reperer_passages(segments: list[dict], livres: list[dict]) -> dict:
     # 4. débattus : comme #391 (programmation dynamique sur les transitions),
     #    mais le premier commence à la transition qui précède sa 1re mention utile
     if s1t:
-        t1 = min(m["t"] for m in s1t[0]["utiles"])
+        if DEPART == "grappe":
+            # remonter de la grappe par les mentions qui s'enchaînent à < 90 s
+            ts = sorted(m["t"] for m in s1t[0]["utiles"])
+            t1 = s1t[0]["grappe_debut"]
+            for t in reversed([t for t in ts if t < t1]):
+                if t1 - t > 90:
+                    break
+                t1 = t
+        else:
+            t1 = min(m["t"] for m in s1t[0]["utiles"])
         i1 = idx[t1]
         trans = [
             j
