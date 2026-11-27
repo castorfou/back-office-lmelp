@@ -2252,9 +2252,11 @@ export default {
 .la-section-c { height: 58vh; display: flex; flex-direction: column; padding: .8rem 1rem; margin-bottom: 1rem; }
 .la-section-c > .ee { flex: 1; min-height: 0; }
 .la-titre-c { margin: 0 0 .5rem; font-size: 1.05rem; }
-.la-panneau { position: fixed; top: 76px; right: 0; bottom: 0; width: 52vw; z-index: 60; background: #fff;
+.la-panneau { position: fixed; top: 0; right: 0; bottom: 0; width: 52vw; z-index: 60; background: #fff;
   box-shadow: -4px 0 16px rgba(0,0,0,.15); padding: .8rem; box-sizing: border-box; }
-.livres-auteurs.la-a-ouvert main { margin-right: 53vw; max-width: none; }
+.livres-auteurs.la-a-ouvert { position: fixed; top: 0; left: 0; bottom: 0; width: 48vw; overflow-y: auto;
+  z-index: 50; background: #f5f6fa; min-height: 0; display: block; }
+.livres-auteurs.la-a-ouvert main { margin: 0 1rem; max-width: none; width: auto; }
 .livres-auteurs {
   min-height: 100vh;
   display: flex;

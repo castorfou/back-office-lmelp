@@ -85,7 +85,7 @@ export default {
   components: { FriseApercu },
   data: () => ({ arme: null, ECOUTE_S: 15, survol: null, survolRetour: false }),
   computed: {
-    segments: () => s.etat.ep.segments,
+    segments: () => s.etat.ep?.segments || [],
     choisi: () => s.etat.choisi,
     glisse: () => s.etat.glisse,
     retour: () => s.etat.retour,
