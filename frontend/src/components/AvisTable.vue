@@ -153,7 +153,7 @@
                 <span class="warning-icon" title="Livre non résolu">⚠️</span>
               </span>
             </td>
-            <td class="editeur-cell">{{ avis.editeur_extrait }}</td>
+            <td class="editeur-cell">{{ avis.editeur || avis.editeur_extrait }}</td>
             <td class="critique-cell">
               <router-link
                 v-if="avis.critique_oid"
