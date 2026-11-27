@@ -78,6 +78,11 @@ livre de l'auteur n'y figure pas forcément. Quand aucun résultat n'est de cet 
 recherche « titre + auteur » est faite (une seule, mise en cache 24 h) : elle retrouve le bon livre
 et son URL Babelio.
 
+**Titres de série** : Babelio écrit souvent le titre d'un livre de série sous la forme
+« Série, tome N : Titre » (« L'amie prodigieuse, tome 4 : L'enfant perdue »). Quand la suggestion
+porte le titre seul (« L’enfant perdue ») et que l'auteur est le même, la modale « Valider la
+suggestion » reçoit quand même l'URL Babelio du livre.
+
 **Priorité** : Les données de l'épisode (vérifiées par l'éditeur France Inter) sont prioritaires sur les corrections Babelio quand elles sont fiables.
 
 ## Enrichissement automatique de l'éditeur
