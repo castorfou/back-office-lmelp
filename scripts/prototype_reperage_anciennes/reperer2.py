@@ -1,17 +1,16 @@
 # ruff: noqa  -- PROTOTYPE JETABLE (#421), jamais fusionné
 """PROTOTYPE JETABLE — repérage v2 sur émissions anciennes (wayfinder #421).
 
-Reprend reperer.py (#391) et applique :
-- les règles validées à l'écoute (#391, #398) : Passages contigus, coups de
-  cœur compris, un coup de cœur commence à l'appel du critique (« Arnaud ? »),
-  fin = début du suivant ;
-- les corrections relevées sur 2015/2024 (#421) :
-  1. sommaire : >= 3 livres de section 1 en 90 s, dans les 6 premières minutes ;
-     tout ce qui précède le premier débattu reste hors Passage (trou) ;
-  2. noms : tirets et espaces ignorés (« Blanc-Gras » = « blanc gras ») ;
-     égalité de grappes : celle qui contient le titre gagne ;
-  3. transitions : « qui ouvre », « premier livre », « on commence » ;
-     le premier débattu commence à sa transition, pas au début de l'émission.
+Reprend reperer.py (#391). Règles revues une à une avec le mainteneur :
+- R1/R2 : pas de détection du sommaire ; le premier débattu commence à la
+  transition qui précède son vrai débat (grappe la plus dense, remontée par
+  les mentions espacées de moins de 90 s) ; ce qui précède reste un trou ;
+- R3 : coups de cœur contigus, ouverts à l'appel du critique (« Arnaud ? »),
+  sinon à la 1re rafale de mentions (validé à l'écoute dans #391) ;
+- R4 : ponctuation et tirets ignorés dans les noms (« salasque, », Blanc-Gras) ;
+- R5 : noms propres comparés à la prononciation (Gény = Jenni) ;
+- R6 : « c'est …, chez <éditeur> » compte comme transition (±10 s accepté) ;
+- R7 (égalité de grappes) : retirée, sans effet sur une transcription propre.
 """
 
 from __future__ import annotations
@@ -33,12 +32,6 @@ TRANSITION = re.compile(
     # présentation d'un livre : « c'est La nuit des Valènes-âmes, chez Gallimard »
     r"|\bc'est\b.{0,80}\bchez\b"
 )
-SOMMAIRE_FIN_S = 360  # le sommaire est dans les 6 premières minutes
-SOMMAIRE_MIN_LIVRES = 3
-# R1 (#421, à l'essai) : "comptage" = sommaire écarté s'il cite >= 3 livres ;
-# "grappe" = pas de sommaire, le premier débattu commence à la transition qui
-# précède sa grappe de mentions la plus dense (son vrai débat)
-DEPART = "grappe"
 
 
 def noms_auteur(auteur: str) -> list[str]:
@@ -145,31 +138,20 @@ def reperer_passages(segments: list[dict], livres: list[dict]) -> dict:
                     }
                 )
 
-    # 1. sommaire : fenêtre de 90 s du début avec >= 3 livres de section 1
-    s1 = [lv for lv in livres if lv["section"] == 1]
-    ignorees = []
-    instants = sorted(
-        {m["t"] for lv in s1 for m in lv["mentions"] if m["t"] < SOMMAIRE_FIN_S}
-    )
-    for t0 in instants:
-        n = sum(any(t0 <= m["t"] <= t0 + 90 for m in lv["mentions"]) for lv in s1)
-        if DEPART == "comptage" and n >= SOMMAIRE_MIN_LIVRES:
-            ignorees.append((t0, t0 + 90))
+    # pas de détection du sommaire (#421, R1) : le premier débattu commence à
+    # la transition qui précède son vrai débat (sa grappe la plus dense)
     for livre in livres:
-        livre["utiles"] = [
-            m
-            for m in livre["mentions"]
-            if not any(a <= m["t"] <= b for a, b in ignorees)
-        ]
+        livre["utiles"] = livre["mentions"]
+    ignorees: list = []
 
-    # 2. ordre par grappe la plus dense ; à égalité, celle qui contient le titre
+    # 2. ordre par grappe la plus dense
     for livre in livres:
         u = livre["utiles"]
         if not u:
             livre["centre"] = None
             continue
         grappes = [[m for m in u if m0["t"] <= m["t"] <= m0["t"] + 300] for m0 in u]
-        meilleure = max(grappes, key=lambda g: (len(g), any(m["titre"] for m in g)))
+        meilleure = max(grappes, key=len)
         livre["centre"] = statistics.median(m["t"] for m in meilleure)
         livre["grappe_debut"] = min(m["t"] for m in meilleure)
 
@@ -212,16 +194,13 @@ def reperer_passages(segments: list[dict], livres: list[dict]) -> dict:
     # 4. débattus : comme #391 (programmation dynamique sur les transitions),
     #    mais le premier commence à la transition qui précède sa 1re mention utile
     if s1t:
-        if DEPART == "grappe":
-            # remonter de la grappe par les mentions qui s'enchaînent à < 90 s
-            ts = sorted(m["t"] for m in s1t[0]["utiles"])
-            t1 = s1t[0]["grappe_debut"]
-            for t in reversed([t for t in ts if t < t1]):
-                if t1 - t > 90:
-                    break
-                t1 = t
-        else:
-            t1 = min(m["t"] for m in s1t[0]["utiles"])
+        # remonter de la grappe par les mentions qui s'enchaînent à < 90 s
+        ts = sorted(m["t"] for m in s1t[0]["utiles"])
+        t1 = s1t[0]["grappe_debut"]
+        for t in reversed([t for t in ts if t < t1]):
+            if t1 - t > 90:
+                break
+            t1 = t
         i1 = idx[t1]
         trans = [
             j
