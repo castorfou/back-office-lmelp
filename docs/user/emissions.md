@@ -75,7 +75,7 @@ Liste des livres présentés durant l'émission, avec pour chaque livre :
 
 - **Auteur** (cliquable) → Redirige vers la page détail de l'auteur
 - **Titre** (cliquable) → Redirige vers la page détail du livre
-- **Éditeur**
+- **Éditeur** : celui enregistré pour le livre (saisi ou corrigé à la validation), ou à défaut celui du résumé tant que le livre n'est pas en base. Il en va de même dans les tableaux d'avis (programme et coups de cœur).
 
 Format d'affichage :
 ```

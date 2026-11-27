@@ -1018,7 +1018,7 @@ class Book:
     updated_at: datetime
 ```
 
-> **Note** : Le champ `editeur` (string) est remplacé par `editeur_id` (ObjectId) référençant la collection `editeurs`. Les livres existants avec l'ancien format sont migrés automatiquement lors de leur prochain traitement. L'API retourne toujours `editeur` (string résolu) pour la rétrocompatibilité.
+> **Note** : Le champ `editeur` (string) est remplacé par `editeur_id` (ObjectId) référençant la collection `editeurs`. Les livres existants avec l'ancien format sont migrés automatiquement lors de leur prochain traitement. L'API retourne toujours `editeur` (string résolu) pour la rétrocompatibilité : chaque lecture passe par `MongoDBService.fill_editeur_names()`, qui résout `editeur_id` en lot (le champ texte prime s'il existe). `GET /api/avis/by-emission` renvoie ainsi `editeur` (éditeur du livre) à côté de `editeur_extrait` (éditeur du résumé).
 
 ### Request Models
 
@@ -1371,7 +1371,8 @@ Recherche textuelle simple dans les collections MongoDB (épisodes, auteurs, liv
 #### Fonctionnalités
 
 - ✅ **Recherche auteurs** : Regex case-insensitive sur `auteurs.nom`
-- ✅ **Recherche livres** : Regex sur `livres.titre` et `livres.editeur`
+- ✅ **Recherche livres** : Regex sur `livres.titre` ; l'éditeur de chaque résultat est résolu depuis `editeur_id`
+- ✅ **Recherche émissions par éditeur** : Regex sur `livres.editeur` et sur le nom des `editeurs` référencés par `livres.editeur_id`
 - ✅ **Enrichissement auteur** : Livres incluent automatiquement `auteur_nom` via lookup
 - ✅ **Recherche épisodes** : Regex sur titre/description/transcription avec extraction de contexte
 - ✅ **Recherche éditeurs** : Via collection `avis_critiques`
