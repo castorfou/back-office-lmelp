@@ -1228,6 +1228,7 @@ async def get_livres_from_collections(episode_oid: str) -> list[dict[str, Any]]:
             {"_id": {"$in": livre_ids}}
         ):
             livres_dict[livre["_id"]] = livre
+        mongodb_service.fill_editeur_names(livres_dict.values())
 
     # Step 4: Query auteurs collection for author data
     auteur_ids = [
@@ -5440,7 +5441,8 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 )
                 if livre:
                     enriched["livre_titre"] = livre.get("titre", "")
-                    # Enrichir avec l'éditeur officiel du livre
+                    # Enrichir avec l'éditeur officiel du livre (texte ou editeur_id)
+                    mongodb_service.fill_editeur_names([livre])
                     editeur_officiel = livre.get("editeur", "")
                     if editeur_officiel:
                         enriched["editeur"] = editeur_officiel

@@ -228,6 +228,73 @@ class TestGetAvisByEmission:
         # editeur_extrait reste disponible pour référence
         assert avis["editeur_extrait"] == "POL"
 
+    def test_get_avis_resolves_editeur_from_editeur_id(self):
+        """L'éditeur officiel d'un livre à editeur_id remplace l'éditeur extrait.
+
+        Issue #404: un livre validé porte editeur_id (réf. collection editeurs)
+        et plus de champ texte editeur. La page Émissions affichait alors
+        l'éditeur extrait du résumé (« Revue Conférence ») au lieu de celui
+        saisi à la validation (« Conférence »).
+        """
+        from back_office_lmelp.services.mongodb_service import MongoDBService
+
+        emission_id = str(ObjectId())
+        livre_id = ObjectId()
+        auteur_id = ObjectId()
+        editeur_id = ObjectId()
+
+        self.mock_mongodb.avis_collection = MagicMock()
+        self.mock_mongodb.get_avis_by_emission.return_value = [
+            {
+                "_id": ObjectId(),
+                "emission_oid": emission_id,
+                "livre_oid": str(livre_id),
+                "critique_oid": None,
+                "commentaire": "Plus belle revue, discrète",
+                "note": 8,
+                "section": "programme",
+                "livre_titre_extrait": "Conférence, n°40",
+                "auteur_nom_extrait": "Revue Conférence",
+                "editeur_extrait": "Revue Conférence",
+                "critique_nom_extrait": "Michel Crépu",
+            }
+        ]
+        self.mock_mongodb.livres_collection = MagicMock()
+        # Livre réel post-#189 : editeur_id, pas de champ texte editeur
+        self.mock_mongodb.livres_collection.find_one.return_value = {
+            "_id": livre_id,
+            "titre": 'Conférence, n°40 - "L\'Europe inouïe"',
+            "auteur_id": auteur_id,
+            "editeur_id": editeur_id,
+        }
+        self.mock_mongodb.livres_collection.count_documents.return_value = 1
+        self.mock_mongodb.editeurs_collection = MagicMock()
+        self.mock_mongodb.editeurs_collection.find.return_value = [
+            {"_id": editeur_id, "nom": "Conférence"}
+        ]
+        # Le vrai helper, appliqué aux collections mockées
+        self.mock_mongodb.fill_editeur_names.side_effect = lambda livres: (
+            MongoDBService.fill_editeur_names(self.mock_mongodb, livres)
+        )
+        self.mock_mongodb.auteurs_collection = MagicMock()
+        self.mock_mongodb.auteurs_collection.find_one.return_value = {
+            "_id": auteur_id,
+            "nom": "Livres de Revue Conférence",
+        }
+        self.mock_mongodb.critiques_collection = None
+        self.mock_mongodb.emissions_collection = MagicMock()
+        self.mock_mongodb.emissions_collection.find_one.return_value = {
+            "_id": ObjectId(emission_id),
+            "episode_id": "episode-123",
+        }
+
+        response = self.client.get(f"/api/avis/by-emission/{emission_id}")
+
+        assert response.status_code == 200
+        avis = response.json()["avis"][0]
+        assert avis["editeur"] == "Conférence"
+        assert avis["editeur_extrait"] == "Revue Conférence"
+
 
 class TestExtractAvisFromEmission:
     """Tests pour POST /api/avis/extract/{emission_id}."""
