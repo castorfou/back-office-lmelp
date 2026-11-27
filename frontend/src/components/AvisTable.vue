@@ -43,6 +43,7 @@
               <span v-else>{{ livre.auteur }}</span>
             </td>
             <td class="titre-cell">
+              <PassageBouton seulement="B" :livre-id="livre.livre_oid" :date="emissionDate" />
               <router-link
                 v-if="livre.livre_oid"
                 :to="`/livre/${livre.livre_oid}`"
@@ -54,6 +55,7 @@
                 {{ livre.titre }}
                 <span class="warning-icon" title="Livre non résolu">⚠️</span>
               </span>
+              <PassageBouton seulement="A" :livre-id="livre.livre_oid" :date="emissionDate" />
             </td>
             <td class="editeur-cell">{{ livre.editeur }}</td>
             <td class="avis-cell">
@@ -141,6 +143,7 @@
               <span v-else>{{ avis.auteur_nom || avis.auteur_nom_extrait }}</span>
             </td>
             <td class="titre-cell">
+              <PassageBouton seulement="B" :livre-id="avis.livre_oid" :date="emissionDate" />
               <router-link
                 v-if="avis.livre_oid"
                 :to="`/livre/${avis.livre_oid}`"
@@ -152,6 +155,7 @@
                 {{ avis.livre_titre_extrait }}
                 <span class="warning-icon" title="Livre non résolu">⚠️</span>
               </span>
+              <PassageBouton seulement="A" :livre-id="avis.livre_oid" :date="emissionDate" />
             </td>
             <td class="editeur-cell">{{ avis.editeur || avis.editeur_extrait }}</td>
             <td class="critique-cell">
@@ -188,9 +192,11 @@
 
 <script>
 import { computed, ref } from 'vue';
+import PassageBouton from './prototype-lecteurs-passages/PassageBouton.vue'; // PROTOTYPE #418
 
 export default {
   name: 'AvisTable',
+  components: { PassageBouton },
 
   props: {
     avis: {

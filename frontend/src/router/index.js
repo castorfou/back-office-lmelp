@@ -24,6 +24,7 @@ import Recommendations from '../views/Recommendations.vue';
 import BabelioControl from '../views/BabelioControl.vue';
 import RssMonitoring from '../views/RssMonitoring.vue';
 import PgxTranscription from '../views/PgxTranscription.vue';
+import { arreter as arreterPassage } from '../components/prototype-lecteurs-passages/store.js';
 
 const routes = [
   {
@@ -251,6 +252,15 @@ const routes = [
       title: 'Correction des passages - lmelp'
     }
   },
+  // PROTOTYPE JETABLE (#418), jamais fusionné
+  {
+    path: '/ecouter-mobile',
+    name: 'EcouterMobile',
+    component: () => import('../views/EcouterMobilePrototype.vue'),
+    meta: {
+      title: 'Écouter depuis lmelp-mobile - lmelp'
+    }
+  },
   {
     path: '/about',
     name: 'About',
@@ -274,6 +284,18 @@ const router = createRouter({
     }
     return { top: 0, behavior: 'smooth' };
   }
+});
+
+// PROTOTYPE JETABLE (#418) : la variante survit aux liens internes ; hors
+// variante B (lecteur en bas), quitter la page arrête le Passage en cours.
+router.beforeEach((to) => {
+  const v = sessionStorage.getItem('protoVariant');
+  if (to.query.variant) sessionStorage.setItem('protoVariant', to.query.variant);
+  else if (v) return { ...to, query: { ...to.query, variant: v } };
+  return true;
+});
+router.afterEach((to, from) => {
+  if (to.path !== from.path && to.query.variant !== 'B') arreterPassage();
 });
 
 // Mettre à jour le titre de la page lors de la navigation

@@ -174,19 +174,22 @@
         </div>
       </div>
 
+      <!-- PROTOTYPE JETABLE (#418) : variante C -->
+      <SectionPassagesLivre v-if="$route.query.variant === 'C'" :livre-id="livre.id || $route.params.id" />
+
       <!-- Liste des émissions (Issue #190) -->
       <section class="emissions-section">
         <h2>Émissions présentant "{{ livre.titre }}"</h2>
 
         <!-- Message si aucune émission -->
-        <div v-if="livre.emissions.length === 0" class="empty-state">
+        <div v-if="emissionsAffichees.length === 0" class="empty-state">
           <p>Aucune émission trouvée pour ce livre</p>
         </div>
 
         <!-- Liste des émissions -->
         <div v-else class="emissions-list">
           <div
-            v-for="emission in livre.emissions"
+            v-for="emission in emissionsAffichees"
             :key="emission.emission_id"
             class="emission-card"
             data-test="emission-item"
@@ -199,8 +202,11 @@
               >
                 <h3 class="emission-date-title">{{ formatDate(emission.date) }}</h3>
               </router-link>
-              <p class="emission-avis-count">{{ emission.nombre_avis }} avis</p>
+              <p class="emission-avis-count">{{ emission.nombre_avis }} avis
+                <span v-if="emission.simule" style="color:#c60">(émission ajoutée par la simulation)</span></p>
             </div>
+            <PassageBouton seulement="A" contexte="livre" :livre-id="livre.id || $route.params.id" :date="emission.date" />
+            <PassageBouton seulement="B" contexte="livre" :livre-id="livre.id || $route.params.id" :date="emission.date" />
             <span
               v-if="emission.note_moyenne != null"
               class="note-badge"
@@ -304,13 +310,19 @@
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
 import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
+// PROTOTYPE JETABLE (#418)
+import PassageBouton from '../components/prototype-lecteurs-passages/PassageBouton.vue';
+import SectionPassagesLivre from '../components/prototype-lecteurs-passages/SectionPassagesLivre.vue';
+import { passagesDuLivre } from '../components/prototype-lecteurs-passages/store.js';
 import { babelioCookieGuardMixin, BABELIO_UNREACHABLE } from '../utils/babelioCookieGuard.js';
 
 export default {
   name: 'LivreDetail',
   components: {
     Navigation,
-    BabelioCookiePanel
+    BabelioCookiePanel,
+    PassageBouton,
+    SectionPassagesLivre,
   },
   mixins: [babelioCookieGuardMixin],
   data() {
@@ -330,6 +342,17 @@ export default {
     };
   },
   computed: {
+    // PROTOTYPE (#418) : ajoute l'émission d'un Passage simulé
+    emissionsAffichees() {
+      const liste = [...(this.livre?.emissions || [])];
+      const id = this.livre?.id || this.$route.params.id;
+      for (const p of passagesDuLivre(id)) {
+        if (!liste.some((e) => (e.date || '').slice(0, 10) === p.emission.date)) {
+          liste.push({ emission_id: `sim-${p.emission.date}`, date: p.emission.date, nombre_avis: 0, simule: true });
+        }
+      }
+      return liste;
+    },
     avisGrouped() {
       if (!this.avis || this.avis.length === 0) return [];
 

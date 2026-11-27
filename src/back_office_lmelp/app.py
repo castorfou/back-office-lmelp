@@ -447,6 +447,12 @@ from .prototype_correction_passages import router as _proto_passages  # noqa: E4
 
 app.include_router(_proto_passages)
 
+# PROTOTYPE JETABLE (#418) : lecteurs de Passage, jamais fusionné
+from .prototype_lecteurs_passages import router as _proto_lecteurs  # noqa: E402
+
+
+app.include_router(_proto_lecteurs)
+
 # Initialize migration service (Issue #124)
 babelio_migration_service = BabelioMigrationService(
     mongodb_service=mongodb_service,

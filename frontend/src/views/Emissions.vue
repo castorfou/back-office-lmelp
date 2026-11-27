@@ -295,6 +295,12 @@
             </ul>
           </div>
 
+          <!-- PROTOTYPE JETABLE (#418) : variante C -->
+          <SectionPassagesEmission
+            v-if="$route.query.variant === 'C' && !detailsLoading && !detailsError"
+            :date="selectedEmissionDetails.episode?.date"
+          />
+
           <!-- Avis structurés -->
           <div v-if="!detailsLoading && !detailsError && selectedEmissionDetails.summary" class="avis-section-container" :class="{ 'no-top-border': isSelectedEmissionPerfect }">
             <!-- État de chargement des avis -->
@@ -334,6 +340,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Navigation from '../components/Navigation.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import AvisTable from '../components/AvisTable.vue';
+import SectionPassagesEmission from '../components/prototype-lecteurs-passages/SectionPassagesEmission.vue'; // PROTOTYPE #418
 import { emissionsService, episodeService, avisService } from '../services/api';
 import { marked } from 'marked';
 
@@ -344,6 +351,7 @@ export default {
     Navigation,
     EpisodeDropdown,
     AvisTable,
+    SectionPassagesEmission,
   },
 
   setup() {
