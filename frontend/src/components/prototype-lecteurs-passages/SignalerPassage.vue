@@ -6,7 +6,7 @@
       <strong>Signaler à {{ fmt(etat.position) }}</strong>
       <button v-for="m in MOTIFS" :key="m" @click="envoyer(m)">{{ m }}</button>
     </span>
-    <span v-if="merci" class="sig-merci">merci, signalé</span>
+    <span v-if="merci" class="sig-merci">✓ Signalé : {{ merci }}</span>
   </span>
 </template>
 
@@ -21,8 +21,8 @@ export default {
     envoyer(m) {
       signaler(m);
       this.ouvert = false;
-      this.merci = true;
-      setTimeout(() => { this.merci = false; }, 2000);
+      this.merci = `${m} à ${fmt(etat.position)}`;
+      setTimeout(() => { this.merci = false; }, 2500);
     },
   },
 };
@@ -36,5 +36,6 @@ export default {
   gap: .2rem; min-width: 14rem; font-size: .8rem; }
 .sig-menu button { text-align: left; border: none; background: #f6f6f6; border-radius: 4px; padding: .2rem .4rem; cursor: pointer; }
 .sig-menu button:hover { background: #ffe8a1; }
-.sig-merci { color: #198754; font-size: .75rem; margin-left: .3rem; white-space: nowrap; }
+.sig-merci { position: absolute; bottom: 130%; right: -2rem; z-index: 50; background: #198754; color: #fff;
+  font-size: .75rem; padding: .25rem .5rem; border-radius: 6px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 </style>

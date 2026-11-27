@@ -128,7 +128,7 @@ export default {
 .pb-barre { position: relative; flex: 1; height: 5px; background: #cfd8e6; border-radius: 3px; cursor: pointer; }
 .pb-rempli { position: absolute; left: 0; top: 0; bottom: 0; background: #0d6efd; border-radius: 3px; }
 .pb-temps { font: .72rem monospace; color: #555; white-space: nowrap; }
-.pb-lien { border: none; background: none; color: #555; font-size: .72rem; cursor: pointer; padding: .05rem .25rem; border-radius: 4px; }
+.pb-lien { white-space: nowrap; border: none; background: none; color: #555; font-size: .72rem; cursor: pointer; padding: .05rem .25rem; border-radius: 4px; }
 .pb-lien:hover { background: #dde7f7; color: #0d6efd; }
 .pb-sep { flex: 1; }
 .pb-mini { border: 1px solid #bbb; background: #fff; border-radius: 6px; font-size: .75rem; padding: 0 .35rem; cursor: pointer; }
