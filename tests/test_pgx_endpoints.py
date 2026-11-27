@@ -4,6 +4,7 @@ Tests pour :
 - GET /api/pgx/diagnostics
 - GET /api/pgx/episodes-without-transcription
 - POST /api/pgx/transcription/start
+- POST /api/pgx/transcription/retry-now
 - GET /api/pgx/transcription/progress
 """
 
@@ -326,3 +327,21 @@ class TestGetPgxTranscriptionProgress:
 
         assert response.status_code == 200
         assert response.json() == status
+
+
+class TestRetryNowPgxTranscription:
+    """Nouvelle tentative immédiate d'un cycle en attente de PGX (Issue #402)."""
+
+    def test_should_wake_pending_retry(self, client):
+        with patch(
+            "back_office_lmelp.utils.pgx_transcription_runner.pgx_transcription_runner"
+        ) as mock_runner:
+            mock_runner.request_retry_now = MagicMock(
+                return_value={"status": "retrying"}
+            )
+
+            response = client.post("/api/pgx/transcription/retry-now")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "retrying"}
+        mock_runner.request_retry_now.assert_called_once_with()

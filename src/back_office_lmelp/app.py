@@ -1234,6 +1234,7 @@ async def get_livres_from_collections(episode_oid: str) -> list[dict[str, Any]]:
             {"_id": {"$in": livre_ids}}
         ):
             livres_dict[livre["_id"]] = livre
+        mongodb_service.fill_editeur_names(livres_dict.values())
 
     # Step 4: Query auteurs collection for author data
     auteur_ids = [
@@ -1920,8 +1921,41 @@ async def _enrich_livre_from_babelio_page(
                 author_id, url_babelio=author_url
             )
             logger.info(f"👤 URL auteur mise à jour: {author_url}")
+            await _merge_if_author_url_taken(author_id, author_url)
     except Exception as e:
         logger.warning(f"URL auteur non récupérée pour {babelio_url}: {e}")
+
+
+async def _merge_if_author_url_taken(author_id: str, url_babelio: str) -> None:
+    """Fusionne l'auteur avec celui qui porte déjà son URL Babelio.
+
+    Appelé juste après avoir posé l'URL d'un auteur. Un auteur est créé par son
+    nom, avant que son URL Babelio soit connue : si un autre auteur porte déjà
+    cette URL (comparaison insensible à la casse, comme la détection des
+    doublons), c'est le même auteur sous un autre nom. La fusion des doublons
+    garde le plus ancien, lui donne le nom officiel Babelio et y rattache les
+    livres.
+    """
+    if mongodb_service.auteurs_collection is None:
+        return
+    existing = mongodb_service.auteurs_collection.find_one(
+        {
+            "_id": {"$ne": ObjectId(author_id)},
+            "url_babelio": {"$regex": f"^{re.escape(url_babelio)}$", "$options": "i"},
+        },
+        {"_id": 1},
+    )
+    if existing is None:
+        return
+
+    result = await duplicate_books_service.merge_duplicate_authors(
+        url_babelio=url_babelio,
+        auteur_ids=[str(existing["_id"]), author_id],
+    )
+    logger.info(
+        f"👥 Auteur {author_id} fusionné avec {existing['_id']} "
+        f"(même URL Babelio {url_babelio}) : {result.get('logs')}"
+    )
 
 
 @app.post("/api/set-validation-results", response_model=dict[str, Any])
@@ -2842,6 +2876,8 @@ async def apply_livre_refresh(
             nom=request.auteur_nom,
             url_babelio=request.auteur_url_babelio,
         )
+        if request.auteur_url_babelio:
+            await _merge_if_author_url_taken(auteur_id_str, request.auteur_url_babelio)
 
     return {
         "status": "success",
@@ -4245,6 +4281,28 @@ async def start_pgx_transcription(
         )
 
 
+@app.post("/api/pgx/transcription/retry-now")
+async def retry_pgx_transcription_now() -> JSONResponse:
+    """Avance la prochaine tentative d'un cycle en attente de PGX (Issue #402).
+
+    Renvoie {"status": "retrying"} si un cycle attendait PGX,
+    {"status": "no_pending_retry"} sinon. `async def` malgré l'absence
+    d'`await` : l'asyncio.Event du runner doit être posé depuis la boucle
+    d'événements, pas depuis le threadpool d'un endpoint `def`.
+    """
+    try:
+        from .utils.pgx_transcription_runner import pgx_transcription_runner
+
+        return JSONResponse(content=pgx_transcription_runner.request_retry_now())
+    except Exception as e:
+        logger.error(
+            f"Erreur lors de la relance immédiate de la transcription PGX: {e}"
+        )
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
 @app.get("/api/pgx/transcription/progress")
 async def get_pgx_transcription_progress() -> JSONResponse:
     """Récupère la progression actuelle du pipeline de transcription PGX (polling)."""
@@ -5411,7 +5469,8 @@ async def get_avis_by_emission(emission_id: str) -> JSONResponse:
                 )
                 if livre:
                     enriched["livre_titre"] = livre.get("titre", "")
-                    # Enrichir avec l'éditeur officiel du livre
+                    # Enrichir avec l'éditeur officiel du livre (texte ou editeur_id)
+                    mongodb_service.fill_editeur_names([livre])
                     editeur_officiel = livre.get("editeur", "")
                     if editeur_officiel:
                         enriched["editeur"] = editeur_officiel

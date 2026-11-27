@@ -80,9 +80,21 @@ class TestServerShutdown:
         loop.run_until_complete(test_shutdown())
         loop.close()
 
-    def test_signal_handler_shuts_down_gracefully(self):
+    def test_signal_handler_shuts_down_gracefully(self, tmp_path):
         """Test que le gestionnaire de signaux ferme proprement le serveur."""
-        with patch("back_office_lmelp.app.mongodb_service") as mock_mongo:
+        from back_office_lmelp.utils.port_discovery import PortDiscovery
+
+        # Fichier de découverte isolé : par défaut le nettoyage vise
+        # Path.cwd() / ".dev-ports.json", le fichier des services de dev en cours
+        port_file = tmp_path / ".dev-ports.json"
+        PortDiscovery.write_backend_info_to_unified_file(port_file, port=54321)
+
+        with (
+            patch("back_office_lmelp.app.mongodb_service") as mock_mongo,
+            patch.object(
+                PortDiscovery, "get_unified_port_file_path", return_value=port_file
+            ),
+        ):
             # Importer la fonction signal handler
             from back_office_lmelp.app import signal_handler
 
@@ -91,6 +103,9 @@ class TestServerShutdown:
 
             # Vérifier que MongoDB est déconnecté
             mock_mongo.disconnect.assert_called_once()
+
+        # Le fichier de découverte du serveur arrêté est nettoyé
+        assert not port_file.exists()
 
     def test_memory_guard_force_shutdown_is_graceful(self):
         """Test que l'arrêt forcé par le memory guard est plus gracieux."""

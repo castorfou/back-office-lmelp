@@ -375,10 +375,7 @@ class TestResolveEditeurInGetLivre:
 
         # Mock editeurs collection - doit résoudre editeur_id
         mock_editeurs = MagicMock()
-        mock_editeurs.find_one.return_value = {
-            "_id": editeur_id,
-            "nom": "P.O.L",
-        }
+        mock_editeurs.find.return_value = [{"_id": editeur_id, "nom": "P.O.L"}]
         service.editeurs_collection = mock_editeurs
 
         # Mock empty collections

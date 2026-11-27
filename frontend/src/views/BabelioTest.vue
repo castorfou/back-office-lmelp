@@ -15,6 +15,17 @@
         </p>
       </section>
 
+      <!-- Cookie Babelio : chaque recherche interroge Babelio -->
+      <section class="babelio-cookie-section">
+        <BabelioCookiePanel
+          :status="babelioServiceStatus"
+          @saved="loadBabelioServiceStatus"
+          @cookie-state="babelioCookieState = $event"
+        >
+          Chaque recherche interroge Babelio.
+        </BabelioCookiePanel>
+      </section>
+
       <!-- Formulaires de test -->
       <section class="test-forms">
         <!-- Test Auteur -->
@@ -34,7 +45,7 @@
             </div>
             <button
               type="submit"
-              :disabled="!forms.author.name || loading.author"
+              :disabled="!forms.author.name || loading.author || !babelioCookieActive"
               class="submit-button"
               :class="{ loading: loading.author }"
             >
@@ -76,7 +87,7 @@
             </div>
             <button
               type="submit"
-              :disabled="!forms.book.title || loading.book"
+              :disabled="!forms.book.title || loading.book || !babelioCookieActive"
               class="submit-button"
               :class="{ loading: loading.book }"
             >
@@ -107,7 +118,7 @@
             </div>
             <button
               type="submit"
-              :disabled="!forms.publisher.name || loading.publisher"
+              :disabled="!forms.publisher.name || loading.publisher || !babelioCookieActive"
               class="submit-button"
               :class="{ loading: loading.publisher }"
             >
@@ -159,13 +170,20 @@
 
 <script>
 import Navigation from '../components/Navigation.vue';
+import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import axios from 'axios';
+import { babelioCookieGuardMixin, BABELIO_UNREACHABLE } from '../utils/babelioCookieGuard.js';
 import babelioSymbol from '../assets/babelio-symbol.svg';
 
 export default {
   name: 'BabelioTest',
   components: {
-    Navigation
+    Navigation,
+    BabelioCookiePanel
+  },
+  mixins: [babelioCookieGuardMixin],
+  mounted() {
+    this.loadBabelioServiceStatus();
   },
 
   data() {
@@ -202,6 +220,12 @@ export default {
       this.loading.author = true;
       this.error = null;
       this.results.author = null;
+      if (!(await this.probeBabelio())) {
+        this.error = BABELIO_UNREACHABLE;
+        this.loading.author = false;
+        await this.loadBabelioServiceStatus();
+        return;
+      }
 
       try {
         const response = await axios.post('/api/verify-babelio', {
@@ -213,6 +237,7 @@ export default {
       } catch (error) {
         console.error('Erreur lors de la vérification de l\'auteur:', error);
         this.error = `Erreur lors de la vérification de l'auteur: ${error.response?.data?.detail || error.message}`;
+        await this.loadBabelioServiceStatus();
       } finally {
         this.loading.author = false;
       }
@@ -222,6 +247,12 @@ export default {
       this.loading.book = true;
       this.error = null;
       this.results.book = null;
+      if (!(await this.probeBabelio())) {
+        this.error = BABELIO_UNREACHABLE;
+        this.loading.book = false;
+        await this.loadBabelioServiceStatus();
+        return;
+      }
 
       try {
         const requestData = {
@@ -239,6 +270,7 @@ export default {
       } catch (error) {
         console.error('Erreur lors de la vérification du livre:', error);
         this.error = `Erreur lors de la vérification du livre: ${error.response?.data?.detail || error.message}`;
+        await this.loadBabelioServiceStatus();
       } finally {
         this.loading.book = false;
       }
@@ -248,6 +280,12 @@ export default {
       this.loading.publisher = true;
       this.error = null;
       this.results.publisher = null;
+      if (!(await this.probeBabelio())) {
+        this.error = BABELIO_UNREACHABLE;
+        this.loading.publisher = false;
+        await this.loadBabelioServiceStatus();
+        return;
+      }
 
       try {
         const response = await axios.post('/api/verify-babelio', {
@@ -259,6 +297,7 @@ export default {
       } catch (error) {
         console.error('Erreur lors de la vérification de l\'éditeur:', error);
         this.error = `Erreur lors de la vérification de l'éditeur: ${error.response?.data?.detail || error.message}`;
+        await this.loadBabelioServiceStatus();
       } finally {
         this.loading.publisher = false;
       }
@@ -277,6 +316,10 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.babelio-cookie-section {
+  margin-bottom: 2rem;
 }
 
 .info-banner {

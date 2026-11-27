@@ -12,6 +12,12 @@ L'intégration Babelio enrichit automatiquement la base de données avec des lie
 ### Gestion de la migration Babelio
 **Navigation** : Menu principal → **Gestion Babelio** ou accès direct via `/babelio-migration`
 
+### Recherche Babelio
+**Navigation** : tuile **Recherche Babelio** du tableau de bord, ou `/babelio-test`. Vérifie l'orthographe d'un auteur, d'un livre ou d'un éditeur sur Babelio.
+
+### Cookie Babelio sur chaque page qui interroge Babelio
+Les pages qui lisent Babelio à la demande (Livres et Auteurs, Migration Babelio, Gestion des doublons, fiche livre, Recherche Babelio) affichent le panneau **Cookie Babelio**. Tant que le cookie enregistré sur le serveur n'est pas actif, leurs actions Babelio sont désactivées : sans cookie, Babelio répond 403, et un 403 peut se transformer en blocage de l'adresse IP pendant environ 24 h. Avant chaque action, un essai de connexion vérifie que Babelio répond.
+
 ## Comprendre les indicateurs de validation
 
 Dans le tableau des livres, la colonne **"Validation Biblio"** affiche l'un des indicateurs suivants :
@@ -72,6 +78,11 @@ livre de l'auteur n'y figure pas forcément. Quand aucun résultat n'est de cet 
 recherche « titre + auteur » est faite (une seule, mise en cache 24 h) : elle retrouve le bon livre
 et son URL Babelio.
 
+**Titres de série** : Babelio écrit souvent le titre d'un livre de série sous la forme
+« Série, tome N : Titre » (« L'amie prodigieuse, tome 4 : L'enfant perdue »). Quand la suggestion
+porte le titre seul (« L’enfant perdue ») et que l'auteur est le même, la modale « Valider la
+suggestion » reçoit quand même l'URL Babelio du livre.
+
 **Priorité** : Les données de l'épisode (vérifiées par l'éditeur France Inter) sont prioritaires sur les corrections Babelio quand elles sont fiables.
 
 ## Enrichissement automatique de l'éditeur
@@ -114,7 +125,7 @@ La page détail d'un livre affiche un bouton orange **↻ Ré-extraire** (visibl
 
 ### Fonctionnement
 
-1. Cliquer sur le bouton **↻ Ré-extraire** (animation de rotation pendant le chargement)
+1. Cliquer sur le bouton **↻ Ré-extraire** (animation de rotation pendant le chargement). Le bouton est désactivé tant que le cookie Babelio n'est pas actif : le coller dans le panneau **Cookie Babelio** en haut de la page
 2. Le système scrape les données fraîches depuis Babelio (~20 secondes)
 3. Si des différences sont détectées, elles sont appliquées automatiquement
 4. Une notification toast confirme le résultat :
@@ -129,6 +140,10 @@ Lors du rafraîchissement, l'éditeur extrait est référencé dans la collectio
 - Si l'éditeur existe déjà (recherche insensible aux accents et à la casse), son identifiant est réutilisé
 - Sinon, un nouvel éditeur est créé automatiquement
 - Le livre est mis à jour avec la référence `editeur_id` au lieu d'un simple champ texte
+
+### Auteur déjà en base sous un autre nom
+
+Si l'URL Babelio de l'auteur appartient déjà à un autre auteur de la base, les deux auteurs sont fusionnés : l'auteur le plus ancien est conservé, avec le nom officiel Babelio et les livres des deux (voir [Gestion des doublons](gestion-doublons.md#doublons-dauteurs-evites-a-la-validation)).
 
 ## Cas d'usage typiques
 

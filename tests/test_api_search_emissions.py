@@ -43,6 +43,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_returns_correct_structure(self):
         """search_emissions() retourne {emissions: [...], total_count: int}."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         # Mocks des collections
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -85,6 +86,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_result_has_required_fields(self):
         """Chaque résultat d'émission a _id, emission_date, search_context."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         emission_date = datetime(2025, 7, 6)
@@ -132,6 +134,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_emission_date_format(self):
         """emission_date est au format YYYYMMDD (pour URL /emissions/YYYYMMDD)."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         emission_date = datetime(2025, 7, 6)
@@ -174,6 +177,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_deduplicates_by_emission(self):
         """Plusieurs avis pour la même émission → un seul résultat d'émission."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         emission_date = datetime(2025, 7, 6)
@@ -225,6 +229,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_searches_in_commentaire(self):
         """search_emissions() trouve les émissions via le texte du commentaire critique."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         emission_date = datetime(2026, 2, 13)
@@ -279,6 +284,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_context_shows_commentaire_when_match_in_commentaire(self):
         """Quand la recherche matche dans commentaire, search_context inclut l'extrait du commentaire."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         livre_id = ObjectId("6994e74f95e08117826da195")
@@ -337,6 +343,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_uses_real_title_from_livres_collection(self):
         """search_emissions() utilise le vrai titre depuis livres pour le search_context."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         livre_id = ObjectId("6994e74f95e08117826da195")
@@ -398,6 +405,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_empty_result_when_no_match(self):
         """search_emissions() retourne liste vide si aucun résultat."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         mock_avis_collection = MagicMock()
         mock_emissions_collection = MagicMock()
@@ -421,6 +429,7 @@ class TestSearchEmissionsService:
     def test_search_emissions_uses_objectid_conversion(self):
         """La jointure émissions utilise ObjectId() pour convertir emission_oid (String → ObjectId)."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
         emission_date = datetime(2025, 7, 6)
@@ -478,6 +487,7 @@ class TestSearchEpisodesWithEmissionDate:
     def test_search_episodes_has_emission_date_field(self):
         """Chaque épisode dans les résultats a un champ emission_date."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         episode_id = ObjectId("507f1f77bcf86cd799439011")
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -515,6 +525,7 @@ class TestSearchEpisodesWithEmissionDate:
     def test_search_episodes_emission_date_format_yyyymmdd(self):
         """emission_date dans les épisodes est au format YYYYMMDD."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         episode_id = ObjectId("507f1f77bcf86cd799439011")
         emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -549,6 +560,7 @@ class TestSearchEpisodesWithEmissionDate:
     def test_search_episodes_emission_date_none_when_no_emission(self):
         """emission_date est None si aucune émission correspondante."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         episode_id = ObjectId("507f1f77bcf86cd799439011")
 
@@ -811,6 +823,7 @@ class TestSearchEmissionsCanonicalSources:
     ):
         """Helper to build a MongoDBService with all collections mocked."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
 
         if emission_id is None:
             emission_id = ObjectId("694fea90e46eedc769bcd96c")
@@ -857,6 +870,7 @@ class TestSearchEmissionsCanonicalSources:
         livre_id = ObjectId("6935d067705ddce2450b2588")
 
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
         mock_avis = MagicMock()
         mock_emissions = MagicMock()
         mock_livres = MagicMock()
@@ -921,6 +935,7 @@ class TestSearchEmissionsCanonicalSources:
         auteur_id = ObjectId("6935d067705ddce2450b2587")
 
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
         mock_avis = MagicMock()
         mock_emissions = MagicMock()
         mock_livres = MagicMock()
@@ -988,6 +1003,7 @@ class TestSearchEmissionsCanonicalSources:
     def test_search_livres_titre_is_queried_not_livre_titre_extrait(self):
         """La nouvelle implémentation doit chercher dans livres.titre, pas avis.livre_titre_extrait."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
         mock_avis = MagicMock()
         mock_emissions = MagicMock()
         mock_livres = MagicMock()
@@ -1024,6 +1040,7 @@ class TestSearchEmissionsCanonicalSources:
     def test_search_auteurs_nom_is_queried_not_auteur_nom_extrait(self):
         """La nouvelle implémentation doit chercher dans auteurs.nom, pas avis.auteur_nom_extrait."""
         service = MongoDBService.__new__(MongoDBService)
+        service.editeurs_collection = None
         mock_avis = MagicMock()
         mock_emissions = MagicMock()
         mock_livres = MagicMock()

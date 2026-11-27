@@ -46,6 +46,18 @@ def reset_singleton():
     PgxTranscriptionRunner._instance = None
 
 
+@pytest.fixture(autouse=True)
+def no_new_pending_episodes():
+    """Isole _run() de la vraie base : en fin d'épisode, le runner relit la file
+    pour intégrer les épisodes arrivés pendant le cycle (Issue #402). Par défaut,
+    aucun nouvel épisode ; un test peut repatcher stats_service pour en simuler."""
+    with patch(
+        "back_office_lmelp.utils.pgx_transcription_runner.stats_service"
+    ) as mock_stats:
+        mock_stats.get_episodes_without_transcription = MagicMock(return_value=[])
+        yield mock_stats
+
+
 class TestPgxTranscriptionRunnerSingleton:
     """Le runner est un singleton, comme MigrationRunner."""
 
@@ -1827,3 +1839,147 @@ class TestRunnerLocatesPgx:
         assert any(
             "Aucune machine avec l'identité de PGX" in line for line in runner.logs
         )
+
+
+class TestRetryNow:
+    """Pendant l'attente horaire d'un cycle "api", l'utilisateur peut demander
+    une nouvelle tentative immédiate quand PGX est revenue (Issue #402)."""
+
+    @pytest.mark.asyncio
+    async def test_retry_now_should_wake_pending_retry_without_waiting_interval(self):
+        import asyncio
+
+        runner = PgxTranscriptionRunner.get_instance()
+
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+            patch("back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"),
+            patch.object(runner, "_send_notification", new=AsyncMock()),
+        ):
+            # Vrai asyncio.sleep d'une heure : seul le réveil peut débloquer
+            mock_settings.pgx_transcription_retry_interval_hours = 1.0
+            mock_settings.pgx_transcription_retry_max_hours = 24.0
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
+
+            task = asyncio.create_task(runner._wait_for_reachable_with_retry("api"))
+            for _ in range(5):
+                await asyncio.sleep(0)
+            assert runner.retry_pending is True
+
+            result = runner.request_retry_now()
+            address = await asyncio.wait_for(task, timeout=2)
+
+        assert result == {"status": "retrying"}
+        assert address == "192.168.50.151"
+        assert runner.retry_pending is False
+        assert runner.retry_attempts[-1]["reachable"] is True
+
+    def test_retry_now_should_do_nothing_without_pending_retry(self):
+        runner = PgxTranscriptionRunner.get_instance()
+
+        assert runner.request_retry_now() == {"status": "no_pending_retry"}
+
+
+class TestEpisodesAddedDuringCycle:
+    """Les épisodes arrivés pendant un cycle rejoignent ce cycle (Issue #402)."""
+
+    EPISODES = {
+        EP1_ID: _make_episode(EP1_ID, "Episode Un"),
+        EP2_ID: _make_episode(EP2_ID, "Episode Deux"),
+    }
+
+    async def _run_cycle(self, mock_stats, fetch_side_effect):
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"
+            ) as mock_mongo,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+        ):
+            mock_mongo.get_episode_by_id = MagicMock(
+                side_effect=lambda eid: self.EPISODES[eid]
+            )
+            mock_mongo.episodes_collection.update_one = MagicMock()
+            mock_settings.pgx_host = "192.168.50.151"
+            mock_settings.pgx_user = "pgxuser"
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_settings.pgx_remote_audio_root = "/data/audios"
+            mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+            mock_settings.pgx_transcription_timeout_s = 1800.0
+            mock_settings.pgx_poll_interval_s = 10.0
+            mock_settings.audio_storage_path = "/app/audios"
+
+            mock_pgx.PgxError = PgxError
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
+            mock_pgx.send_audio_to_pgx = AsyncMock()
+            mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_transcription_from_pgx = AsyncMock(
+                side_effect=fetch_side_effect
+            )
+
+            await runner._run("manual")
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_episode_added_during_cycle_should_be_processed_in_same_cycle(
+        self, no_new_pending_episodes
+    ):
+        # EP2 apparaît dans la file pendant le traitement d'EP1
+        no_new_pending_episodes.get_episodes_without_transcription = MagicMock(
+            side_effect=[
+                [{"id": EP2_ID, "titre": "Episode Deux", "date": "2026-03-01"}],
+                [],
+            ]
+        )
+
+        runner = await self._run_cycle(
+            no_new_pending_episodes, ["Transcription 1", "Transcription 2"]
+        )
+
+        assert [p["episode_id"] for p in runner.processed] == [EP1_ID, EP2_ID]
+        assert all(p["success"] for p in runner.processed)
+        assert runner.episode_ids == [EP1_ID, EP2_ID]
+        assert any("ajouté" in line for line in runner.logs)
+
+    @pytest.mark.asyncio
+    async def test_failed_episode_should_not_be_retried_in_same_cycle(
+        self, no_new_pending_episodes
+    ):
+        # EP1 échoue : il reste sans transcription, donc toujours dans la file
+        no_new_pending_episodes.get_episodes_without_transcription = MagicMock(
+            return_value=[{"id": EP1_ID, "titre": "Episode Un", "date": "2026-03-01"}]
+        )
+
+        runner = await self._run_cycle(
+            no_new_pending_episodes, PgxError("rapatriement impossible")
+        )
+
+        assert len(runner.processed) == 1
+        assert runner.processed[0]["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_queue_reload_error_should_not_break_cycle(
+        self, no_new_pending_episodes
+    ):
+        no_new_pending_episodes.get_episodes_without_transcription = MagicMock(
+            side_effect=RuntimeError("Mongo indisponible")
+        )
+
+        runner = await self._run_cycle(no_new_pending_episodes, ["Transcription 1"])
+
+        assert len(runner.processed) == 1
+        assert runner.processed[0]["success"] is True

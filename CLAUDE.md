@@ -332,6 +332,8 @@ which some date-formatting tests assume.
     - **Diagnostic rapide** : comparer `id(ClasseAttendue)` vs `id(type(exception_reçue))`, ou `ClasseAttendue is type(exception_reçue)`, plutôt que de re-vérifier la logique métier qui est probablement correcte.
     - **Fix pragmatique** (sans toucher aux imports `src.` legacy, trop risqué à grande échelle) : dans le code de production qui catche l'exception, comparer par nom (`type(e).__name__ == "MonException"`) plutôt que `except MonException:` — inoffensif, une seule copie du module tourne réellement en production.
 
+12. **Un test ne touche jamais au vrai `.dev-ports.json`** : le nettoyage de l'app (`signal_handler()`, fin de `main()`) supprime `PortDiscovery.get_unified_port_file_path()`, soit `Path.cwd() / ".dev-ports.json"` — le fichier des services de dev en cours quand pytest tourne depuis la racine du repo. Patcher ce chemin vers `tmp_path`. La fixture autouse `_protect_real_dev_ports_file` (`tests/conftest.py`) remet le fichier en place et fait échouer le test qui l'a modifié.
+
 ### Frontend Testing - Key Rules
 
 1. **Reset mocks between tests**: Use `vi.resetAllMocks()` in `beforeEach`
@@ -441,6 +443,20 @@ server: {
    missing-body path and would miss this exact bug.
 
 **Details**: See [FastAPI Route Patterns](docs/dev/claude-ai-guide.md#fastapi-route-patterns) in developer guide.
+
+### A Book's Publisher Is Text or a Reference — Read Both
+
+A book carries **either** a text `editeur` (older books) **or** an `editeur_id` (ObjectId,
+collection `editeurs`) with no text field: every create or refresh `$unset`s the text.
+Reading `livre.get("editeur")` alone shows nothing for recent books, and the UI then falls
+back to `editeur_extrait` (the LLM summary's publisher), hiding the one the user validated.
+
+- **Display**: call `mongodb_service.fill_editeur_names(livres)` on the fetched books
+  (one batched query, text wins), then read `livre["editeur"]`. A `$project` must keep
+  `editeur_id`.
+- **Search by publisher**: match `editeur` **and** `editeur_id ∈` the ids of `editeurs`
+  whose `nom` matches (`search_emissions` does both).
+- **UI**: show `avis.editeur || avis.editeur_extrait`, never `editeur_extrait` alone.
 
 ### Livres avec Co-Auteurs - Limitation Modèle Actuel
 
@@ -584,6 +600,12 @@ a set-aside title silently comes back.
 
 A book freshly extracted from the summary (empty or refreshed cache) has **no `cache_id`**:
 act on it by episode + title (`POST /api/livres-auteurs/ecarter`), never by cache id.
+
+**Summary tables are read by position**: split a row with
+`AvisExtractionService._split_table_row()` (one pipe per edge), never by dropping empty
+cells — a missing note or publisher would shift every following column. A Critique cell
+between parentheses is an LLM remark (« (Déjà dans le programme principal…) »), never a
+critic: the avis extraction and `critiques_extraction_service` both skip it.
 
 ### A Cache Refresh Never Undoes a Book Already in the Database
 
@@ -912,6 +934,13 @@ asyncio.sleep(...)` *inside* that loop keeps the flag `True` for the whole
 wait — the existing "already running" guard on the entry point then also
 covers "a retry is currently pending", with zero new locking code.
 
+**The same flag blocks the UI's start button for the whole wait**: give the
+user a way to wake the wait instead of a second run. The runner races
+`asyncio.sleep(interval)` against an `asyncio.Event` (`_wait_for_next_attempt()`),
+and `POST /api/pgx/transcription/retry-now` sets it. That endpoint is an
+`async def` with no `await`: `asyncio.Event.set()` is not thread-safe, and a
+plain `def` endpoint runs in FastAPI's threadpool.
+
 **Testability**: mock `asyncio.sleep` so the wait is instant, but do NOT
 assume that alone makes a real-wall-clock deadline (`datetime.now(UTC) <
 retry_deadline`) converge quickly — the real clock still advances by
@@ -969,6 +998,8 @@ await asyncio.sleep(5)  # 5 seconds between Babelio requests
 - `normalize_for_cover_title_matching()` : validation titre page Babelio vs titre attendu (cover scraping)
 
 **Piège déduplication MongoDB** : ne jamais dédupliquer par égalité stricte (`find_one({"titre": ..., "auteur_id": ...})`) sur un champ texte scrapé. Un re-scraping Babelio peut renvoyer un titre à la casse légèrement différente (`L'affaire` vs `L'Affaire`), ce qui crée un doublon non détecté — et son URL Babelio hérite de la même casse différente, empêchant aussi la détection ultérieure des doublons par égalité stricte sur `url_babelio`. Toujours comparer via `normalize_for_matching()` après récupération des candidats (`find()`, pas `find_one()`), et grouper les agrégations MongoDB de détection de doublons avec `{"$toLower": "$champ"}` plutôt qu'une égalité brute (Issue #267).
+
+**Auteur créé par son nom, puis URL Babelio** : `create_author_if_not_exists(nom)` ne connaît pas encore l'URL de l'auteur ; deux noms différents (« Patrick J. Rogers » / « Patrick Roegiers ») peuvent désigner la même fiche Babelio. Tout code qui pose l'URL d'un auteur appelle ensuite `_merge_if_author_url_taken()` (`app.py`), qui réutilise `merge_duplicate_authors()` si un autre auteur porte déjà cette URL. Côté livres, `create_book_if_not_exists()` cherche d'abord un livre de même `url_babelio` (insensible à la casse) avant de comparer les titres : Babelio renvoie parfois un titre plus complet que celui en base (« … : Lettres à Pierre Boncenne »), qui ne correspond plus au titre normalisé.
 
 **Normalisations automatiques** (les deux fonctions) :
 - **Accents**: é ↔ e, à ↔ a, ô ↔ o, etc.
@@ -1123,6 +1154,13 @@ a Babelio job must run the probe first. In tests, the autouse fixture `babelio_r
 real probe succeeds locally but times out in CI. The fixture must never import a module:
 importing `migration_runner` early pins the singleton from before `test_babelio_service.py`
 reloads `babelio_service`.
+
+**A page that reads Babelio on demand gets the same guard**: `babelioCookieGuardMixin`
+(`frontend/src/utils/babelioCookieGuard.js`) + `BabelioCookiePanel`, the action disabled
+while `babelioCookieActive` is false, `probeBabelio()` before the call, and the status
+reloaded after a failure. Used by Gestion des doublons, the book page (« Ré-extraire ») and
+Recherche Babelio. The page calls `loadBabelioServiceStatus()` in its own `mounted`, after
+its data: a mixin `mounted` would run first.
 
 **Find every occurrence**: grep for `babelio.com` and `ClientSession` together; each
 bypass was added independently by a feature reaching for "a quick way to hit this URL"

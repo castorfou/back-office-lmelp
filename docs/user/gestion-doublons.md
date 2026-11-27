@@ -22,6 +22,14 @@ Sur l'écran Émissions, quand le nombre de livres cités dans l'avis critique d
 
 La page `/duplicates` affiche deux sections principales :
 
+### Cookie Babelio
+
+La fusion lit le nom officiel du livre ou de l'auteur sur Babelio. Le panneau **Cookie Babelio**, en haut de la page, montre l'état du cookie enregistré sur le serveur et permet d'en coller un frais.
+
+- Tant que le cookie n'est pas actif, les boutons de fusion sont désactivés : sans cookie, Babelio répond 403, et un 403 peut se transformer en blocage de l'adresse IP pendant environ 24 h.
+- Avant chaque fusion, un essai de connexion vérifie que Babelio répond ; si l'adresse IP est bloquée, la fusion n'est pas lancée.
+- Après une fusion en échec, le panneau indique la cause (cookie expiré, vérification humaine, blocage).
+
 ### Section Statistiques
 
 Cette section affiche des compteurs détaillés sur les doublons détectés :
@@ -127,8 +135,15 @@ Un encadré rouge s'affiche avec le message d'erreur :
 **Erreurs courantes :**
 
 - **`auteur_id mismatch`** : Les livres en doublon n'ont pas le même auteur (fusion refusée pour préserver l'intégrité)
-- **Échec scraping Babelio** : L'URL Babelio n'a pas pu être consultée (fusion utilise alors les données existantes)
+- **`Babelio 403`** : Babelio a refusé la lecture (cookie absent, expiré ou copié hors connexion). Rien n'est fusionné : coller un cookie frais dans le panneau, puis relancer
+- **Nom introuvable sur Babelio** : La page de l'auteur n'a pas donné de nom ; la fusion garde le nom de l'auteur le plus ancien
 - **Livre/Auteur déjà fusionné** : Ce groupe a déjà été traité
+
+## Doublons d'auteurs évités à la validation
+
+Un auteur est créé par son nom, avant que son URL Babelio soit connue : deux noms différents (une faute de transcription comme « Patrick J. Rogers », et « Patrick Roegiers ») peuvent désigner la même fiche Babelio. Quand la validation d'un livre ou le bouton **↻ Ré-extraire** d'une fiche livre trouve une URL d'auteur déjà portée par un autre auteur, les deux auteurs sont fusionnés aussitôt, comme depuis cette page : l'auteur le plus ancien est conservé, avec le nom officiel Babelio et tous les livres.
+
+De même pour les livres : quand la validation d'un livre reçoit de Babelio une URL déjà portée par un livre en base, ce livre est réutilisé (l'émission lui est rattachée) au lieu d'en créer un second, même si Babelio renvoie un titre plus complet que celui en base (« Quand vous viendrez me voir aux Antipodes : Lettres à Pierre Boncenne » pour « Quand vous viendrez me voir aux antipodes »).
 
 ## Fusion par Lot (Batch)
 
@@ -147,7 +162,7 @@ Pour fusionner plusieurs groupes automatiquement :
 
 - **Traitement séquentiel** : Les groupes sont fusionnés un par un
 - **Délai entre groupes** : 1 seconde de pause entre chaque fusion (respect de Babelio)
-- **Arrêt sur erreur** : Le traitement continue même si un groupe échoue
+- **Arrêt sur erreur** : Le traitement s'arrête au premier groupe en échec (un 403 ou un blocage se répéterait sur les groupes suivants)
 - **Mise à jour stats** : Les statistiques sont rafraîchies après chaque fusion
 
 ### Cas particulier : Rate Limiting

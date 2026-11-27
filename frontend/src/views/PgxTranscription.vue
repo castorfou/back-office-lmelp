@@ -60,10 +60,11 @@
           <button
             data-testid="pgx-start-button"
             class="btn btn-primary"
-            :disabled="!pgxReady || pgxEpisodes.length === 0 || pgxProgress.is_running"
+            :disabled="startButtonDisabled"
             @click="startPgxTranscription"
           >
-            ▶️ Lancer la transcription des épisodes en attente
+            <template v-if="pgxProgress.retry_pending">🔁 Réessayer maintenant</template>
+            <template v-else>▶️ Lancer la transcription des épisodes en attente</template>
           </button>
         </template>
 
@@ -249,6 +250,14 @@ export default {
       return this.pgxDiagnostics;
     },
 
+    startButtonDisabled() {
+      if (!this.pgxReady) return true;
+      // Un cycle qui attend PGX peut être réveillé (Issue #402) ; un cycle
+      // qui travaille ne peut pas être doublé.
+      if (this.pgxProgress.is_running) return !this.pgxProgress.retry_pending;
+      return this.pgxEpisodes.length === 0;
+    },
+
     sshAuthOk() {
       const sshDiag = this.pgxDiagnostics.find((d) =>
         d.name.startsWith('Authentification SSH')
@@ -331,7 +340,10 @@ export default {
         this.pgxProgress = res.data;
         await this.refreshPgxLogsSilently();
         await this.refreshExpandedPgxLogDetailSilently();
-        if (!res.data.is_running && this.pgxPollInterval) {
+        // Page ouverte pendant un cycle : suivre sa progression (Issue #402)
+        if (res.data.is_running) {
+          this.startPgxPolling();
+        } else if (this.pgxPollInterval) {
           this.stopPgxPolling();
           await this.loadPgxEpisodes();
         }
@@ -355,6 +367,10 @@ export default {
     },
 
     async startPgxTranscription() {
+      if (this.pgxProgress.retry_pending) {
+        await this.retryPgxNow();
+        return;
+      }
       try {
         const res = await axios.post('/api/pgx/transcription/start');
         if (res.data.status === 'started') {
@@ -364,6 +380,16 @@ export default {
         }
       } catch (e) {
         console.error('Erreur déclenchement transcription PGX', e);
+      }
+    },
+
+    async retryPgxNow() {
+      try {
+        await axios.post('/api/pgx/transcription/retry-now');
+        this.startPgxPolling();
+        await this.checkPgxProgress();
+      } catch (e) {
+        console.error('Erreur relance immédiate transcription PGX', e);
       }
     },
 
