@@ -265,10 +265,6 @@
         <template v-if="laAvecTranscription()">▶ devant un titre : écouter son Passage · ○ : pas de Passage (à placer) · lignes « simulé » : pas encore validées</template>
         <template v-else>pas de transcription horodatée pour cette émission : pas d'écoute (témoins : 21/07/2024, 15/11/2026, 04/10/2026)</template>
       </div>
-      <section v-if="laVariante === 'C' && ecoute.pret && selectedEpisodeId && !loading && !error" class="card la-section-c">
-        <h3 class="la-titre-c">🎧 Écouter l'émission · Passages et transcription</h3>
-        <EcouteEmission :fermable="false" />
-      </section>
       <aside v-if="laVariante === 'A' && ecoute.ouvert && ecoute.pret" class="la-panneau">
         <EcouteEmission />
       </aside>
@@ -470,6 +466,11 @@
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section v-if="laVariante === 'C' && ecoute.pret && selectedEpisodeId && !loading && !error" class="card la-section-c" ref="laSectionC">
+        <h3 class="la-titre-c">🎧 Écouter l'émission · Passages et transcription</h3>
+        <EcouteEmission :fermable="false" />
       </section>
 
       <!-- Message de filtrage -->
@@ -1146,7 +1147,10 @@ export default {
     laPassage: la.passageDe,
     laEnLecture: la.enLecture,
     laSimulation: la.simulation,
-    laEcouter: la.ecouterLigne,
+    laEcouter(titre) {
+      la.ecouterLigne(titre);
+      if (this.laVariante === 'C') this.$nextTick(() => this.$refs.laSectionC?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
     laLigneActive(book) { return la.ecoute.ligne === la.norm(book.titre); },
     laDuree(titre) { const p = la.passageDe(titre); return p ? laFmt(p.fin - p.debut) : ''; },
     laValider(titre, suggestion) { la.validerSimule(titre, suggestion); },
@@ -2249,7 +2253,7 @@ export default {
 .la-ligne-active > td { background: #eef4ff !important; }
 .la-ligne-ecoute > td { background: #f5f8ff; padding: .5rem !important; }
 .la-deplie { height: 460px; border: 1px solid #cfe0ff; border-radius: 8px; padding: .6rem; background: #fff; }
-.la-section-c { height: 58vh; display: flex; flex-direction: column; padding: .8rem 1rem; margin-bottom: 1rem; }
+.la-section-c { height: 80vh; margin-top: 1rem; display: flex; flex-direction: column; padding: .8rem 1rem; margin-bottom: 1rem; }
 .la-section-c > .ee { flex: 1; min-height: 0; }
 .la-titre-c { margin: 0 0 .5rem; font-size: 1.05rem; }
 .la-panneau { position: fixed; top: 0; right: 0; bottom: 0; width: 52vw; z-index: 60; background: #fff;
