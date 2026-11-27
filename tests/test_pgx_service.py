@@ -13,6 +13,7 @@ import pytest
 from back_office_lmelp.services.pgx_service import (
     PgxError,
     ensure_pgx_ssh_key,
+    fetch_segments_from_pgx,
     fetch_transcription_from_pgx,
     get_pgx_config_missing_vars,
     host_key_fingerprint,
@@ -982,3 +983,72 @@ class TestPinnedHostKey:
             assert "HostKeyAlias=pgx" in args
             assert f"UserKnownHostsFile={known_hosts_in_tmp}" in args
             assert not any("accept-new" in a for a in args)
+
+
+class TestFetchSegmentsFromPgx:
+    """Rapatriement du .json horodaté de whisper (Issue #427).
+
+    PGX peut encore écrire le .json quand il est rapatrié : un contenu qui ne
+    se décode pas est relu après une attente.
+    """
+
+    @pytest.mark.asyncio
+    async def test_un_json_en_cours_d_ecriture_est_relu(self, tmp_path):
+        local_json = tmp_path / "episode.json"
+        contenus = iter(
+            ['{"transcription": [{"offsets": {"from": 0', '{"transcription": []}']
+        )
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            local_json.write_text(next(contenus))
+            return _make_subprocess_mock(returncode=0)
+
+        with (
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                side_effect=fake_create_subprocess_exec,
+            ),
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.sleep",
+                new=AsyncMock(),
+            ) as attente,
+        ):
+            whisper = await fetch_segments_from_pgx(
+                "/data/transcriptions/2026/episode.json",
+                str(local_json),
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+                attente_s=10,
+            )
+
+        assert whisper == {"transcription": []}
+        attente.assert_awaited_once_with(10)
+
+    @pytest.mark.asyncio
+    async def test_un_json_toujours_illisible_fait_echouer_l_episode(self, tmp_path):
+        local_json = tmp_path / "episode.json"
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            local_json.write_text('{"transcription": [')
+            return _make_subprocess_mock(returncode=0)
+
+        with (
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.create_subprocess_exec",
+                side_effect=fake_create_subprocess_exec,
+            ),
+            patch(
+                "back_office_lmelp.services.pgx_service.asyncio.sleep",
+                new=AsyncMock(),
+            ),
+            pytest.raises(PgxError, match="illisibles"),
+        ):
+            await fetch_segments_from_pgx(
+                "/data/transcriptions/2026/episode.json",
+                str(local_json),
+                host="192.168.50.151",
+                user="pgxuser",
+                key_path="/keys/pgx_ed25519",
+                tentatives=3,
+            )

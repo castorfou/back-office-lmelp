@@ -14,9 +14,11 @@ import binascii
 import contextlib
 import hashlib
 import ipaddress
+import json
 import os
 import tempfile
 from dataclasses import dataclass
+from typing import Any
 
 
 class PgxError(RuntimeError):
@@ -344,6 +346,41 @@ async def fetch_transcription_from_pgx(
 
     with open(local_txt_path) as f:
         return f.read()
+
+
+async def fetch_segments_from_pgx(
+    remote_json_path: str,
+    local_json_path: str,
+    *,
+    host: str,
+    user: str,
+    key_path: str,
+    tentatives: int = 3,
+    attente_s: float = 10,
+) -> dict[str, Any]:
+    """Rapatrie le .json horodaté de whisper (`-oj`) et retourne son contenu.
+
+    Un .json encore en cours d'écriture ne se décode pas : il est relu après
+    `attente_s`, au plus `tentatives` fois (Issue #427).
+    """
+    command = _scp_base_command(key_path) + [
+        f"{user}@{host}:{remote_json_path}",
+        local_json_path,
+    ]
+    for tentative in range(1, tentatives + 1):
+        returncode, _, stderr = await _run_command(command)
+        if returncode != 0:
+            raise PgxError(f"Échec du rapatriement des segments depuis PGX: {stderr}")
+        try:
+            with open(local_json_path, encoding="utf-8") as f:
+                return dict(json.load(f))
+        except json.JSONDecodeError:
+            if tentative == tentatives:
+                raise PgxError(
+                    f"Segments illisibles après {tentatives} essais: {remote_json_path}"
+                ) from None
+            await asyncio.sleep(attente_s)
+    raise PgxError(f"Segments non rapatriés: {remote_json_path}")
 
 
 async def _check_host_identity(*, host: str, host_key: str) -> tuple[bool, str]:

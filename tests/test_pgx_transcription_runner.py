@@ -172,6 +172,9 @@ class TestRunSequentialProcessing:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 side_effect=["Transcription 1", "Transcription 2"]
             )
@@ -239,6 +242,9 @@ class TestRunSequentialProcessing:
                 side_effect=[PgxError("scp failed"), None]
             )
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription 2"
             )
@@ -512,6 +518,9 @@ class TestLocalCacheFirst:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock()
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock()
 
             await runner._run()
@@ -633,6 +642,9 @@ class TestLocalCacheFirst:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription via PGX"
             )
@@ -813,6 +825,9 @@ class TestTriggerParameter:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription 1"
             )
@@ -1090,6 +1105,9 @@ class TestPgxTranscriptionLogPersistence:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription 1"
             )
@@ -1150,6 +1168,9 @@ class TestPgxTranscriptionLogPersistence:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription 1"
             )
@@ -1263,6 +1284,9 @@ class TestPgxTranscriptionLogPersistence:
                 side_effect=[PgxError("scp failed"), None]
             )
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription 2"
             )
@@ -1443,6 +1467,9 @@ class TestPgxNtfyNotifications:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 side_effect=["Transcription 1", "Transcription 2"]
             )
@@ -1585,6 +1612,8 @@ class TestOrphanMp3Requeue:
     AUDIO_REL = "2026/episode.m4a"
     REMOTE_MP3 = "/data/audios/2026/episode.mp3"
     REMOTE_TXT = "/data/transcriptions/2026/episode.txt"
+    # le .json horodaté signale une transcription terminée (#427)
+    REMOTE_JSON = "/data/transcriptions/2026/episode.json"
 
     @staticmethod
     def _configure_settings(mock_settings: MagicMock, tmp_path: Path) -> None:
@@ -1641,6 +1670,9 @@ class TestOrphanMp3Requeue:
             mock_pgx.requeue_pgx_audio = AsyncMock(side_effect=requeue_error)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 return_value="Transcription relancée"
             )
@@ -1675,7 +1707,7 @@ class TestOrphanMp3Requeue:
     @pytest.mark.asyncio
     async def test_should_not_requeue_when_transcription_already_exists(self, tmp_path):
         mock_pgx = await self._run_with_remote_files(
-            tmp_path, {self.REMOTE_MP3, self.REMOTE_TXT}
+            tmp_path, {self.REMOTE_MP3, self.REMOTE_JSON}
         )
 
         mock_pgx.requeue_pgx_audio.assert_not_called()
@@ -1692,7 +1724,7 @@ class TestOrphanMp3Requeue:
 
         # Seule la transcription est cherchée sur PGX (Issue #337), pas le mp3
         mock_pgx.remote_file_exists.assert_called_once()
-        assert mock_pgx.remote_file_exists.call_args.args[0] == self.REMOTE_TXT
+        assert mock_pgx.remote_file_exists.call_args.args[0] == self.REMOTE_JSON
         mock_pgx.requeue_pgx_audio.assert_not_called()
         mock_pgx.send_audio_to_pgx.assert_called_once()
 
@@ -1726,6 +1758,7 @@ class TestResumeTranscriptionAlreadyOnPgx:
         "/data/transcriptions/2024/"
         "14007-21.07.2024-ITEMA_23808923-2024F4007S0203-27.txt"
     )
+    REMOTE_JSON = REMOTE_TXT.removesuffix(".txt") + ".json"
 
     @pytest.mark.asyncio
     async def test_should_fetch_existing_transcription_without_resending_audio(
@@ -1734,7 +1767,7 @@ class TestResumeTranscriptionAlreadyOnPgx:
         # Même outillage que la relance d'un mp3 orphelin (Issue #320)
         mock_pgx = await TestOrphanMp3Requeue()._run_with_remote_files(
             tmp_path,
-            {self.REMOTE_MP3, self.REMOTE_TXT},
+            {self.REMOTE_MP3, self.REMOTE_JSON},
             audio_rel=self.AUDIO_REL,
             episode_date=datetime(2024, 7, 21, 8, 11, 50),  # date réelle en base
         )
@@ -1796,6 +1829,9 @@ class TestRunnerLocatesPgx:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(return_value="Texte")
 
             await runner._run(trigger=trigger)
@@ -1927,6 +1963,9 @@ class TestEpisodesAddedDuringCycle:
             mock_pgx.remote_file_exists = AsyncMock(return_value=False)
             mock_pgx.send_audio_to_pgx = AsyncMock()
             mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
             mock_pgx.fetch_transcription_from_pgx = AsyncMock(
                 side_effect=fetch_side_effect
             )
@@ -1983,3 +2022,65 @@ class TestEpisodesAddedDuringCycle:
 
         assert len(runner.processed) == 1
         assert runner.processed[0]["success"] is True
+
+
+class TestSegmentsHorodates:
+    """Le .json horodaté (whisper -oj) donne les Segments de l'épisode (#427).
+
+    PGX écrit le .json à côté du .txt : le runner attend le .json, rapatrie
+    les deux fichiers et enregistre les Segments, ce qui repère les Passages.
+    """
+
+    @pytest.mark.asyncio
+    async def test_attend_le_json_puis_enregistre_les_segments(self, tmp_path):
+        runner = PgxTranscriptionRunner.get_instance()
+        runner.episode_ids = [EP1_ID]
+        runner.is_running = True
+        whisper = {
+            "transcription": [{"offsets": {"from": 0, "to": 900}, "text": " Musique"}]
+        }
+
+        with (
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.mongodb_service"
+            ) as mock_mongo,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.settings"
+            ) as mock_settings,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.pgx_service"
+            ) as mock_pgx,
+            patch(
+                "back_office_lmelp.utils.pgx_transcription_runner.passages_service"
+            ) as mock_passages,
+        ):
+            mock_mongo.get_episode_by_id = MagicMock(return_value=_make_episode(EP1_ID))
+            mock_mongo.episodes_collection.update_one = MagicMock()
+            mock_settings.pgx_host = "192.168.50.151"
+            mock_settings.pgx_user = "pgxuser"
+            mock_settings.pgx_ssh_key_path = "/keys/pgx_ed25519"
+            mock_settings.pgx_remote_audio_root = "/data/audios"
+            mock_settings.pgx_remote_transcription_root = "/data/transcriptions"
+            mock_settings.pgx_transcription_timeout_s = 1800.0
+            mock_settings.pgx_poll_interval_s = 10.0
+            mock_settings.audio_storage_path = str(tmp_path)
+            mock_pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
+            mock_pgx.remote_file_exists = AsyncMock(return_value=False)
+            mock_pgx.send_audio_to_pgx = AsyncMock()
+            mock_pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(
+                return_value={"transcription": []}
+            )
+            mock_pgx.fetch_transcription_from_pgx = AsyncMock(return_value="Musique")
+            mock_pgx.fetch_segments_from_pgx = AsyncMock(return_value=whisper)
+
+            await runner._run()
+
+        assert runner.processed[0]["success"] is True
+        attendu = mock_pgx.wait_for_pgx_transcription.call_args.args[0]
+        assert attendu == "/data/transcriptions/2026/episode.json"
+        assert (
+            mock_pgx.fetch_segments_from_pgx.call_args.args[0]
+            == "/data/transcriptions/2026/episode.json"
+        )
+        mock_passages.enregistrer_segments.assert_called_once_with(EP1_ID, whisper)
