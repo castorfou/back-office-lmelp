@@ -1,8 +1,9 @@
 """Ce qui relance le repérage des Passages d'un épisode (Issue #427, tranche 2b).
 
 Le repérage est recalculé quand le résumé est enregistré ou qu'un titre est
-écarté ou rétabli. À la validation d'un livre, le Passage existant est
-seulement rattaché au livre, sans nouveau repérage.
+écarté ou rétabli. La validation d'un livre ne déclenche rien : le livre d'un
+Passage se retrouve à la lecture, par les noms connus du livre (cache
+livres-auteurs) et les livres de l'épisode en base.
 
 Les routes tournent sur une base mongomock branchée sur le vrai
 `mongodb_service` (vrais filtres, vrais types), avec le témoin du 15/11/2026.
@@ -136,28 +137,108 @@ def test_un_nouveau_resume_relance_le_reperage(client, episode):
     assert len(titres) == 8
 
 
-def test_valider_un_livre_rattache_son_passage_sans_le_reperer_de_nouveau(
+def passages_et_sans_passage(client: TestClient, episode: str) -> dict[str, Any]:
+    return dict(client.get(f"/api/episodes/{episode}/passages").json())
+
+
+def valider(
+    db: Any, episode: str, titre: str, titre_valide: str, livre_oid: str
+) -> None:
+    """Ce que fait une validation : le cache reçoit le livre et le titre validé,
+    puis le résumé est réécrit avec le titre validé. Aucun déclencheur."""
+    db.livresauteurs_cache.insert_one(
+        {
+            "episode_oid": episode,
+            "titre": titre,
+            "validated_title": titre_valide,
+            "status": "mongo",
+            "book_id": ObjectId(livre_oid),
+        }
+    )
+    avis = db.avis_critiques.find_one({"episode_oid": episode})
+    db.avis_critiques.update_one(
+        {"_id": avis["_id"]},
+        {"$set": {"summary": avis["summary"].replace(titre, titre_valide)}},
+    )
+
+
+def test_un_livre_valide_est_retrouve_a_la_lecture_sans_declencheur(
+    client, db, episode
+):
+    valider(db, episode, "Vivre après", "Vivre après (récit)", LIVRE_VIVRE_APRES)
+
+    data = passages_et_sans_passage(client, episode)
+
+    vivre_apres = [p for p in data["passages"] if p["livre_id"] == LIVRE_VIVRE_APRES]
+    assert len(vivre_apres) == 1
+    assert vivre_apres[0]["auteur"] == "Jérôme Garcin"
+    assert data["sans_passage"] == []
+
+
+def test_un_passage_corrige_puis_valide_n_est_pas_double_par_un_recalcul(
     client, db, episode
 ):
     from back_office_lmelp.services.passages_service import passages_service
 
-    # une correction à la main avant la validation
     db.passages.update_one(
         {"episode_oid": episode, "titre": "Vivre après"},
         {"$set": {"debut_ms": 2_500_000, "origine": "corrige"}},
     )
+    valider(db, episode, "Vivre après", "Vivre après (récit)", LIVRE_VIVRE_APRES)
 
-    with patch(
-        "back_office_lmelp.services.passages_service.reperer_passages"
-    ) as reperage:
-        passages_service.rattacher_livre(
-            episode, "Vivre après", "Vivre après (récit)", LIVRE_VIVRE_APRES
-        )
+    passages_service.recalculer(episode)
 
-    reperage.assert_not_called()
-    passage = db.passages.find_one(
-        {"episode_oid": episode, "livre_oid": LIVRE_VIVRE_APRES}
+    vivre_apres = [
+        p
+        for p in passages_et_sans_passage(client, episode)["passages"]
+        if p["livre_id"] == LIVRE_VIVRE_APRES
+    ]
+    assert len(vivre_apres) == 1
+    assert vivre_apres[0]["debut_ms"] == 2_500_000
+    assert vivre_apres[0]["origine"] == "corrige"
+
+
+def test_un_nouveau_resume_garde_le_lien_des_livres_deja_en_base(client, db, episode):
+    # le livre est en base pour cet épisode ; un nouveau résumé vide le cache
+    db.livres.insert_one(
+        {
+            "_id": ObjectId(LIVRE_VIVRE_APRES),
+            "titre": "Vivre après",
+            "episodes": [episode],
+        }
     )
-    assert passage["titre"] == "Vivre après (récit)"  # le titre corrigé du résumé
-    assert passage["debut_ms"] == 2_500_000
-    assert passage["origine"] == "corrige"
+
+    client.post(
+        "/api/avis-critiques/save",
+        json={
+            "episode_id": episode,
+            "summary": TEMOIN["resume"],
+            "summary_phase1": TEMOIN["resume"],
+            "metadata": {},
+        },
+    )
+
+    passages = {
+        p["titre"]: p for p in passages_et_sans_passage(client, episode)["passages"]
+    }
+    assert passages["Vivre après"]["livre_id"] == LIVRE_VIVRE_APRES
+
+
+def test_un_passage_corrige_d_un_titre_ecarte_est_masque_puis_revient(
+    client, db, episode
+):
+    db.passages.update_one(
+        {"episode_oid": episode, "titre": "Vivre après"},
+        {"$set": {"debut_ms": 2_500_000, "origine": "corrige"}},
+    )
+    emission = db.emissions.find_one({"episode_id": ObjectId(episode)})
+    route = f"/api/emissions/{emission['_id']}/livres-ecartes"
+
+    client.post(route, json={"titre": "Vivre après", "auteur": "Jérôme Garcin"})
+    assert "Vivre après" not in titres_des_passages(client, episode)
+
+    client.delete(route, params={"titre": "Vivre après"})
+    passages = {
+        p["titre"]: p for p in passages_et_sans_passage(client, episode)["passages"]
+    }
+    assert passages["Vivre après"]["debut_ms"] == 2_500_000

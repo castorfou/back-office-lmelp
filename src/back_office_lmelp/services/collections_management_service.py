@@ -357,17 +357,6 @@ class CollectionsManagementService:
                     cache_id, author_id, book_id, metadata=cache_metadata
                 )
 
-                # Le Passage du titre est rattaché au livre, sans nouveau repérage
-                if book_data.get("episode_oid"):
-                    from .passages_service import passages_service
-
-                    passages_service.rattacher_livre(
-                        str(book_data["episode_oid"]),
-                        book_data.get("titre", ""),
-                        book_title,
-                        str(book_id),
-                    )
-
                 # Issue #67: Mise à jour du summary dans avis_critiques
                 avis_critique_id = book_data.get("avis_critique_id")
                 # Issue #85: Déterminer s'il y a enrichissement Babelio (publisher différent)

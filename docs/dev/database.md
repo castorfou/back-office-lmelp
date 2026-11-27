@@ -170,7 +170,7 @@ partir des Segments et du résumé (`avis_critiques.summary`), et recalculés pa
 |-------|------|-------------|
 | `episode_oid` | String | Id de l'épisode |
 | `titre` | String | Titre du livre tel que le résumé le cite ; avec `episode_oid`, identifie le Passage tant que le livre n'est pas validé |
-| `livre_oid` | String ou null | Id du livre (`livres._id` en String), posé dès que le titre a un livre dans `livresauteurs_cache` |
+| `livre_oid` | String ou null | Id du livre (`livres._id` en String), posé au recalcul dès que le livre est en base |
 | `debut_ms` / `fin_ms` | Int | Bornes du Passage dans l'audio, à l'heure exacte d'un Segment |
 | `origine` | String | `"auto"` (repéré) ou `"corrige"` (borné à la main) |
 | `supprime` | Boolean | Passage retiré à la main, conservé pour qu'un recalcul ne le recrée pas |
@@ -178,6 +178,18 @@ partir des Segments et du résumé (`avis_critiques.summary`), et recalculés pa
 La section (débattu ou coup de cœur) et l'auteur ne sont pas stockés : ils se lisent dans
 le résumé. Un recalcul refait les Passages `auto` et garde les Passages `corrige` ou
 `supprime` ; un Passage `auto` voisin s'arrête aux bornes d'un Passage corrigé.
+
+Le livre d'un Passage se retrouve à la lecture et au recalcul, sans déclencheur à la
+validation : un livre est connu sous le titre extrait du résumé, le titre suggéré et le
+titre validé (`livresauteurs_cache`), et sous son titre en base (`livres` liés à
+l'épisode par `episodes`), qui reste quand un nouveau résumé vide le cache. La validation
+réécrit le résumé avec le titre validé : le Passage garde le titre d'origine et son livre
+est retrouvé par ces noms. Un livre a au plus un Passage par émission. Un Passage dont le
+livre n'est plus dans le résumé (titre écarté) n'est pas rendu ; il revient, avec sa
+correction, si le titre est rétabli.
+
+Le repérage est recalculé quand les Segments arrivent, quand un nouveau résumé est
+enregistré et quand un titre est écarté ou rétabli.
 
 ## Opérations CRUD
 
