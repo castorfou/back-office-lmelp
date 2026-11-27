@@ -441,7 +441,7 @@ Quand aucun livre de l'auteur n'est trouvé et qu'un auteur est fourni, `verify_
 Un livre validé avec son URL Babelio n'a plus à passer par la page Liaison Babelio. Cela évite de nouvelles requêtes Babelio. L'URL traverse cinq étapes ; chacune doit la conserver.
 
 1. **Validation frontend** (`BiblioValidationService.js`) : tout résultat `suggestion` ou `verified` adossé à un livre Babelio porte `data.babelio_url` (branches suggestion Babelio, cohérence auteur, `ground_truth+babelio`, titre seul).
-    - La branche `ground_truth` seule (confiance 0.75) ne garde l'URL que si le titre trouvé par Babelio correspond à la suggestion du résumé (`_babelioUrlIfSameTitle()` : casse, accents et apostrophe typographique ignorés). Un homonyme n'est jamais lié.
+    - La branche `ground_truth` seule (confiance 0.75) ne garde l'URL que si le titre trouvé par Babelio correspond à la suggestion du résumé (`_babelioUrlIfSameTitle()` : casse, accents et apostrophe typographique ignorés). Un titre Babelio préfixé par la série (« L'amie prodigieuse, tome 4 : L'enfant perdue » pour « L’enfant perdue ») est accepté aussi : il doit se terminer par « : *titre suggéré* » et l'auteur Babelio doit être l'auteur suggéré ou celui du résumé. Un homonyme (même titre, autre auteur) n'est jamais lié.
 2. **Cache** (`buildBookDataForBackend.js`) : `babelio_url = book.babelio_url || validationResult.data.babelio_url`.
     - L'URL de l'enrichissement à l'extraction (confiance ≥ 0.90) est prioritaire.
     - La suggestion couvre les cas sous ce seuil, par exemple des co-auteurs.

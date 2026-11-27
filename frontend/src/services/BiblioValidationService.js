@@ -1121,7 +1121,11 @@ export class BiblioValidationService {
               source: 'ground_truth',
               confidence_score: 0.75,
               // Issue #341: URL du livre Babelio seulement si c'est bien ce livre
-              babelio_url: this._babelioUrlIfSameTitle(initialBookValidation, groundTruthSuggestion.title)
+              babelio_url: this._babelioUrlIfSameTitle(
+                initialBookValidation,
+                groundTruthSuggestion.title,
+                [groundTruthSuggestion.author, original.author]
+              )
             }
         };
       }
@@ -1183,16 +1187,33 @@ export class BiblioValidationService {
    * URL Babelio d'une validation si le livre trouvé porte le titre attendu
    * (casse, accents et apostrophe typographique ignorés), sinon null.
    * Évite de lier un homonyme (« L'Héritage » de Paolini pour celui de Littell).
+   *
+   * Babelio préfixe souvent le titre par sa série (« L'amie prodigieuse, tome 4 :
+   * L'enfant perdue ») : un titre Babelio qui se termine par « : <titre attendu> »
+   * est accepté aussi, mais seulement si l'auteur Babelio est l'un des auteurs
+   * attendus.
    * @private
    */
-  _babelioUrlIfSameTitle(bookValidation, expectedTitle) {
+  _babelioUrlIfSameTitle(bookValidation, expectedTitle, expectedAuthors = []) {
     if (!bookValidation?.babelio_url || !bookValidation.babelio_suggestion_title || !expectedTitle) {
       return null;
     }
     const normalize = (t) => removeAccents(t.toLowerCase()).replace(/’/g, "'").trim();
-    return normalize(bookValidation.babelio_suggestion_title) === normalize(expectedTitle)
-      ? bookValidation.babelio_url
-      : null;
+    const babelioTitle = normalize(bookValidation.babelio_suggestion_title);
+    const title = normalize(expectedTitle);
+    if (babelioTitle === title) {
+      return bookValidation.babelio_url;
+    }
+
+    const babelioAuthor = bookValidation.babelio_suggestion_author;
+    const sameAuthor = Boolean(babelioAuthor) && expectedAuthors.some(
+      (a) => a && normalize(a) === normalize(babelioAuthor)
+    );
+    const separatorIndex = babelioTitle.length - title.length;
+    const endsWithSeriesTitle = separatorIndex > 0 &&
+      babelioTitle.endsWith(title) &&
+      /\S\s*:\s*$/.test(babelioTitle.slice(0, separatorIndex));
+    return sameAuthor && endsWithSeriesTitle ? bookValidation.babelio_url : null;
   }
 
   /**
