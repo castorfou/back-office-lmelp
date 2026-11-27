@@ -2,7 +2,7 @@
   <div id="app">
     <router-view />
     <!-- PROTOTYPE JETABLE (#418), jamais fusionné -->
-    <PassageDock v-if="$route.query.variant === 'B'" />
+    <PassageDock v-if="$route.query.variant === 'B' && $route.path !== '/livres-auteurs'" />
     <ProtoBarLecteurs />
   </div>
 </template>

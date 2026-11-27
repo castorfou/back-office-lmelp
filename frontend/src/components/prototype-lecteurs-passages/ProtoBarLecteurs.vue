@@ -5,12 +5,16 @@
       <button @click="decaler(-1)" aria-label="Variante précédente">◀</button>
       <span>{{ courante }} ({{ VARIANTES[courante] }})</span>
       <button @click="decaler(1)" aria-label="Variante suivante">▶</button>
-      <label title="Simule un fichier audio manquant sur le NAS : lmelp répond 404">
+      <span v-if="surLA">#423</span>
+      <label v-if="!surLA" title="Simule un fichier audio manquant sur le NAS : lmelp répond 404">
         <input type="checkbox" v-model="etat.panne" @change="arreter()"> fichier absent
       </label>
       <button class="journal-btn" @click="ouvert = !ouvert">{{ ouvert ? '▾' : '▸' }} état</button>
     </div>
-    <div class="etat">
+    <div v-if="surLA" class="etat">{{ ecoute.date || '—' }} · {{ ecoute.pret ? 'Passages chargés' : 'pas de transcription' }}
+      <template v-if="ecoute.ligne"> · ligne « {{ ecoute.ligne }} »</template></div>
+    <ul v-if="surLA && ouvert" class="journal"><li v-for="(l, i) in ecoute.journal" :key="i">{{ l }}</li></ul>
+    <div v-if="!surLA" class="etat">
       {{ etat.statut }}
       <template v-if="etat.passage">
         · « {{ etat.passage.titre }} » {{ etat.passage.emission.date }}
@@ -18,26 +22,30 @@
         · fin = {{ etat.modeFin }}
       </template>
     </div>
-    <ul v-if="ouvert" class="journal">
+    <ul v-if="ouvert && !surLA" class="journal">
       <li v-for="(l, i) in etat.journal" :key="i">{{ l }}</li>
     </ul>
   </div>
 </template>
 
 <script>
-import { etat, VARIANTES, fmt, arreter } from './store.js';
+import { etat, VARIANTES as VARIANTES_418, fmt, arreter } from './store.js';
+import { VARIANTES_LA, ecoute } from '../prototype-livres-auteurs-ecoute/ecoute.js';
 
 export default {
   name: 'ProtoBarLecteurs',
-  data() { return { etat, VARIANTES, ouvert: false }; },
+  data() { return { etat, ecoute, ouvert: false }; },
   computed: {
     actif() { return !import.meta.env.PROD; },
-    cles() { return Object.keys(VARIANTES); },
+    // PROTOTYPE #423 : autres variantes sur livres-auteurs
+    surLA() { return this.$route.path === '/livres-auteurs'; },
+    VARIANTES() { return this.surLA ? VARIANTES_LA : VARIANTES_418; },
+    cles() { return Object.keys(this.VARIANTES); },
     courante() {
       const v = this.$route.query.variant;
       return this.cles.includes(v) ? v : 'A';
     },
-    dockVisible() { return this.courante === 'B' && etat.passage; },
+    dockVisible() { return !this.surLA && this.courante === 'B' && etat.passage; },
   },
   mounted() { window.addEventListener('keydown', this.clavier); },
   beforeUnmount() { window.removeEventListener('keydown', this.clavier); },

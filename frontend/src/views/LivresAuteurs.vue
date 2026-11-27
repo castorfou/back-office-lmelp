@@ -1,5 +1,5 @@
 <template>
-  <div class="livres-auteurs">
+  <div :class="['livres-auteurs', { 'la-a-ouvert': laVariante === 'A' && ecoute.ouvert && ecoute.pret }]">
     <!-- Navigation -->
     <Navigation pageTitle="Livres et Auteurs" />
 
@@ -259,6 +259,20 @@
         <p>Aucun livre n'a pu être extrait des avis critiques de cet épisode.</p>
       </div>
 
+      <!-- PROTOTYPE JETABLE (#423) : écoute des Passages -->
+      <div v-if="selectedEpisodeId && !loading && !error && books.length > 0" class="la-bandeau">
+        PROTOTYPE #423 ·
+        <template v-if="laAvecTranscription()">▶ devant un titre : écouter son Passage · ○ : pas de Passage (à placer) · lignes « simulé » : pas encore validées</template>
+        <template v-else>pas de transcription horodatée pour cette émission : pas d'écoute (témoins : 21/07/2024, 15/11/2026, 04/10/2026)</template>
+      </div>
+      <section v-if="laVariante === 'C' && ecoute.pret && selectedEpisodeId && !loading && !error" class="card la-section-c">
+        <h3 class="la-titre-c">🎧 Écouter l'émission · Passages et transcription</h3>
+        <EcouteEmission :fermable="false" />
+      </section>
+      <aside v-if="laVariante === 'A' && ecoute.ouvert && ecoute.pret" class="la-panneau">
+        <EcouteEmission />
+      </aside>
+
       <!-- Tableau des livres -->
       <section v-if="selectedEpisodeId && !loading && !error && filteredBooks.length > 0" class="books-section">
         <div class="table-container">
@@ -312,7 +326,8 @@
               </tr>
             </thead>
             <tbody>
-                <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" :class="['book-row', { 'mongo-book': book.status === 'mongo' }]" data-testid="book-item">
+              <template v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`">
+                <tr :class="['book-row', { 'mongo-book': book.status === 'mongo' && !laSimulation(book.titre), 'la-ligne-active': laLigneActive(book) }]" data-testid="book-item">
                 <td class="status-cell" style="text-align:center" data-testid="status-cell-{{book.episode_oid}}">
                   <!-- Programme: blue/bold target icon -->
                   <span v-if="book.programme" class="status-icon programme" title="Au programme" role="img" aria-label="Programme">
@@ -343,9 +358,16 @@
                   <span v-else>{{ getDisplayedAuthor(book) }}</span>
                 </td>
                 <td class="title-cell">
+                  <button v-if="laAvecTranscription() && ecoute.pret" :class="['la-rond', { absent: !laPassage(book.titre) }]"
+                    :title="laPassage(book.titre) ? `Écouter le Passage (${laDuree(book.titre)})` : 'Pas de Passage repéré pour ce titre : le placer dans la transcription'"
+                    @click="laEcouter(book.titre)">
+                    <template v-if="laPassage(book.titre)">{{ laEnLecture(book.titre) ? '⏸' : '▶' }}</template>
+                    <template v-else>○</template>
+                  </button>
+                  <span v-if="laSimulation(book.titre)">{{ book.titre }} <small class="la-simule">(simulé : à valider)</small></span>
                   <!-- Issue #96: Lien cliquable vers page livre si ID disponible -->
                   <router-link
-                    v-if="book.book_id"
+                    v-else-if="book.book_id"
                     :to="`/livre/${book.book_id}`"
                     class="clickable-link"
                     data-test="title-link"
@@ -358,8 +380,11 @@
                   {{ getDisplayedPublisher(book) || '-' }}
                 </td>
                 <td :class="['validation-cell', { 'validation-cell-expanded': !showYamlColumn }]">
+                  <div v-if="laSimulation(book.titre)" class="la-valid-simule">
+                    {{ laSimulation(book.titre).texte }} <small class="la-simule">(simulé)</small>
+                  </div>
                   <BiblioValidationCell
-                    v-if="book.status !== 'mongo'"
+                    v-else-if="book.status !== 'mongo'"
                     :author="book.auteur"
                     :title="book.titre"
                     :publisher="book.editeur || ''"
@@ -385,8 +410,15 @@
                   <span v-else class="mongo-status">-</span>
                 </td>
                 <td class="actions-cell">
+                  <template v-if="laSimulation(book.titre)">
+                    <a class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"
+                      :href="`https://www.babelio.com/resrecherche.php?Recherche=${encodeURIComponent(book.titre + ' ' + book.auteur)}`">🔍 Babelio</a>
+                    <button v-if="laSimulation(book.titre).statut === 'suggested'" class="btn btn-warning btn-sm"
+                      @click="laValider(book.titre, laSimulation(book.titre).suggestion)">🔍 Valider (simulé)</button>
+                    <button v-else class="btn btn-danger btn-sm" @click="laAjouter(book.titre)">➕ Ajouter (simulé)</button>
+                  </template>
                   <!-- Action buttons hidden for mongo status -->
-                  <template v-if="book.status !== 'mongo'">
+                  <template v-else-if="book.status !== 'mongo'">
                     <button
                       v-if="getValidationStatus(book) === 'verified' && !validatingWithBabelio"
                       @click="autoProcessVerified(book)"
@@ -429,6 +461,12 @@
                   <span v-else class="mongo-status">-</span>
                 </td>
               </tr>
+              <tr v-if="laVariante === 'B' && ecoute.ouvert && ecoute.pret && laLigneActive(book)" class="la-ligne-ecoute">
+                <td :colspan="showYamlColumn ? 7 : 6">
+                  <div class="la-deplie"><EcouteEmission /></div>
+                </td>
+              </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -728,6 +766,10 @@ import { toRowStatus, isTransientStatus, needsBabelioValidation } from '../utils
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
+// PROTOTYPE JETABLE (#423)
+import EcouteEmission from '../components/prototype-livres-auteurs-ecoute/EcouteEmission.vue';
+import * as la from '../components/prototype-livres-auteurs-ecoute/ecoute.js';
+import { fmt as laFmt } from '../components/prototype-correction-passages/store.js';
 
 export default {
   name: 'LivresAuteurs',
@@ -737,6 +779,7 @@ export default {
     BiblioValidationCell,
     EpisodeDropdown,
     BabelioCookiePanel,
+    EcouteEmission,
   },
 
   data() {
@@ -842,6 +885,9 @@ export default {
   },
 
   computed: {
+    // PROTOTYPE JETABLE (#423)
+    ecoute: () => la.ecoute,
+    laVariante() { return ['A', 'B', 'C'].includes(this.$route.query.variant) ? this.$route.query.variant : 'A'; },
     // Ban IP : essai TCP en échec, ou disjoncteur ouvert par un timeout de connexion
     babelioIpBanned() {
       return (
@@ -993,6 +1039,18 @@ export default {
   },
 
   watch: {
+    // PROTOTYPE JETABLE (#423) : Passages et Segments de l'émission choisie
+    selectedEpisodeId: {
+      immediate: true,
+      handler(id) {
+        const ep = this.selectedEpisode;
+        if (id && ep) la.chargerEpisode(String(ep.id), String(ep.date));
+      },
+    },
+    episodesWithReviews() {
+      const ep = this.selectedEpisode;
+      if (ep && la.ecoute.episodeId !== String(ep.id)) la.chargerEpisode(String(ep.id), String(ep.date));
+    },
     // Issue #159: Auto-déclenchement extraction URL Babelio (modal validation)
     validationBabelioUrl: debounce(function(newUrl) {
       if (newUrl && this.isValidBabelioUrl(newUrl)) {
@@ -1083,6 +1141,19 @@ export default {
   },
 
   methods: {
+    // PROTOTYPE JETABLE (#423)
+    laAvecTranscription: la.avecTranscription,
+    laPassage: la.passageDe,
+    laEnLecture: la.enLecture,
+    laSimulation: la.simulation,
+    laEcouter: la.ecouterLigne,
+    laLigneActive(book) { return la.ecoute.ligne === la.norm(book.titre); },
+    laDuree(titre) { const p = la.passageDe(titre); return p ? laFmt(p.fin - p.debut) : ''; },
+    laValider(titre, suggestion) { la.validerSimule(titre, suggestion); },
+    laAjouter(titre) {
+      const t = window.prompt(`Titre exact du livre pour « ${titre} » (simulé, rien n'est enregistré) :`, titre);
+      if (t) la.validerSimule(titre, t);
+    },
     // ========== MÉTHODES POUR TÂCHE 4: COMMUNICATION BIBLIOVALIADATIONCELL ==========
 
     /**
@@ -2166,6 +2237,24 @@ export default {
 </script>
 
 <style scoped>
+/* PROTOTYPE JETABLE (#423) */
+.la-bandeau { background: repeating-linear-gradient(45deg, #ffeb3b 0 12px, #fff59d 12px 24px);
+  font: 600 12px monospace; padding: .3rem .7rem; border-radius: 4px; margin: .5rem 0; }
+.la-rond { width: 1.7rem; height: 1.7rem; border-radius: 50%; border: none; background: #0d6efd; color: #fff;
+  cursor: pointer; margin-right: .4rem; font-size: .75rem; vertical-align: middle; flex: none; }
+.la-rond.absent { background: #fff; color: #999; border: 1.5px dashed #bbb; font-size: 1rem; line-height: 1; }
+.la-rond:hover { filter: brightness(1.1); }
+.la-simule { color: #c60; font-size: .75rem; }
+.la-valid-simule { font-size: .9rem; }
+.la-ligne-active > td { background: #eef4ff !important; }
+.la-ligne-ecoute > td { background: #f5f8ff; padding: .5rem !important; }
+.la-deplie { height: 460px; border: 1px solid #cfe0ff; border-radius: 8px; padding: .6rem; background: #fff; }
+.la-section-c { height: 58vh; display: flex; flex-direction: column; padding: .8rem 1rem; margin-bottom: 1rem; }
+.la-section-c > .ee { flex: 1; min-height: 0; }
+.la-titre-c { margin: 0 0 .5rem; font-size: 1.05rem; }
+.la-panneau { position: fixed; top: 76px; right: 0; bottom: 0; width: 52vw; z-index: 60; background: #fff;
+  box-shadow: -4px 0 16px rgba(0,0,0,.15); padding: .8rem; box-sizing: border-box; }
+.livres-auteurs.la-a-ouvert main { margin-right: 53vw; max-width: none; }
 .livres-auteurs {
   min-height: 100vh;
   display: flex;
