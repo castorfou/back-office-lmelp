@@ -8,7 +8,6 @@ par POST /api/pgx/transcription/start, suivi par polling GET
 """
 
 import asyncio
-import json
 import logging
 import os
 from datetime import UTC, datetime, timedelta
@@ -24,6 +23,7 @@ from ..services.pgx_service import PgxError
 from ..services.stats_service import stats_service
 from ..settings import settings
 from .ntfy import send_ntfy_notification
+from .sortie_whisper import lire_sortie_whisper
 
 
 logger = logging.getLogger(__name__)
@@ -285,17 +285,6 @@ class PgxTranscriptionRunner:
             remote_txt_path, host=host, user=user, key_path=key_path
         )
 
-    @staticmethod
-    def _lire_segments_locaux(local_json_path: str) -> dict[str, Any] | None:
-        """Le .json horodaté en cache local, s'il existe et se décode."""
-        if not os.path.exists(local_json_path):
-            return None
-        try:
-            with open(local_json_path, encoding="utf-8") as f:
-                return dict(json.load(f))
-        except json.JSONDecodeError:
-            return None
-
     def _enregistrer_segments(
         self, episode_id: str, titre: str, whisper: dict[str, Any]
     ) -> None:
@@ -418,19 +407,21 @@ class PgxTranscriptionRunner:
                     mp3_fullpath = os.path.join(
                         settings.audio_storage_path, episode["audio_rel_filename"]
                     )
-                    stem = os.path.splitext(os.path.basename(mp3_fullpath))[0]
-                    local_txt_path = os.path.splitext(mp3_fullpath)[0] + ".txt"
-                    local_json_path = os.path.splitext(mp3_fullpath)[0] + ".json"
-                    whisper: dict[str, Any] | None = None
+                    base_locale = os.path.splitext(mp3_fullpath)[0]
+                    stem = os.path.basename(base_locale)
+                    local_txt_path = base_locale + ".txt"
+                    local_json_path = base_locale + ".json"
+                    # cache local seulement avec ses Segments : un .txt seul
+                    # (transcrit avant -oj) ou un .json illisible repasse par PGX
+                    whisper = lire_sortie_whisper(local_json_path)
 
-                    if os.path.exists(local_txt_path):
+                    if os.path.exists(local_txt_path) and whisper is not None:
                         self._log(
                             f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
                             "transcription trouvée en cache local"
                         )
                         with open(local_txt_path) as f:
                             transcription_text = f.read()
-                        whisper = self._lire_segments_locaux(local_json_path)
                     else:
                         if not pgx_reachability_checked:
                             self._log("Localisation de PGX…")
@@ -559,8 +550,7 @@ class PgxTranscriptionRunner:
                         {"_id": ObjectId(episode_id)},
                         {"$set": {"transcription": transcription_text}},
                     )
-                    if whisper is not None:
-                        self._enregistrer_segments(episode_id, titre, whisper)
+                    self._enregistrer_segments(episode_id, titre, whisper)
                     self._log(
                         f"[{index + 1}/{len(self.episode_ids)}] {titre}: terminé ✅"
                     )

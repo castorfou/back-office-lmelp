@@ -23,9 +23,10 @@ Deux modules collaborent :
 
 Pour chaque épisode de la file (traités **séquentiellement**, une seule machine PGX) :
 
-1. **Cache local** : si `<audio>.txt` existe déjà à côté du fichier audio local
-   (`settings.audio_storage_path`), lire son contenu directement — aucun appel réseau.
-   Reproduit `set_transcription()` de lmelp.
+1. **Cache local** : si `<audio>.txt` et `<audio>.json` existent déjà à côté du fichier
+   audio local (`settings.audio_storage_path`) et que le `.json` se décode, les lire
+   directement — aucun appel réseau. Un `.txt` seul (transcription antérieure à la sortie
+   horodatée) ou un `.json` illisible passe par le pipeline réseau.
 2. Sinon, pipeline réseau complet :
    - Localisation de PGX (`locate_pgx`, **lazy** : une seule fois pour toute la file, au
      premier épisode qui en a réellement besoin — pas en amont de la boucle, sinon un
@@ -37,14 +38,23 @@ Pour chaque épisode de la file (traités **séquentiellement**, une seule machi
      (voir [Relance d'un mp3 orphelin](#relance-dun-mp3-orphelin)).
    - Attente de la transcription générée par le watcher PGX
      (`wait_for_pgx_transcription`, poll SSH `test -f`, timeout
-     `PGX_TRANSCRIPTION_TIMEOUT_S`).
-   - Rapatriement du fichier de transcription par `scp`
-     (`fetch_transcription_from_pgx`), écrit en local à `<audio>.txt` (alimente le
-     cache pour un run futur).
+     `PGX_TRANSCRIPTION_TIMEOUT_S`). Le signal est le `.json` horodaté : whisper
+     (`-otxt -oj --max-context 0`) l'écrit à côté du `.txt`, et la file de PGX ne saute
+     un audio que si son `.json` existe.
+   - Rapatriement par `scp` du `.txt` (`fetch_transcription_from_pgx`) et du `.json`
+     (`fetch_segments_from_pgx`), écrits en local à côté de l'audio (cache d'un run
+     futur). Un `.json` encore en cours d'écriture ne se décode pas : il est relu après
+     `PGX_POLL_INTERVAL_S`, trois fois au plus. Toujours illisible, il est retiré du disque
+     local et l'épisode échoue sans que sa transcription soit écrite : il reste dans la file
+     et sera repris au cycle suivant.
 3. Écriture du champ `episodes.transcription` en base MongoDB, via
    `mongodb_service.episodes_collection` — passe donc par le `MongoClient` de ce
    backend, observé nativement par `DashboardStatsInvalidationListener` (voir
    `docs/dev/dashboard-stats-cache.md`).
+4. Enregistrement des Segments du `.json` (`passages_service.enregistrer_segments()`),
+   qui repère les Passages de l'épisode (voir `docs/dev/database.md`, collections
+   `episode_segments` et `passages`). Un échec à cette étape est journalisé sans annuler
+   la transcription.
 
 Un échec (`PgxError`) sur un épisode n'interrompt **pas** le traitement des suivants de
 la file — sauf l'échec de joignabilité initial (avant tout épisode traité), qui arrête
@@ -55,11 +65,11 @@ que PGX reste éteinte).
 
 Le service whisper convertit un `.m4a` en `.mp3` à côté du fichier reçu, et c'est
 l'écriture de ce `.mp3` qui crée le job de transcription. Si la transcription échoue, le
-`.mp3` reste sur PGX sans `.txt`. Un nouvel envoi du `.m4a` n'a alors aucun effet : la
+`.mp3` reste sur PGX sans `.json`. Un nouvel envoi du `.m4a` n'a alors aucun effet : la
 conversion est sautée car le `.mp3` existe, et aucun job n'est créé.
 
 Avant chaque envoi, `_has_orphan_mp3()` (`pgx_transcription_runner.py`) vérifie via
-`remote_file_exists()` que le `.mp3` existe et que le `.txt` est absent. Dans ce cas,
+`remote_file_exists()` que le `.mp3` existe et que le `.json` est absent. Dans ce cas,
 `requeue_pgx_audio()` (`pgx_service.py`) remplace l'envoi :
 
 ```bash

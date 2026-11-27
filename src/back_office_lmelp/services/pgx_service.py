@@ -14,11 +14,12 @@ import binascii
 import contextlib
 import hashlib
 import ipaddress
-import json
 import os
 import tempfile
 from dataclasses import dataclass
 from typing import Any
+
+from ..utils.sortie_whisper import lire_sortie_whisper
 
 
 class PgxError(RuntimeError):
@@ -325,6 +326,16 @@ async def wait_for_pgx_transcription(
         await asyncio.sleep(poll_interval_s)
 
 
+async def _scp_depuis_pgx(
+    remote_path: str, local_path: str, *, host: str, user: str, key_path: str
+) -> None:
+    """Rapatrie un fichier de PGX par scp."""
+    command = _scp_base_command(key_path) + [f"{user}@{host}:{remote_path}", local_path]
+    returncode, _, stderr = await _run_command(command)
+    if returncode != 0:
+        raise PgxError(f"Échec du rapatriement de {remote_path} depuis PGX: {stderr}")
+
+
 async def fetch_transcription_from_pgx(
     remote_txt_path: str,
     local_txt_path: str,
@@ -334,16 +345,9 @@ async def fetch_transcription_from_pgx(
     key_path: str,
 ) -> str:
     """Rapatrie le fichier de transcription depuis PGX par scp et retourne son contenu."""
-    command = _scp_base_command(key_path) + [
-        f"{user}@{host}:{remote_txt_path}",
-        local_txt_path,
-    ]
-    returncode, _, stderr = await _run_command(command)
-    if returncode != 0:
-        raise PgxError(
-            f"Échec du rapatriement de la transcription depuis PGX: {stderr}"
-        )
-
+    await _scp_depuis_pgx(
+        remote_txt_path, local_txt_path, host=host, user=user, key_path=key_path
+    )
     with open(local_txt_path) as f:
         return f.read()
 
@@ -361,26 +365,21 @@ async def fetch_segments_from_pgx(
     """Rapatrie le .json horodaté de whisper (`-oj`) et retourne son contenu.
 
     Un .json encore en cours d'écriture ne se décode pas : il est relu après
-    `attente_s`, au plus `tentatives` fois (Issue #427).
+    `attente_s`, au plus `tentatives` fois. Toujours illisible, il est retiré
+    du disque local, pour que la reprise de l'épisode le rapatrie de nouveau.
     """
-    command = _scp_base_command(key_path) + [
-        f"{user}@{host}:{remote_json_path}",
-        local_json_path,
-    ]
     for tentative in range(1, tentatives + 1):
-        returncode, _, stderr = await _run_command(command)
-        if returncode != 0:
-            raise PgxError(f"Échec du rapatriement des segments depuis PGX: {stderr}")
-        try:
-            with open(local_json_path, encoding="utf-8") as f:
-                return dict(json.load(f))
-        except json.JSONDecodeError:
-            if tentative == tentatives:
-                raise PgxError(
-                    f"Segments illisibles après {tentatives} essais: {remote_json_path}"
-                ) from None
+        await _scp_depuis_pgx(
+            remote_json_path, local_json_path, host=host, user=user, key_path=key_path
+        )
+        whisper = lire_sortie_whisper(local_json_path)
+        if whisper is not None:
+            return whisper
+        if tentative < tentatives:
             await asyncio.sleep(attente_s)
-    raise PgxError(f"Segments non rapatriés: {remote_json_path}")
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(local_json_path)
+    raise PgxError(f"Segments illisibles après {tentatives} essais: {remote_json_path}")
 
 
 async def _check_host_identity(*, host: str, host_key: str) -> tuple[bool, str]:

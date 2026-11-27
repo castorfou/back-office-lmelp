@@ -1052,3 +1052,6 @@ class TestFetchSegmentsFromPgx:
                 key_path="/keys/pgx_ed25519",
                 tentatives=3,
             )
+
+        # retiré du disque : la reprise de l'épisode le rapatriera de nouveau
+        assert not local_json.exists()
