@@ -1,6 +1,6 @@
 <template>
   <!-- PROTOTYPE JETABLE (#418) : signalement (stub, journal seulement), cf. #422 -->
-  <span class="sig">
+  <span ref="racine" class="sig">
     <button class="sig-btn" title="Signaler un Passage mal découpé" @click.stop="ouvert = !ouvert">⚠️</button>
     <span v-if="ouvert" class="sig-menu" @click.stop>
       <strong>Signaler à {{ fmt(etat.position) }}</strong>
@@ -16,8 +16,18 @@ import { etat, MOTIFS, signaler, fmt } from './store.js';
 export default {
   name: 'SignalerPassage',
   data() { return { etat, MOTIFS, ouvert: false, merci: false }; },
+  watch: {
+    ouvert(v) {
+      if (v) setTimeout(() => document.addEventListener('click', this.dehors), 0);
+      else document.removeEventListener('click', this.dehors);
+    },
+  },
+  beforeUnmount() { document.removeEventListener('click', this.dehors); },
   methods: {
     fmt,
+    dehors(e) {
+      if (!this.$refs.racine?.contains(e.target)) this.ouvert = false;
+    },
     envoyer(m) {
       signaler(m);
       this.ouvert = false;

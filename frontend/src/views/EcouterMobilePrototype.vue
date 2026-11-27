@@ -3,6 +3,7 @@
   <div>
     <Navigation pageTitle="Écouter depuis lmelp-mobile" />
     <main class="em">
+      <button class="em-retour" @click="retour">← Retour</button>
       <div v-if="!etat.charge" class="loading">Chargement…</div>
       <div v-else class="card em-carte">
         <div class="em-qr">
@@ -84,6 +85,10 @@ export default {
   },
   async mounted() { await charger(); },
   methods: {
+    retour() {
+      if (window.history.state?.back) this.$router.back();
+      else this.$router.push('/');
+    },
     async copier() {
       await navigator.clipboard?.writeText(this.lien);
       this.copie = true;
@@ -95,6 +100,9 @@ export default {
 
 <style scoped>
 .em { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+.em-retour { margin-bottom: 1rem; padding: .5rem 1.2rem; background: #e0e0e0; border: none;
+  border-radius: 6px; color: #2c3e50; font-size: 1rem; cursor: pointer; }
+.em-retour:hover { background: #bdbdbd; }
 .em-carte { display: flex; gap: 2rem; padding: 2rem; align-items: flex-start; }
 .em-qr { display: flex; flex-direction: column; align-items: center; gap: .4rem; }
 .qr { width: 240px; height: 240px; border: 8px solid #fff; box-shadow: 0 0 0 1px #ddd; }
