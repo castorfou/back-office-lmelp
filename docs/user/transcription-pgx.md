@@ -31,7 +31,10 @@ message invite alors à corriger la configuration avant de réessayer, plutôt q
 échouer une transcription vouée à l'échec.
 
 Le traitement porte sur **tous** les épisodes en attente en une seule fois, traités les uns
-après les autres (une seule machine PGX, pas de traitement en parallèle). La progression
+après les autres (une seule machine PGX, pas de traitement en parallèle). Un épisode qui
+arrive pendant un cycle (nouvel épisode RSS, émission ajoutée) rejoint ce cycle : le journal
+affiche « 1 épisode(s) ajouté(s) au cycle en cours » et il est traité après les autres. Un
+épisode en échec n'est pas retenté dans le même cycle. La progression
 s'affiche en temps réel : épisode en cours, logs détaillés par étape, résultat final
 (succès/échec par épisode).
 
@@ -178,6 +181,13 @@ automatiquement pendant qu'un cycle est en cours, et au clic sur "🔄 Rafraîch
 Si un cycle est en attente d'une prochaine tentative de retry, un bandeau
 ⏳ apparaît dans le panneau de progression, indiquant l'heure approximative de la
 prochaine tentative.
+
+!!! tip "Réessayer sans attendre la prochaine tentative"
+    Pendant cette attente, le bouton devient **"🔁 Réessayer maintenant"**. Une fois PGX
+    allumée, cliquez sur "🔄 Rafraîchir le statut" : quand la checklist est entièrement
+    verte, le bouton est actif et relance tout de suite la recherche de PGX. Le cycle
+    reprend alors là où il s'était arrêté. Si PGX reste introuvable, l'attente horaire
+    reprend, avec la même limite de 24h.
 
 ## Dépannage {#depannage}
 

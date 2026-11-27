@@ -934,6 +934,13 @@ asyncio.sleep(...)` *inside* that loop keeps the flag `True` for the whole
 wait — the existing "already running" guard on the entry point then also
 covers "a retry is currently pending", with zero new locking code.
 
+**The same flag blocks the UI's start button for the whole wait**: give the
+user a way to wake the wait instead of a second run. The runner races
+`asyncio.sleep(interval)` against an `asyncio.Event` (`_wait_for_next_attempt()`),
+and `POST /api/pgx/transcription/retry-now` sets it. That endpoint is an
+`async def` with no `await`: `asyncio.Event.set()` is not thread-safe, and a
+plain `def` endpoint runs in FastAPI's threadpool.
+
 **Testability**: mock `asyncio.sleep` so the wait is instant, but do NOT
 assume that alone makes a real-wall-clock deadline (`datetime.now(UTC) <
 retry_deadline`) converge quickly — the real clock still advances by

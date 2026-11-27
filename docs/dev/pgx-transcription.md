@@ -165,6 +165,11 @@ masquer toute la section derrière le seul message d'avertissement de config inc
   file courante des épisodes en attente (décision produit : une action déclenche tout le
   backlog plutôt qu'un sélecteur par épisode). Retourne `{"status": "already_running" |
   "nothing_to_do" | "started", "episode_count": N}`.
+- `POST /api/pgx/transcription/retry-now` — avance la prochaine tentative d'un cycle en
+  attente de PGX (`PgxTranscriptionRunner.request_retry_now()`). Retourne
+  `{"status": "retrying"}` si `retry_pending`, `{"status": "no_pending_retry"}` sinon.
+  `async def` malgré l'absence d'`await` : l'`asyncio.Event` du runner doit être posé
+  depuis la boucle d'événements, pas depuis le threadpool d'un endpoint `def`.
 - `GET /api/pgx/transcription/progress` — statut consommé par polling (2s côté
   frontend), même pattern que `GET /api/babelio-migration/progress`. Expose désormais
   aussi `retry_pending` (bool) et `next_attempt_at` (ISO 8601 ou `null`).
@@ -214,6 +219,25 @@ toute l'attente (y compris les `asyncio.sleep`), donc le garde-fou existant
 (`already_running`) couvre nativement le cas d'un appel Automatisch pendant une fenêtre
 de retry en cours — aucun nouveau verrou. Voir la règle CLAUDE.md "Retry Scheduling as a
 Wrapper, Never a Reimplementation of the Loop It Retries" pour le pattern générique.
+
+**Réveil à la demande** : l'attente entre deux tentatives passe par
+`_wait_for_next_attempt()`, une course entre `asyncio.sleep(intervalle)` et
+`self._retry_now_event.wait()` (`asyncio.wait(..., FIRST_COMPLETED)`). `request_retry_now()`
+pose l'événement : la localisation repart aussitôt, le plafond (`retry_deadline`) ne change
+pas. Côté UI, le bouton de `/transcription-pgx` devient « 🔁 Réessayer maintenant » et reste
+actif pendant `retry_pending` si la checklist est verte ; il reste désactivé pendant un cycle
+qui travaille.
+
+### Épisodes ajoutés pendant un cycle
+
+En fin de chaque itération de la boucle `for index, episode_id in
+enumerate(self.episode_ids)`, `_append_new_pending_episodes()` relit
+`stats_service.get_episodes_without_transcription()` et ajoute à `self.episode_ids` les ids
+qui n'y sont pas encore. L'itérateur de liste voit les ajouts en fin de liste, sans
+seconde boucle. Un épisode déjà tenté (même en échec) est toujours dans la liste, donc
+jamais rajouté : pas de nouvel essai dans le même cycle. Une erreur de relecture est
+loggée et n'interrompt pas le cycle. Barre de progression et document d'historique
+suivent la liste agrandie.
 
 ### Historique persisté — `pgx_transcription_logs`
 

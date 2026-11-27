@@ -4275,6 +4275,28 @@ async def start_pgx_transcription(
         )
 
 
+@app.post("/api/pgx/transcription/retry-now")
+async def retry_pgx_transcription_now() -> JSONResponse:
+    """Avance la prochaine tentative d'un cycle en attente de PGX (Issue #402).
+
+    Renvoie {"status": "retrying"} si un cycle attendait PGX,
+    {"status": "no_pending_retry"} sinon. `async def` malgré l'absence
+    d'`await` : l'asyncio.Event du runner doit être posé depuis la boucle
+    d'événements, pas depuis le threadpool d'un endpoint `def`.
+    """
+    try:
+        from .utils.pgx_transcription_runner import pgx_transcription_runner
+
+        return JSONResponse(content=pgx_transcription_runner.request_retry_now())
+    except Exception as e:
+        logger.error(
+            f"Erreur lors de la relance immédiate de la transcription PGX: {e}"
+        )
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
 @app.get("/api/pgx/transcription/progress")
 async def get_pgx_transcription_progress() -> JSONResponse:
     """Récupère la progression actuelle du pipeline de transcription PGX (polling)."""
