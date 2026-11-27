@@ -284,6 +284,11 @@
                     </svg>
                   </span>
                 </th>
+                <th v-if="laAvecTranscription() && ecoute.pret" class="sortable-header la-th-emission" @click="setSortOrder('emission')"
+                  title="Ordre de l'émission : heure de début du Passage (PROTOTYPE #423)">
+                  ⏱ Émission
+                  <span class="sort-indicator" :class="getSortClass('emission')">↕</span>
+                </th>
                 <th class="sortable-header" @click="setSortOrder('author')">
                   Auteur
                   <span class="sort-indicator" :class="getSortClass('author')">↕</span>
@@ -340,6 +345,10 @@
                   </span>
                   <!-- Empty when no flag -->
                   <span v-else class="status-icon empty" aria-hidden="true"></span>
+                </td>
+                <td v-if="laAvecTranscription() && ecoute.pret" class="la-td-emission">
+                  <template v-if="laPassage(book.titre)">{{ laDebut(book.titre) }}</template>
+                  <span v-else class="la-sans" title="Pas de Passage : à placer dans la transcription">—</span>
                 </td>
                 <td class="author-cell">
                   <!-- Issue #96: Lien cliquable vers page auteur si ID disponible -->
@@ -458,7 +467,7 @@
                 </td>
               </tr>
               <tr v-if="laVariante === 'B' && ecoute.ouvert && ecoute.pret && laLigneActive(book)" class="la-ligne-ecoute">
-                <td :colspan="showYamlColumn ? 7 : 6">
+                <td :colspan="(showYamlColumn ? 7 : 6) + 1">
                   <div class="la-deplie"><EcouteEmission /></div>
                 </td>
               </tr>
@@ -1017,6 +1026,13 @@ export default {
             const scoreB = (b.programme ? 2 : 0) + (b.coup_de_coeur ? 1 : 0);
             sortValue = scoreA - scoreB;
             break;
+          case 'emission': {
+            // PROTOTYPE #423 : ordre de l'émission, livres sans Passage à la fin
+            const da = la.passageDe(a.titre)?.debut ?? 1e9;
+            const db = la.passageDe(b.titre)?.debut ?? 1e9;
+            sortValue = da - db;
+            break;
+          }
           case 'author':
             sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
             break;
@@ -1047,6 +1063,11 @@ export default {
         const ep = this.selectedEpisode;
         if (id && ep) la.chargerEpisode(String(ep.id), String(ep.date));
       },
+    },
+    // PROTOTYPE #423 : dès que les Passages sont là, la table suit l'ordre de l'émission
+    'ecoute.pret'(pret) {
+      if (pret) { this.currentSortField = 'emission'; this.sortAscending = true; }
+      else if (this.currentSortField === 'emission') this.currentSortField = 'author';
     },
     episodesWithReviews() {
       const ep = this.selectedEpisode;
@@ -1152,6 +1173,7 @@ export default {
       if (this.laVariante === 'C') this.$nextTick(() => this.$refs.laSectionC?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     },
     laLigneActive(book) { return la.ecoute.ligne === la.norm(book.titre); },
+    laDebut(titre) { const p = la.passageDe(titre); return p ? laFmt(p.debut) : ''; },
     laDuree(titre) { const p = la.passageDe(titre); return p ? laFmt(p.fin - p.debut) : ''; },
     laValider(titre, suggestion) { la.validerSimule(titre, suggestion); },
     laAjouter(titre) {
@@ -2248,6 +2270,9 @@ export default {
   cursor: pointer; margin-right: .4rem; font-size: .75rem; vertical-align: middle; flex: none; }
 .la-rond.absent { background: #fff; color: #999; border: 1.5px dashed #bbb; font-size: 1rem; line-height: 1; }
 .la-rond:hover { filter: brightness(1.1); }
+.la-td-emission { font-family: monospace; color: #555; white-space: nowrap; }
+.la-th-emission { white-space: nowrap; }
+.la-sans { color: #bbb; }
 .la-simule { color: #c60; font-size: .75rem; }
 .la-valid-simule { font-size: .9rem; }
 .la-ligne-active > td { background: #eef4ff !important; }
