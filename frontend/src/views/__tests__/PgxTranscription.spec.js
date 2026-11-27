@@ -951,10 +951,107 @@ describe('PgxTranscription (Issue #302)', () => {
       });
 
       const wrapper = mountView();
-      await vi.runAllTimersAsync();
+      // Cycle en cours : le polling tourne, runAllTimersAsync ne finirait pas
+      await vi.advanceTimersByTimeAsync(0);
       await wrapper.vm.$nextTick();
 
       expect(wrapper.text()).toContain('injoignable');
+      wrapper.unmount();
     });
+  });
+});
+
+describe('PgxTranscription — cycle en attente de PGX (Issue #402)', () => {
+  const ALL_OK = [
+    { name: 'PGX localisée', status: 'ok', detail: '...' },
+    { name: 'Authentification SSH (clé dédiée)', status: 'ok', detail: '...' },
+    { name: 'Répertoire audio distant', status: 'ok', detail: '...' },
+    { name: 'Répertoire transcriptions distant', status: 'ok', detail: '...' },
+  ];
+
+  function runningProgress(retryPending) {
+    return {
+      is_running: true,
+      episode_ids: ['abc'],
+      current_episode_id: 'abc',
+      current_episode_index: 0,
+      processed: [],
+      start_time: '2026-03-01T10:00:00+00:00',
+      logs: [],
+      last_update: '2026-03-01T10:00:00+00:00',
+      retry_pending: retryPending,
+      next_attempt_at: retryPending ? '2026-03-01T11:00:00+00:00' : null,
+    };
+  }
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function mountRunning(retryPending, diagnostics = ALL_OK) {
+    mockApi({
+      diagnostics,
+      episodes: [
+        { id: 'abc', titre: 'Episode Un', date: '2026-03-01' },
+        { id: 'def', titre: 'Episode Deux', date: '2026-03-02' },
+      ],
+      progress: runningProgress(retryPending),
+    });
+    const wrapper = mountView();
+    await vi.advanceTimersByTimeAsync(0);
+    await wrapper.vm.$nextTick();
+    return wrapper;
+  }
+
+  it("active le bouton « Réessayer maintenant » pendant l'attente quand PGX est au vert", async () => {
+    const wrapper = await mountRunning(true);
+
+    const button = wrapper.find('[data-testid="pgx-start-button"]');
+    expect(button.attributes('disabled')).toBeUndefined();
+    expect(button.text()).toContain('Réessayer maintenant');
+    wrapper.unmount();
+  });
+
+  it("garde le bouton désactivé pendant l'attente si PGX n'est pas au vert", async () => {
+    const wrapper = await mountRunning(true, [
+      { name: 'PGX localisée', status: 'fail', detail: '...' },
+    ]);
+
+    const button = wrapper.find('[data-testid="pgx-start-button"]');
+    expect(button.attributes('disabled')).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it('garde le bouton désactivé pendant un cycle qui travaille (sans attente)', async () => {
+    const wrapper = await mountRunning(false);
+
+    const button = wrapper.find('[data-testid="pgx-start-button"]');
+    expect(button.attributes('disabled')).toBeDefined();
+    expect(button.text()).toContain('Lancer la transcription');
+    wrapper.unmount();
+  });
+
+  it('le clic pendant l\'attente demande une nouvelle tentative immédiate', async () => {
+    const wrapper = await mountRunning(true);
+    axios.post.mockResolvedValueOnce({ data: { status: 'retrying' } });
+
+    await wrapper.vm.startPgxTranscription();
+
+    expect(axios.post).toHaveBeenCalledWith('/api/pgx/transcription/retry-now');
+    expect(axios.post).not.toHaveBeenCalledWith('/api/pgx/transcription/start');
+    expect(wrapper.vm.pgxPollInterval).not.toBeNull();
+    wrapper.unmount();
+  });
+
+  it('suit la progression dès l\'ouverture de la page pendant un cycle', async () => {
+    const wrapper = await mountRunning(false);
+
+    expect(wrapper.vm.pgxPollInterval).not.toBeNull();
+    wrapper.unmount();
   });
 });

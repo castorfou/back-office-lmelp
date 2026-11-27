@@ -54,6 +54,8 @@ class PgxTranscriptionRunner:
         self.next_attempt_at: datetime | None = None
         self.retry_attempts: list[dict[str, Any]] = []
         self.current_log_id: str | None = None
+        # Réveille l'attente horaire du retry à la demande de l'UI (Issue #402)
+        self._retry_now_event = asyncio.Event()
 
     @classmethod
     def get_instance(cls) -> "PgxTranscriptionRunner":
@@ -189,7 +191,9 @@ class PgxTranscriptionRunner:
                 self._persist_pending_retry_cycle(trigger)
                 first_attempt = False
 
-            await asyncio.sleep(settings.pgx_transcription_retry_interval_hours * 3600)
+            await self._wait_for_next_attempt(
+                settings.pgx_transcription_retry_interval_hours * 3600
+            )
 
             location = await self._locate_pgx()
             self.retry_attempts.append(
@@ -208,6 +212,52 @@ class PgxTranscriptionRunner:
         self.retry_pending = False
         self.next_attempt_at = None
         return None
+
+    async def _wait_for_next_attempt(self, seconds: float) -> None:
+        """Attend la prochaine tentative, ou moins si l'UI la demande (Issue #402).
+
+        Course entre l'intervalle horaire et `request_retry_now()` : la
+        première qui se termine relance la localisation de PGX.
+        """
+        self._retry_now_event.clear()
+        sleep_task = asyncio.create_task(asyncio.sleep(seconds))
+        wake_task = asyncio.create_task(self._retry_now_event.wait())
+        try:
+            await asyncio.wait(
+                {sleep_task, wake_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+        finally:
+            for task in (sleep_task, wake_task):
+                task.cancel()
+
+    def request_retry_now(self) -> dict[str, Any]:
+        """Avance la prochaine tentative d'un cycle en attente de PGX (Issue #402).
+
+        Le cycle relocalise PGX tout de suite ; s'il ne la trouve pas,
+        l'attente horaire reprend, avec le même plafond.
+        """
+        if not self.retry_pending:
+            return {"status": "no_pending_retry"}
+        self._log("Nouvelle tentative demandée depuis l'interface")
+        self._retry_now_event.set()
+        return {"status": "retrying"}
+
+    def _append_new_pending_episodes(self) -> None:
+        """Ajoute au cycle en cours les épisodes arrivés pendant le cycle (Issue #402).
+
+        Un épisode déjà dans la liste (traité, en échec ou à venir) n'est
+        jamais rajouté : un échec n'est pas retenté dans le même cycle.
+        """
+        try:
+            pending = stats_service.get_episodes_without_transcription()
+        except Exception as exc:  # noqa: BLE001 - la relecture ne doit jamais casser le run
+            logger.error(f"Erreur lors de la relecture de la file PGX: {exc}")
+            return
+        known = set(self.episode_ids)
+        new_ids = [ep["id"] for ep in pending if ep["id"] not in known]
+        if new_ids:
+            self.episode_ids.extend(new_ids)
+            self._log(f"{len(new_ids)} épisode(s) ajouté(s) au cycle en cours")
 
     async def _has_orphan_mp3(
         self,
@@ -507,6 +557,9 @@ class PgxTranscriptionRunner:
                         f"{titre} : erreur technique, voir l'historique dans "
                         "lmelp pour le détail",
                     )
+
+                # La boucle voit les ids ajoutés en fin de liste (Issue #402)
+                self._append_new_pending_episodes()
 
             failed_count = sum(1 for entry in self.processed if not entry["success"])
             if abandoned:
