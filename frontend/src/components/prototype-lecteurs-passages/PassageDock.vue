@@ -13,7 +13,7 @@
 
     <div class="dock-milieu">
       <div v-if="etat.statut === 'erreur'" class="dock-erreur">
-        ✖ {{ etat.erreur }} · <router-link to="/ecouter-mobile">voir la clé d'écoute</router-link>
+        ✖ {{ etat.erreur }}
       </div>
       <div v-else-if="etat.statut === 'fini'" class="dock-fin">
         <span>✓ Fin du passage</span>
@@ -44,7 +44,6 @@
 
     <div class="dock-droite">
       <SignalerPassage />
-      <router-link to="/ecouter-mobile" class="dock-mobile" title="Écouter depuis lmelp-mobile">📱</router-link>
       <button class="dock-fermer" title="Fermer" @click="arreter()">✕</button>
     </div>
   </div>

@@ -1,6 +1,7 @@
 // PROTOTYPE JETABLE (#418) — lecteurs de Passage, jamais fusionné.
-// Un seul <audio> pour toute l'appli : l'intégral servi derrière la clé
-// d'écoute (?cle=), borné en JS de debut à fin, coupe nette (#417).
+// Un seul <audio> pour toute l'appli : l'intégral lu directement depuis le
+// backend lmelp (pas de clé, pas de lmelp-streaming, réservé au mobile),
+// borné en JS de debut à fin, coupe nette (#417).
 import { reactive } from 'vue';
 import axios from 'axios';
 
@@ -12,7 +13,7 @@ export const VARIANTES = {
 
 export const etat = reactive({
   charge: false,
-  donnees: null, // { base, base_publique, cle, emissions: [...] }
+  donnees: null, // { base, emissions: [...] }
   passage: null, // Passage en cours (avec emission)
   liste: [], // Passages du contexte (suivant / enchaînement)
   modeFin: 'stop', // 'stop' | 'proposer' | 'enchainer'
@@ -20,7 +21,7 @@ export const etat = reactive({
   position: 0, // secondes dans l'audio intégral
   erreur: null,
   suivant: null, // Passage proposé à la fin (mode « proposer »)
-  panne: false, // simule une clé refusée
+  panne: false, // simule un fichier audio absent du NAS
   journal: [],
 });
 
@@ -71,9 +72,8 @@ export function passageDe(livreId, date) {
 }
 
 function url(p) {
-  const d = etat.donnees;
-  const cle = etat.panne ? 'mauvaise-cle' : d.cle;
-  return `${d.base}/audios/${p.emission.audio_rel_filename}?cle=${cle}`;
+  const rel = p.emission.audio_rel_filename + (etat.panne ? '.absent' : '');
+  return `${etat.donnees.base}/${rel}`;
 }
 
 function boucle() {
@@ -136,7 +136,7 @@ audio.addEventListener('loadedmetadata', () => {
     seekEnAttente = null;
   }
 });
-// Un <audio> ne dit pas pourquoi il échoue (403 et codec absent donnent le
+// Un <audio> ne dit pas pourquoi il échoue (404 et codec absent donnent le
 // même code) : on redemande un octet pour connaître la réponse du serveur.
 audio.addEventListener('error', async () => {
   etat.statut = 'erreur';
@@ -144,11 +144,11 @@ audio.addEventListener('error', async () => {
   let message;
   try {
     const r = await fetch(src, { headers: { Range: 'bytes=0-0' } });
-    if (r.status === 403) message = "Audio refusé : la clé d'écoute n'est plus valable";
+    if (r.status === 404) message = "Fichier audio de l'émission absent du NAS";
     else if (r.ok) message = `Ce navigateur ne sait pas lire ce format audio (${src.split('?')[0].split('.').pop()})`;
-    else message = `Audio indisponible (lmelp-streaming répond ${r.status})`;
+    else message = `Audio indisponible (lmelp répond ${r.status})`;
   } catch {
-    message = 'Audio injoignable : lmelp-streaming ne répond pas';
+    message = 'Audio injoignable : lmelp ne répond pas';
   }
   etat.erreur = message;
   log(`✖ ${message} [code média ${audio.error?.code}]`);

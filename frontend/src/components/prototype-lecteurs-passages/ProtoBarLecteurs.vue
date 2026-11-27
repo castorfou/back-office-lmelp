@@ -5,8 +5,8 @@
       <button @click="decaler(-1)" aria-label="Variante précédente">◀</button>
       <span>{{ courante }} ({{ VARIANTES[courante] }})</span>
       <button @click="decaler(1)" aria-label="Variante suivante">▶</button>
-      <label title="Simule une clé d'écoute changée : lmelp-streaming répond 403">
-        <input type="checkbox" v-model="etat.panne" @change="arreter()"> clé refusée
+      <label title="Simule un fichier audio manquant sur le NAS : lmelp répond 404">
+        <input type="checkbox" v-model="etat.panne" @change="arreter()"> fichier absent
       </label>
       <button class="journal-btn" @click="ouvert = !ouvert">{{ ouvert ? '▾' : '▸' }} état</button>
     </div>

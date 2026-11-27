@@ -449,6 +449,19 @@
           </div>
         </div>
       </section>
+
+      <!-- PROTOTYPE JETABLE (#418) : section Application mobile -->
+      <section class="functions-section">
+        <h2>Application mobile</h2>
+        <div class="functions-grid">
+          <div class="function-card clickable" @click="$router.push('/configuration-mobile')">
+            <div class="function-icon">📱</div>
+            <h3>Configuration mobile</h3>
+            <p>QR code de la clé d'écoute pour lmelp-mobile, et invalidation de la clé</p>
+            <div class="function-arrow">→</div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer version (Issue #205) -->

@@ -4,7 +4,6 @@
     <div class="spe-entete">
       <h3>🎧 Écouter les Passages <small v-if="e">({{ e.passages.length }})</small></h3>
       <label v-if="e"><input type="checkbox" v-model="enchainer"> enchaîner les passages</label>
-      <router-link to="/ecouter-mobile" class="spe-mobile">📱 Écouter sur mobile</router-link>
     </div>
 
     <p v-if="!e" class="spe-vide">

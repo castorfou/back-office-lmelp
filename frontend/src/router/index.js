@@ -254,11 +254,11 @@ const routes = [
   },
   // PROTOTYPE JETABLE (#418), jamais fusionné
   {
-    path: '/ecouter-mobile',
-    name: 'EcouterMobile',
-    component: () => import('../views/EcouterMobilePrototype.vue'),
+    path: '/configuration-mobile',
+    name: 'ConfigurationMobile',
+    component: () => import('../views/ConfigurationMobilePrototype.vue'),
     meta: {
-      title: 'Écouter depuis lmelp-mobile - lmelp'
+      title: 'Configuration mobile - lmelp'
     }
   },
   {

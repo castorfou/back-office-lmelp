@@ -1,9 +1,7 @@
 <template>
   <!-- PROTOTYPE JETABLE (#418) : variante C, section « Écouter les critiques » de la fiche livre -->
   <section v-if="etat.charge" class="spl">
-    <h2>🎧 Écouter les critiques en parler
-      <router-link to="/ecouter-mobile" class="spl-mobile">📱 sur mobile</router-link>
-    </h2>
+    <h2>🎧 Écouter les critiques en parler</h2>
 
     <p v-if="!passages.length && !sans.length" class="spl-vide">
       Pas encore de Passage pour ce livre : ses émissions n'ont pas de transcription horodatée.

@@ -4,13 +4,17 @@ Jamais fusionné. Lecture seule, aucune écriture MongoDB :
 - Passages : fixture du prototype #398 (passages_temoins.json), rendus contigus
   (fin = début du suivant, cf. « Interface de correction des Passages ») ;
 - Segments : ~/passages-temoins/<episode_id>.json ;
-- audio : AUDIO_STORAGE_PATH/<audio_rel_filename>, servi derrière une clé
-  d'écoute factice en ?cle=, comme le ferait lmelp-streaming.
+- audio : AUDIO_STORAGE_PATH/<audio_rel_filename>. lmelp (web) le lit
+  directement depuis son backend, sans clé (/audio-local) ; /audios, derrière la
+  clé d'écoute, figure lmelp-streaming, réservé au mobile ;
+- clé d'écoute en mémoire, invalidable depuis « Configuration mobile ».
 Simulations (marquées « simule ») : un Passage supprimé et un livre présent dans
 deux émissions.
 """
 
 import json
+import secrets
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,8 +33,8 @@ FIXTURE = (
     / "prototype_correction_passages"
     / "passages_temoins.json"
 )
-CLE = "prototype-cle-ecoute"
-BASE_STREAMING = "/api/prototype-lecteurs"
+CLE_ECOUTE = {"cle": "prototype-cle-ecoute", "creee_le": datetime.now(UTC).isoformat()}
+BASE_LOCALE = "/api/prototype-lecteurs/audio-local"
 BASE_PUBLIQUE = "https://lmelp-streaming.exemple.fr"
 
 # Titres du résumé ≠ titres en base
@@ -143,17 +147,39 @@ def tout() -> dict[str, Any]:
                     }
                 )
     return {
-        "base": BASE_STREAMING,
-        "base_publique": BASE_PUBLIQUE,
-        "cle": CLE,
+        "base": BASE_LOCALE,
         "emissions": emissions,
     }
 
 
+@router.get("/cle")
+def cle() -> dict[str, str]:
+    return {"base_publique": BASE_PUBLIQUE, **CLE_ECOUTE}
+
+
+@router.post("/cle/invalider")
+def invalider_cle() -> dict[str, str]:
+    """Nouvelle clé : l'ancienne est refusée aussitôt, chacun doit rescanner."""
+    CLE_ECOUTE["cle"] = secrets.token_urlsafe(16)
+    CLE_ECOUTE["creee_le"] = datetime.now(UTC).isoformat()
+    return cle()
+
+
+@router.get("/audio-local/{rel:path}")
+def audio_local(rel: str) -> FileResponse:
+    """lmelp (web) lit l'audio du NAS directement, sans clé."""
+    return _fichier(rel)
+
+
 @router.get("/audios/{rel:path}")
 def audio(rel: str, cle: str = "") -> FileResponse:
-    if cle != CLE:
+    """Figure lmelp-streaming (mobile seulement) : clé exigée."""
+    if cle != CLE_ECOUTE["cle"]:
         raise HTTPException(403, "Clé d'écoute refusée")
+    return _fichier(rel)
+
+
+def _fichier(rel: str) -> FileResponse:
     racine = Path(settings.audio_storage_path).resolve()
     chemin = (racine / rel).resolve()
     if racine not in chemin.parents or not chemin.exists():
