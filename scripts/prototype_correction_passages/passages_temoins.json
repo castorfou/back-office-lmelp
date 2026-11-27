@@ -1,184 +1,197 @@
 {
  "2026-11-15": {
   "date": "2026-11-15",
-  "titre": "CRITIQUE : Elise Lespade, Pierric Bailly, Giuliano da Empoli, Jul & Achdé : quels sont les livres à lire cette semaine ?",
+  "titre": "Repérage v2 (#421) · référence à l'écoute (#391)",
   "passages": [
    {
-    "id": "2026-11-15-0",
+    "id": "2026-11-15-v2-0",
     "titre": "Le Fondateur",
     "auteur": "Giuliano da Empoli",
-    "debut": 447,
-    "fin": 813,
+    "debut": 447.46,
+    "fin": 803.88,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-1",
+    "id": "2026-11-15-v2-1",
     "titre": "Paradisi Gloria",
     "auteur": "Elise Lespade",
-    "debut": 803,
-    "fin": 1169,
+    "debut": 803.88,
+    "fin": 1159.72,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-2",
+    "id": "2026-11-15-v2-2",
     "titre": "Dans les grandes lignes",
     "auteur": "Philippe Vasset",
-    "debut": 1159,
-    "fin": 1623,
+    "debut": 1159.72,
+    "fin": 1613.24,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-3",
+    "id": "2026-11-15-v2-3",
     "titre": "Rouge Truite",
     "auteur": "Pierric Bailly",
-    "debut": 1613,
-    "fin": 2031,
+    "debut": 1613.24,
+    "fin": 2021.92,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-4",
+    "id": "2026-11-15-v2-4",
     "titre": "Saint Lucky Luke",
     "auteur": "Jul (scénario), Achdé (dessin), d'après Morris",
-    "debut": 2021,
-    "fin": 2428,
+    "debut": 2021.92,
+    "fin": 2418.62,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-5",
+    "id": "2026-11-15-v2-5",
     "titre": "Le Livre des souterrains",
     "auteur": "Phoebe Hadjimarkos Clarke",
-    "debut": 2418,
-    "fin": 2510,
+    "debut": 2418.62,
+    "fin": 2508.02,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-11-15-8",
+    "id": "2026-11-15-v2-6",
+    "titre": "Vivre après",
+    "auteur": "Jérôme Garcin",
+    "debut": 2508.02,
+    "fin": 2571.62,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-v2-7",
+    "titre": "Je demande à en finir avec la vie",
+    "auteur": "Angélica Liddell",
+    "debut": 2571.62,
+    "fin": 2681.82,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-11-15-v2-8",
     "titre": "Comment j'ai cessé d'être une petite fasciste",
     "auteur": "Maylis Adhémar",
-    "debut": 2683,
-    "fin": 2781,
+    "debut": 2681.82,
+    "fin": 2771.22,
     "origine": "auto",
     "supprime": false
    }
   ],
-  "livres_sans_passage": [
-   {
-    "titre": "Vivre après",
-    "auteur": "Jérôme Garcin"
-   },
-   {
-    "titre": "Je demande à en finir avec la vie",
-    "auteur": "Angélica Liddell"
-   }
-  ],
-  "simulation": "livre(s) retiré(s) pour simuler un repérage manqué : Vivre après, Je demande à en finir avec la vie"
+  "livres_sans_passage": [],
+  "simulation": null
  },
  "2026-10-04": {
   "date": "2026-10-04",
-  "titre": "Patrick Modiano, Luz, Christine Angot, Lucie Bérard, Ananda Devi : quels sont les livres à lire cette semaine ?",
+  "titre": "Repérage v2 (#421) · retranscrit --max-context 0 (#425)",
   "passages": [
    {
-    "id": "2026-10-04-0",
+    "id": "2026-10-04-v2-0",
     "titre": "L'Éléphant",
     "auteur": "Patrick Modiano",
-    "debut": 248,
-    "fin": 630,
+    "debut": 252.78,
+    "fin": 619.38,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-1",
+    "id": "2026-10-04-v2-1",
     "titre": "Chronique d'un royaume perdu",
     "auteur": "Ananda Devi",
-    "debut": 620,
-    "fin": 1089,
+    "debut": 619.38,
+    "fin": 1079.58,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-2",
+    "id": "2026-10-04-v2-2",
     "titre": "Je change de nom",
     "auteur": "Christine Angot",
-    "debut": 1079,
-    "fin": 1537,
+    "debut": 1079.58,
+    "fin": 1537.48,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-4",
+    "id": "2026-10-04-v2-3",
+    "titre": "Décolorer sa fille",
+    "auteur": "Lucie Bérard",
+    "debut": 1537.48,
+    "fin": 1953.44,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2026-10-04-v2-4",
     "titre": "Un diamant dans les gravats",
     "auteur": "Luz",
-    "debut": 1954,
-    "fin": 2374,
+    "debut": 1953.44,
+    "fin": 2360.88,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-5",
+    "id": "2026-10-04-v2-5",
     "titre": "Les Noms de Feliza",
     "auteur": "Juan Gabriel Vásquez",
-    "debut": 2364,
-    "fin": 2470,
+    "debut": 2360.88,
+    "fin": 2451.98,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-6",
+    "id": "2026-10-04-v2-6",
     "titre": "Abdallah superstar",
     "auteur": "Iman Ahmed",
-    "debut": 2460,
-    "fin": 2548,
+    "debut": 2451.98,
+    "fin": 2537.9,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-7",
+    "id": "2026-10-04-v2-7",
     "titre": "Sur la route du retour",
     "auteur": "Franck Maubert",
-    "debut": 2538,
-    "fin": 2666,
+    "debut": 2537.9,
+    "fin": 2655.64,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2026-10-04-8",
+    "id": "2026-10-04-v2-8",
     "titre": "La Maison d'été",
     "auteur": "Masashi Matsuie",
-    "debut": 2656,
-    "fin": 2731,
+    "debut": 2655.64,
+    "fin": 2721.46,
     "origine": "auto",
     "supprime": false
    }
   ],
-  "livres_sans_passage": [
-   {
-    "titre": "Décolorer sa fille",
-    "auteur": "Lucie Bérard"
-   }
-  ],
-  "simulation": "livre(s) retiré(s) pour simuler un repérage manqué : Décolorer sa fille"
+  "livres_sans_passage": [],
+  "simulation": null
  },
  "2024-07-21": {
   "date": "2024-07-21",
-  "titre": "Transcription refaite avec --max-context 0, repérage brut du prototype #391",
+  "titre": "Repérage v2 (#421) · ancien format, retranscrit --max-context 0",
   "passages": [
    {
-    "id": "2024-07-21-m0",
+    "id": "2024-07-21-v2-0",
     "titre": "L'Imposture",
     "auteur": "Zadie Smith",
-    "debut": 30.76,
+    "debut": 289.96,
     "fin": 981.98,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m1",
+    "id": "2024-07-21-v2-1",
     "titre": "Ni de lait ni de laine",
     "auteur": "Emmanuelle Salasc",
     "debut": 981.98,
@@ -187,7 +200,7 @@
     "supprime": false
    },
    {
-    "id": "2024-07-21-m2",
+    "id": "2024-07-21-v2-2",
     "titre": "L'Oiseau des Français",
     "auteur": "Yasmina Liassine",
     "debut": 1438.12,
@@ -196,61 +209,155 @@
     "supprime": false
    },
    {
-    "id": "2024-07-21-m3",
+    "id": "2024-07-21-v2-3",
     "titre": "Bungalow",
     "auteur": "Julien Blanc-Gras",
     "debut": 1905.1,
-    "fin": 2260.66,
+    "fin": 2268.56,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m4",
+    "id": "2024-07-21-v2-4",
     "titre": "Petit traité du geste: Pour la beauté du sport",
     "auteur": "Thierry Grillet",
     "debut": 2268.56,
-    "fin": 2335.0,
+    "fin": 2332.68,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m5",
+    "id": "2024-07-21-v2-5",
     "titre": "Quiche ta",
     "auteur": "Nicolas Lacarrière",
-    "debut": 2335.0,
-    "fin": 2387.68,
+    "debut": 2332.68,
+    "fin": 2410.1,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m6",
+    "id": "2024-07-21-v2-6",
     "titre": "Baise-moi",
     "auteur": "Virginie Despentes",
     "debut": 2410.1,
-    "fin": 2483.28,
+    "fin": 2481.08,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m7",
+    "id": "2024-07-21-v2-7",
     "titre": "Légende au pluriel : La mer à la campagne",
     "auteur": "Emmanuel Guibert",
-    "debut": 2483.28,
-    "fin": 2547.28,
+    "debut": 2481.08,
+    "fin": 2586.58,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-m8",
+    "id": "2024-07-21-v2-8",
     "titre": "Emmanuelle Arsan, biographie d'un pseudonyme",
     "auteur": "Camille Moreau",
-    "debut": 2591.88,
+    "debut": 2586.58,
     "fin": 2668.6,
     "origine": "auto",
     "supprime": false
    }
   ],
   "livres_sans_passage": [],
+  "simulation": null
+ },
+ "2015-06-28": {
+  "date": "2015-06-28",
+  "titre": "Repérage v2 (#421) · ancien format (pap), retranscrit --max-context 0",
+  "passages": [
+   {
+    "id": "2015-06-28-v2-0",
+    "titre": "Vernon Subutex, tome 2",
+    "auteur": "Virginie Despentes",
+    "debut": 269.62,
+    "fin": 1405.24,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-1",
+    "titre": "Numéro zéro",
+    "auteur": "Umberto Eco",
+    "debut": 1405.24,
+    "fin": 1934.56,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-2",
+    "titre": "Soudain, seuls",
+    "auteur": "Isabelle Autissier",
+    "debut": 1934.56,
+    "fin": 2484.1,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-3",
+    "titre": "Perfidia",
+    "auteur": "James Ellroy",
+    "debut": 2484.1,
+    "fin": 2983.24,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-4",
+    "titre": "Jours tranquilles, brèves rencontres",
+    "auteur": "Eve Babitz",
+    "debut": 2983.24,
+    "fin": 3019.2,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-5",
+    "titre": "Le parapluie de Simon Leys",
+    "auteur": "Pierre Boncenne",
+    "debut": 3019.2,
+    "fin": 3019.74,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-6",
+    "titre": "Quand vous viendrez me voir aux antipodes",
+    "auteur": "Simon Leys",
+    "debut": 3019.74,
+    "fin": 3071.16,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-7",
+    "titre": "Ça aussi, ça passera",
+    "auteur": "Milena Busquets",
+    "debut": 3071.16,
+    "fin": 3136.96,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-8",
+    "titre": "Pour Roland Barthes",
+    "auteur": "Chantal Thomas",
+    "debut": 3136.96,
+    "fin": 3185.74,
+    "origine": "auto",
+    "supprime": false
+   }
+  ],
+  "livres_sans_passage": [
+   {
+    "titre": "La nuit de Walenhammes",
+    "auteur": "Alexis Jenni"
+   }
+  ],
   "simulation": null
  }
 }
