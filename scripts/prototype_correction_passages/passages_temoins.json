@@ -166,91 +166,91 @@
  },
  "2024-07-21": {
   "date": "2024-07-21",
-  "titre": "Repérage brut du prototype #391 sur une émission de 2024 (format ancien) : « Quiche ta » est le titre du résumé",
+  "titre": "Transcription refaite avec --max-context 0, repérage brut du prototype #391",
   "passages": [
    {
-    "id": "2024-07-21-2",
+    "id": "2024-07-21-m0",
     "titre": "L'Imposture",
     "auteur": "Zadie Smith",
-    "debut": 289.96,
-    "fin": 982.92,
-    "origine": "corrige",
+    "debut": 30.76,
+    "fin": 981.98,
+    "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-3",
+    "id": "2024-07-21-m1",
     "titre": "Ni de lait ni de laine",
     "auteur": "Emmanuelle Salasc",
-    "debut": 982.92,
-    "fin": 1433.26,
-    "origine": "corrige",
+    "debut": 981.98,
+    "fin": 1438.12,
+    "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-1",
+    "id": "2024-07-21-m2",
     "titre": "L'Oiseau des Français",
     "auteur": "Yasmina Liassine",
-    "debut": 1433.26,
-    "fin": 1901.08,
-    "origine": "corrige",
+    "debut": 1438.12,
+    "fin": 1905.1,
+    "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-0",
+    "id": "2024-07-21-m3",
     "titre": "Bungalow",
     "auteur": "Julien Blanc-Gras",
-    "debut": 1901.08,
-    "fin": 2259.16,
-    "origine": "corrige",
+    "debut": 1905.1,
+    "fin": 2260.66,
+    "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-4",
+    "id": "2024-07-21-m4",
     "titre": "Petit traité du geste: Pour la beauté du sport",
     "auteur": "Thierry Grillet",
-    "debut": 2259.16,
-    "fin": 2348.68,
+    "debut": 2268.56,
+    "fin": 2335.0,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-5",
+    "id": "2024-07-21-m5",
     "titre": "Quiche ta",
     "auteur": "Nicolas Lacarrière",
-    "debut": 2348.68,
-    "fin": 2408.24,
+    "debut": 2335.0,
+    "fin": 2387.68,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-6",
+    "id": "2024-07-21-m6",
     "titre": "Baise-moi",
     "auteur": "Virginie Despentes",
-    "debut": 2408.36,
-    "fin": 2497.88,
+    "debut": 2410.1,
+    "fin": 2483.28,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-7",
+    "id": "2024-07-21-m7",
     "titre": "Légende au pluriel : La mer à la campagne",
     "auteur": "Emmanuel Guibert",
-    "debut": 2497.88,
-    "fin": 2551.26,
+    "debut": 2483.28,
+    "fin": 2547.28,
     "origine": "auto",
     "supprime": false
    },
    {
-    "id": "2024-07-21-8",
+    "id": "2024-07-21-m8",
     "titre": "Emmanuelle Arsan, biographie d'un pseudonyme",
     "auteur": "Camille Moreau",
     "debut": 2591.88,
-    "fin": 2664.82,
+    "fin": 2668.6,
     "origine": "auto",
     "supprime": false
    }
   ],
   "livres_sans_passage": [],
-  "simulation": "Bornes de L'Imposture, Ni de lait ni de laine, L'Oiseau des Français et Bungalow corrigées à la main (le repérage #391 les avait mises dans le sommaire)"
+  "simulation": null
  }
 }
