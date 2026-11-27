@@ -274,40 +274,49 @@
     "id": "2015-06-28-v2-0",
     "titre": "Vernon Subutex, tome 2",
     "auteur": "Virginie Despentes",
-    "debut": 269.62,
-    "fin": 1405.24,
+    "debut": 267.48,
+    "fin": 934.74,
     "origine": "auto",
     "supprime": false
    },
    {
     "id": "2015-06-28-v2-1",
-    "titre": "Numéro zéro",
-    "auteur": "Umberto Eco",
-    "debut": 1405.24,
-    "fin": 1934.56,
+    "titre": "La nuit de Walenhammes",
+    "auteur": "Alexis Jenni",
+    "debut": 934.74,
+    "fin": 1484.54,
     "origine": "auto",
     "supprime": false
    },
    {
     "id": "2015-06-28-v2-2",
-    "titre": "Soudain, seuls",
-    "auteur": "Isabelle Autissier",
-    "debut": 1934.56,
-    "fin": 2484.1,
+    "titre": "Numéro zéro",
+    "auteur": "Umberto Eco",
+    "debut": 1484.54,
+    "fin": 1932.48,
     "origine": "auto",
     "supprime": false
    },
    {
     "id": "2015-06-28-v2-3",
-    "titre": "Perfidia",
-    "auteur": "James Ellroy",
-    "debut": 2484.1,
-    "fin": 2983.24,
+    "titre": "Soudain, seuls",
+    "auteur": "Isabelle Autissier",
+    "debut": 1932.48,
+    "fin": 2500.34,
     "origine": "auto",
     "supprime": false
    },
    {
     "id": "2015-06-28-v2-4",
+    "titre": "Perfidia",
+    "auteur": "James Ellroy",
+    "debut": 2500.34,
+    "fin": 2983.24,
+    "origine": "auto",
+    "supprime": false
+   },
+   {
+    "id": "2015-06-28-v2-5",
     "titre": "Jours tranquilles, brèves rencontres",
     "auteur": "Eve Babitz",
     "debut": 2983.24,
@@ -316,7 +325,7 @@
     "supprime": false
    },
    {
-    "id": "2015-06-28-v2-5",
+    "id": "2015-06-28-v2-6",
     "titre": "Le parapluie de Simon Leys",
     "auteur": "Pierre Boncenne",
     "debut": 3019.2,
@@ -325,7 +334,7 @@
     "supprime": false
    },
    {
-    "id": "2015-06-28-v2-6",
+    "id": "2015-06-28-v2-7",
     "titre": "Quand vous viendrez me voir aux antipodes",
     "auteur": "Simon Leys",
     "debut": 3019.74,
@@ -334,7 +343,7 @@
     "supprime": false
    },
    {
-    "id": "2015-06-28-v2-7",
+    "id": "2015-06-28-v2-8",
     "titre": "Ça aussi, ça passera",
     "auteur": "Milena Busquets",
     "debut": 3071.16,
@@ -343,7 +352,7 @@
     "supprime": false
    },
    {
-    "id": "2015-06-28-v2-8",
+    "id": "2015-06-28-v2-9",
     "titre": "Pour Roland Barthes",
     "auteur": "Chantal Thomas",
     "debut": 3136.96,
@@ -352,12 +361,7 @@
     "supprime": false
    }
   ],
-  "livres_sans_passage": [
-   {
-    "titre": "La nuit de Walenhammes",
-    "auteur": "Alexis Jenni"
-   }
-  ],
+  "livres_sans_passage": [],
   "simulation": null
  }
 }

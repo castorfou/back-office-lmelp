@@ -30,6 +30,8 @@ TRANSITION = re.compile(
     r"|\bon va (parler|maintenant|debattre|continuer|terminer|finir|passer)\b"
     r"|\bpassons\b|\bapres (ce|cette)\b"
     r"|\bqui ouvre\b|\bpremier livre\b|\ble livre suivant\b"
+    # présentation d'un livre : « c'est La nuit des Valènes-âmes, chez Gallimard »
+    r"|\bc'est\b.{0,80}\bchez\b"
 )
 SOMMAIRE_FIN_S = 360  # le sommaire est dans les 6 premières minutes
 SOMMAIRE_MIN_LIVRES = 3
@@ -56,6 +58,40 @@ def mentionne(texte: str, livre: dict) -> str | None:
             for m in candidats:
                 if len(m) >= 6 and fuzz.ratio(m, nom) >= 88:
                     return f"auteur « {m} »"
+    return mentionne_phonetique(texte, livre)
+
+
+def phonetique(mot: str) -> str:
+    """Clé de prononciation française grossière : Gény = Jenni, Walenham = Valènes-âmes."""
+    m = N(mot).replace("-", "").replace("'", "")
+    for a, b in (("ph", "f"), ("qu", "k"), ("w", "v"), ("y", "i"), ("h", "")):
+        m = m.replace(a, b)
+    m = re.sub(r"g(?=[ei])", "j", m)
+    m = re.sub(r"c(?=[ei])", "s", m)
+    m = m.replace("c", "k")
+    m = re.sub(r"(.)\1+", r"\1", m)
+    m = re.sub(r"(es|e|s|t|x|d)$", "", m)
+    return m
+
+
+def mentionne_phonetique(texte: str, livre: dict) -> str | None:
+    """Repli : mots rares du titre et noms d'auteur comparés à la prononciation."""
+    mots = [
+        w for w in N(PONCT.sub(" ", texte)).replace("'", " ").replace("-", " ").split()
+    ]
+    cles = [phonetique(w) for w in mots]
+    cles += [a + b for a, b in zip(cles, cles[1:])]  # « valènes âmes » → un mot
+    # noms propres seulement : mots à majuscule hors début du titre, noms d'auteur
+    mots_titre = re.sub(r"[^\w\s'-]", " ", livre["titre"]).replace("'", " ").split()
+    cibles = [w for w in mots_titre[1:] if w[:1].isupper() and len(w) >= 6]
+    cibles += noms_auteur(livre["auteur"])
+    for c in cibles:
+        k = phonetique(c)
+        if len(k) < 4:
+            continue
+        for m in cles:
+            if abs(len(m) - len(k)) <= 3 and fuzz.ratio(m, k) >= 86:
+                return f"phonétique « {m} » ≈ {c}"
     return None
 
 
