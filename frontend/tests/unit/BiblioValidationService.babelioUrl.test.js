@@ -181,3 +181,81 @@ describe('BiblioValidationService - URL Babelio des livres trouvés (Issue #341)
     expect(result.data.babelio_url ?? null).toBeNull();
   });
 });
+
+// Sortie de verify_book("L'enfant perdue (L'Amie prodigieuse, vol. 4)", "Elena Ferrante"),
+// reconstruite depuis le log backend (épisode du 21/01/2018) et le code de verify_book
+// (score calculé avec _calculate_similarity réel).
+const FERRANTE_URL =
+  'https://www.babelio.com/livres/Ferrante-Lamie-prodigieuse-tome-4--Lenfant-perdue/992387';
+const ferranteVerifyBook = {
+  status: 'corrected',
+  original_title: "L'enfant perdue (L'Amie prodigieuse, vol. 4)",
+  babelio_suggestion_title: "L'amie prodigieuse, tome 4 : L'enfant perdue",
+  original_author: 'Elena Ferrante',
+  babelio_suggestion_author: 'Elena Ferrante',
+  confidence_score: 0.6659090909090908,
+  babelio_data: {
+    id_oeuvre: '992387',
+    titre: "L'amie prodigieuse, tome 4 : L'enfant perdue",
+    prenoms: 'Elena',
+    nom: 'Ferrante',
+    type: 'livres',
+    url: '/livres/Ferrante-Lamie-prodigieuse-tome-4--Lenfant-perdue/992387',
+  },
+  babelio_url: FERRANTE_URL,
+  babelio_author_url: 'https://www.babelio.com/auteur/Elena-Ferrante/104073',
+  babelio_publisher: null,
+  error_message: null,
+};
+
+describe('BiblioValidationService - titre Babelio préfixé par la série (Issue #412)', () => {
+  let service;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    service = new BiblioValidationService({
+      fuzzySearchService: { searchEpisode: vi.fn() },
+      babelioService: mockBabelioService,
+      livresAuteursService: { getLivresAuteurs: vi.fn().mockResolvedValue([]) },
+      localAuthorService: null,
+    });
+    vi.spyOn(service, '_hasDecentGroundTruthMatches').mockReturnValue(true);
+  });
+
+  it('« Série, tome N : Titre » du même auteur : URL Babelio gardée', async () => {
+    // Document réel de livresauteurs_cache (épisode du 21/01/2018)
+    const result = await service._validateGroundTruthSuggestion(
+      {
+        author: 'Elena Ferrante',
+        title: "L'enfant perdue (L'Amie prodigieuse, vol. 4)",
+        publisher: 'Gallimard',
+      },
+      { author: 'Elena Ferrante', title: 'L’enfant perdue' },
+      ferranteVerifyBook,
+      {},
+      null
+    );
+
+    expect(result.data.source).toBe('ground_truth');
+    expect(result.data.suggested.title).toBe('L’enfant perdue');
+    expect(result.data.babelio_url).toBe(FERRANTE_URL);
+  });
+
+  it('« Série, tome N : Titre » d\'un autre auteur : pas d\'URL (homonyme)', async () => {
+    const result = await service._validateGroundTruthSuggestion(
+      { author: 'Jonathan Littell', title: "L'héritage", publisher: 'Gallimard' },
+      { author: 'Jonathan Littell', title: 'L’Héritage' },
+      {
+        ...littellVerifyBook,
+        status: 'corrected',
+        babelio_suggestion_title: "L'Héritage, tome 4 : L'Héritage",
+        babelio_suggestion_author: 'Christopher Paolini',
+        babelio_url: 'https://www.babelio.com/livres/Paolini-LHeritage/337198',
+      },
+      {},
+      null
+    );
+
+    expect(result.data.babelio_url ?? null).toBeNull();
+  });
+});
