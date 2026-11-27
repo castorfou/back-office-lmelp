@@ -3129,7 +3129,7 @@ async def delete_cache_by_episode(episode_oid: str) -> dict[str, Any]:
 
 
 @app.delete("/api/livres-auteurs/cache/{cache_id}", response_model=dict[str, Any])
-async def delete_cache_entry(cache_id: str) -> dict[str, Any]:
+def delete_cache_entry(cache_id: str) -> dict[str, Any]:
     """Supprime une entrée de cache précise et écarte durablement son titre.
 
     Permet de retirer manuellement un livre détecté par erreur (mentionné
@@ -5131,6 +5131,13 @@ async def save_avis_critiques(request: SaveAvisCritiquesRequest) -> JSONResponse
             logger.warning(
                 f"Impossible de vider le cache livresauteurs pour {request.episode_id}: {cache_err}"
             )
+
+        # nouveau résumé, nouveaux livres à repérer ; hors de la boucle
+        # d'événements, le repérage prend environ une seconde
+        try:
+            await asyncio.to_thread(passages_service.recalculer, request.episode_id)
+        except Exception as e:
+            logger.error(f"Passages non recalculés pour {request.episode_id}: {e}")
 
         return JSONResponse(content={"success": True, "avis_critique_id": avis_id})
 

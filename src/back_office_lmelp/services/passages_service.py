@@ -16,8 +16,11 @@ automatiques voisins s'arrêtent à ses bornes.
 `livresauteurs_cache` et `avis`.
 """
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
+
+from bson import ObjectId
 
 from ..utils.reperage_passages import (
     LivreDuResume,
@@ -28,6 +31,8 @@ from ..utils.reperage_passages import (
 from ..utils.text_utils import normalize_for_matching
 from .mongodb_service import mongodb_service
 
+
+logger = logging.getLogger(__name__)
 
 ORIGINE_AUTO = "auto"
 ORIGINE_CORRIGE = "corrige"
@@ -106,15 +111,60 @@ class PassagesService:
         return livres_du_resume(avis["summary"], avis.get("livres_ecartes"))
 
     def _livres_en_base(self, episode_oid: str) -> dict[str, str]:
-        """Titre du résumé normalisé → id du livre, pour les titres validés."""
+        """Titre normalisé → id du livre, pour les titres validés.
+
+        Le titre extrait du résumé et le titre validé : la validation réécrit le
+        résumé avec le titre validé (« Quiche ta » devient « Kichta »).
+        """
+        livres: dict[str, str] = {}
         entrees = self.mongodb_service.get_collection("livresauteurs_cache").find(
             {"episode_oid": episode_oid, "book_id": {"$ne": None}}
         )
-        return {
-            normalize_for_matching(e["titre"]): str(e["book_id"])
-            for e in entrees
-            if e.get("titre") and e.get("book_id")
-        }
+        for entree in entrees:
+            if not entree.get("book_id"):
+                continue
+            for cle in ("titre", "validated_title"):
+                if entree.get(cle):
+                    livres[normalize_for_matching(entree[cle])] = str(entree["book_id"])
+        return livres
+
+    def recalculer_pour_avis(self, avis_critique_id: ObjectId | str) -> None:
+        """Recalcule les Passages de l'épisode d'un avis critique.
+
+        Un échec est journalisé : il ne doit pas empêcher l'action de
+        l'utilisateur (écarter ou rétablir un titre) d'aboutir.
+        """
+        try:
+            avis = self.mongodb_service.get_collection("avis_critiques").find_one(
+                {"_id": ObjectId(avis_critique_id)}, {"episode_oid": 1}
+            )
+            if avis and avis.get("episode_oid"):
+                self.recalculer(str(avis["episode_oid"]))
+        except Exception as exc:  # noqa: BLE001 - l'écart reste enregistré
+            logger.error(
+                f"Repérage des Passages non recalculé ({avis_critique_id}): {exc}"
+            )
+
+    def rattacher_livre(
+        self, episode_oid: str, ancien_titre: str, nouveau_titre: str, livre_oid: str
+    ) -> None:
+        """Rattache au livre validé le Passage de son titre, sans nouveau repérage.
+
+        Le Passage prend le titre validé, que la validation écrit aussi dans le
+        résumé ; ses bornes et son origine (corrigé ou non) sont conservées.
+        Un échec est journalisé : il ne doit pas faire échouer la validation.
+        """
+        try:
+            collection = self.mongodb_service.get_collection("passages")
+            ancien = normalize_for_matching(ancien_titre)
+            for passage in collection.find({"episode_oid": episode_oid}):
+                if normalize_for_matching(passage["titre"]) == ancien:
+                    collection.update_one(
+                        {"_id": passage["_id"]},
+                        {"$set": {"titre": nouveau_titre, "livre_oid": livre_oid}},
+                    )
+        except Exception as exc:  # noqa: BLE001 - le livre reste validé
+            logger.error(f"Passage de « {ancien_titre} » non rattaché: {exc}")
 
     def recalculer(self, episode_oid: str) -> None:
         """Repère de nouveau les Passages de l'épisode, corrections conservées."""
