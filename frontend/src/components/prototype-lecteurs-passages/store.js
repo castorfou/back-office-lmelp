@@ -136,12 +136,22 @@ audio.addEventListener('loadedmetadata', () => {
     seekEnAttente = null;
   }
 });
-audio.addEventListener('error', () => {
+// Un <audio> ne dit pas pourquoi il échoue (403 et codec absent donnent le
+// même code) : on redemande un octet pour connaître la réponse du serveur.
+audio.addEventListener('error', async () => {
   etat.statut = 'erreur';
-  etat.erreur = etat.panne
-    ? "Audio refusé : la clé d'écoute n'est plus valable"
-    : "Audio injoignable : lmelp-streaming ne répond pas";
-  log(`✖ ${etat.erreur}`);
+  const src = audio.currentSrc || audio.src;
+  let message;
+  try {
+    const r = await fetch(src, { headers: { Range: 'bytes=0-0' } });
+    if (r.status === 403) message = "Audio refusé : la clé d'écoute n'est plus valable";
+    else if (r.ok) message = `Ce navigateur ne sait pas lire ce format audio (${src.split('?')[0].split('.').pop()})`;
+    else message = `Audio indisponible (lmelp-streaming répond ${r.status})`;
+  } catch {
+    message = 'Audio injoignable : lmelp-streaming ne répond pas';
+  }
+  etat.erreur = message;
+  log(`✖ ${message} [code média ${audio.error?.code}]`);
 });
 
 export function pause() {
