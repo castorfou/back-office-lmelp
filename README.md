@@ -236,7 +236,8 @@ export BABELIO_CACHE_LOG=1
 - 📊 **Suivi en temps réel** : Progression par épisode (envoi → attente → rapatriement), polling toutes les 2s
 - 🔌 **Aucun réveil à distance** : PGX doit être allumée manuellement (Wi-Fi uniquement, veille système désactivée)
 - 🤖 **Déclenchement externe automatisable** : `POST /api/pgx/transcription/start` accepte `trigger: "manual" | "api"` (n8n/Automatisch), sur le modèle de `/api/rss/sync` (Issue #309)
-- 🔁 **Retry horaire automatique** : Si PGX est injoignable lors d'un appel `trigger="api"`, le backend replanifie lui-même une tentative toutes les heures pendant 24h maximum, sans nouvel appel externe nécessaire
+- 🔁 **Retry horaire automatique** : Si PGX est injoignable lors d'un appel `trigger="api"`, le backend replanifie lui-même une tentative toutes les heures pendant 24h maximum, sans nouvel appel externe nécessaire ; le bouton « 🔁 Réessayer maintenant » avance la prochaine tentative (`POST /api/pgx/transcription/retry-now`)
+- ➕ **File ouverte pendant le cycle** : Les épisodes arrivés pendant un cycle en cours y sont ajoutés automatiquement
 - 📋 **Historique persisté** : Nouvelle collection MongoDB `pgx_transcription_logs` (un document par cycle, manuel ou automatisé) consultable via `GET /api/pgx/logs` et sur `/transcription-pgx`
 - 🔔 **Notifications ntfy.sh** : Alerte dès le premier échec de joignabilité (une seule fois) et en fin de cycle (succès/échec/abandon)
 
