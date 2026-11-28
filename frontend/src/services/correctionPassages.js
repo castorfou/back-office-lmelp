@@ -62,6 +62,11 @@ export function charger(episodeId, data) {
   etat.choisi = null;
 }
 
+/** Relit l'état de l'émission ouverte (sans Segments), par exemple après une validation de livre. */
+export function actualiser(episodeId, data) {
+  if (etat.ep?.id === episodeId) appliquer(data);
+}
+
 export function fermer() {
   etat.ep = null;
   etat.choisi = null;

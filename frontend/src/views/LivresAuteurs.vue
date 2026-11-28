@@ -274,15 +274,20 @@
                     </svg>
                   </span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('author')">
+                <th v-if="ecoute.pret" class="sortable-header th-emission" @click="setSortOrder('emission')"
+                  title="Ordre de l'émission : heure de début du Passage">
+                  ⏱ Émission
+                  <span class="sort-indicator" :class="getSortClass('emission')">↕</span>
+                </th>
+                <th class="sortable-header author-header" @click="setSortOrder('author')">
                   Auteur
                   <span class="sort-indicator" :class="getSortClass('author')">↕</span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('title')">
+                <th class="sortable-header title-header" @click="setSortOrder('title')">
                   Titre
                   <span class="sort-indicator" :class="getSortClass('title')">↕</span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('publisher')">
+                <th class="sortable-header publisher-header" @click="setSortOrder('publisher')">
                   Éditeur
                   <span class="sort-indicator" :class="getSortClass('publisher')">↕</span>
                 </th>
@@ -312,7 +317,7 @@
               </tr>
             </thead>
             <tbody>
-                <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" :class="['book-row', { 'mongo-book': book.status === 'mongo' }]" data-testid="book-item">
+                <tr v-for="book in filteredBooks" :key="`${book.episode_oid}-${book.auteur}-${book.titre}`" :class="['book-row', { 'mongo-book': book.status === 'mongo', 'la-ligne-active': ligneActive(book) }]" data-testid="book-item">
                 <td class="status-cell" style="text-align:center" data-testid="status-cell-{{book.episode_oid}}">
                   <!-- Programme: blue/bold target icon -->
                   <span v-if="book.programme" class="status-icon programme" title="Au programme" role="img" aria-label="Programme">
@@ -330,6 +335,9 @@
                   <!-- Empty when no flag -->
                   <span v-else class="status-icon empty" aria-hidden="true"></span>
                 </td>
+                <td v-if="ecoute.pret" class="td-emission">
+                  <span class="passage-heure">{{ passageDe(book) ? fmtPassage(passageDe(book).debut) : '—' }}</span>
+                </td>
                 <td class="author-cell">
                   <!-- Issue #96: Lien cliquable vers page auteur si ID disponible -->
                   <router-link
@@ -343,6 +351,13 @@
                   <span v-else>{{ getDisplayedAuthor(book) }}</span>
                 </td>
                 <td class="title-cell">
+                  <button v-if="ecoute.pret" type="button" :class="['la-rond', { absent: !passageDe(book) }]"
+                    :aria-label="passageDe(book) ? 'Écouter le Passage' : 'Placer le livre dans la transcription'"
+                    :title="passageDe(book) ? `Écouter le Passage (${fmtPassage(passageDe(book).fin - passageDe(book).debut)})` : 'Pas de Passage repéré pour ce titre : le placer dans la transcription'"
+                    @click="ecouterLigne(book)">
+                    <template v-if="passageDe(book)">{{ enLecture(book) ? '⏸' : '▶' }}</template>
+                    <template v-else>○</template>
+                  </button>
                   <!-- Issue #96: Lien cliquable vers page livre si ID disponible -->
                   <router-link
                     v-if="book.book_id"
@@ -432,6 +447,13 @@
             </tbody>
           </table>
         </div>
+      </section>
+
+      <!-- Écouter l'émission : Passages et transcription (Issue #427) -->
+      <section v-if="ecoute.pret && selectedEpisodeId && !loading && !error" ref="sectionEcoute"
+        class="card section-ecoute" data-test="ecouter-emission">
+        <h3 class="titre-ecoute">🎧 Écouter l'émission · Passages et transcription</h3>
+        <EcouteEmission />
       </section>
 
       <!-- Message de filtrage -->
@@ -728,6 +750,9 @@ import { toRowStatus, isTransientStatus, needsBabelioValidation } from '../utils
 import { selectEpisodeByBadgePriority } from '../utils/episodeSelection.js';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
+import EcouteEmission from '../components/correction-passages/EcouteEmission.vue';
+import * as ecouteEmission from '../services/ecouteEmission.js';
+import { fmt as fmtPassage } from '../services/correctionPassages.js';
 
 export default {
   name: 'LivresAuteurs',
@@ -737,6 +762,7 @@ export default {
     BiblioValidationCell,
     EpisodeDropdown,
     BabelioCookiePanel,
+    EcouteEmission,
   },
 
   data() {
@@ -842,6 +868,16 @@ export default {
   },
 
   computed: {
+    // Écoute des Passages de l'émission (Issue #427)
+    ecoute: () => ecouteEmission.ecoute,
+    // Passage de chaque ligne, calculé une fois par rendu du tableau
+    passagesLignes() {
+      return ecouteEmission.passagesDesLignes(this.books);
+    },
+    // ne change qu'en passant d'un Passage à l'autre : la lecture ne
+    // redessine pas le tableau à chaque instant
+    passageEnLecture: () => ecouteEmission.passageEnLecture(),
+    aDesPassages: () => ecouteEmission.aDesPassages(),
     // Ban IP : essai TCP en échec, ou disjoncteur ouvert par un timeout de connexion
     babelioIpBanned() {
       return (
@@ -970,6 +1006,14 @@ export default {
             const scoreB = (b.programme ? 2 : 0) + (b.coup_de_coeur ? 1 : 0);
             sortValue = scoreA - scoreB;
             break;
+          case 'emission': {
+            // ordre de l'émission ; livres sans Passage à la fin, dans les deux sens
+            const da = this.passageDe(a)?.debut ?? Infinity;
+            const db = this.passageDe(b)?.debut ?? Infinity;
+            if ((da === Infinity) !== (db === Infinity)) return da === Infinity ? 1 : -1;
+            sortValue = da - db;
+            break;
+          }
           case 'author':
             sortValue = a.auteur.localeCompare(b.auteur, 'fr', { sensitivity: 'base' });
             break;
@@ -993,6 +1037,26 @@ export default {
   },
 
   watch: {
+    // Passages et Segments de l'émission choisie (Issue #427)
+    selectedEpisodeId: {
+      immediate: true,
+      handler(id) {
+        ecouteEmission.chargerEpisode(id ? String(id) : null);
+      },
+    },
+    // une validation recharge les livres : un titre validé retrouve son Passage
+    books() {
+      ecouteEmission.rafraichir();
+    },
+    // dès que les Passages sont là, le tableau suit l'ordre de l'émission
+    aDesPassages(pret) {
+      if (pret) {
+        this.currentSortField = 'emission';
+        this.sortAscending = true;
+      } else if (this.currentSortField === 'emission') {
+        this.currentSortField = 'author';
+      }
+    },
     // Issue #159: Auto-déclenchement extraction URL Babelio (modal validation)
     validationBabelioUrl: debounce(function(newUrl) {
       if (newUrl && this.isValidBabelioUrl(newUrl)) {
@@ -1080,9 +1144,26 @@ export default {
     // envoyer ni interroger Babelio pour une page quittée (Issue #352)
     this._leftPage = true;
     this.stopBabelioValidation();
+    ecouteEmission.quitter();
   },
 
   methods: {
+    // Écoute des Passages (Issue #427)
+    passageDe(book) {
+      return this.passagesLignes.get(ecouteEmission.cleDe(book)) || null;
+    },
+    enLecture(book) {
+      const p = this.passageDe(book);
+      return !!p && this.passageEnLecture === p.id;
+    },
+    fmtPassage,
+    ligneActive(book) {
+      return ecouteEmission.ecoute.ligne === ecouteEmission.cleDe(book);
+    },
+    ecouterLigne(book) {
+      ecouteEmission.ecouterLigne(book);
+      this.$nextTick(() => this.$refs.sectionEcoute?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
     // ========== MÉTHODES POUR TÂCHE 4: COMMUNICATION BIBLIOVALIADATIONCELL ==========
 
     /**
@@ -2166,6 +2247,17 @@ export default {
 </script>
 
 <style scoped>
+/* Écoute des Passages (Issue #427, prototype #423 variante C) */
+.la-rond { width: 1.7rem; height: 1.7rem; border-radius: 50%; border: none; background: #0d6efd; color: #fff;
+  cursor: pointer; margin-right: .4rem; font-size: .75rem; vertical-align: middle; flex: none; }
+.la-rond.absent { background: #fff; color: #999; border: 1.5px dashed #bbb; font-size: 1rem; line-height: 1; }
+.la-rond:hover { filter: brightness(1.1); }
+.td-emission { font-family: monospace; color: #555; white-space: nowrap; }
+.th-emission { white-space: nowrap; }
+.la-ligne-active > td { background: #eef4ff !important; }
+.section-ecoute { height: 80vh; margin-top: 1rem; display: flex; flex-direction: column; padding: .8rem 1rem; margin-bottom: 1rem; }
+.section-ecoute > .ee { flex: 1; min-height: 0; }
+.titre-ecoute { margin: 0 0 .5rem; font-size: 1.05rem; }
 .livres-auteurs {
   min-height: 100vh;
   display: flex;
@@ -3120,19 +3212,24 @@ export default {
   width: 50px;
 }
 
+/* par classe et non par position : la colonne « ⏱ Émission » s'insère avant l'auteur */
 .author-cell,
-.books-table th:nth-child(2) {
+.books-table th.author-header {
   width: 180px;
 }
 
 .title-cell,
-.books-table th:nth-child(3) {
+.books-table th.title-header {
   width: 200px;
 }
 
 .publisher-cell,
-.books-table th:nth-child(4) {
+.books-table th.publisher-header {
   width: 120px;
+}
+
+.books-table th.th-emission {
+  width: 130px;
 }
 
 /* Colonne YAML visible */

@@ -75,8 +75,27 @@ Cliquez sur les en-têtes de colonnes pour trier :
 - **Auteur** : tri alphabétique des noms d'auteurs
 - **Titre** : tri alphabétique des titres de livres
 - **Éditeur** : tri alphabétique des éditeurs
+- **⏱ Émission** : ordre de l'émission (heure de début du Passage), les livres sans Passage
+  à la fin. C'est le tri par défaut quand l'émission a ses Passages.
 
 Le tri bascule entre croissant (↑) et décroissant (↓) à chaque clic.
+
+### Écouter l'émission
+
+Quand l'émission a une transcription horodatée, chaque livre a un **Passage** : la portion
+de l'audio où les critiques en parlent (voir [Correction des passages](correction-passages.md)).
+
+- La colonne **⏱ Émission** donne l'heure de début du Passage de chaque livre.
+- Un rond **▶** devant le titre joue son Passage, y compris pour un livre pas encore validé :
+  on écoute ce que les critiques disent d'un titre douteux avant de le chercher sur Babelio.
+  Un second clic met la lecture en pause.
+- Un rond **○** signale un livre sans Passage : un clic met en évidence la liste « À placer ».
+- La section **Écouter l'émission**, sous le tableau, reprend la page « Correction des
+  passages » : lecteur, frise, cartes et transcription complète. Le ▶ d'une ligne y amène, sur
+  le Passage du livre. On y corrige les bornes et on y place un livre manquant sans quitter
+  la page.
+
+Un livre validé garde son Passage et ses corrections : rien n'est recalculé.
 
 ### Recherche
 Utilisez la barre de recherche pour filtrer instantanément par :
