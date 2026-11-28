@@ -26,6 +26,7 @@ import re
 import statistics
 from dataclasses import dataclass, field
 from enum import IntEnum
+from functools import lru_cache
 from typing import Any
 
 from rapidfuzz import fuzz
@@ -122,16 +123,20 @@ SEUIL_PHONETIQUE = 86
 NOM_COURT = 4  # en dessous, le nom doit être écrit tel quel (« Luz », « Jul »)
 
 
-def _mots(texte: str) -> list[str]:
-    return normalize_for_matching(texte).replace("'", " ").split()
+# Le repérage teste chaque Segment contre chaque livre : ce qui ne dépend que
+# du texte (mots, clés phonétiques) est calculé une fois, puis mis en cache.
+@lru_cache(maxsize=20_000)
+def _mots(texte: str) -> tuple[str, ...]:
+    return tuple(normalize_for_matching(texte).replace("'", " ").split())
 
 
-def _paires(mots: list[str]) -> list[str]:
+def _paires(mots: tuple[str, ...]) -> list[str]:
     """Mots voisins accolés : « blanc gras » → « blancgras »."""
     return [a + b for a, b in zip(mots, mots[1:], strict=False)]
 
 
-def _noms_auteur(auteur: str) -> list[str]:
+@lru_cache(maxsize=2_000)
+def _noms_auteur(auteur: str) -> tuple[str, ...]:
     """Nom de famille (dernier mot) de chaque personne, normalisé.
 
     Personnes séparées par une virgule, « et » ou « & » ; « d'après » sépare
@@ -143,13 +148,14 @@ def _noms_auteur(auteur: str) -> list[str]:
         mots = normalize_for_matching(personne).split()
         if mots and len(mots[-1]) >= 3:
             noms.append(mots[-1])
-    return noms
+    return tuple(noms)
 
 
 def _nom_sans_tiret(nom: str) -> str:
     return nom.replace("-", "")
 
 
+@lru_cache(maxsize=50_000)
 def phonetique(mot: str) -> str:
     """Clé de prononciation française grossière : Gény = Jenni (« jeni »).
 
@@ -167,7 +173,7 @@ def phonetique(mot: str) -> str:
     return re.sub(r"(es|e|s|t|x|d)$", "", cle)
 
 
-def _cite_le_titre(mots: list[str], livre: LivreDuResume) -> bool:
+def _cite_le_titre(mots: tuple[str, ...], livre: LivreDuResume) -> bool:
     titre = _mots(livre.titre)
     titre_plein = [m for m in titre if m not in MOTS_VIDES] or titre
     taille = len(titre_plein)
@@ -180,9 +186,9 @@ def _cite_le_titre(mots: list[str], livre: LivreDuResume) -> bool:
     )
 
 
-def _cite_un_auteur(mots: list[str], livre: LivreDuResume) -> bool:
+def _cite_un_auteur(mots: tuple[str, ...], livre: LivreDuResume) -> bool:
     # mots seuls et paires accolées après une élision (« L'Espade » → « lespade »)
-    candidats = mots + [
+    candidats = list(mots) + [
         a + b for a, b in zip(mots, mots[1:], strict=False) if len(a) == 1
     ]
     for nom in _noms_auteur(livre.auteur):
@@ -203,18 +209,24 @@ def _noms_propres(livre: LivreDuResume) -> list[str]:
     return propres + [_nom_sans_tiret(n) for n in _noms_auteur(livre.auteur)]
 
 
-def _cite_un_nom_propre(texte: str, livre: LivreDuResume) -> bool:
+@lru_cache(maxsize=20_000)
+def _mots_et_cles(texte: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Mots du texte (et paires accolées), et leurs clés phonétiques."""
     mots = _mots(texte.replace("-", " "))
+    cles = [phonetique(m) for m in mots]
+    paires_cles = _paires(tuple(cles))
+    return (*mots, *_paires(mots)), (*cles, *paires_cles)
+
+
+def _cite_un_nom_propre(texte: str, livre: LivreDuResume) -> bool:
+    mots, cles = _mots_et_cles(texte)
     # nom composé écrit en un ou deux mots : « blangras », « blanc gras »
     for nom in map(_nom_sans_tiret, _noms_auteur(livre.auteur)):
         if len(nom) >= 8 and any(
-            len(m) >= 6 and fuzz.ratio(m, nom) >= SEUIL_NOM_COMPOSE
-            for m in mots + _paires(mots)
+            len(m) >= 6 and fuzz.ratio(m, nom) >= SEUIL_NOM_COMPOSE for m in mots
         ):
             return True
     # prononciation : « Gény » pour Jenni, « Valènes-âmes » pour Walenhammes
-    cles = [phonetique(m) for m in mots]
-    cles += _paires(cles)
     for nom in _noms_propres(livre):
         cle = phonetique(nom)
         if len(cle) >= NOM_COURT and any(
