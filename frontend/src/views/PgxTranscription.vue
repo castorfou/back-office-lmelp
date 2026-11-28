@@ -73,7 +73,11 @@
           class="pgx-progress-panel"
         >
           <div class="progress-header">
-            <strong v-if="pgxProgress.is_running">
+            <strong v-if="pgxProgress.is_running && pgxProgress.archive">
+              Retranscription de l'archive en cours — épisode
+              {{ pgxProgress.current_episode_index + 1 }}/{{ pgxProgress.episode_ids.length }}
+            </strong>
+            <strong v-else-if="pgxProgress.is_running">
               Transcription en cours — épisode
               {{ pgxProgress.current_episode_index + 1 }}/{{ pgxProgress.episode_ids.length }}
             </strong>
@@ -101,6 +105,34 @@
             <li v-for="(log, idx) in pgxProgress.logs" :key="idx">{{ log }}</li>
           </ul>
         </div>
+      </section>
+
+      <!-- Retranscription horodatée de l'archive (Issue #427) -->
+      <section class="card pgx-archive-section" data-testid="pgx-archive">
+        <div class="section-header">
+          <h2>🕒 Retranscription horodatée de l'archive</h2>
+        </div>
+        <p class="section-help">
+          Les Passages audio s'appuient sur la transcription horodatée (Segments). Ce bouton
+          retranscrit une fois sur PGX tous les épisodes qui ont un audio mais pas encore de
+          Segments ; leur transcription texte est remplacée par celle de la même passe. Une seule
+          notification est envoyée, à la fin.
+        </p>
+        <template v-if="archiveEpisodes.length > 0">
+          <p class="pgx-episodes-count">
+            {{ archiveEpisodes.length }} épisode(s) sans Segments — environ
+            {{ dureeArchiveHeures }} h sur PGX.
+          </p>
+          <button
+            data-testid="pgx-archive-button"
+            class="btn btn-primary"
+            :disabled="!pgxReady || pgxProgress.is_running"
+            @click="lancerRetranscriptionArchive"
+          >
+            ▶️ Retranscrire l'archive
+          </button>
+        </template>
+        <div v-else class="empty-state">Tous les épisodes ont leurs Segments.</div>
       </section>
 
       <!-- Historique (Issue #309) -->
@@ -135,7 +167,7 @@
               <template v-for="log in pgxLogs" :key="log._id">
                 <tr class="pgx-log-row" @click="togglePgxLogDetail(log._id)">
                   <td class="td-date">{{ formatDateTime(log.finished_at || log.started_at) }}</td>
-                  <td>{{ log.trigger }}</td>
+                  <td>{{ log.archive ? 'archive' : log.trigger }}</td>
                   <td>
                     <span class="badge" :class="pgxLogStatusBadgeClass(log.status)">{{ log.status }}</span>
                   </td>
@@ -193,6 +225,9 @@ const PGX_DIAGNOSTIC_STEP_NAMES = [
   'Répertoire transcriptions distant',
 ];
 
+// ~3 à 5 min par épisode sur PGX avec --max-context 0 (#420, #425)
+const MINUTES_PAR_EPISODE = 4.5;
+
 export default {
   name: 'PgxTranscription',
   components: { Navigation },
@@ -202,6 +237,7 @@ export default {
       pgxDiagnostics: [],
       pgxMissingVars: [],
       pgxEpisodes: [],
+      archiveEpisodes: [],
       sshPublicKey: null,
       pgxProgress: {
         is_running: false,
@@ -250,6 +286,10 @@ export default {
       return this.pgxDiagnostics;
     },
 
+    dureeArchiveHeures() {
+      return Math.round((this.archiveEpisodes.length * MINUTES_PAR_EPISODE) / 60);
+    },
+
     startButtonDisabled() {
       if (!this.pgxReady) return true;
       // Un cycle qui attend PGX peut être réveillé (Issue #402) ; un cycle
@@ -284,6 +324,7 @@ export default {
     this.loadPgxDiagnostics();
     this.loadPgxSshKey();
     this.loadPgxEpisodes();
+    this.loadArchiveEpisodes();
     this.checkPgxProgress();
     this.loadPgxLogs();
   },
@@ -300,6 +341,7 @@ export default {
           this.loadPgxDiagnostics(),
           this.loadPgxSshKey(),
           this.loadPgxEpisodes(),
+          this.loadArchiveEpisodes(),
         ]);
       } finally {
         this.refreshing = false;
@@ -345,7 +387,7 @@ export default {
           this.startPgxPolling();
         } else if (this.pgxPollInterval) {
           this.stopPgxPolling();
-          await this.loadPgxEpisodes();
+          await Promise.all([this.loadPgxEpisodes(), this.loadArchiveEpisodes()]);
         }
       } catch (e) {
         console.error('Erreur récupération progression PGX', e);
@@ -380,6 +422,30 @@ export default {
         }
       } catch (e) {
         console.error('Erreur déclenchement transcription PGX', e);
+      }
+    },
+
+    async loadArchiveEpisodes() {
+      try {
+        const res = await axios.get('/api/pgx/episodes-sans-segments');
+        this.archiveEpisodes = res.data.episodes;
+      } catch (e) {
+        console.error('Erreur chargement épisodes sans Segments', e);
+      }
+    },
+
+    async lancerRetranscriptionArchive() {
+      const n = this.archiveEpisodes.length;
+      if (!confirm(`Retranscrire ${n} épisode(s) sur PGX, environ ${this.dureeArchiveHeures} h ?\n\nLeur transcription texte sera remplacée. PGX reste occupé pendant tout ce temps.`)) return;
+      try {
+        const res = await axios.post('/api/pgx/transcription/archive');
+        if (res.data.status === 'started') {
+          this.pgxProgress.is_running = true;
+          this.startPgxPolling();
+          await this.checkPgxProgress();
+        }
+      } catch (e) {
+        console.error('Erreur déclenchement retranscription de l\'archive', e);
       }
     },
 

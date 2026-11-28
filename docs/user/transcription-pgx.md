@@ -189,6 +189,28 @@ prochaine tentative.
     reprend alors là où il s'était arrêté. Si PGX reste introuvable, l'attente horaire
     reprend, avec la même limite de 24h.
 
+## Retranscription horodatée de l'archive
+
+Les Passages audio (écouter ce que les critiques disent d'un livre) s'appuient sur la
+transcription **horodatée** de chaque épisode, ses Segments. Les épisodes transcrits avant
+la sortie horodatée n'en ont pas.
+
+La section **🕒 Retranscription horodatée de l'archive** donne le nombre d'épisodes qui ont un
+audio mais pas encore de Segments, et la durée estimée sur PGX (environ 4 à 5 min par
+épisode). Le bouton **▶️ Retranscrire l'archive**, après confirmation, les met tous en file :
+
+- chaque épisode repasse par PGX ; sa transcription texte est **remplacée** par celle de la
+  même passe, et ses Segments sont enregistrés (les Passages sont alors repérés) ;
+- les résumés déjà générés ne sont pas touchés ;
+- pas de notification par épisode : une seule, à la fin, avec le nombre de réussites et
+  d'échecs ;
+- la progression se suit dans le même panneau que la transcription des nouveaux épisodes,
+  et le cycle apparaît « archive » dans l'historique.
+
+Le bouton est désactivé pendant un autre cycle, et disparaît quand tous les épisodes ont
+leurs Segments. Si PGX devient injoignable en cours de route, les épisodes restants seront
+repris au prochain clic.
+
 ## Dépannage {#depannage}
 
 ### "PGX injoignable"

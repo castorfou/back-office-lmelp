@@ -687,6 +687,7 @@ class TestGetStatus:
             "last_update",
             "retry_pending",
             "next_attempt_at",
+            "archive",
         }
 
     def test_should_expose_idle_retry_state_by_default(self):

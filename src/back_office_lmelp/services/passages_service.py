@@ -109,6 +109,39 @@ class PassagesService:
         )
         self.recalculer(episode_oid)
 
+    def episodes_sans_segments(self) -> list[dict[str, Any]]:
+        """Épisodes non masqués qui ont un audio mais pas encore de Segments,
+        du plus récent au plus ancien : la file de la retranscription
+        horodatée de l'archive."""
+        avec_segments = {
+            d["episode_oid"]
+            for d in self.mongodb_service.get_collection("episode_segments").find(
+                {"segments.0": {"$exists": True}}, {"episode_oid": 1}
+            )
+        }
+        episodes = self.mongodb_service.get_collection("episodes").find(
+            {
+                "masked": {"$ne": True},
+                "audio_rel_filename": {"$nin": [None, ""]},
+            },
+            {"titre": 1, "date": 1},
+        )
+        resultat = []
+        for episode in sorted(
+            episodes, key=lambda e: e.get("date") or datetime.min, reverse=True
+        ):
+            if str(episode["_id"]) in avec_segments:
+                continue
+            date = episode.get("date")
+            resultat.append(
+                {
+                    "id": str(episode["_id"]),
+                    "titre": episode.get("titre"),
+                    "date": date.isoformat() if isinstance(date, datetime) else date,
+                }
+            )
+        return resultat
+
     def segments_de(self, episode_oid: str) -> list[dict[str, Any]]:
         document = self.mongodb_service.get_collection("episode_segments").find_one(
             {"episode_oid": episode_oid}
