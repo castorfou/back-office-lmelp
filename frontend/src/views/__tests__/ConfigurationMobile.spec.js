@@ -79,6 +79,18 @@ describe('ConfigurationMobile', () => {
     expect(writeText).toHaveBeenCalledWith(lienDe(CLE.cle));
   });
 
+  it("n'annonce pas « Copié » quand le presse-papiers est indisponible, et montre le lien", async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    const page = monter();
+    await flushPromises();
+
+    await page.find('[data-test="copier-lien"]').trigger('click');
+    await flushPromises();
+
+    expect(page.find('[data-test="copier-lien"]').text()).toBe('Copier le lien');
+    expect(page.find('[data-test="erreur-copie"]').text()).toContain(lienDe(CLE.cle));
+  });
+
   it("dit depuis quand la clé est en service et combien de fois elle a changé", async () => {
     cleEcouteService.lire.mockResolvedValue({
       ...CLE,

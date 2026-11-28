@@ -36,6 +36,7 @@
                   <button v-if="base" class="cm-petit" data-test="copier-lien" @click="copier">{{ copie ? 'Copié ✓' : 'Copier le lien' }}</button>
                 </dd>
               </dl>
+              <p v-if="erreurCopie" class="cm-erreur cm-copie" data-test="erreur-copie">{{ erreurCopie }}</p>
             </details>
             <p class="cm-note" data-test="historique">
               Clé en service depuis le {{ dateHeure(cle.creee_le) }}<template v-if="cle.changements.length">
@@ -77,7 +78,7 @@ export default {
   components: { Navigation },
   data() {
     return {
-      cle: null, qr: null, erreur: null, erreurInvalidation: null,
+      cle: null, qr: null, erreur: null, erreurInvalidation: null, erreurCopie: null,
       voir: false, copie: false, enCours: false, fait: false,
       base: adresseStreaming(window.location),
     };
@@ -91,7 +92,9 @@ export default {
   watch: {
     lien: {
       async handler(lien) {
-        this.qr = lien ? await QRCode.toDataURL(lien, { width: 240, margin: 1 }) : null;
+        const qr = lien ? await QRCode.toDataURL(lien, { width: 240, margin: 1 }) : null;
+        // une génération plus ancienne ne remplace pas le QR d'une clé plus récente
+        if (lien === this.lien) this.qr = qr;
       },
     },
   },
@@ -111,7 +114,15 @@ export default {
       else this.$router.push('/');
     },
     async copier() {
-      await navigator.clipboard?.writeText(this.lien);
+      this.erreurCopie = null;
+      try {
+        // le presse-papiers n'existe qu'en contexte sécurisé (https ou localhost)
+        if (!navigator.clipboard) throw new Error('presse-papiers indisponible sur cette adresse');
+        await navigator.clipboard.writeText(this.lien);
+      } catch (e) {
+        this.erreurCopie = `Lien non copié (${e.message}) : ${this.lien}`;
+        return;
+      }
       this.copie = true;
       clearTimeout(this.minuterieCopie);
       this.minuterieCopie = setTimeout(() => { this.copie = false; }, 2000);
@@ -159,4 +170,5 @@ export default {
 .cm-invalider:hover:not(:disabled) { background: #dc3545; color: #fff; }
 .cm-fait { color: #198754; margin-top: .8rem; }
 .cm-erreur { color: #b02a37; margin-top: .8rem; }
+.cm-copie { word-break: break-all; font-size: .85rem; }
 </style>

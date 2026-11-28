@@ -25,28 +25,35 @@ def _nouvelle_cle() -> str:
     return secrets.token_urlsafe(24)
 
 
-class CleEcouteService:
-    def __init__(self, mongodb: Any = mongodb_service) -> None:
-        self.mongodb_service = mongodb
+def _est_complet(document: dict[str, Any] | None) -> bool:
+    if not document:
+        return False
+    return (
+        isinstance(document.get("cle"), str)
+        and bool(document["cle"])
+        and isinstance(document.get("creee_le"), datetime)
+        and isinstance(document.get("changements"), list)
+    )
 
+
+class CleEcouteService:
     def _parametres(self) -> Any:
-        return self.mongodb_service.get_collection("parametres")
+        return mongodb_service.get_collection("parametres")
 
     def assurer(self) -> dict[str, Any]:
-        """Crée la clé si elle n'existe pas encore, et la renvoie."""
-        self._parametres().update_one(
-            {"_id": DOCUMENT},
-            {
-                "$setOnInsert": {
-                    "cle": _nouvelle_cle(),
-                    "creee_le": datetime.now(UTC),
-                    "changements": [],
-                }
-            },
-            upsert=True,
-        )
-        document: dict[str, Any] = self._parametres().find_one({"_id": DOCUMENT})
-        return document
+        """Crée la clé si elle n'existe pas encore (ou si son document est
+        incomplet), et renvoie le document."""
+        document: dict[str, Any] | None = self._parametres().find_one({"_id": DOCUMENT})
+        if document is not None and _est_complet(document):
+            return document
+        neuf = {
+            "_id": DOCUMENT,
+            "cle": _nouvelle_cle(),
+            "creee_le": datetime.now(UTC),
+            "changements": [],
+        }
+        self._parametres().replace_one({"_id": DOCUMENT}, neuf, upsert=True)
+        return neuf
 
     def lire(self) -> dict[str, Any]:
         document = self.assurer()
@@ -58,6 +65,7 @@ class CleEcouteService:
 
     def invalider(self) -> dict[str, Any]:
         """Remplace la clé : l'ancienne est refusée aussitôt et n'est pas gardée."""
+        self.assurer()
         maintenant = datetime.now(UTC)
         self._parametres().update_one(
             {"_id": DOCUMENT},
@@ -73,9 +81,10 @@ class CleEcouteService:
         if not cle:
             return False
         document = self._parametres().find_one({"_id": DOCUMENT}, {"cle": 1})
-        return bool(document) and secrets.compare_digest(
-            document["cle"].encode(), cle.encode()
-        )
+        attendue = (document or {}).get("cle")
+        if not isinstance(attendue, str) or not attendue:
+            return False
+        return secrets.compare_digest(attendue.encode(), cle.encode())
 
 
 cle_ecoute_service = CleEcouteService()

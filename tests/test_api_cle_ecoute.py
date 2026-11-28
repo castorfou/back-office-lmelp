@@ -122,3 +122,18 @@ def test_chaque_invalidation_ajoute_une_date(client: TestClient) -> None:
     client.post("/api/cle-ecoute/invalider")
 
     assert len(client.get("/api/cle-ecoute").json()["changements"]) == 2
+
+
+def test_un_document_de_cle_abime_est_refuse_puis_repare(
+    client: TestClient, db: Any
+) -> None:
+    db.parametres.insert_one({"_id": "cle_ecoute", "cle": None})
+
+    assert (
+        client.get("/api/cle-ecoute/verifier", params={"cle": "x"}).status_code == 403
+    )
+
+    corps = client.get("/api/cle-ecoute").json()
+    assert isinstance(corps["cle"], str) and len(corps["cle"]) >= 20
+    verifier = "/api/cle-ecoute/verifier"
+    assert client.get(verifier, params={"cle": corps["cle"]}).status_code == 204
