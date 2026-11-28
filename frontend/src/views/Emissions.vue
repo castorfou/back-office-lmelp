@@ -314,6 +314,7 @@
               :emission-date="selectedEmissionDetails.episode?.date"
               :matching-stats="avisMatchingStats"
               :livres-mongo-count="avisMatchingStats?.livres_mongo || 0"
+              :passages="passagesEmission"
             />
 
             <!-- DEBUG: Affichage du summary markdown pour comparaison (phase de test) -->
@@ -334,7 +335,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Navigation from '../components/Navigation.vue';
 import EpisodeDropdown from '../components/EpisodeDropdown.vue';
 import AvisTable from '../components/AvisTable.vue';
-import { emissionsService, episodeService, avisService } from '../services/api';
+import { emissionsService, episodeService, avisService, passagesService } from '../services/api';
 import { marked } from 'marked';
 
 export default {
@@ -389,6 +390,24 @@ export default {
     // État des avis structurés
     const avis = ref([]);
     const avisLoading = ref(false);
+    // Passages de l'émission, pour écouter un livre depuis le tableau des avis
+    const passagesEmission = ref(null);
+
+    const loadPassagesEmission = async (episodeId, date) => {
+      passagesEmission.value = null;
+      if (!episodeId) return;
+      try {
+        const data = await passagesService.getPassagesEpisode(episodeId);
+        const jour = (date || '').slice(0, 10);
+        passagesEmission.value = {
+          ...data,
+          passages: data.passages.map((p) => ({ ...p, episode_id: episodeId, date: jour })),
+        };
+      } catch (error) {
+        // sans Passages, le tableau des avis reste affiché, sans rond d'écoute
+        console.warn('Passages non chargés:', error);
+      }
+    };
     const avisError = ref(null);
     const avisExtracting = ref(false);
     const avisMatchingStats = ref(null);
@@ -666,6 +685,7 @@ export default {
 
         // Charger les avis structurés en arrière-plan (extraction auto si nécessaire)
         loadAvisForEmission(data.emission.id);
+        loadPassagesEmission(data.emission.episode_id, data.episode?.date || data.emission.date);
       } catch (error) {
         console.error('Erreur chargement émission par date:', error);
         detailsError.value = error.message || 'Erreur lors du chargement de l\'émission';
@@ -904,6 +924,7 @@ export default {
     });
 
     return {
+      passagesEmission,
       emissions,
       emissionsLoading,
       emissionsError,

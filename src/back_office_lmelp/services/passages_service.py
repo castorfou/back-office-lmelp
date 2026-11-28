@@ -227,8 +227,14 @@ class PassagesService:
         if nouveaux:
             collection.insert_many(nouveaux)
 
-    def passages_de(self, episode_oid: str) -> dict[str, Any]:
+    def passages_de(
+        self, episode_oid: str, avec_segments: bool = True
+    ) -> dict[str, Any]:
         """Segments, Passages (dans l'ordre de l'émission) et livres sans Passage.
+
+        Un livre sans Passage dit pourquoi : `pas_de_segments` (l'émission n'a
+        pas de transcription horodatée), `supprime` (Passage retiré à la
+        correction) ou `non_repere`.
 
         Le livre de chaque Passage est retrouvé à la lecture. Un Passage dont le
         livre n'est plus dans le résumé (titre écarté) n'est pas rendu ; il
@@ -239,12 +245,26 @@ class PassagesService:
             self._cle(livre.titre, None, noms): livre
             for livre in self._livres_du_resume(episode_oid)
         }
-        documents = sorted(
+        tous = list(
             self.mongodb_service.get_collection("passages").find(
-                {"episode_oid": episode_oid, "supprime": {"$ne": True}}
-            ),
-            key=lambda p: p["debut_ms"],
+                {"episode_oid": episode_oid}
+            )
         )
+        documents = sorted(
+            (p for p in tous if not p.get("supprime")), key=lambda p: p["debut_ms"]
+        )
+        supprimes = {
+            self._cle(p["titre"], p.get("livre_oid"), noms)
+            for p in tous
+            if p.get("supprime")
+        }
+        segments = self._segments(episode_oid)
+
+        def raison(cle: str) -> str:
+            if not segments:
+                return "pas_de_segments"
+            return "supprime" if cle in supprimes else "non_repere"
+
         passages = []
         for document in documents:
             cle = self._cle(document["titre"], document.get("livre_oid"), noms)
@@ -267,21 +287,47 @@ class PassagesService:
         avec_passage = {p.pop("cle") for p in passages}
 
         return {
-            "segments": [
-                [s["debut_ms"], s["fin_ms"], s["texte"]]
-                for s in self._segments(episode_oid)
-            ],
+            "segments": [[s["debut_ms"], s["fin_ms"], s["texte"]] for s in segments]
+            if avec_segments
+            else [],
+            "a_des_segments": bool(segments),
             "passages": passages,
             "sans_passage": [
                 {
                     "titre": livre.titre,
                     "auteur": livre.auteur,
                     "section": int(livre.section),
+                    "raison": raison(cle),
                 }
                 for cle, livre in resume.items()
                 if cle not in avec_passage
             ],
         }
+
+    def passages_du_livre(self, livre_oid: str) -> list[dict[str, Any]]:
+        """Les Passages d'un livre dans chacune de ses émissions, par date."""
+        livre = self.mongodb_service.get_collection("livres").find_one(
+            {"_id": ObjectId(livre_oid)}, {"episodes": 1}
+        )
+        if not livre:
+            return []
+        resultat = []
+        episodes = self.mongodb_service.get_collection("episodes")
+        for episode_oid in livre.get("episodes") or []:
+            episode = episodes.find_one({"_id": ObjectId(episode_oid)}, {"date": 1})
+            date = episode.get("date") if episode else None
+            for passage in self.passages_de(str(episode_oid), avec_segments=False)[
+                "passages"
+            ]:
+                if passage["livre_id"] == livre_oid:
+                    resultat.append(
+                        {
+                            **passage,
+                            "episode_id": str(episode_oid),
+                            "date": date.strftime("%Y-%m-%d") if date else None,
+                        }
+                    )
+        return sorted(resultat, key=lambda p: p["date"] or "")
 
 
 passages_service = PassagesService()

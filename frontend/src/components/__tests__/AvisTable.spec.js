@@ -262,3 +262,66 @@ describe('AvisTable.vue', () => {
     });
   });
 });
+
+describe('AvisTable.vue — écoute des Passages', () => {
+  const monter = (passages) => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', component: { template: '<div />' } },
+        { path: '/livre/:id', component: { template: '<div />' } },
+        { path: '/critique/:id', component: { template: '<div />' } },
+        { path: '/auteur/:id', component: { template: '<div />' } },
+      ],
+    });
+    return mount(AvisTable, {
+      global: { plugins: [router] },
+      props: {
+        passages,
+        avis: [
+          {
+            id: '1', section: 'programme', livre_oid: 'l1', livre_titre: 'Le Fondateur',
+            livre_titre_extrait: 'Le Fondateur', auteur_nom_extrait: 'Giuliano da Empoli',
+            critique_nom_extrait: 'Arnaud Viviant', note: 8,
+          },
+          {
+            id: '2', section: 'coup_de_coeur', livre_oid: null,
+            livre_titre_extrait: 'Vivre après', auteur_nom_extrait: 'Jérôme Garcin',
+            critique_nom_extrait: 'Arnaud Viviant', note: 9,
+          },
+        ],
+      },
+    });
+  };
+
+  it("met un rond d'écoute devant le titre d'un livre qui a un Passage", () => {
+    const table = monter({
+      a_des_segments: true,
+      passages: [{
+        id: 'p1', titre: 'Le Fondateur', auteur: 'Giuliano da Empoli', livre_id: 'l1',
+        debut_ms: 447000, fin_ms: 813000, episode_id: 'e1', date: '2026-11-15',
+      }],
+      sans_passage: [{ titre: 'Vivre après', raison: 'non_repere' }],
+    });
+
+    const ligne = table.findAll('tr').find((tr) => tr.text().includes('Le Fondateur'));
+    expect(ligne.find('button[aria-label="Écouter le Passage"]').exists()).toBe(true);
+  });
+
+  it("dit pourquoi un livre n'a pas de Passage", () => {
+    const table = monter({
+      a_des_segments: true,
+      passages: [],
+      sans_passage: [{ titre: 'Vivre après', raison: 'supprime' }],
+    });
+
+    const ligne = table.findAll('tr').find((tr) => tr.text().includes('Vivre après'));
+    expect(ligne.find('.passage-absent').attributes('title')).toMatch(/retiré/);
+  });
+
+  it("n'affiche aucun rond sans information sur les Passages", () => {
+    const table = monter(null);
+
+    expect(table.find('.passage-rond').exists()).toBe(false);
+  });
+});

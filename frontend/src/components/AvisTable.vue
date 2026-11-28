@@ -43,6 +43,12 @@
               <span v-else>{{ livre.auteur }}</span>
             </td>
             <td class="titre-cell">
+              <PassageBouton
+                v-if="passages"
+                :passage="passagePour(livre.livre_oid, livre.titre)"
+                :liste="passages.passages"
+                :raison="raisonPour(livre.titre)"
+              />
               <router-link
                 v-if="livre.livre_oid"
                 :to="`/livre/${livre.livre_oid}`"
@@ -141,6 +147,12 @@
               <span v-else>{{ avis.auteur_nom || avis.auteur_nom_extrait }}</span>
             </td>
             <td class="titre-cell">
+              <PassageBouton
+                v-if="passages"
+                :passage="passagePour(avis.livre_oid, avis.livre_titre || avis.livre_titre_extrait)"
+                :liste="passages.passages"
+                :raison="raisonPour(avis.livre_titre || avis.livre_titre_extrait)"
+              />
               <router-link
                 v-if="avis.livre_oid"
                 :to="`/livre/${avis.livre_oid}`"
@@ -188,9 +200,15 @@
 
 <script>
 import { computed, ref } from 'vue';
+import PassageBouton from './PassageBouton.vue';
+import { removeAccents } from '../utils/textUtils';
+
+const normaliser = (titre) => removeAccents((titre || '').toLowerCase()).trim();
 
 export default {
   name: 'AvisTable',
+
+  components: { PassageBouton },
 
   props: {
     avis: {
@@ -209,6 +227,14 @@ export default {
     livresMongoCount: {
       type: Number,
       default: 0,
+    },
+    /**
+     * Passages de l'émission (GET /api/episodes/{id}/passages?segments=false),
+     * ou null : pas de rond d'écoute.
+     */
+    passages: {
+      type: Object,
+      default: null,
     },
   },
 
@@ -427,7 +453,28 @@ export default {
       return 'note-poor';
     };
 
+    /** Le Passage d'un livre : par son id en base, sinon par son titre. */
+    const passagePour = (livreOid, titre) => {
+      const liste = props.passages?.passages || [];
+      return (
+        (livreOid && liste.find((p) => p.livre_id === livreOid))
+        || liste.find((p) => normaliser(p.titre) === normaliser(titre))
+        || null
+      );
+    };
+
+    /** Pourquoi un livre n'a pas de Passage. */
+    const raisonPour = (titre) => {
+      if (!props.passages?.a_des_segments) return 'pas_de_segments';
+      const absent = (props.passages.sans_passage || []).find(
+        (s) => normaliser(s.titre) === normaliser(titre),
+      );
+      return absent?.raison || 'non_repere';
+    };
+
     return {
+      passagePour,
+      raisonPour,
       formattedDate,
       showMatchingStats,
       sortedLivresAuProgramme,

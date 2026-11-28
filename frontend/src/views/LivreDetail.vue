@@ -191,6 +191,12 @@
             class="emission-card"
             data-test="emission-item"
           >
+            <PassageBouton
+              v-if="passages"
+              :passage="passageDe(emission)"
+              :liste="passages"
+              raison="absent"
+            />
             <div class="emission-info">
               <router-link
                 :to="`/emissions/${formatDateForUrl(emission.date)}`"
@@ -303,6 +309,7 @@
 <script>
 import axios from 'axios';
 import Navigation from '../components/Navigation.vue';
+import PassageBouton from '../components/PassageBouton.vue';
 import BabelioCookiePanel from '../components/BabelioCookiePanel.vue';
 import { babelioCookieGuardMixin, BABELIO_UNREACHABLE } from '../utils/babelioCookieGuard.js';
 
@@ -310,7 +317,8 @@ export default {
   name: 'LivreDetail',
   components: {
     Navigation,
-    BabelioCookiePanel
+    BabelioCookiePanel,
+    PassageBouton
   },
   mixins: [babelioCookieGuardMixin],
   data() {
@@ -321,6 +329,7 @@ export default {
       annasArchiveBaseUrl: 'https://fr.annas-archive.li', // Fallback default (Issue #188)
       tagsCopied: false, // Issue #200: Copy feedback
       avis: [], // Issue #201: Avis des critiques
+      passages: null, // Passages audio du livre, par émission
       // Issue #189: Refresh Babelio
       refreshLoading: false,
       showRefreshModal: false,
@@ -380,7 +389,8 @@ export default {
     await Promise.all([
       this.loadLivre(),
       this.loadAnnasArchiveUrl(),
-      this.loadAvis()
+      this.loadAvis(),
+      this.loadPassages()
     ]);
     // Cookie Babelio ensuite : le contenu du livre d'abord
     this.loadBabelioServiceStatus();
@@ -392,6 +402,21 @@ export default {
     }
   },
   methods: {
+    /** Les Passages du livre ; sans eux, la fiche reste affichée sans rond. */
+    async loadPassages() {
+      try {
+        const response = await axios.get(`/api/livres/${this.$route.params.id}/passages`);
+        // une réponse qui n'est pas une liste ne doit pas casser la fiche
+        this.passages = Array.isArray(response.data) ? response.data : null;
+      } catch (err) {
+        console.warn('Passages non chargés:', err);
+        this.passages = null;
+      }
+    },
+    passageDe(emission) {
+      const jour = (emission.date || '').slice(0, 10);
+      return (this.passages || []).find((p) => p.date === jour) || null;
+    },
     async loadLivre() {
       this.loading = true;
       this.error = null;

@@ -699,4 +699,31 @@ export const avisService = {
   },
 };
 
+/**
+ * Passages audio : la portion d'une émission où les critiques parlent d'un livre.
+ */
+export const passagesService = {
+  /**
+   * Passages d'une émission, sans la transcription horodatée.
+   * @param {string} episodeId
+   * @returns {Promise<{passages: Array, sans_passage: Array, a_des_segments: boolean}>}
+   */
+  async getPassagesEpisode(episodeId) {
+    const response = await api.get(`/episodes/${episodeId}/passages`, {
+      params: { segments: false },
+    });
+    return response.data;
+  },
+
+  /**
+   * Passages d'un livre dans chacune de ses émissions, par date.
+   * @param {string} livreId
+   * @returns {Promise<Array>} Passages avec episode_id et date
+   */
+  async getPassagesLivre(livreId) {
+    const response = await api.get(`/livres/${livreId}/passages`);
+    return response.data;
+  },
+};
+
 export default api;
