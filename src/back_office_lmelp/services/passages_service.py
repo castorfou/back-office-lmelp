@@ -16,8 +16,11 @@ automatiques voisins s'arrêtent à ses bornes.
 `livresauteurs_cache` et `avis`.
 """
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
+
+from bson import ObjectId
 
 from ..utils.reperage_passages import (
     LivreDuResume,
@@ -28,6 +31,8 @@ from ..utils.reperage_passages import (
 from ..utils.text_utils import normalize_for_matching
 from .mongodb_service import mongodb_service
 
+
+logger = logging.getLogger(__name__)
 
 ORIGINE_AUTO = "auto"
 ORIGINE_CORRIGE = "corrige"
@@ -105,19 +110,61 @@ class PassagesService:
             return []
         return livres_du_resume(avis["summary"], avis.get("livres_ecartes"))
 
-    def _livres_en_base(self, episode_oid: str) -> dict[str, str]:
-        """Titre du résumé normalisé → id du livre, pour les titres validés."""
-        entrees = self.mongodb_service.get_collection("livresauteurs_cache").find(
+    def _noms_des_livres(self, episode_oid: str) -> dict[str, str]:
+        """Nom normalisé → id du livre, pour les livres de l'épisode en base.
+
+        Un livre est connu sous plusieurs noms : le titre extrait du résumé, le
+        titre suggéré par Babelio et le titre validé, que la validation écrit
+        aussi dans le résumé (« Quiche ta » devient « Kichta ») ; et le titre du
+        livre en base, qui reste lié à l'épisode quand un nouveau résumé vide le
+        cache livres-auteurs.
+        """
+        noms: dict[str, str] = {}
+        for livre in self.mongodb_service.get_collection("livres").find(
+            {"episodes": episode_oid}, {"titre": 1}
+        ):
+            if livre.get("titre"):
+                noms[normalize_for_matching(livre["titre"])] = str(livre["_id"])
+        for entree in self.mongodb_service.get_collection("livresauteurs_cache").find(
             {"episode_oid": episode_oid, "book_id": {"$ne": None}}
-        )
-        return {
-            normalize_for_matching(e["titre"]): str(e["book_id"])
-            for e in entrees
-            if e.get("titre") and e.get("book_id")
-        }
+        ):
+            if not entree.get("book_id"):
+                continue
+            for champ in ("titre", "suggested_title", "validated_title"):
+                if entree.get(champ):
+                    noms[normalize_for_matching(entree[champ])] = str(entree["book_id"])
+        return noms
+
+    @staticmethod
+    def _cle(titre: str, livre_oid: str | None, noms: dict[str, str]) -> str:
+        """Ce qui identifie le livre d'un Passage : son id s'il est en base,
+        sinon le titre du résumé."""
+        titre_normalise = normalize_for_matching(titre)
+        return livre_oid or noms.get(titre_normalise) or f"titre:{titre_normalise}"
+
+    def recalculer_pour_avis(self, avis_critique_id: ObjectId | str) -> None:
+        """Recalcule les Passages de l'épisode d'un avis critique.
+
+        Un échec est journalisé : il ne doit pas empêcher l'action de
+        l'utilisateur (écarter ou rétablir un titre) d'aboutir.
+        """
+        try:
+            avis = self.mongodb_service.get_collection("avis_critiques").find_one(
+                {"_id": ObjectId(avis_critique_id)}, {"episode_oid": 1}
+            )
+            if avis and avis.get("episode_oid"):
+                self.recalculer(str(avis["episode_oid"]))
+        except Exception as exc:
+            logger.error(
+                f"Repérage des Passages non recalculé ({avis_critique_id}): {exc}"
+            )
 
     def recalculer(self, episode_oid: str) -> None:
-        """Repère de nouveau les Passages de l'épisode, corrections conservées."""
+        """Repère de nouveau les Passages de l'épisode, corrections conservées.
+
+        Un livre a au plus un Passage : un Passage corrigé ou supprimé protège
+        son livre, qu'il soit retrouvé par son id ou par son titre.
+        """
         segments = self._segments(episode_oid)
         if not segments:
             return
@@ -125,29 +172,39 @@ class PassagesService:
             [Segment(s["debut_ms"], s["fin_ms"], s["texte"]) for s in segments],
             self._livres_du_resume(episode_oid),
         )
-        en_base = self._livres_en_base(episode_oid)
+        noms = self._noms_des_livres(episode_oid)
         collection = self.mongodb_service.get_collection("passages")
         proteges = [
             p
             for p in collection.find({"episode_oid": episode_oid})
             if p.get("origine") == ORIGINE_CORRIGE or p.get("supprime")
         ]
-        titres_proteges = {normalize_for_matching(p["titre"]) for p in proteges}
-        livres_proteges = {p["livre_oid"] for p in proteges if p.get("livre_oid")}
+        cles_protegees = set()
+        for protege in proteges:
+            cle = self._cle(protege["titre"], protege.get("livre_oid"), noms)
+            cles_protegees.add(cle)
+            cles_protegees.add(self._cle(protege["titre"], None, {}))
+            # le livre d'un Passage corrigé avant sa validation lui est donné
+            if not protege.get("livre_oid") and not cle.startswith("titre:"):
+                collection.update_one(
+                    {"_id": protege["_id"]}, {"$set": {"livre_oid": cle}}
+                )
         bornes_corrigees = [p for p in proteges if not p.get("supprime")]
 
         maintenant = datetime.now(UTC)
         nouveaux = []
         for repere in reperage.passages:
-            titre = normalize_for_matching(repere.livre.titre)
-            livre_oid = en_base.get(titre)
-            if titre in titres_proteges or (livre_oid and livre_oid in livres_proteges):
+            cle = self._cle(repere.livre.titre, None, noms)
+            if (
+                cle in cles_protegees
+                or self._cle(repere.livre.titre, None, {}) in cles_protegees
+            ):
                 continue
             passage = _sans_chevauchement(
                 {
                     "episode_oid": episode_oid,
                     "titre": repere.livre.titre,
-                    "livre_oid": livre_oid,
+                    "livre_oid": None if cle.startswith("titre:") else cle,
                     "debut_ms": repere.debut_ms,
                     "fin_ms": repere.fin_ms,
                     "origine": ORIGINE_AUTO,
@@ -171,45 +228,58 @@ class PassagesService:
             collection.insert_many(nouveaux)
 
     def passages_de(self, episode_oid: str) -> dict[str, Any]:
-        """Segments, Passages (dans l'ordre de l'émission) et livres sans Passage."""
+        """Segments, Passages (dans l'ordre de l'émission) et livres sans Passage.
+
+        Le livre de chaque Passage est retrouvé à la lecture. Un Passage dont le
+        livre n'est plus dans le résumé (titre écarté) n'est pas rendu ; il
+        revient, avec sa correction, si le titre est rétabli.
+        """
+        noms = self._noms_des_livres(episode_oid)
+        resume = {
+            self._cle(livre.titre, None, noms): livre
+            for livre in self._livres_du_resume(episode_oid)
+        }
         documents = sorted(
             self.mongodb_service.get_collection("passages").find(
                 {"episode_oid": episode_oid, "supprime": {"$ne": True}}
             ),
             key=lambda p: p["debut_ms"],
         )
-        livres = self._livres_du_resume(episode_oid)
-        par_titre = {normalize_for_matching(livre.titre): livre for livre in livres}
-        avec_passage = {normalize_for_matching(p["titre"]) for p in documents}
-
-        def decrire(titre: str) -> dict[str, Any]:
-            livre = par_titre.get(normalize_for_matching(titre))
-            return {
-                "auteur": livre.auteur if livre else "",
-                "section": int(livre.section) if livre else None,
-            }
+        passages = []
+        for document in documents:
+            cle = self._cle(document["titre"], document.get("livre_oid"), noms)
+            livre = resume.get(cle)
+            if livre is None:
+                continue
+            passages.append(
+                {
+                    "id": str(document["_id"]),
+                    "titre": document["titre"],
+                    "auteur": livre.auteur,
+                    "section": int(livre.section),
+                    "livre_id": None if cle.startswith("titre:") else cle,
+                    "debut_ms": document["debut_ms"],
+                    "fin_ms": document["fin_ms"],
+                    "origine": document.get("origine", ORIGINE_AUTO),
+                    "cle": cle,
+                }
+            )
+        avec_passage = {p.pop("cle") for p in passages}
 
         return {
             "segments": [
                 [s["debut_ms"], s["fin_ms"], s["texte"]]
                 for s in self._segments(episode_oid)
             ],
-            "passages": [
-                {
-                    "id": str(p["_id"]),
-                    "titre": p["titre"],
-                    **decrire(p["titre"]),
-                    "livre_id": p.get("livre_oid"),
-                    "debut_ms": p["debut_ms"],
-                    "fin_ms": p["fin_ms"],
-                    "origine": p.get("origine", ORIGINE_AUTO),
-                }
-                for p in documents
-            ],
+            "passages": passages,
             "sans_passage": [
-                {"titre": livre.titre, **decrire(livre.titre)}
-                for livre in livres
-                if normalize_for_matching(livre.titre) not in avec_passage
+                {
+                    "titre": livre.titre,
+                    "auteur": livre.auteur,
+                    "section": int(livre.section),
+                }
+                for cle, livre in resume.items()
+                if cle not in avec_passage
             ],
         }
 

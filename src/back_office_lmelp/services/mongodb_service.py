@@ -2810,6 +2810,7 @@ class MongoDBService:
         self.avis_critiques_collection.update_one(
             {"_id": oid}, {"$set": {"livres_ecartes": livres_ecartes}}
         )
+        self._recalculer_passages(oid)
         return livres_ecartes
 
     def remove_livre_ecarte(
@@ -2837,7 +2838,15 @@ class MongoDBService:
         self.avis_critiques_collection.update_one(
             {"_id": oid}, {"$set": {"livres_ecartes": livres_ecartes}}
         )
+        self._recalculer_passages(oid)
         return livres_ecartes
+
+    @staticmethod
+    def _recalculer_passages(avis_critique_id: ObjectId) -> None:
+        """Un titre écarté ou rétabli change les livres à repérer."""
+        from .passages_service import passages_service
+
+        passages_service.recalculer_pour_avis(avis_critique_id)
 
     def delete_avis_by_emission(self, emission_oid: str) -> int:
         """
