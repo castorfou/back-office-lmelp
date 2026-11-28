@@ -18,10 +18,12 @@ from bson import ObjectId
 
 from ..services import pgx_service
 from ..services.mongodb_service import mongodb_service
+from ..services.passages_service import passages_service
 from ..services.pgx_service import PgxError
 from ..services.stats_service import stats_service
 from ..settings import settings
 from .ntfy import send_ntfy_notification
+from .sortie_whisper import lire_sortie_whisper
 
 
 logger = logging.getLogger(__name__)
@@ -283,6 +285,19 @@ class PgxTranscriptionRunner:
             remote_txt_path, host=host, user=user, key_path=key_path
         )
 
+    def _enregistrer_segments(
+        self, episode_id: str, titre: str, whisper: dict[str, Any]
+    ) -> None:
+        """Enregistre les Segments et repère les Passages (#427).
+
+        Un échec ici ne fait pas échouer la transcription, déjà enregistrée :
+        il est seulement journalisé.
+        """
+        try:
+            passages_service.enregistrer_segments(episode_id, whisper)
+        except Exception as exc:  # noqa: BLE001 - la transcription reste acquise
+            self._log(f"{titre}: Segments non enregistrés ({exc})")
+
     @staticmethod
     def _format_episode_date(episode_date: datetime) -> str:
         """Formate la date d'un épisode pour affichage (dd/mm/yy)."""
@@ -392,10 +407,15 @@ class PgxTranscriptionRunner:
                     mp3_fullpath = os.path.join(
                         settings.audio_storage_path, episode["audio_rel_filename"]
                     )
-                    stem = os.path.splitext(os.path.basename(mp3_fullpath))[0]
-                    local_txt_path = os.path.splitext(mp3_fullpath)[0] + ".txt"
+                    base_locale = os.path.splitext(mp3_fullpath)[0]
+                    stem = os.path.basename(base_locale)
+                    local_txt_path = base_locale + ".txt"
+                    local_json_path = base_locale + ".json"
+                    # cache local seulement avec ses Segments : un .txt seul
+                    # (transcrit avant -oj) ou un .json illisible repasse par PGX
+                    whisper = lire_sortie_whisper(local_json_path)
 
-                    if os.path.exists(local_txt_path):
+                    if os.path.exists(local_txt_path) and whisper is not None:
                         self._log(
                             f"[{index + 1}/{len(self.episode_ids)}] {titre}: "
                             "transcription trouvée en cache local"
@@ -436,12 +456,17 @@ class PgxTranscriptionRunner:
                         remote_txt_path = (
                             f"{remote_transcription_root}/{year}/{stem}.txt"
                         )
+                        # whisper écrit le .json horodaté (-oj) à côté du .txt :
+                        # c'est lui qui signale une transcription terminée (#427)
+                        remote_json_path = (
+                            f"{remote_transcription_root}/{year}/{stem}.json"
+                        )
 
                         # Reprise (Issue #337) : un cycle interrompu après la
                         # transcription laisse le .txt sur PGX. Le rapatrier
                         # directement, sans renvoyer l'audio ni attendre.
                         transcription_on_pgx = await pgx_service.remote_file_exists(
-                            remote_txt_path, host=host, user=user, key_path=key_path
+                            remote_json_path, host=host, user=user, key_path=key_path
                         )
                         if transcription_on_pgx:
                             self._log(
@@ -451,7 +476,7 @@ class PgxTranscriptionRunner:
                         elif await self._has_orphan_mp3(
                             mp3_fullpath,
                             f"{remote_audio_dir}/{stem}.mp3",
-                            remote_txt_path,
+                            remote_json_path,
                             host=host,
                             user=user,
                             key_path=key_path,
@@ -485,7 +510,7 @@ class PgxTranscriptionRunner:
                                 "attente…"
                             )
                             if not await pgx_service.wait_for_pgx_transcription(
-                                remote_txt_path,
+                                remote_json_path,
                                 host=host,
                                 user=user,
                                 key_path=key_path,
@@ -510,6 +535,14 @@ class PgxTranscriptionRunner:
                                 key_path=key_path,
                             )
                         )
+                        whisper = await pgx_service.fetch_segments_from_pgx(
+                            remote_json_path,
+                            local_json_path,
+                            host=host,
+                            user=user,
+                            key_path=key_path,
+                            attente_s=poll_interval_s,
+                        )
 
                     if mongodb_service.episodes_collection is None:
                         raise PgxError("Connexion MongoDB non établie")
@@ -517,6 +550,7 @@ class PgxTranscriptionRunner:
                         {"_id": ObjectId(episode_id)},
                         {"$set": {"transcription": transcription_text}},
                     )
+                    self._enregistrer_segments(episode_id, titre, whisper)
                     self._log(
                         f"[{index + 1}/{len(self.episode_ids)}] {titre}: terminé ✅"
                     )

@@ -75,6 +75,7 @@ from .services.manual_episode_service import manual_episode_service
 from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
 from .services.pap_remises_service import pap_remises_service
+from .services.passages_service import passages_service
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
 from .services.rss_sync_service import rss_sync_service
@@ -3920,6 +3921,15 @@ async def add_episode_from_radiofrance_page(
                 status_code=e.status_code,  # type: ignore[attr-defined]
                 detail=e.message,  # type: ignore[attr-defined]
             ) from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/episodes/{episode_id}/passages")
+def get_passages_episode(episode_id: str) -> dict[str, Any]:
+    """Segments, Passages et livres sans Passage d'un épisode (Issue #427)."""
+    try:
+        return passages_service.passages_de(episode_id)
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 

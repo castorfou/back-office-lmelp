@@ -545,7 +545,7 @@ bash -c 'BACKEND_URL=$(/workspaces/back-office-lmelp/.claude/get-backend-info.sh
 ### MCP MongoDB Tools
 
 **Main Database**: `masque_et_la_plume`
-**Collections**: `livres`, `auteurs`, `episodes`, `avis_critiques`, `editeurs`, `emissions`, `critiques`, `logs`, `pap_remises` (écrite par lmelp-pap, lue seulement ici ; une remise intégrée devient un épisode avec `pap_remise_id`)
+**Collections**: `livres`, `auteurs`, `episodes`, `avis_critiques`, `editeurs`, `emissions`, `critiques`, `logs`, `pap_remises` (écrite par lmelp-pap, lue seulement ici ; une remise intégrée devient un épisode avec `pap_remise_id`), `episode_segments` (Segments horodatés whisper d'un épisode), `passages` (Passages audio d'un livre dans une émission, voir `docs/dev/database.md`)
 
 **Common operations**:
 ```bash

@@ -122,6 +122,63 @@ Un document par run de synchronisation RSS (`RssSyncService.sync()`), qu'il soit
 
 **Index recommandé** : `{"started_at": -1}` pour le tri "plus récent en premier" de la page `/rss-monitoring`, et un index sur `episodes.outcome` pour l'agrégation utilisée par `get_last_processed_episode_date()` (voir `docs/dev/rss-sync.md`).
 
+### Collection `episode_segments`
+
+Les Segments horodatés d'un épisode, issus du `.json` de whisper.cpp (`-oj`). Un document
+par épisode, remplacé à chaque nouveau `.json`. Les Segments vides ou réduits à « ... »
+(musique, silence) ne sont pas gardés.
+
+```json
+{
+  "_id": ObjectId("..."),
+  "episode_oid": "<id de l'épisode>",
+  "segments": [
+    {"debut_ms": 447200, "fin_ms": 451800, "texte": "On commence avec Le Fondateur…"}
+  ],
+  "updated_at": ISODate("2026-11-27T20:05:00Z")
+}
+```
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `episode_oid` | String | Id de l'épisode (String, comme dans `avis_critiques`) |
+| `segments[].debut_ms` / `fin_ms` | Int | Position dans l'audio de l'épisode, en ms |
+| `segments[].texte` | String | Texte du Segment |
+
+### Collection `passages`
+
+Un document par Passage : la portion de l'audio d'une émission où les critiques parlent
+d'un livre. Les Passages sont repérés automatiquement (`utils/reperage_passages.py`) à
+partir des Segments et du résumé (`avis_critiques.summary`), et recalculés par
+`passages_service.recalculer()`.
+
+```json
+{
+  "_id": ObjectId("..."),
+  "episode_oid": "<id de l'épisode>",
+  "titre": "Le Fondateur",
+  "livre_oid": "<id du livre>",
+  "debut_ms": 447200,
+  "fin_ms": 803400,
+  "origine": "auto",
+  "supprime": false,
+  "updated_at": ISODate("2026-11-27T20:05:00Z")
+}
+```
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `episode_oid` | String | Id de l'épisode |
+| `titre` | String | Titre du livre tel que le résumé le cite ; avec `episode_oid`, identifie le Passage tant que le livre n'est pas validé |
+| `livre_oid` | String ou null | Id du livre (`livres._id` en String), posé dès que le titre a un livre dans `livresauteurs_cache` |
+| `debut_ms` / `fin_ms` | Int | Bornes du Passage dans l'audio, à l'heure exacte d'un Segment |
+| `origine` | String | `"auto"` (repéré) ou `"corrige"` (borné à la main) |
+| `supprime` | Boolean | Passage retiré à la main, conservé pour qu'un recalcul ne le recrée pas |
+
+La section (débattu ou coup de cœur) et l'auteur ne sont pas stockés : ils se lisent dans
+le résumé. Un recalcul refait les Passages `auto` et garde les Passages `corrige` ou
+`supprime` ; un Passage `auto` voisin s'arrête aux bornes d'un Passage corrigé.
+
 ## Opérations CRUD
 
 ### Create (Insertion)
