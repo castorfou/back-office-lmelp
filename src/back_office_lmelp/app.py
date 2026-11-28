@@ -28,14 +28,14 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 
 if TYPE_CHECKING:
     import uvicorn
 
 from bson import ObjectId
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
@@ -3993,6 +3993,72 @@ def _corriger_passage(action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         if type(e).__name__ == "CorrectionRefuseeError":
             raise HTTPException(status_code=422, detail=str(e)) from e
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+# ------------------------------------------------ signalements (US 12 à 21)
+
+
+@app.post("/api/signalements", status_code=201)
+def creer_signalement(
+    corps: Annotated[dict[str, Any], Body()],
+    x_lmelp_source: str | None = Header(default=None),
+) -> dict[str, str]:
+    """Signalement anonyme d'un Passage mal découpé, depuis le lecteur de lmelp
+    ou depuis lmelp-mobile (relayé par lmelp-streaming, `X-Lmelp-Source: mobile`).
+    400 corps invalide, 404 pas de Passage pour cet épisode et ce livre."""
+    from pydantic import ValidationError
+
+    from .services.signalements_service import (
+        NouveauSignalement,
+        PassageIntrouvableError,
+        signalements_service,
+    )
+
+    try:
+        demande = NouveauSignalement.model_validate(corps)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail="Signalement invalide") from e
+    try:
+        signalements_service.creer(demande, source=x_lmelp_source or "web")
+    except PassageIntrouvableError as e:
+        raise HTTPException(
+            status_code=404, detail="Pas de Passage pour cet épisode et ce livre"
+        ) from e
+    return {"statut": "enregistre"}
+
+
+@app.get("/api/signalements/compte")
+def compter_signalements() -> dict[str, int]:
+    """Nombre de signalements ouverts (tuile « Passages signalés »)."""
+    from .services.signalements_service import signalements_service
+
+    return {"ouverts": signalements_service.compte_ouverts()}
+
+
+@app.get("/api/signalements")
+def lister_signalements() -> list[dict[str, Any]]:
+    """Signalements ouverts, avec les bornes écoutées et les bornes actuelles."""
+    from .services.signalements_service import signalements_service
+
+    return signalements_service.ouverts()
+
+
+@app.post("/api/signalements/{signalement_id}/rejeter")
+def rejeter_signalement(signalement_id: str) -> dict[str, str]:
+    """Clôt un signalement sans corriger le Passage."""
+    from .services.signalements_service import (
+        SignalementDejaClosError,
+        SignalementInconnuError,
+        signalements_service,
+    )
+
+    try:
+        signalements_service.rejeter(signalement_id)
+    except SignalementInconnuError as e:
+        raise HTTPException(status_code=404, detail="Signalement inconnu") from e
+    except SignalementDejaClosError as e:
+        raise HTTPException(status_code=409, detail="Signalement déjà clos") from e
+    return {"statut": "rejete"}
 
 
 # ---------------------------------------------- clé d'écoute (ADR 0003)

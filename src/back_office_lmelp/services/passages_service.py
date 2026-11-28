@@ -468,6 +468,18 @@ class CorrectionPassages:
         return {s["debut_ms"] for s in segments}, {s["fin_ms"] for s in segments}
 
     # ----------------------------------------------------------- écritures
+    def _clore_signalements(self, passage: dict[str, Any]) -> None:
+        """Une correction à la main du Passage clôt les signalements ouverts de
+        son livre ; un recalcul ne passe jamais par ici."""
+        from .signalements_service import signalements_service
+
+        episode_oid = passage["episode_oid"]
+        cle = passage.get("livre_oid") or self.service._cle(
+            passage["titre"], None, self.service._noms_des_livres(episode_oid)
+        )
+        if not cle.startswith("titre:"):
+            signalements_service.clore_pour_correction(episode_oid, cle)
+
     def _corriger(self, passage: dict[str, Any], **bornes: int) -> None:
         self._collection("passages").update_one(
             {"_id": passage["_id"]},
@@ -479,12 +491,14 @@ class CorrectionPassages:
                 }
             },
         )
+        self._clore_signalements(passage)
 
     def _marquer(self, passage: dict[str, Any], **champs: Any) -> None:
         self._collection("passages").update_one(
             {"_id": passage["_id"]},
             {"$set": {**champs, "updated_at": datetime.now(UTC)}},
         )
+        self._clore_signalements(passage)
 
     def _devalider_et_relire(self, episode_oid: str) -> dict[str, Any]:
         """Une correction après validation fait repasser l'émission en 🟠."""
@@ -661,6 +675,7 @@ class CorrectionPassages:
         """Reprend un livre placé à la main : il redevient à placer."""
         passage = self._place_main(passage_id)
         self._collection("passages").delete_one({"_id": passage["_id"]})
+        self._clore_signalements(passage)
         return self._devalider_et_relire(passage["episode_oid"])
 
     # ------------------------------------------------------------ validation

@@ -259,6 +259,14 @@ const routes = [
     }
   },
   {
+    path: '/signalements',
+    name: 'Signalements',
+    component: () => import('../views/Signalements.vue'),
+    meta: {
+      title: 'Passages signalés - lmelp'
+    }
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('../views/AboutPage.vue'),

@@ -777,4 +777,29 @@ export const cleEcouteService = {
   },
 };
 
+/**
+ * Signalements anonymes de Passages mal découpés.
+ */
+export const signalementsService = {
+  /**
+   * @param {{episode_id: string, livre_id: string, debut_ms: number, fin_ms: number,
+   *   motif: string, instant_ms: number, commentaire?: string}} signalement
+   */
+  async creer(signalement) {
+    const response = await api.post('/signalements', signalement);
+    return response.data;
+  },
+
+  /** Signalements ouverts, avec bornes écoutées et bornes actuelles. */
+  async lister() {
+    const response = await api.get('/signalements');
+    return response.data;
+  },
+
+  async rejeter(signalementId) {
+    const response = await api.post(`/signalements/${signalementId}/rejeter`);
+    return response.data;
+  },
+};
+
 export default api;

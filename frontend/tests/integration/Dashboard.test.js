@@ -894,6 +894,60 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
     expect(cardLabels.some(t => t.includes('Avis orphelins') && t.includes('5'))).toBe(true);
   });
 
+  describe('tuile « Passages signalés » (Issue #427)', () => {
+    function mockSignalements(ouverts) {
+      axios.get.mockImplementation((url) => {
+        if (url === '/api/signalements/compte') return Promise.resolve({ data: { ouverts } });
+        if (url === '/api/dashboard/stats') {
+          return Promise.resolve({
+            data: { statistics: mockStatistics, collections_statistics: mockCollectionsStatistics },
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+    }
+
+    async function monter() {
+      wrapper = mount(Dashboard, { global: { plugins: [router] } });
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    it('affiche le nombre de signalements ouverts et mène à leur page', async () => {
+      mockSignalements(3);
+      const push = vi.spyOn(router, 'push');
+      await monter();
+
+      const tuile = wrapper.find('[data-testid="signalements-card"]');
+      expect(tuile.text()).toContain('3');
+      expect(tuile.text()).toContain('Passages signalés');
+      await tuile.trigger('click');
+      expect(push).toHaveBeenCalledWith('/signalements');
+    });
+
+    it("ne reste pas sur « ... » quand le compte ne se charge pas", async () => {
+      axios.get.mockImplementation((url) => {
+        if (url === '/api/signalements/compte') return Promise.reject(new Error('réseau'));
+        if (url === '/api/dashboard/stats') {
+          return Promise.resolve({
+            data: { statistics: mockStatistics, collections_statistics: mockCollectionsStatistics },
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+      await monter();
+
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-testid="signalements-card"] .stat-value').text()).toBe('—');
+    });
+
+    it('masque la tuile sans signalement ouvert', async () => {
+      mockSignalements(0);
+      await monter();
+
+      expect(wrapper.find('[data-testid="signalements-card"]').exists()).toBe(false);
+    });
+  });
+
   it("masque la tuile 'Avis orphelins' quand le compte est 0 (pattern Issue #212)", async () => {
     mockAxiosGet(0);
 

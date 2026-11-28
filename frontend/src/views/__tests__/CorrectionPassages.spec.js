@@ -21,9 +21,10 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
-async function monter() {
+async function monter(query = {}) {
   const page = mount(CorrectionPassages, {
     global: {
+      mocks: { $route: { query } },
       stubs: {
         Navigation: { template: '<div />' },
         'router-link': { template: '<a class="lien-livre"><slot /></a>', props: ['to'] },
@@ -59,6 +60,20 @@ describe('CorrectionPassages', () => {
     expect(passagesService.getCorrectionEpisode).toHaveBeenCalledWith(EPISODE_ID);
     expect(page.findAll('[data-carte]')).toHaveLength(3);
     expect(page.find('audio').attributes('src')).toBe(`/api/episodes/${EPISODE_ID}/audio`);
+  });
+
+  it('ouvre l\'émission et le Passage donnés par un signalement', async () => {
+    emissionsService.getAllEmissions.mockResolvedValue([
+      { id: 'm0', date: '2026-11-22T09:12:40', episode_id: 'e-autre', episode: { titre: 'Autre' } },
+      ...EMISSIONS,
+    ]);
+    passagesService.getStatuts.mockResolvedValue({ 'e-autre': 'a_verifier', [EPISODE_ID]: 'a_verifier' });
+
+    const page = await monter({ episode: EPISODE_ID, passage: 'pb' });
+
+    expect(passagesService.getCorrectionEpisode).toHaveBeenCalledWith(EPISODE_ID);
+    expect(passagesService.getCorrectionEpisode).not.toHaveBeenCalledWith('e-autre');
+    expect(carte(page, PASSAGE_B).classes()).toContain('choisi');
   });
 
   it("dit qu'il n'y a rien à corriger sur une émission sans Segments", async () => {

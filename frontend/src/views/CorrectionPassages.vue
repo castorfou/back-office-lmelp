@@ -48,7 +48,7 @@
           </div>
           <audio ref="audio" :src="audioUrl" preload="metadata"></audio>
 
-          <TranscriptionPassages />
+          <TranscriptionPassages ref="tp" />
 
           <details class="journal">
             <summary>Journal des actions ({{ etat.ep.journal.length }})</summary>
@@ -110,8 +110,11 @@ export default {
     } finally {
       this.chargement = false;
     }
-    const premier = this.emissions.find((e) => s.etat.statuts[e.episode_id]) || this.emissions[0];
-    if (premier) this.choisir(premier.id);
+    // un lien (signalement) peut désigner l'émission et le Passage à ouvrir
+    const { episode, passage } = this.$route?.query || {};
+    const premier = (episode && this.emissions.find((e) => e.episode_id === episode))
+      || this.emissions.find((e) => s.etat.statuts[e.episode_id]) || this.emissions[0];
+    if (premier) await this.choisir(premier.id, passage);
   },
   beforeUnmount() {
     s.debrancherAudio();
@@ -126,7 +129,8 @@ export default {
       return PASTILLE[s.etat.statuts[e.episode_id]] || 'segments_absents';
     },
     decaler(d) { const e = this.emissions[this.index + d]; if (e) this.choisir(e.id); },
-    async choisir(id) {
+    /** Ouvre une émission, et met en avant un de ses Passages s'il est donné. */
+    async choisir(id, passageId = null) {
       this.emissionId = id;
       this.erreurEmission = null;
       s.fermer();
@@ -143,6 +147,8 @@ export default {
       s.charger(e.episode_id, data);
       await this.$nextTick();
       if (this.$refs.audio) s.brancherAudio(this.$refs.audio);
+      const cible = passageId && s.etat.ep.passages.find((p) => p.id === passageId);
+      if (cible) this.$refs.tp?.cibler(cible);
     },
   },
 };
