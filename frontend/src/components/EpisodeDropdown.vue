@@ -105,6 +105,16 @@ export default {
           case 'no_avis':
             prefix = '⚪ ';  // Pas d'avis extraits
             break;
+          // Correction des passages
+          case 'passages_valides':
+            prefix = '🟢 ';  // Passages validés
+            break;
+          case 'segments_dispo':
+            prefix = '🟠 ';  // Passages à vérifier
+            break;
+          case 'segments_absents':
+            prefix = '🔴 ';  // Pas de Segments horodatés
+            break;
           default:
             prefix = '';
         }
