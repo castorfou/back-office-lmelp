@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     import uvicorn
 
 from bson import ObjectId
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
@@ -399,6 +399,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if not mongodb_service.connect():
             raise Exception("Impossible de se connecter à MongoDB")
         print("Connexion MongoDB établie")
+
+        # Clé d'écoute de lmelp-mobile : créée au premier démarrage (ADR 0003)
+        try:
+            from .services.cle_ecoute_service import cle_ecoute_service
+
+            cle_ecoute_service.assurer()
+        except Exception as e:
+            print(f"Clé d'écoute non créée au démarrage : {e}")
 
         # Attach a persistent disk cache for Babelio lookups so restarts benefit
         try:
@@ -3985,6 +3993,40 @@ def _corriger_passage(action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         if type(e).__name__ == "CorrectionRefuseeError":
             raise HTTPException(status_code=422, detail=str(e)) from e
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+# ---------------------------------------------- clé d'écoute (ADR 0003)
+
+
+@app.get("/api/cle-ecoute/verifier", status_code=204)
+def verifier_cle_ecoute(
+    x_lmelp_cle: str | None = Header(default=None),
+    cle: str | None = Query(default=None),
+) -> Response:
+    """Sous-requête `auth_request` de lmelp-streaming : 204 si la clé est la
+    bonne (en-tête `X-Lmelp-Cle` ou `?cle=`, transmis par nginx), 403 sinon."""
+    from .services.cle_ecoute_service import cle_ecoute_service
+
+    if cle_ecoute_service.est_valide(x_lmelp_cle or cle):
+        return Response(status_code=204)
+    return Response(status_code=403)
+
+
+@app.post("/api/cle-ecoute/invalider")
+def invalider_cle_ecoute() -> dict[str, Any]:
+    """Remplace la clé d'écoute : l'ancienne est refusée aussitôt."""
+    from .services.cle_ecoute_service import cle_ecoute_service
+
+    return cle_ecoute_service.invalider()
+
+
+@app.get("/api/cle-ecoute")
+def lire_cle_ecoute() -> dict[str, Any]:
+    """Clé d'écoute, date de création et dates des changements, pour
+    « Configuration mobile » (réseau local)."""
+    from .services.cle_ecoute_service import cle_ecoute_service
+
+    return cle_ecoute_service.lire()
 
 
 @app.get("/api/passages/statuts")

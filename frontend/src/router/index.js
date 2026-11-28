@@ -251,6 +251,14 @@ const routes = [
     }
   },
   {
+    path: '/configuration-mobile',
+    name: 'ConfigurationMobile',
+    component: () => import('../views/ConfigurationMobile.vue'),
+    meta: {
+      title: 'Configuration mobile - lmelp'
+    }
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('../views/AboutPage.vue'),

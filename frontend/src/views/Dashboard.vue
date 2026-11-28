@@ -460,6 +460,23 @@
           </div>
         </div>
       </section>
+
+      <!-- Section Application mobile (Issue #427) -->
+      <section class="functions-section">
+        <h2>Application mobile</h2>
+        <div class="functions-grid functions-grid--single">
+          <div
+            class="function-card clickable"
+            data-testid="function-configuration-mobile"
+            @click="navigateToConfigurationMobile"
+          >
+            <div class="function-icon">📲</div>
+            <h3>Configuration mobile</h3>
+            <p>QR code de la clé d'écoute des Passages pour lmelp-mobile, et son invalidation</p>
+            <div class="function-arrow">→</div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer version (Issue #205) -->
@@ -769,6 +786,10 @@ export default {
     navigateToAjoutEmission() {
       this.$router.push('/ajout-emission');
     },
+    navigateToConfigurationMobile() {
+      this.$router.push('/configuration-mobile');
+    },
+
     navigateToCorrectionPassages() {
       this.$router.push('/correction-passages');
     },

@@ -760,4 +760,21 @@ export const passagesService = {
   },
 };
 
+/**
+ * Clé d'écoute de lmelp-mobile, remise par QR code depuis « Configuration mobile ».
+ */
+export const cleEcouteService = {
+  /** @returns {Promise<{cle: string, creee_le: string, changements: string[]}>} */
+  async lire() {
+    const response = await api.get('/cle-ecoute');
+    return response.data;
+  },
+
+  /** Remplace la clé : l'ancienne est refusée aussitôt. */
+  async invalider() {
+    const response = await api.post('/cle-ecoute/invalider');
+    return response.data;
+  },
+};
+
 export default api;
