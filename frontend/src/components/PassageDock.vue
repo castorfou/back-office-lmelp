@@ -52,6 +52,7 @@
     </div>
 
     <div class="dock-droite">
+      <SignalerPassage />
       <button type="button" class="dock-fermer" aria-label="Fermer le lecteur" @click="arreter()">✕</button>
     </div>
   </div>
@@ -62,9 +63,11 @@ import {
   lecteur, jouer, pause, reprendre, sauter, aller, arreter, formaterDuree,
   debutSecondes, dureeSecondes,
 } from '../services/lecteurPassages.js';
+import SignalerPassage from './SignalerPassage.vue';
 
 export default {
   name: 'PassageDock',
+  components: { SignalerPassage },
   data() {
     return { lecteur };
   },
@@ -156,5 +159,6 @@ export default {
 .dock-fin .btn { padding: 0.3rem 0.8rem; font-size: 0.9rem; }
 .dock-dernier { color: #777; font-size: 0.85rem; }
 .dock-erreur { color: #b02a37; }
+.dock-droite { display: flex; align-items: center; gap: .4rem; }
 .dock-fermer { border: none; background: none; font-size: 1.1rem; color: #777; cursor: pointer; }
 </style>

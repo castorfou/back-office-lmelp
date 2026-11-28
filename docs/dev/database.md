@@ -210,6 +210,31 @@ repérage.
 ont été vérifiés (pastille 🟢). Une émission avec Segments sans ce champ est à vérifier (🟠),
 une émission sans Segments est 🔴.
 
+### Collection `signalements`
+
+Signalements anonymes d'un Passage mal découpé, envoyés depuis le lecteur de lmelp ou de
+lmelp-mobile (relayés par lmelp-streaming). Aucune donnée d'auditeur n'est stockée.
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `episode_oid` | String | Épisode du Passage |
+| `livre_oid` | String | Livre du Passage : avec l'épisode, il désigne le Passage (son `_id` change à chaque recalcul) |
+| `debut_ms` / `fin_ms` | Int | Bornes du Passage écouté par l'auditeur |
+| `motif` | String | `debut_trop_tot`, `fin_trop_tot`, `deborde`, `mauvais_livre` ou `autre` |
+| `instant_ms` | Int | Instant d'écoute au moment du signalement |
+| `commentaire` | String \| null | Commentaire facultatif, 500 caractères au plus |
+| `cree_le` | Date | Date du signalement |
+| `source` | String | `web` ou `mobile` (en-tête `X-Lmelp-Source: mobile` posé par lmelp-streaming) |
+| `etat` | String | `ouvert`, `corrige` ou `rejete` |
+| `clos_le` | Date | Date de clôture (absente tant que le signalement est ouvert) |
+
+Un signalement se clôt en `corrige` quand le Passage de son livre est corrigé à la main
+(toute correction de « Correction des passages », y compris le voisin qui suit une borne),
+et en `rejete` par `POST /api/signalements/{id}/rejeter`. Un recalcul du repérage ne le
+clôt jamais. Routes : `POST /api/signalements` (201, 400 corps invalide, 404 pas de Passage
+pour cet épisode et ce livre), `GET /api/signalements` (ouverts, avec les bornes écoutées et
+les bornes actuelles), `GET /api/signalements/compte`.
+
 ### Collection `parametres`
 
 Réglages de l'application, un document par réglage, identifié par son `_id`.

@@ -171,6 +171,16 @@
             <div class="stat-value">{{ orphanedAvisCount !== null ? orphanedAvisCount : '...' }}</div>
             <div class="stat-label">Avis orphelins</div>
           </div>
+          <div
+            v-if="signalementsOuverts !== 0"
+            class="stat-card clickable-stat"
+            data-testid="signalements-card"
+            @click="navigateToSignalements"
+            :title="tooltips.signalements"
+          >
+            <div class="stat-value">{{ signalementsOuverts !== null ? signalementsOuverts : '...' }}</div>
+            <div class="stat-label">Passages signalés</div>
+          </div>
         </div>
       </section>
 
@@ -540,6 +550,7 @@ export default {
         critiquesManquants: `Épisodes avec noms de critiques non présents en base\nCollections: episodes, avis_critiques, critiques\nLogique: Extraction noms depuis summaries → vérification existence`,
         episodesSansEmission: `Épisodes passés dans Livres et Auteurs mais sans émission créée\nCollections: livresauteurs_cache, emissions, episodes\nFormule: COUNT(épisodes du cache non masqués) - COUNT(emissions)`,
         doublons: `Doublons détectés (livres + auteurs)\nLivres: Même URL Babelio\nAuteurs: Même URL Babelio\nFusion: Scraping Babelio pour données officielles`,
+        signalements: `Signalements ouverts de Passages mal découpés, envoyés depuis le lecteur de lmelp ou de lmelp-mobile\nCollection: signalements\nRequête: etat = "ouvert" (sans cache)`,
         avisOrphelins: `Avis dont le livre associé a été supprimé (fusion de doublons)\nCollection: avis\nRequête: avis dont livre_oid ne correspond à aucun livres._id`
       },
       babelioIcon: babelioSymbol,
@@ -550,6 +561,7 @@ export default {
       duplicateBooksCount: null,
       duplicateAuthorsCount: null,
       orphanedAvisCount: null,
+      signalementsOuverts: null,
       papRemisesCount: null,
       versionInfo: null,
       loading: true,
@@ -655,6 +667,7 @@ export default {
     await Promise.all([
       this.loadDashboardStats(),
       this.loadVersionInfo(),
+      this.loadSignalementsOuverts(),
     ]);
   },
 
@@ -735,6 +748,17 @@ export default {
         this.error = error.message;
       } finally {
         this.refreshing = false;
+      }
+    },
+
+    // hors du cache du tableau de bord : un signalement du mobile arrive à tout moment
+    async loadSignalementsOuverts() {
+      try {
+        const response = await axios.get('/api/signalements/compte');
+        this.signalementsOuverts = response?.data?.ouverts ?? null;
+      } catch (error) {
+        console.error('Erreur lors du chargement des signalements:', error);
+        this.signalementsOuverts = null;
       }
     },
 
@@ -836,6 +860,10 @@ export default {
 
     navigateToDuplicates() {
       this.$router.push('/duplicates');
+    },
+
+    navigateToSignalements() {
+      this.$router.push('/signalements');
     },
 
     navigateToOrphanedAvis() {
