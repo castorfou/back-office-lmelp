@@ -175,6 +175,11 @@ masquer toute la section derrière le seul message d'avertissement de config inc
   file courante des épisodes en attente (décision produit : une action déclenche tout le
   backlog plutôt qu'un sélecteur par épisode). Retourne `{"status": "already_running" |
   "nothing_to_do" | "started", "episode_count": N}`.
+- `GET /api/pgx/episodes-sans-segments` — liste (id/titre/date) des épisodes non masqués
+  qui ont un audio (`audio_rel_filename`) mais pas de Segments (`episode_segments`), du
+  plus récent au plus ancien, via `passages_service.episodes_sans_segments()`.
+- `POST /api/pgx/transcription/archive` — retranscription horodatée de l'archive :
+  `start_transcription(trigger="manual", archive=True)`. Même retour que `/start`.
 - `POST /api/pgx/transcription/retry-now` — avance la prochaine tentative d'un cycle en
   attente de PGX (`PgxTranscriptionRunner.request_retry_now()`). Retourne
   `{"status": "retrying"}` si `retry_pending`, `{"status": "no_pending_retry"}` sinon.
@@ -325,7 +330,29 @@ pas de résumé groupé en fin de cycle :
 
 Aucune notification sur `nothing_to_do`, ni de synthèse groupée en fin de cycle (y
 compris sur abandon après plafond de retry — seule la notification du premier échec de
-joignabilité, point 3, couvre ce cas).
+joignabilité, point 3, couvre ce cas), **sauf pour la retranscription de l'archive** :
+pas de notification par épisode (une par épisode sur ~250 épisodes noierait le canal),
+un seul bilan en fin de cycle : `"Archive retranscrite (horodatage)"` /
+`"N épisode(s) retranscrit(s), M échec(s)"`, ou `"Retranscription de l'archive
+interrompue"` avec en plus le nombre d'épisodes non traités et la raison (PGX
+introuvable, configuration incomplète, erreur). Un nouvel épisode arrivé pendant la
+passe garde sa notification habituelle et ne compte pas dans le bilan.
+
+### Retranscription horodatée de l'archive
+
+`start_transcription(archive=True)` prend la file dans
+`passages_service.episodes_sans_segments()` au lieu des épisodes sans transcription,
+puis lance **la même boucle `_run()`** : un épisode dont le `.json` horodaté manque
+(local ou sur PGX) repasse par PGX, même s'il a déjà un `.txt`. Sa transcription texte
+(`episodes.transcription`) est remplacée par celle de la même passe que les Segments.
+`self.archive` ne change que la source de la file, les notifications et la place d'un
+nouvel épisode arrivé pendant la passe (`_append_new_pending_episodes()` l'insère juste
+après l'épisode en cours, au lieu de le laisser attendre la fin de l'archive) ;
+`self.archive_ids` garde les épisodes de l'archive, seuls concernés par le bilan.
+Les deux sont remis à zéro à la fin du cycle ;
+`get_status()` et le document d'historique portent `archive: true` (la page affiche
+« archive » dans la colonne Déclenchement). Une fois tous les épisodes horodatés, la
+file est vide et le bouton disparaît.
 
 ## Piège réel rencontré : `datetime` non JSON-sérialisable
 

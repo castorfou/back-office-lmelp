@@ -19,6 +19,7 @@ function mockApi({
   sshKeyMissingConfig = false,
   logs = [],
   logDetail = null,
+  archive = [],
 } = {}) {
   axios.get.mockImplementation((url) => {
     if (url === '/api/pgx/diagnostics') {
@@ -33,6 +34,9 @@ function mockApi({
     }
     if (url === '/api/pgx/episodes-without-transcription') {
       return Promise.resolve({ data: { episodes } });
+    }
+    if (url === '/api/pgx/episodes-sans-segments') {
+      return Promise.resolve({ data: { episodes: archive } });
     }
     if (url === '/api/pgx/transcription/progress') {
       return Promise.resolve({
@@ -1053,5 +1057,109 @@ describe('PgxTranscription — cycle en attente de PGX (Issue #402)', () => {
 
     expect(wrapper.vm.pgxPollInterval).not.toBeNull();
     wrapper.unmount();
+  });
+});
+
+
+describe('PgxTranscription - retranscription horodatée de l\'archive (Issue #427)', () => {
+  const ARCHIVE = Array.from({ length: 250 }, (_, i) => ({
+    id: `e${i}`, titre: `Épisode ${i}`, date: '2015-06-28T00:00:00',
+  }));
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function monter(options) {
+    mockApi({ diagnostics: [{ name: 'PGX localisée', status: 'ok', detail: 'ok' }], ...options });
+    const vue = mountView();
+    await vi.runOnlyPendingTimersAsync();
+    await vue.vm.$nextTick();
+    return vue;
+  }
+
+  it('annonce le nombre d\'épisodes à retranscrire et la durée estimée', async () => {
+    const vue = await monter({ archive: ARCHIVE });
+
+    const section = vue.find('[data-testid="pgx-archive"]');
+    expect(section.text()).toContain('250 épisode(s)');
+    expect(section.text()).toContain('environ 19 h');
+    expect(vue.find('[data-testid="pgx-archive-button"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('lance la retranscription après confirmation et suit sa progression', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    axios.post.mockResolvedValue({ data: { status: 'started', episode_count: 250 } });
+    const vue = await monter({ archive: ARCHIVE });
+
+    await vue.find('[data-testid="pgx-archive-button"]').trigger('click');
+    await vue.vm.$nextTick();
+
+    expect(axios.post).toHaveBeenCalledWith('/api/pgx/transcription/archive');
+    expect(vue.vm.pgxPollInterval).not.toBeNull();
+  });
+
+  it("dit moins d'une heure pour quelques épisodes", async () => {
+    const vue = await monter({ archive: ARCHIVE.slice(0, 3) });
+
+    expect(vue.find('[data-testid="pgx-archive"]').text()).toContain("moins d'une heure");
+  });
+
+  it('dit pourquoi rien n\'a été lancé quand un cycle tourne déjà', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    axios.post.mockResolvedValue({ data: { status: 'already_running' } });
+    const vue = await monter({ archive: ARCHIVE });
+
+    await vue.find('[data-testid="pgx-archive-button"]').trigger('click');
+    await vue.vm.$nextTick();
+    await vue.vm.$nextTick();
+
+    expect(vue.find('[data-testid="pgx-archive-message"]').text()).toContain('déjà en cours');
+  });
+
+  it('ne lance rien sans confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const vue = await monter({ archive: ARCHIVE });
+
+    await vue.find('[data-testid="pgx-archive-button"]').trigger('click');
+
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it("montre un cycle d'archive comme tel dans l'historique", async () => {
+    const vue = await monter({
+      logs: [{
+        _id: 'l1', started_at: '2026-11-28T10:00:00+00:00', finished_at: null, trigger: 'manual',
+        status: 'success', episode_ids: ['e1'], episodes: [], retry_attempts: [], archive: true,
+      }],
+    });
+
+    expect(vue.find('.history-section tbody').text()).toContain('archive');
+  });
+
+  it('dit que l\'archive est entièrement horodatée', async () => {
+    const vue = await monter({ archive: [] });
+
+    expect(vue.find('[data-testid="pgx-archive"]').text()).toContain('Tous les épisodes ont leurs Segments');
+    expect(vue.find('[data-testid="pgx-archive-button"]').exists()).toBe(false);
+  });
+
+  it('bloque le bouton pendant un cycle, et dit quand c\'est l\'archive qui tourne', async () => {
+    const vue = await monter({
+      archive: ARCHIVE,
+      progress: {
+        is_running: true, archive: true, episode_ids: ['e1', 'e2'], current_episode_id: 'e1',
+        current_episode_index: 0, processed: [], start_time: null, logs: [], last_update: null,
+        retry_pending: false, next_attempt_at: null,
+      },
+    });
+
+    expect(vue.find('[data-testid="pgx-archive-button"]').attributes('disabled')).toBeDefined();
+    expect(vue.find('.progress-header').text()).toContain('Retranscription de l\'archive en cours');
   });
 });

@@ -4544,6 +4544,39 @@ async def start_pgx_transcription(
         )
 
 
+@app.get("/api/pgx/episodes-sans-segments")
+def get_pgx_episodes_sans_segments() -> JSONResponse:
+    """Épisodes avec audio sans Segments : la file de la retranscription
+    horodatée de l'archive (#427)."""
+    try:
+        from .services.passages_service import passages_service
+
+        return JSONResponse(
+            content={"episodes": passages_service.episodes_sans_segments()}
+        )
+    except Exception as e:
+        logger.error(f"Erreur lors de la lecture des épisodes sans Segments: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/pgx/transcription/archive")
+async def start_pgx_retranscription_archive() -> JSONResponse:
+    """Retranscrit une fois, avec la sortie horodatée, tous les épisodes qui
+    ont un audio mais pas de Segments (#427, ~18-20 h sur PGX)."""
+    try:
+        from .utils.pgx_transcription_runner import pgx_transcription_runner
+
+        result = await pgx_transcription_runner.start_transcription(
+            trigger="manual", archive=True
+        )
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Erreur lors du démarrage de la retranscription: {e}")
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
 @app.post("/api/pgx/transcription/retry-now")
 async def retry_pgx_transcription_now() -> JSONResponse:
     """Avance la prochaine tentative d'un cycle en attente de PGX (Issue #402).
