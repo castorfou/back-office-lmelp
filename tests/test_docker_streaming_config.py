@@ -3,7 +3,7 @@
 Deux niveaux :
 - assertions statiques sur nginx.conf et le Dockerfile (toujours) ;
 - un vrai nginx devant un faux backend (seulement si `nginx` est installé :
-  ces tests sont ignorés en CI). Ils vérifient ce qu'une lecture du fichier ne
+  ils sont ignorés là où nginx manque). Ils vérifient ce qu'une lecture du fichier ne
   peut pas garantir : auth_request, cache des seules clés valides, Range,
   refus quand le backend est injoignable, liste blanche vers le backend.
 """
@@ -28,6 +28,9 @@ import pytest
 STREAMING_DIR = Path(__file__).parent.parent / "docker" / "build" / "streaming"
 NGINX_CONF = (STREAMING_DIR / "nginx.conf").read_text()
 DOCKERFILE = (STREAMING_DIR / "Dockerfile").read_text()
+COMPOSE = (
+    Path(__file__).parent.parent / "docker" / "deployment" / "docker-compose.yml"
+).read_text()
 WORKFLOW = (
     Path(__file__).parent.parent / ".github" / "workflows" / "docker-publish.yml"
 ).read_text()
@@ -78,8 +81,13 @@ class TestConfigurationStatique:
 
     def test_debit_limite_par_ip_reelle(self) -> None:
         assert "real_ip_header X-Real-IP;" in NGINX_CONF
-        assert "set_real_ip_from" in NGINX_CONF
         assert "limit_req_zone $binary_remote_addr" in NGINX_CONF
+        # X-Real-IP n'est crue que de la passerelle Docker (le reverse proxy
+        # DSM), le port n'étant publié que sur 127.0.0.1
+        assert re.findall(r"set_real_ip_from\s+([^;]+);", NGINX_CONF) == [
+            "172.16.0.0/12"
+        ]
+        assert '"127.0.0.1:${STREAMING_PORT:-8082}:80"' in COMPOSE
 
     def test_la_source_mobile_est_posee_par_nginx(self) -> None:
         signalements = _locations(NGINX_CONF)["= /signalements"]
@@ -115,7 +123,7 @@ class TestConfigurationStatique:
 NGINX = shutil.which("nginx") or (
     "/usr/sbin/nginx" if Path("/usr/sbin/nginx").exists() else None
 )
-avec_nginx = pytest.mark.skipif(NGINX is None, reason="nginx non installé (CI)")
+avec_nginx = pytest.mark.skipif(NGINX is None, reason="nginx non installé")
 
 CLE = "cle-valide-0123456789"  # pragma: allowlist secret
 AUDIO_REL = "2026/episode.m4a"
@@ -296,7 +304,10 @@ class TestStreamingReel:
         streaming["backend"].server_close()
 
         assert appeler(audio, entetes={"X-Lmelp-Cle": CLE})[0] == 200
-        assert appeler(audio, entetes={"X-Lmelp-Cle": "autre-cle"})[0] >= 403
+        # 503 « réessayer plus tard », pas 403 « clé refusée, rescanner »
+        statut, entetes, _ = appeler(audio, entetes={"X-Lmelp-Cle": "autre-cle"})
+        assert statut == 503
+        assert entetes["Cache-Control"] == "no-store"
 
     def test_un_signalement_est_relaye_avec_la_source_mobile(self, streaming):
         corps = json.dumps({"motif": "autre"}).encode()
@@ -350,9 +361,43 @@ class TestStreamingReel:
             r for r in FauxBackend.requetes if r["chemin"] != "/api/cle-ecoute/verifier"
         ]
 
-    def test_la_cle_en_parametre_n_apparait_pas_dans_le_journal(self, streaming):
-        appeler(f"{streaming['base']}/audios/{AUDIO_REL}?cle={CLE}")
+    def test_la_cle_en_parametre_n_apparait_dans_aucun_journal(self, streaming):
+        audio = f"{streaming['base']}/audios/{AUDIO_REL}?cle={CLE}"
+        appeler(audio)
+        # débit dépassé, puis backend injoignable : nginx recopie d'ordinaire
+        # la ligne de requête dans son journal d'erreurs
+        for _ in range(60):
+            appeler(audio)
+        streaming["backend"].shutdown()
+        streaming["backend"].server_close()
+        appeler(f"{streaming['base']}/audios/{AUDIO_REL}?cle=autre-cle-secrete")
 
-        journal = (streaming["dossier"] / "access.log").read_text()
-        assert f"/audios/{AUDIO_REL}" in journal
-        assert CLE not in journal
+        acces = (streaming["dossier"] / "access.log").read_text()
+        erreurs = "".join(
+            f.read_text() for f in streaming["dossier"].glob("error*.log")
+        )
+        assert f"/audios/{AUDIO_REL}" in acces
+        assert " 429 " in acces
+        for journal in (acces, erreurs):
+            assert CLE not in journal
+            assert "autre-cle-secrete" not in journal
+
+    def test_un_telechargement_en_cours_n_est_pas_servi(self, streaming):
+        partiel = streaming["dossier"] / "srv" / "audios" / "2026" / "nouveau.m4a.part"
+        partiel.write_bytes(b"moitie")
+
+        statut, _, _ = appeler(
+            f"{streaming['base']}/audios/2026/nouveau.m4a.part",
+            entetes={"X-Lmelp-Cle": CLE},
+        )
+
+        assert statut == 404
+
+    def test_signalements_n_accepte_que_post_sans_le_confondre_avec_une_cle_refusee(
+        self, streaming
+    ):
+        statut, _, _ = appeler(
+            f"{streaming['base']}/signalements", entetes={"X-Lmelp-Cle": CLE}
+        )
+
+        assert statut == 405

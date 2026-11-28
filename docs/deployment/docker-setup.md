@@ -84,11 +84,12 @@ Règle **lmelp-streaming**, la seule exposée sur Internet (ADR 0003) :
 | | Protocole | Nom d'hôte | Port |
 |---|---|---|---|
 | Source | HTTPS (HSTS activé) | `lmelp-streaming.ascot63.synology.me` | 443 |
-| Destination | HTTP | `localhost` | `STREAMING_PORT` |
+| Destination | HTTP | `localhost` | `STREAMING_PORT` (publié sur `127.0.0.1` seulement) |
 
 - Profil de contrôle d'accès : **Internet**.
 - En-tête personnalisé `X-Real-IP` = `$remote_addr` : lmelp-streaming limite le débit par IP
-  réelle de l'auditeur (il ne fait confiance à cet en-tête que venant d'un réseau privé).
+  réelle de l'auditeur. Il ne croit cet en-tête que venant de la passerelle du réseau Docker ;
+  le port n'étant publié que sur `127.0.0.1`, seul le reverse proxy DSM l'atteint.
 - Le nom d'hôte doit être couvert par le certificat (`*.ascot63.synology.me`).
 - L'adresse se déduit de celle de lmelp (`lmelp.` → `lmelp-streaming.`) : la page
   « Configuration mobile » la met dans le QR code remis aux auditeurs.
@@ -100,19 +101,24 @@ lmelp-mobile, derrière la clé d'écoute :
 
 | Chemin | Rôle |
 |---|---|
-| `/audios/<audio_rel_filename>` | Fichier audio tel quel, avec Range (`206`), `Cache-Control: no-store` |
-| `POST /signalements` | Signalement d'un Passage, relayé à `POST /api/signalements` du backend avec `X-Lmelp-Source: mobile` (ni la clé ni l'IP ne sont transmises) |
+| `/audios/<audio_rel_filename>` | Fichier audio tel quel, avec Range (`206`), `Cache-Control: no-store` ; un téléchargement en cours (`.part`) répond `404` |
+| `POST /signalements` | Signalement d'un Passage, relayé à `POST /api/signalements` du backend avec `X-Lmelp-Source: mobile` (ni la clé ni l'IP ne sont transmises) ; une autre méthode répond `405` |
 | `/health` | Healthcheck, sans clé |
 
 - **Clé d'écoute** : en-tête `X-Lmelp-Cle` ou paramètre `?cle=`. nginx la fait vérifier par
   `GET /api/cle-ecoute/verifier` (`auth_request`, location `internal`) et garde 60 s les
-  seules réponses « valide ». Un refus n'est jamais mis en cache ; un backend injoignable
-  vaut refus, sauf pour une clé encore en cache. Après une invalidation, l'ancienne clé est
-  donc refusée au plus tard 60 s plus tard.
+  seules réponses « valide ». Un refus n'est jamais mis en cache. Après une invalidation,
+  l'ancienne clé est donc refusée au plus tard 60 s plus tard.
+- **Codes pour lmelp-mobile** : `403` clé refusée (rescanner le QR code) ; `503` backend
+  injoignable, l'accès reste fermé sauf pour une clé encore en cache (réessayer plus tard) ;
+  `429` débit dépassé (réessayer).
 - **Aucune autre route vers le backend** : tout autre chemin répond `404`.
 - **Débit** : `limit_req` par IP réelle (10 requêtes/s pour l'audio, 6 signalements par
   minute), `429` au-delà.
-- **Journal** : sans la chaîne de requête, pour que la clé passée en `?cle=` n'y figure pas.
+- **Journaux** : la clé passée en `?cle=` n'y figure pas. Le journal d'accès omet la chaîne de
+  requête ; le journal d'erreurs, qui recopie la ligne de requête, ne garde que les erreurs
+  critiques (un backend injoignable ne s'y voit donc pas : il se voit aux `503` du journal
+  d'accès).
 - **Volumes** : le dossier audio de lmelp (`AUDIO_STORAGE_PATH` du backend) monté **en
   lecture seule** sur `/srv/audios`.
 - **Réseau** : sur le même réseau Docker que le backend, joint sous le nom `backend`

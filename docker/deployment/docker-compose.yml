@@ -123,8 +123,10 @@ services:
     container_name: lmelp-streaming
     restart: unless-stopped
 
+    # Publié sur 127.0.0.1 seulement : on n'y entre que par le reverse proxy
+    # DSM, qui pose X-Real-IP (le débit est limité par IP réelle)
     ports:
-      - "${STREAMING_PORT:-8082}:80"
+      - "127.0.0.1:${STREAMING_PORT:-8082}:80"
 
     # Dossier audio de lmelp (AUDIO_STORAGE_PATH du backend), en lecture seule
     volumes:
