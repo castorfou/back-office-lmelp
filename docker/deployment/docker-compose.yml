@@ -116,6 +116,39 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # Audio des émissions pour lmelp-mobile, derrière la clé d'écoute (ADR 0003).
+  # Seul service exposé sur Internet, par le reverse proxy DSM.
+  streaming:
+    image: ghcr.io/castorfou/lmelp-streaming:latest
+    container_name: lmelp-streaming
+    restart: unless-stopped
+
+    ports:
+      - "${STREAMING_PORT:-8082}:80"
+
+    # Dossier audio de lmelp (AUDIO_STORAGE_PATH du backend), en lecture seule
+    volumes:
+      - ${AUDIO_HOST_PATH:-/tmp/lmelp-audios}:/srv/audios:ro
+
+    depends_on:
+      - backend
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 # Networks section removed - using default bridge network
 # All services will be on the default bridge network
 # If MongoDB is in a custom network, create a user-defined bridge network instead

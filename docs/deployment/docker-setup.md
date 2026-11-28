@@ -79,6 +79,45 @@ DSM → **Portail de connexion** → **Avancé** → **Proxy inversé** → règ
 - Le frontend relaie lui-même `/api/*` vers le backend : une seule règle suffit pour l'interface, l'API (`/api`) et sa documentation (`/docs`).
 - L'HTTPS est indispensable pour installer la PWA sur un téléphone (voir [Accès mobile](../user/mobile-access.md)).
 
+Règle **lmelp-streaming**, la seule exposée sur Internet (ADR 0003) :
+
+| | Protocole | Nom d'hôte | Port |
+|---|---|---|---|
+| Source | HTTPS (HSTS activé) | `lmelp-streaming.ascot63.synology.me` | 443 |
+| Destination | HTTP | `localhost` | `STREAMING_PORT` |
+
+- Profil de contrôle d'accès : **Internet**.
+- En-tête personnalisé `X-Real-IP` = `$remote_addr` : lmelp-streaming limite le débit par IP
+  réelle de l'auditeur (il ne fait confiance à cet en-tête que venant d'un réseau privé).
+- Le nom d'hôte doit être couvert par le certificat (`*.ascot63.synology.me`).
+- L'adresse se déduit de celle de lmelp (`lmelp.` → `lmelp-streaming.`) : la page
+  « Configuration mobile » la met dans le QR code remis aux auditeurs.
+
+## lmelp-streaming
+
+Conteneur `nginx:alpine` (`docker/build/streaming/`) qui sert l'audio des émissions à
+lmelp-mobile, derrière la clé d'écoute :
+
+| Chemin | Rôle |
+|---|---|
+| `/audios/<audio_rel_filename>` | Fichier audio tel quel, avec Range (`206`), `Cache-Control: no-store` |
+| `POST /signalements` | Signalement d'un Passage, relayé à `POST /api/signalements` du backend avec `X-Lmelp-Source: mobile` (ni la clé ni l'IP ne sont transmises) |
+| `/health` | Healthcheck, sans clé |
+
+- **Clé d'écoute** : en-tête `X-Lmelp-Cle` ou paramètre `?cle=`. nginx la fait vérifier par
+  `GET /api/cle-ecoute/verifier` (`auth_request`, location `internal`) et garde 60 s les
+  seules réponses « valide ». Un refus n'est jamais mis en cache ; un backend injoignable
+  vaut refus, sauf pour une clé encore en cache. Après une invalidation, l'ancienne clé est
+  donc refusée au plus tard 60 s plus tard.
+- **Aucune autre route vers le backend** : tout autre chemin répond `404`.
+- **Débit** : `limit_req` par IP réelle (10 requêtes/s pour l'audio, 6 signalements par
+  minute), `429` au-delà.
+- **Journal** : sans la chaîne de requête, pour que la clé passée en `?cle=` n'y figure pas.
+- **Volumes** : le dossier audio de lmelp (`AUDIO_STORAGE_PATH` du backend) monté **en
+  lecture seule** sur `/srv/audios`.
+- **Réseau** : sur le même réseau Docker que le backend, joint sous le nom `backend`
+  (résolu à chaque requête par le DNS de Docker).
+
 ## Images Docker
 
 ### Repositories GitHub Container Registry
@@ -88,6 +127,7 @@ depuis ce dépôt :
 
 - **Backend**: `ghcr.io/castorfou/lmelp-backend`
 - **Frontend**: `ghcr.io/castorfou/lmelp-frontend`
+- **Streaming**: `ghcr.io/castorfou/lmelp-streaming`
 
 L'image MongoDB `ghcr.io/castorfou/lmelp-mongo` est construite par docker-lmelp.
 
