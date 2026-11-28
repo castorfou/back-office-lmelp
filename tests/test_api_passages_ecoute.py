@@ -132,6 +132,9 @@ def test_les_passages_d_une_emission_se_lisent_sans_ses_segments(client, episode
     assert data["segments"] == []
     assert data["a_des_segments"] is True
     assert len(data["passages"]) == 9
+    # même forme de Passage que sur la fiche livre : de quoi lire l'audio
+    assert {p["episode_id"] for p in data["passages"]} == {episode}
+    assert {p["date"] for p in data["passages"]} == {"2026-11-15"}
 
 
 def test_un_livre_sans_passage_dit_pourquoi(client, db, episode):
@@ -162,9 +165,41 @@ def test_les_passages_d_un_livre_portent_leur_emission(client, db, episode):
     response = client.get(f"/api/livres/{livre.inserted_id}/passages")
 
     assert response.status_code == 200
-    (passage,) = response.json()
+    (passage,) = response.json()["passages"]
     assert passage["titre"] == "Le Fondateur"
     assert passage["livre_id"] == str(livre.inserted_id)
     assert passage["episode_id"] == episode
     assert passage["date"] == "2026-11-15"
     assert abs(passage["debut_ms"] // 1000 - (7 * 60 + 32)) <= 10
+
+
+def test_un_livre_sans_passage_dans_une_emission_dit_pourquoi(client, db, episode):
+    sans_segments = ajouter_episode(db)
+    db.avis_critiques.insert_one(
+        {"episode_oid": sans_segments, "summary": TEMOIN["resume"]}
+    )
+    livre = db.livres.insert_one(
+        {"titre": "Le Fondateur", "episodes": [episode, sans_segments]}
+    )
+
+    data = client.get(f"/api/livres/{livre.inserted_id}/passages").json()
+
+    assert [p["episode_id"] for p in data["passages"]] == [episode]
+    assert data["sans_passage"] == [
+        {"episode_id": sans_segments, "raison": "pas_de_segments"}
+    ]
+
+
+def test_un_livre_sans_passage_porte_son_id_quand_il_est_valide(client, db, episode):
+    """La fiche émission retrouve la raison par le livre, pas par le titre,
+    qui peut avoir été corrigé à la validation."""
+    livre = db.livres.insert_one({"titre": "Vivre après", "episodes": [episode]})
+    db.passages.update_one(
+        {"episode_oid": episode, "titre": "Vivre après"}, {"$set": {"supprime": True}}
+    )
+
+    data = client.get(f"/api/episodes/{episode}/passages?segments=false").json()
+
+    (absent,) = data["sans_passage"]
+    assert absent["livre_id"] == str(livre.inserted_id)
+    assert absent["raison"] == "supprime"

@@ -42,6 +42,7 @@ function monter(composant, props = {}) {
 
 let audio;
 beforeEach(() => {
+  vi.resetAllMocks();
   audio = fauxAudio();
   brancherAudio(audio);
   arreter();
@@ -105,6 +106,27 @@ describe('PassageDock', () => {
     await suivant.trigger('click');
 
     expect(lecteur.passage).toEqual(PARADISI);
+  });
+
+  it("dit qu'il n'y a plus de Passage après le dernier de l'émission", async () => {
+    const dock = monter(PassageDock);
+    await jouer(PARADISI, [FONDATEUR, PARADISI]);
+    audio.currentTime = 1160;
+    verifierFin();
+    await dock.vm.$nextTick();
+
+    expect(dock.text()).toContain("dernier passage de l'émission");
+  });
+
+  it("dit qu'il n'y a plus de Passage après le dernier de ce livre", async () => {
+    const dock = monter(PassageDock);
+    const autreEmission = { ...PARADISI, id: 'p3', episode_id: 'e2', date: '2026-10-04' };
+    await jouer(autreEmission, [FONDATEUR, autreEmission]);
+    audio.currentTime = 1160;
+    verifierFin();
+    await dock.vm.$nextTick();
+
+    expect(dock.text()).toContain('dernier passage de ce livre');
   });
 
   it('se ferme et arrête la lecture', async () => {

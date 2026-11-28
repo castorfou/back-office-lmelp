@@ -319,6 +319,32 @@ describe('AvisTable.vue — écoute des Passages', () => {
     expect(ligne.find('.passage-absent').attributes('title')).toMatch(/retiré/);
   });
 
+  it("retrouve la raison par le livre quand son titre a été corrigé à la validation", () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div />' } },
+        { path: '/livre/:id', component: { template: '<div />' } }],
+    });
+    const table = mount(AvisTable, {
+      global: { plugins: [router] },
+      props: {
+        passages: {
+          a_des_segments: true,
+          passages: [],
+          // titre du résumé, différent du titre validé affiché
+          sans_passage: [{ titre: 'Quiche ta', livre_id: 'l9', raison: 'supprime' }],
+        },
+        avis: [{
+          id: '9', section: 'coup_de_coeur', livre_oid: 'l9', livre_titre: 'Kichta',
+          livre_titre_extrait: 'Kichta', auteur_nom_extrait: 'Nicolas Laquerrière',
+          critique_nom_extrait: 'Laurent Chalumeau', note: 9,
+        }],
+      },
+    });
+
+    expect(table.find('.passage-absent').attributes('title')).toMatch(/retiré/);
+  });
+
   it("n'affiche aucun rond sans information sur les Passages", () => {
     const table = monter(null);
 

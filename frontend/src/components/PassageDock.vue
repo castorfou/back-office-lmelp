@@ -26,6 +26,7 @@
           ▶ Suivant : {{ lecteur.suivant.titre }}
           <small v-if="lecteur.suivant.date !== p.date">({{ dateLongue(lecteur.suivant.date) }})</small>
         </button>
+        <span v-else class="dock-dernier">dernier passage {{ contexte }}</span>
       </div>
       <template v-else>
         <div class="dock-controles">
@@ -41,11 +42,11 @@
           <button type="button" class="dock-saut avance" aria-label="Avancer de 10 secondes" @click="sauter(10)">+10 s</button>
         </div>
         <div class="dock-progression">
-          <span class="dock-temps">{{ formaterDuree(lecteur.position - p.debut_ms / 1000) }}</span>
+          <span class="dock-temps">{{ formaterDuree(lecteur.position - debutSecondes(p)) }}</span>
           <span class="dock-barre" @click="seDeplacer">
             <span class="dock-rempli" :style="{ width: `${pourcentage}%` }"></span>
           </span>
-          <span class="dock-temps">{{ formaterDuree((p.fin_ms - p.debut_ms) / 1000) }}</span>
+          <span class="dock-temps">{{ formaterDuree(dureeSecondes(p)) }}</span>
         </div>
       </template>
     </div>
@@ -59,6 +60,7 @@
 <script>
 import {
   lecteur, jouer, pause, reprendre, sauter, aller, arreter, formaterDuree,
+  debutSecondes, dureeSecondes,
 } from '../services/lecteurPassages.js';
 
 export default {
@@ -71,9 +73,13 @@ export default {
       return lecteur.passage;
     },
     pourcentage() {
-      const debut = this.p.debut_ms / 1000;
-      const fin = this.p.fin_ms / 1000;
-      return Math.min(100, Math.max(0, (100 * (lecteur.position - debut)) / (fin - debut)));
+      const ecoule = lecteur.position - debutSecondes(this.p);
+      return Math.min(100, Math.max(0, (100 * ecoule) / dureeSecondes(this.p)));
+    },
+    /** Le contexte de lecture : une émission, ou les émissions d'un livre. */
+    contexte() {
+      const episodes = new Set(lecteur.liste.map((x) => x.episode_id));
+      return episodes.size > 1 ? 'de ce livre' : "de l'émission";
     },
   },
   watch: {
@@ -89,12 +95,11 @@ export default {
     document.body.style.paddingBottom = '';
   },
   methods: {
-    jouer, pause, reprendre, sauter, arreter, formaterDuree,
+    jouer, pause, reprendre, sauter, arreter, formaterDuree, debutSecondes, dureeSecondes,
     seDeplacer(evenement) {
       const zone = evenement.currentTarget.getBoundingClientRect();
-      const debut = this.p.debut_ms / 1000;
-      const fin = this.p.fin_ms / 1000;
-      aller(debut + ((evenement.clientX - zone.left) / zone.width) * (fin - debut));
+      const fraction = (evenement.clientX - zone.left) / zone.width;
+      aller(debutSecondes(this.p) + fraction * dureeSecondes(this.p));
     },
     dateLongue(date) {
       return new Date(`${date}T12:00:00`).toLocaleDateString('fr-FR', {
@@ -149,6 +154,7 @@ export default {
   color: #198754; white-space: nowrap;
 }
 .dock-fin .btn { padding: 0.3rem 0.8rem; font-size: 0.9rem; }
+.dock-dernier { color: #777; font-size: 0.85rem; }
 .dock-erreur { color: #b02a37; }
 .dock-fermer { border: none; background: none; font-size: 1.1rem; color: #777; cursor: pointer; }
 </style>

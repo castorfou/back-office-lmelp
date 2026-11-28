@@ -20,8 +20,8 @@ const LIVRE = {
   note_moyenne: 7.5,
   nombre_emissions: 2,
   emissions: [
-    { emission_id: 'm1', date: '2026-11-15T09:12:40', nombre_avis: 4, note_moyenne: 7.5 },
-    { emission_id: 'm2', date: '2026-10-04T08:12:40', nombre_avis: 1, note_moyenne: null },
+    { emission_id: 'm1', episode_id: 'e1', date: '2026-11-15', nombre_avis: 4, note_moyenne: 7.5 },
+    { emission_id: 'm2', episode_id: 'e2', date: '2026-10-04', nombre_avis: 1, note_moyenne: null },
   ],
 };
 
@@ -47,7 +47,12 @@ describe('LivreDetail - écoute des Passages', () => {
     vi.resetAllMocks();
     axios.get.mockImplementation((url) => {
       if (url.includes('/api/livres/') && url.endsWith('/passages')) {
-        return Promise.resolve({ data: [PASSAGE] });
+        return Promise.resolve({
+          data: {
+            passages: [PASSAGE],
+            sans_passage: [{ episode_id: 'e2', raison: 'pas_de_segments' }],
+          },
+        });
       }
       if (url.includes('/api/livre/')) return Promise.resolve({ data: LIVRE });
       if (url.includes('/api/avis/by-livre/')) return Promise.resolve({ data: { avis: [] } });
@@ -58,13 +63,15 @@ describe('LivreDetail - écoute des Passages', () => {
     });
   });
 
-  it("met un rond d'écoute sur l'émission où le livre a un Passage", async () => {
+  it("met un rond d'écoute sur l'émission où le livre a un Passage, et dit pourquoi ailleurs", async () => {
     const fiche = monter();
     await flushPromises();
 
     const [avecPassage, sansPassage] = fiche.findAll('[data-test="emission-item"]');
     expect(avecPassage.find('button[aria-label="Écouter le Passage"]').exists()).toBe(true);
-    expect(sansPassage.find('.passage-absent').exists()).toBe(true);
+    expect(sansPassage.find('.passage-absent').attributes('title')).toMatch(
+      /pas de transcription horodatée/,
+    );
   });
 
   it('garde la fiche quand les Passages ne se chargent pas', async () => {

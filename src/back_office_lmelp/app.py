@@ -3965,8 +3965,9 @@ def get_passages_episode(episode_id: str, segments: bool = True) -> dict[str, An
 
 
 @app.get("/api/livres/{livre_id}/passages")
-def get_passages_livre(livre_id: str) -> list[dict[str, Any]]:
-    """Les Passages d'un livre dans chacune de ses émissions, par date."""
+def get_passages_livre(livre_id: str) -> dict[str, Any]:
+    """Les Passages d'un livre dans ses émissions, et les émissions où il n'en
+    a pas, avec la raison."""
     if not ObjectId.is_valid(livre_id):
         raise HTTPException(status_code=404, detail="Livre non trouvé")
     try:

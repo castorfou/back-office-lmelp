@@ -47,7 +47,7 @@
                 v-if="passages"
                 :passage="passagePour(livre.livre_oid, livre.titre)"
                 :liste="passages.passages"
-                :raison="raisonPour(livre.titre)"
+                :raison="raisonPour(livre.livre_oid, livre.titre)"
               />
               <router-link
                 v-if="livre.livre_oid"
@@ -151,7 +151,7 @@
                 v-if="passages"
                 :passage="passagePour(avis.livre_oid, avis.livre_titre || avis.livre_titre_extrait)"
                 :liste="passages.passages"
-                :raison="raisonPour(avis.livre_titre || avis.livre_titre_extrait)"
+                :raison="raisonPour(avis.livre_oid, avis.livre_titre_extrait)"
               />
               <router-link
                 v-if="avis.livre_oid"
@@ -463,13 +463,16 @@ export default {
       );
     };
 
-    /** Pourquoi un livre n'a pas de Passage. */
-    const raisonPour = (titre) => {
-      if (!props.passages?.a_des_segments) return 'pas_de_segments';
-      const absent = (props.passages.sans_passage || []).find(
-        (s) => normaliser(s.titre) === normaliser(titre),
-      );
-      return absent?.raison || 'non_repere';
+    /**
+     * Pourquoi un livre n'a pas de Passage : par son id en base, sinon par le
+     * titre extrait du résumé (le titre validé peut en différer).
+     */
+    const raisonPour = (livreOid, titre) => {
+      const absents = props.passages?.sans_passage || [];
+      const absent = (livreOid && absents.find((s) => s.livre_id === livreOid))
+        || absents.find((s) => normaliser(s.titre) === normaliser(titre));
+      if (absent) return absent.raison;
+      return props.passages?.a_des_segments ? 'non_repere' : 'pas_de_segments';
     };
 
     return {

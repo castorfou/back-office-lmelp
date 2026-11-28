@@ -22,14 +22,13 @@
 
 <script>
 import {
-  lecteur, basculer, enCours, formaterDuree,
+  lecteur, basculer, enCours, formaterDuree, dureeSecondes,
 } from '../services/lecteurPassages.js';
 
 const MOTIFS = {
   pas_de_segments: "Pas encore de Passage : l'émission n'a pas de transcription horodatée",
   supprime: 'Pas de Passage : il a été retiré à la correction',
   non_repere: "Pas de Passage : le repérage n'a pas trouvé ce livre dans l'émission",
-  absent: 'Pas de Passage de ce livre dans cette émission',
 };
 
 export default {
@@ -39,7 +38,7 @@ export default {
     passage: { type: Object, default: null },
     /** Les Passages du contexte, dans l'ordre : le suivant est proposé à la fin. */
     liste: { type: Array, default: () => [] },
-    /** Pourquoi il n'y a pas de Passage : pas_de_segments, supprime, non_repere, absent. */
+    /** Pourquoi il n'y a pas de Passage : pas_de_segments, supprime, non_repere. */
     raison: { type: String, default: 'non_repere' },
   },
   computed: {
@@ -47,7 +46,7 @@ export default {
       return enCours(this.passage) && lecteur.statut === 'lecture';
     },
     duree() {
-      return formaterDuree((this.passage.fin_ms - this.passage.debut_ms) / 1000);
+      return formaterDuree(dureeSecondes(this.passage));
     },
     motif() {
       return MOTIFS[this.raison] || MOTIFS.non_repere;

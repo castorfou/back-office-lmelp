@@ -194,8 +194,8 @@
             <PassageBouton
               v-if="passages"
               :passage="passageDe(emission)"
-              :liste="passages"
-              raison="absent"
+              :liste="passages.passages"
+              :raison="raisonDe(emission)"
             />
             <div class="emission-info">
               <router-link
@@ -329,7 +329,7 @@ export default {
       annasArchiveBaseUrl: 'https://fr.annas-archive.li', // Fallback default (Issue #188)
       tagsCopied: false, // Issue #200: Copy feedback
       avis: [], // Issue #201: Avis des critiques
-      passages: null, // Passages audio du livre, par émission
+      passages: null, // Passages audio du livre et émissions sans Passage
       // Issue #189: Refresh Babelio
       refreshLoading: false,
       showRefreshModal: false,
@@ -406,16 +406,21 @@ export default {
     async loadPassages() {
       try {
         const response = await axios.get(`/api/livres/${this.$route.params.id}/passages`);
-        // une réponse qui n'est pas une liste ne doit pas casser la fiche
-        this.passages = Array.isArray(response.data) ? response.data : null;
+        // une réponse inattendue ne doit pas casser la fiche
+        this.passages = Array.isArray(response.data?.passages) ? response.data : null;
       } catch (err) {
         console.warn('Passages non chargés:', err);
         this.passages = null;
       }
     },
     passageDe(emission) {
-      const jour = (emission.date || '').slice(0, 10);
-      return (this.passages || []).find((p) => p.date === jour) || null;
+      return this.passages.passages.find((p) => p.episode_id === emission.episode_id) || null;
+    },
+    raisonDe(emission) {
+      const absent = (this.passages.sans_passage || []).find(
+        (s) => s.episode_id === emission.episode_id,
+      );
+      return absent?.raison || 'non_repere';
     },
     async loadLivre() {
       this.loading = true;

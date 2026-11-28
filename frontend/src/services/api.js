@@ -704,7 +704,8 @@ export const avisService = {
  */
 export const passagesService = {
   /**
-   * Passages d'une émission, sans la transcription horodatée.
+   * Passages d'une émission (avec episode_id et date), sans la transcription
+   * horodatée, et ses livres sans Passage avec la raison.
    * @param {string} episodeId
    * @returns {Promise<{passages: Array, sans_passage: Array, a_des_segments: boolean}>}
    */
@@ -712,16 +713,6 @@ export const passagesService = {
     const response = await api.get(`/episodes/${episodeId}/passages`, {
       params: { segments: false },
     });
-    return response.data;
-  },
-
-  /**
-   * Passages d'un livre dans chacune de ses émissions, par date.
-   * @param {string} livreId
-   * @returns {Promise<Array>} Passages avec episode_id et date
-   */
-  async getPassagesLivre(livreId) {
-    const response = await api.get(`/livres/${livreId}/passages`);
     return response.data;
   },
 };

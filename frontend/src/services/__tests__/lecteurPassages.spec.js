@@ -6,7 +6,7 @@
  * Un faux élément audio remplace le vrai (jsdom ne sait pas lire) : il garde
  * src, currentTime, et déclenche ses événements à la demande.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   lecteur,
   brancherAudio,
@@ -48,11 +48,27 @@ describe('lecteur de Passages', () => {
   let audio;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     audio = fauxAudio();
     brancherAudio(audio);
     arreter();
-    lecteur.erreur = null;
   });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Lance un Passage dont l'audio ne se charge pas ; `fetch` répond `reponse`. */
+  async function echouer(reponse) {
+    vi.stubGlobal('fetch', vi.fn(reponse));
+    // un vrai play() échoue quand le fichier ne se charge pas
+    audio.play = vi.fn(() => Promise.reject(new Error('NotSupportedError')));
+    jouer(FONDATEUR, []);
+    audio.declencher('error');
+    await vi.waitFor(() => expect(lecteur.erreur).not.toBeNull());
+    expect(lecteur.statut).toBe('erreur');
+    return lecteur.erreur;
+  }
 
   it("lit l'audio de l'émission à partir du début du Passage", async () => {
     await jouer(FONDATEUR, [FONDATEUR, PARADISI]);
@@ -90,7 +106,6 @@ describe('lecteur de Passages', () => {
   it('reste dans les bornes du Passage quand on se déplace', async () => {
     await jouer(FONDATEUR, []);
 
-
     aller(10);
     expect(audio.currentTime).toBe(447);
     sauter(10_000);
@@ -99,7 +114,6 @@ describe('lecteur de Passages', () => {
 
   it('met en pause puis reprend le même Passage', async () => {
     await jouer(FONDATEUR, []);
-
 
     basculer(FONDATEUR, []);
     expect(lecteur.statut).toBe('pause');
@@ -121,21 +135,34 @@ describe('lecteur de Passages', () => {
   });
 
   it("dit pourquoi l'audio ne se lit pas : fichier absent", async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 404 }));
-    // un vrai play() échoue quand le fichier ne se charge pas
-    audio.play = vi.fn(() => Promise.reject(new Error('NotSupportedError')));
-    jouer(FONDATEUR, []);
+    expect(await echouer(() => Promise.resolve({ ok: false, status: 404 }))).toMatch(/absent/);
+  });
 
-    audio.declencher('error');
-    await vi.waitFor(() => expect(lecteur.erreur).not.toBeNull());
+  it("dit pourquoi l'audio ne se lit pas : format non lu par le navigateur", async () => {
+    expect(await echouer(() => Promise.resolve({ ok: true, status: 206 }))).toMatch(/format/);
+  });
 
-    expect(lecteur.statut).toBe('erreur');
-    expect(lecteur.erreur).toMatch(/absent/);
+  it("dit pourquoi l'audio ne se lit pas : autre réponse de lmelp", async () => {
+    expect(await echouer(() => Promise.resolve({ ok: false, status: 500 }))).toMatch(/500/);
+  });
+
+  it("dit pourquoi l'audio ne se lit pas : lmelp injoignable", async () => {
+    expect(await echouer(() => Promise.reject(new Error('réseau')))).toMatch(/injoignable/);
+  });
+
+  it("s'arrête à la fin même quand l'onglet est en arrière-plan", async () => {
+    // requestAnimationFrame est suspendu : l'événement timeupdate prend le relais
+    await jouer(FONDATEUR, [FONDATEUR, PARADISI]);
+    audio.currentTime = 813.4;
+
+    audio.declencher('timeupdate');
+
+    expect(lecteur.statut).toBe('fini');
+    expect(audio.pause).toHaveBeenCalled();
   });
 
   it("arrête la lecture et oublie le Passage", async () => {
     await jouer(FONDATEUR, []);
-
 
     arreter();
 

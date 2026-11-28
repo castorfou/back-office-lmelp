@@ -30,8 +30,12 @@ const planifier = (fn) =>
 const annuler = (id) =>
   (globalThis.cancelAnimationFrame ? globalThis.cancelAnimationFrame(id) : clearTimeout(id));
 
-const debutS = (p) => p.debut_ms / 1000;
-const finS = (p) => p.fin_ms / 1000;
+/** Début et fin d'un Passage, en secondes dans l'audio de l'émission. */
+export const debutSecondes = (p) => p.debut_ms / 1000;
+export const finSecondes = (p) => p.fin_ms / 1000;
+export const dureeSecondes = (p) => finSecondes(p) - debutSecondes(p);
+const debutS = debutSecondes;
+const finS = finSecondes;
 const urlAudio = (p) => `/api/episodes/${p.episode_id}/audio`;
 
 /** Branche l'élément audio (un vrai <audio>, ou un faux dans les tests). */
@@ -45,6 +49,9 @@ export function brancherAudio(element) {
     }
   });
   audio.addEventListener('error', diagnostiquer);
+  // requestAnimationFrame est suspendu dans un onglet en arrière-plan :
+  // timeupdate (environ 4 fois par seconde) arrête quand même à la fin
+  audio.addEventListener('timeupdate', verifierFin);
 }
 
 function element() {
@@ -105,19 +112,19 @@ function lancer() {
 
 /** Lit un Passage depuis son début ; `liste` sert à proposer le suivant. */
 export function jouer(passage, liste = []) {
-  const a = element();
+  const audioEl = element();
   lecteur.erreur = null;
   lecteur.suivant = null;
   lecteur.liste = liste;
   lecteur.passage = passage;
   lecteur.position = debutS(passage);
-  if (a.src && a.src.endsWith(urlAudio(passage)) && a.readyState >= 1) {
-    a.currentTime = debutS(passage);
+  if (audioEl.src && audioEl.src.endsWith(urlAudio(passage)) && audioEl.readyState >= 1) {
+    audioEl.currentTime = debutS(passage);
   } else {
     lecteur.statut = 'chargement';
     positionEnAttente = debutS(passage);
-    a.src = urlAudio(passage);
-    a.load();
+    audioEl.src = urlAudio(passage);
+    audioEl.load();
   }
   return lancer();
 }
