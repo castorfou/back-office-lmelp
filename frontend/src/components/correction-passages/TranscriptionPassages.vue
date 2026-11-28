@@ -57,8 +57,8 @@
       <p v-if="arme" class="consigne">Cliquer le Segment où {{ arme.borne === 'debut' ? 'commence' : 'finit' }}
         « {{ arme.titre }} » · <a href="#" @click.prevent="arme = null">annuler</a></p>
       <template v-for="(sg, i) in segments" :key="i">
-        <div v-for="t in trousA(i)" :key="t.id" :data-trou="t.id" class="trou-entete">
-          ▨ Trou {{ fmt(t.debut) }}–{{ fmt(t.fin) }} · aucun livre
+        <div v-for="t in trousA(i)" :key="t.id" :data-trou="t.id" :class="['trou-entete', { long: t.long }]">
+          ▨ Trou {{ fmt(t.debut) }}–{{ fmt(t.fin) }} · aucun livre<template v-if="t.long"> · plus de 2 min : un livre manque ?</template>
           <button class="ico" title="Écouter le trou" @click="ecouterTrou(t)">▶</button>
           <small v-if="glisse">déposer le livre sur la phrase où il commence</small>
         </div>
@@ -302,6 +302,7 @@ aside { width: 345px; flex: none; overflow-y: auto; }
 .puce:active { cursor: grabbing; }
 .trou-entete { margin: .6rem 0 .1rem; padding: .15rem .5rem; border-radius: 3px; font-size: .8rem; font-weight: 600; color: #555;
   background: repeating-linear-gradient(45deg, #eee 0 6px, #f8f8f8 6px 12px); border: 1px dashed #aaa; }
+.trou-entete.long { border: 2px dashed #e65100; color: #e65100; }
 .trou-entete small { font-weight: normal; color: #8a5a00; margin-left: .4rem; }
 .seg.dans-trou { color: #666; box-shadow: inset 4px 0 0 #ccc; }
 .seg.depot { outline: 1px dashed #f0ad4e; } .seg.survol { background: #ffe0a3 !important; }

@@ -86,7 +86,9 @@ describe('CorrectionPassages', () => {
     expect(carte(page, PASSAGE_B).text()).toContain('01:00');
     expect(carte(page, PASSAGE_B).find('.badge').text()).toBe('corrigé');
     // la frontière partagée : la fin de A a suivi
-    expect(page.text()).toContain('fin de « Le Fondateur » 02:00 → 01:00');
+    const journal = page.findAll('.journal li').map((l) => l.text());
+    expect(journal.some((l) => l.includes('début de « Paradisi Gloria » : 02:00 → 01:00'))).toBe(true);
+    expect(journal.some((l) => l.includes('↳ fin de « Le Fondateur » suit : 02:00 → 01:00'))).toBe(true);
     // les Segments restent affichés : les corrections ne les renvoient pas
     expect(page.findAll('.seg').length).toBeGreaterThan(5);
   });
@@ -220,6 +222,34 @@ describe('CorrectionPassages', () => {
     expect(carte(page, PASSAGE_C).find('.court').exists()).toBe(true);
     expect(carte(page, PASSAGE_A).find('.court').exists()).toBe(false);
     expect(page.find('.frise .trou').classes()).toContain('long');
+    expect(page.find('.trou-entete').classes()).toContain('long');
+  });
+
+  it("dit dans le journal qu'une correction retire la validation", async () => {
+    passagesService.getCorrectionEpisode.mockResolvedValue(etatEmission({ valide: true }));
+    passagesService.deplacerFin.mockResolvedValue(sansSegments(etatEmission()));
+    const page = await monter();
+
+    await carte(page, PASSAGE_B).find('[title^="Placer la fin"]').trigger('click');
+    await segment(page, 'Le courrier').trigger('click');
+    await flushPromises();
+
+    expect(page.find('.journal').text()).toContain('émission repassée en 🟠');
+    expect(page.findAll('.dropdown-option').some((o) => o.text().startsWith('🟠'))).toBe(true);
+  });
+
+  it('garde la couleur de chaque Passage quand un autre est supprimé', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    passagesService.supprimer.mockResolvedValue(sansSegments(etatEmission({
+      passages: [PASSAGE_A, PASSAGE_C], supprimes: [{ id: 'pb', titre: 'Paradisi Gloria' }],
+    })));
+    const page = await monter();
+    const couleurC = carte(page, PASSAGE_C).attributes('style');
+
+    await carte(page, PASSAGE_B).find('[title^="Supprimer"]').trigger('click');
+    await flushPromises();
+
+    expect(carte(page, PASSAGE_C).attributes('style')).toBe(couleurC);
   });
 
   it('marque « à valider » un titre pas encore validé, sans lien vers la fiche livre', async () => {

@@ -10,6 +10,7 @@
       <section class="selecteur card">
         <div v-if="chargement">Chargement des émissions…</div>
         <div v-else-if="erreur" class="erreur">✖ {{ erreur }}</div>
+        <div v-else-if="!emissions.length" class="vide">Aucune émission.</div>
         <div v-else class="form-group">
           <label class="form-label">
             Choisir une émission ({{ emissions.length }} :
@@ -70,7 +71,7 @@ import { arreter as arreterLecteurGlobal } from '../services/lecteurPassages.js'
 const PASTILLE = { valide: 'passages_valides', a_verifier: 'segments_dispo' };
 
 export default {
-  name: 'CorrectionPassagesPrototype',
+  name: 'CorrectionPassages',
   components: { Navigation, EpisodeDropdown, TranscriptionPassages },
   data: () => ({ emissions: [], emissionId: null, chargement: true, erreur: null, erreurEmission: null }),
   computed: {

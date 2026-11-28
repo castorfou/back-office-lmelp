@@ -38,6 +38,10 @@ function appliquer(data) {
   ep.livresSansPassage = data.sans_passage.filter((l) => l.raison === 'non_repere');
   ep.valide = data.valide;
   etat.statuts[ep.id] = data.valide ? 'valide' : 'a_verifier';
+  // une couleur par Passage, gardée tant que la page reste sur l'émission
+  for (const p of ep.passages) {
+    if (!(p.id in ep.couleurs)) ep.couleurs[p.id] = Object.keys(ep.couleurs).length;
+  }
 }
 
 export function charger(episodeId, data) {
@@ -49,6 +53,7 @@ export function charger(episodeId, data) {
     livresSansPassage: [],
     valide: false,
     avaitAPlacer: false,
+    couleurs: {},
     journal: [],
   });
   appliquer(data);
@@ -60,6 +65,8 @@ export function charger(episodeId, data) {
 export function fermer() {
   etat.ep = null;
   etat.choisi = null;
+  etat.glisse = null;
+  etat.retour = null;
 }
 
 const log = (msg) => etat.ep.journal.unshift(`${new Date().toLocaleTimeString()} — ${msg}`);
@@ -72,8 +79,8 @@ export const fmt = (s) => {
 
 const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#f4511e', '#00897b', '#6d4c41', '#c0ca33', '#d81b60', '#3949ab', '#fb8c00'];
 export const couleur = (p) => {
-  const i = etat.ep ? etat.ep.passages.findIndex((x) => x.id === p.id) : 0;
-  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+  const i = etat.ep?.couleurs[p.id] ?? 0;
+  return PALETTE[i % PALETTE.length];
 };
 
 export const visibles = () => [...(etat.ep?.passages || [])].sort((a, b) => a.debut - b.debut);
@@ -94,26 +101,36 @@ export const trous = () => {
   return t;
 };
 
-/** Journalise ce qu'une correction a changé : bornes déplacées, Passages ajoutés ou retirés. */
-function journaliser(avant) {
+/**
+ * Journalise les bornes qu'une correction a déplacées : celles du Passage corrigé
+ * d'abord, puis celles des voisins qui ont suivi (« ↳ »).
+ */
+function journaliser(avant, corrigeId) {
   const apres = Object.fromEntries(etat.ep.passages.map((p) => [p.id, p]));
-  for (const p of avant) {
+  const ordre = [...avant].sort((a, b) => (b.id === corrigeId) - (a.id === corrigeId));
+  for (const p of ordre) {
     const q = apres[p.id];
     if (!q) continue;
-    if (q.debut !== p.debut) log(`début de « ${p.titre} » ${fmt(p.debut)} → ${fmt(q.debut)}`);
-    if (q.fin !== p.fin) log(`fin de « ${p.titre} » ${fmt(p.fin)} → ${fmt(q.fin)}`);
+    const suit = corrigeId && p.id !== corrigeId ? '↳ ' : '';
+    const verbe = suit ? ' suit' : '';
+    if (q.debut !== p.debut) log(`${suit}début de « ${p.titre} »${verbe} : ${fmt(p.debut)} → ${fmt(q.debut)}`);
+    if (q.fin !== p.fin) log(`${suit}fin de « ${p.titre} »${verbe} : ${fmt(p.fin)} → ${fmt(q.fin)}`);
   }
 }
 
-async function corriger(action, description) {
+async function corriger(action, description, corrigeId = null) {
   const ep = etat.ep;
   const avant = ep.passages.map((p) => ({ ...p }));
+  const etaitValide = ep.valide;
   try {
     const data = await action();
     if (etat.ep !== ep) return null; // une autre émission a été ouverte entre-temps
     appliquer(data);
     if (description) log(description);
-    journaliser(avant);
+    journaliser(avant, corrigeId);
+    if (etaitValide && !ep.valide && description !== VALIDATION_RETIREE) {
+      log('↳ émission repassée en 🟠 (correction après validation)');
+    }
     return data;
   } catch (e) {
     if (etat.ep === ep) log(`refusé : ${e.message}`);
@@ -121,18 +138,21 @@ async function corriger(action, description) {
   }
 }
 
+const VALIDATION_RETIREE = 'validation retirée';
+
 const trouver = (id) => etat.ep.passages.find((x) => x.id === id);
 
 export function setDebut(id, s) {
-  return corriger(() => passagesService.deplacerDebut(id, enMs(s)));
+  return corriger(() => passagesService.deplacerDebut(id, enMs(s)), null, id);
 }
 
 export function setFin(id, s) {
-  return corriger(() => passagesService.deplacerFin(id, enMs(s)));
+  return corriger(() => passagesService.deplacerFin(id, enMs(s)), null, id);
 }
 
 export function supprimer(id) {
   const p = trouver(id);
+  if (!p) return null;
   return corriger(
     () => passagesService.supprimer(id),
     `« ${p.titre} » supprimé (conservé : une relance ne le recrée pas)`,
@@ -166,7 +186,7 @@ export async function deposer(livre, trou, t = null) {
 // deux, le livre en première partie ; 'fin' = coupé en deux, le livre en dernière partie.
 export function occuper(p, mode) {
   const quoi = mode === 'tete' ? 'première partie' : mode === 'fin' ? 'dernière partie' : 'tout le trou';
-  return corriger(() => passagesService.occuper(p.id, mode), `« ${p.titre} » : ${quoi}`);
+  return corriger(() => passagesService.occuper(p.id, mode), `« ${p.titre} » : ${quoi}`, p.id);
 }
 
 // Reprendre un livre placé à la main et le remettre dans « À placer » (son trou réapparaît).
@@ -179,35 +199,46 @@ export function remettre(p) {
 export function basculerValidation() {
   const id = etat.ep.id;
   return etat.ep.valide
-    ? corriger(() => passagesService.retirerValidation(id), 'validation retirée')
+    ? corriger(() => passagesService.retirerValidation(id), VALIDATION_RETIREE)
     : corriger(() => passagesService.valider(id), '✅ Passages validés');
 }
 
 // --- Lecteur de page : un <audio> propre à la page, source fixée par la page ---
 export const lecteur = reactive({ t: 0, duree: 0, enLecture: false, arret: null });
 let audioEl = null;
+let ecouteurs = {};
+
+export function debrancherAudio() {
+  if (audioEl) {
+    audioEl.pause();
+    for (const [evenement, ecouteur] of Object.entries(ecouteurs)) {
+      audioEl.removeEventListener(evenement, ecouteur);
+    }
+  }
+  audioEl = null;
+  ecouteurs = {};
+  Object.assign(lecteur, { t: 0, duree: 0, enLecture: false, arret: null });
+}
 
 export function brancherAudio(el) {
   if (audioEl === el) return;
+  debrancherAudio();
   audioEl = el;
-  lecteur.t = 0;
-  lecteur.arret = null;
-  el.addEventListener('timeupdate', () => {
-    lecteur.t = el.currentTime;
-    if (lecteur.arret != null && el.currentTime >= lecteur.arret) {
-      el.pause();
-      lecteur.arret = null;
-    }
-  });
-  el.addEventListener('loadedmetadata', () => (lecteur.duree = el.duration));
-  el.addEventListener('play', () => (lecteur.enLecture = true));
-  el.addEventListener('pause', () => (lecteur.enLecture = false));
-}
-
-export function debrancherAudio() {
-  audioEl?.pause();
-  audioEl = null;
-  Object.assign(lecteur, { t: 0, duree: 0, enLecture: false, arret: null });
+  ecouteurs = {
+    timeupdate: () => {
+      lecteur.t = el.currentTime;
+      if (lecteur.arret != null && el.currentTime >= lecteur.arret) {
+        el.pause();
+        lecteur.arret = null;
+      }
+    },
+    loadedmetadata: () => (lecteur.duree = el.duration),
+    play: () => (lecteur.enLecture = true),
+    pause: () => (lecteur.enLecture = false),
+  };
+  for (const [evenement, ecouteur] of Object.entries(ecouteurs)) {
+    el.addEventListener(evenement, ecouteur);
+  }
 }
 
 export function jouer(de, jusqua = null) {
