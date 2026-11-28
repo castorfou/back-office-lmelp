@@ -163,6 +163,25 @@ describe('LivresAuteurs - écoute des Passages (Issue #427)', () => {
     expect(wrapper.find('th.th-emission').text()).toContain('⏱ Émission');
   });
 
+  it("garde les livres sans Passage à la fin en ordre décroissant de l'émission", async () => {
+    await monter();
+
+    await wrapper.find('th.th-emission').trigger('click');
+
+    expect(lignes().map((l) => l.find('.passage-heure').text())).toEqual(['26:53', '13:23', '07:27', '—']);
+  });
+
+  it("ne trie pas par l'émission quand elle a des Segments mais aucun Passage", async () => {
+    const sansPassage = {
+      ...ETAT, passages: [], sans_passage: SANS_SEGMENTS.sans_passage.map((l) => ({ ...l, raison: 'non_repere' })),
+    };
+    passagesService.getCorrectionEpisode.mockResolvedValue(sansPassage);
+    passagesService.getPassagesEpisode.mockResolvedValue({ ...sansPassage, segments: [] });
+    await monter();
+
+    expect(wrapper.vm.currentSortField).toBe('author');
+  });
+
   it('met ▶ devant un titre qui a un Passage, validé ou non, et ○ sinon', async () => {
     await monter();
 

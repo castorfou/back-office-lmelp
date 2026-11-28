@@ -19,8 +19,7 @@ export const ecoute = reactive({
   cible: null, // { book, n } : demande à la section de cibler un livre
 });
 
-const norm = (titre) =>
-  removeAccents(titre || '').replace(/[’']/g, "'").toLowerCase().trim();
+const norm = (titre) => removeAccents(titre || '').toLowerCase().trim();
 
 export const cleDe = (book) => book.book_id || `titre:${norm(book.titre)}`;
 
@@ -61,20 +60,45 @@ export function quitter() {
   Object.assign(ecoute, { episodeId: null, pret: false, ligne: null, cible: null });
 }
 
+/**
+ * Le Passage de chaque ligne, par clé de ligne, calculé une fois pour tout le
+ * tableau. Un livre se retrouve par son id ; à défaut, son titre ne retrouve
+ * qu'un Passage sans livre (titre pas encore validé).
+ */
+export function passagesDesLignes(books) {
+  const lignes = new Map();
+  if (!ecoute.pret) return lignes;
+  const parLivre = new Map();
+  const parTitre = new Map();
+  for (const p of cp.etat.ep.passages) {
+    if (p.livre_id) parLivre.set(p.livre_id, p);
+    else parTitre.set(norm(p.titre), p);
+  }
+  for (const book of books) {
+    const p = (book.book_id && parLivre.get(book.book_id)) || parTitre.get(norm(book.titre));
+    if (p) lignes.set(cleDe(book), p);
+  }
+  return lignes;
+}
+
 export function passageDe(book) {
-  if (!ecoute.pret) return null;
-  const titre = norm(book.titre);
-  return (
-    cp.visibles().find((p) => book.book_id && p.livre_id === book.book_id)
-    || cp.visibles().find((p) => norm(p.titre) === titre)
-    || null
-  );
+  return passagesDesLignes([book]).get(cleDe(book)) || null;
+}
+
+/** Id du Passage en cours de lecture ; ne change qu'en passant d'un Passage à l'autre. */
+export function passageEnLecture() {
+  if (!ecoute.pret || !cp.lecteur.enLecture) return null;
+  const t = cp.lecteur.t;
+  return cp.etat.ep.passages.find((p) => t >= p.debut && t < p.fin)?.id || null;
 }
 
 export function enLecture(book) {
   const p = passageDe(book);
-  return !!p && cp.lecteur.enLecture && cp.lecteur.t >= p.debut && cp.lecteur.t < p.fin;
+  return !!p && passageEnLecture() === p.id;
 }
+
+/** Au moins un Passage : le tableau suit alors l'ordre de l'émission. */
+export const aDesPassages = () => ecoute.pret && cp.etat.ep.passages.length > 0;
 
 /** Clic sur ▶ / ○ d'une ligne. */
 export function ecouterLigne(book) {

@@ -870,6 +870,14 @@ export default {
   computed: {
     // Écoute des Passages de l'émission (Issue #427)
     ecoute: () => ecouteEmission.ecoute,
+    // Passage de chaque ligne, calculé une fois par rendu du tableau
+    passagesLignes() {
+      return ecouteEmission.passagesDesLignes(this.books);
+    },
+    // ne change qu'en passant d'un Passage à l'autre : la lecture ne
+    // redessine pas le tableau à chaque instant
+    passageEnLecture: () => ecouteEmission.passageEnLecture(),
+    aDesPassages: () => ecouteEmission.aDesPassages(),
     // Ban IP : essai TCP en échec, ou disjoncteur ouvert par un timeout de connexion
     babelioIpBanned() {
       return (
@@ -999,10 +1007,11 @@ export default {
             sortValue = scoreA - scoreB;
             break;
           case 'emission': {
-            // ordre de l'émission, livres sans Passage à la fin
-            const da = ecouteEmission.passageDe(a)?.debut ?? Infinity;
-            const db = ecouteEmission.passageDe(b)?.debut ?? Infinity;
-            sortValue = da === db ? 0 : da < db ? -1 : 1;
+            // ordre de l'émission ; livres sans Passage à la fin, dans les deux sens
+            const da = this.passageDe(a)?.debut ?? Infinity;
+            const db = this.passageDe(b)?.debut ?? Infinity;
+            if ((da === Infinity) !== (db === Infinity)) return da === Infinity ? 1 : -1;
+            sortValue = da - db;
             break;
           }
           case 'author':
@@ -1040,7 +1049,7 @@ export default {
       ecouteEmission.rafraichir();
     },
     // dès que les Passages sont là, le tableau suit l'ordre de l'émission
-    'ecoute.pret'(pret) {
+    aDesPassages(pret) {
       if (pret) {
         this.currentSortField = 'emission';
         this.sortAscending = true;
@@ -1140,8 +1149,13 @@ export default {
 
   methods: {
     // Écoute des Passages (Issue #427)
-    passageDe: ecouteEmission.passageDe,
-    enLecture: ecouteEmission.enLecture,
+    passageDe(book) {
+      return this.passagesLignes.get(ecouteEmission.cleDe(book)) || null;
+    },
+    enLecture(book) {
+      const p = this.passageDe(book);
+      return !!p && this.passageEnLecture === p.id;
+    },
     fmtPassage,
     ligneActive(book) {
       return ecouteEmission.ecoute.ligne === ecouteEmission.cleDe(book);
