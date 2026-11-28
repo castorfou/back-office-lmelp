@@ -210,6 +210,25 @@ repérage.
 ont été vérifiés (pastille 🟢). Une émission avec Segments sans ce champ est à vérifier (🟠),
 une émission sans Segments est 🔴.
 
+### Collection `parametres`
+
+Réglages de l'application, un document par réglage, identifié par son `_id`.
+
+**Clé d'écoute** (`_id: "cle_ecoute"`, ADR 0003) : la clé partagée par les auditeurs de
+lmelp-mobile, créée au démarrage du backend si elle n'existe pas.
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `_id` | String | `"cle_ecoute"` |
+| `cle` | String | Clé en service (`secrets.token_urlsafe(24)`, 32 caractères) |
+| `creee_le` | Date | Création de la clé en service |
+| `changements` | Array<Date> | Date de chaque invalidation ; les anciennes clés ne sont jamais gardées |
+
+Routes : `GET /api/cle-ecoute` (page « Configuration mobile »), `POST /api/cle-ecoute/invalider`
+(nouvelle clé, l'ancienne est refusée aussitôt) et `GET /api/cle-ecoute/verifier`, la
+sous-requête `auth_request` de lmelp-streaming : 204 si la clé reçue en en-tête
+`X-Lmelp-Cle` ou en paramètre `?cle=` est la bonne, 403 sinon.
+
 ## Opérations CRUD
 
 ### Create (Insertion)

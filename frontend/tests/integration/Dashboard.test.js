@@ -207,6 +207,22 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(push).toHaveBeenCalledWith('/correction-passages');
   });
 
+  it('mène à la page « Configuration mobile » depuis la section Application mobile (Issue #427)', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="function-configuration-mobile"]').trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/configuration-mobile');
+  });
+
   it('est responsive sur petits écrans', async () => {
     wrapper = mount(Dashboard, {
       global: {
