@@ -195,9 +195,16 @@ enregistré et quand un titre est écarté ou rétabli.
 **Corrections à la main** (`CorrectionPassages`, page « Correction des passages ») : deux
 Passages voisins partagent une frontière. Déplacer le début d'un Passage déplace la fin du
 précédent s'ils se touchaient ou s'ils se chevaucheraient ; un trou entre eux reste un trou
-(symétriquement pour la fin). Une borne qui casserait l'ordre des Passages est refusée. Toute
-correction passe les Passages touchés en `corrige` et retire la validation de l'émission ;
-elle ne relance pas le repérage.
+(symétriquement pour la fin). Un début se pose au début d'un Segment, une fin au début ou à
+la fin d'un Segment ; une borne ailleurs, ou qui casserait l'ordre des Passages, est refusée,
+et un Passage supprimé ne se déplace pas. Un livre sans Passage se dépose dans un trou entre
+deux Passages : il va jusqu'à la fin du trou et commence au début du trou ou au début d'une
+phrase du trou. Un livre déposé à la main peut occuper tout l'espace libre autour de lui,
+ou seulement sa première ou sa dernière partie (coupure à la phrase la plus proche du
+milieu). Supprimer un Passage, le restaurer
+(son voisin rogné passe alors en `corrige`) ou toute autre correction passe les Passages
+touchés en `corrige` et retire la validation de l'émission ; elle ne relance pas le
+repérage.
 
 **Validation** : `episodes.passages_valides_le` (Date) marque une émission dont les Passages
 ont été vérifiés (pastille 🟢). Une émission avec Segments sans ce champ est à vérifier (🟠),

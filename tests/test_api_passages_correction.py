@@ -21,6 +21,26 @@ from fastapi.testclient import TestClient
 
 FIXTURE = Path(__file__).parent / "fixtures" / "passages" / "temoin_2026-11-15.json"
 TEMOIN = json.loads(FIXTURE.read_text())
+# une borne se pose à l'heure exacte d'un Segment : début ou fin d'une phrase
+PHRASES = [
+    (debut, fin) for debut, fin, texte in TEMOIN["segments"] if texte.strip(" .")
+]
+DEBUTS: list[int] = sorted({debut for debut, _ in PHRASES})
+FINS: list[int] = sorted({fin for _, fin in PHRASES})
+
+
+def phrase_avant(ms: int, rang: int = 1) -> int:
+    """Début de la rang-ième phrase qui commence avant `ms`."""
+    return [d for d in DEBUTS if d < ms][-rang]
+
+
+def phrase_apres(ms: int, rang: int = 1) -> int:
+    """Début de la rang-ième phrase qui commence après `ms`."""
+    return [d for d in DEBUTS if d > ms][rang - 1]
+
+
+def fin_de_phrase_apres(ms: int) -> int:
+    return next(f for f in FINS if f > ms)
 
 
 @pytest.fixture
@@ -76,7 +96,7 @@ def passage(client: TestClient, episode: str, titre: str) -> dict[str, Any]:
 
 def test_avancer_le_debut_d_un_passage_deplace_la_fin_du_precedent(client, episode):
     paradisi = passage(client, episode, "Paradisi Gloria")
-    nouveau_debut = paradisi["debut_ms"] - 20_000
+    nouveau_debut = phrase_avant(paradisi["debut_ms"], 3)
 
     response = client.patch(
         f"/api/passages/{paradisi['id']}/debut", json={"debut_ms": nouveau_debut}
@@ -92,7 +112,7 @@ def test_avancer_le_debut_d_un_passage_deplace_la_fin_du_precedent(client, episo
 
 def test_reculer_la_fin_d_un_passage_deplace_le_debut_du_suivant(client, episode):
     fondateur = passage(client, episode, "Le Fondateur")
-    nouvelle_fin = fondateur["fin_ms"] + 15_000
+    nouvelle_fin = fin_de_phrase_apres(fondateur["fin_ms"] + 10_000)
 
     client.patch(f"/api/passages/{fondateur['id']}/fin", json={"fin_ms": nouvelle_fin})
 
@@ -109,7 +129,7 @@ def test_un_trou_entre_deux_passages_reste_un_trou(client, db, episode):
 
     client.patch(
         f"/api/passages/{paradisi['id']}/debut",
-        json={"debut_ms": paradisi["debut_ms"] - 10_000},
+        json={"debut_ms": phrase_avant(paradisi["debut_ms"], 2)},
     )
 
     assert (
@@ -166,7 +186,7 @@ def test_une_correction_retire_la_validation_de_l_emission(client, db, episode):
 
     client.patch(
         f"/api/passages/{fondateur['id']}/debut",
-        json={"debut_ms": fondateur["debut_ms"] + 1000},
+        json={"debut_ms": phrase_apres(fondateur["debut_ms"])},
     )
 
     assert "passages_valides_le" not in db.episodes.find_one({"_id": ObjectId(episode)})
@@ -203,7 +223,7 @@ def test_restaurer_un_passage_le_rend_sans_chevauchement(client, episode):
     souterrains = passage(client, episode, "Le Livre des souterrains")
     client.patch(
         f"/api/passages/{souterrains['id']}/fin",
-        json={"fin_ms": vivre["fin_ms"] - 5000},
+        json={"fin_ms": fin_de_phrase_apres(vivre["fin_ms"] - 20_000)},
     )
 
     client.post(f"/api/passages/{vivre['id']}/restaurer")
@@ -299,7 +319,7 @@ def test_un_livre_place_se_remet_a_placer(client, episode, trou):
     deposer(client, episode, trou)
     vivre = passage(client, episode, "Vivre après")
 
-    response = client.delete(f"/api/passages/{vivre['id']}")
+    response = client.post(f"/api/passages/{vivre['id']}/remettre")
 
     assert response.status_code == 200
     data = lire(client, episode)
@@ -310,7 +330,7 @@ def test_un_livre_place_se_remet_a_placer(client, episode, trou):
 def test_un_passage_repere_ne_se_remet_pas_a_placer(client, episode):
     fondateur = passage(client, episode, "Le Fondateur")
 
-    assert client.delete(f"/api/passages/{fondateur['id']}").status_code == 422
+    assert client.post(f"/api/passages/{fondateur['id']}/remettre").status_code == 422
 
 
 def test_valider_les_passages_d_une_emission_puis_retirer_la_validation(
@@ -337,7 +357,7 @@ def test_une_correction_apres_validation_fait_repasser_l_emission_a_verifier(
 
     data = client.patch(
         f"/api/passages/{fondateur['id']}/debut",
-        json={"debut_ms": fondateur["debut_ms"] + 1000},
+        json={"debut_ms": phrase_apres(fondateur["debut_ms"])},
     ).json()
 
     assert data["valide"] is False
@@ -359,3 +379,106 @@ def test_chaque_emission_a_sa_pastille(client, db, episode):
     assert statuts[episode] == "a_verifier"
     assert statuts[validee] == "valide"
     assert sans_segments not in statuts  # sans Segments : pastille 🔴 par défaut
+
+
+@pytest.mark.parametrize("borne", ["debut", "fin"])
+def test_une_borne_au_milieu_d_une_phrase_est_refusee(client, episode, borne):
+    paradisi = passage(client, episode, "Paradisi Gloria")
+    milieu_de_phrase = phrase_apres(paradisi["debut_ms"], 3) + 333
+
+    response = client.patch(
+        f"/api/passages/{paradisi['id']}/{borne}",
+        json={f"{borne}_ms": milieu_de_phrase},
+    )
+
+    assert response.status_code == 422
+
+
+def test_restaurer_un_passage_marque_corrige_le_voisin_qu_il_raccourcit(
+    client, db, episode
+):
+    vivre = passage(client, episode, "Vivre après")
+    client.post(f"/api/passages/{vivre['id']}/supprimer")
+    # le voisin, resté automatique, s'étend sur le temps du Passage supprimé
+    db.passages.update_one(
+        {"titre": "Le Livre des souterrains"},
+        {"$set": {"fin_ms": fin_de_phrase_apres(vivre["fin_ms"] - 20_000)}},
+    )
+    assert passage(client, episode, "Le Livre des souterrains")["origine"] == "auto"
+
+    client.post(f"/api/passages/{vivre['id']}/restaurer")
+
+    souterrains = passage(client, episode, "Le Livre des souterrains")
+    assert souterrains["fin_ms"] == vivre["debut_ms"]
+    assert souterrains["origine"] == "corrige"
+
+
+def test_les_bornes_d_un_passage_supprime_ne_se_corrigent_pas(client, episode):
+    vivre = passage(client, episode, "Vivre après")
+    client.post(f"/api/passages/{vivre['id']}/supprimer")
+
+    response = client.patch(
+        f"/api/passages/{vivre['id']}/debut", json={"debut_ms": vivre["debut_ms"]}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("episode_id", ["6af98629a3c9beafb9dcb702", "pas-un-id"])
+def test_valider_une_emission_inconnue_repond_404(client, episode_id):
+    assert (
+        client.post(f"/api/episodes/{episode_id}/passages/validation").status_code
+        == 404
+    )
+
+
+def test_un_livre_ne_se_depose_pas_hors_d_un_trou(client, episode, trou):
+    derniere_fin = lire(client, episode)["passages"][-1]["fin_ms"]
+
+    response = deposer(
+        client,
+        episode,
+        {"debut_ms": derniere_fin, "fin_ms": fin_de_phrase_apres(derniere_fin)},
+    )
+
+    assert response.status_code == 422
+
+
+def test_un_livre_depose_va_jusqu_a_la_fin_du_trou(client, episode, trou):
+    response = deposer(
+        client,
+        episode,
+        {"debut_ms": trou["debut_ms"], "fin_ms": phrase_avant(trou["fin_ms"], 2)},
+    )
+
+    assert response.status_code == 422
+
+
+def test_un_livre_depose_peut_commencer_a_une_phrase_du_trou(client, episode, trou):
+    debut = phrase_apres(trou["debut_ms"], 3)
+
+    response = deposer(client, episode, {"debut_ms": debut, "fin_ms": trou["fin_ms"]})
+
+    assert response.status_code == 200
+    assert passage(client, episode, "Vivre après")["debut_ms"] == debut
+
+
+def test_les_corrections_survivent_a_un_recalcul(client, episode, trou):
+    from back_office_lmelp.services.passages_service import passages_service
+
+    deposer(client, episode, trou)
+    paradisi = passage(client, episode, "Paradisi Gloria")
+    nouveau_debut = phrase_avant(paradisi["debut_ms"], 3)
+    client.patch(
+        f"/api/passages/{paradisi['id']}/debut", json={"debut_ms": nouveau_debut}
+    )
+
+    def sans_id(passages: list[dict]) -> list[dict]:
+        return [{k: v for k, v in p.items() if k != "id"} for p in passages]
+
+    avant = sans_id(lire(client, episode)["passages"])
+
+    passages_service.recalculer(episode)
+
+    # les Passages automatiques sont refaits (nouveaux id), les corrections restent
+    assert sans_id(lire(client, episode)["passages"]) == avant

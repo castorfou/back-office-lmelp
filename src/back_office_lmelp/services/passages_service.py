@@ -47,6 +47,10 @@ class PassageInconnuError(LookupError):
     """Aucun Passage avec cet id."""
 
 
+class EmissionInconnueError(LookupError):
+    """Aucun épisode avec cet id."""
+
+
 def segments_de_whisper(whisper: dict[str, Any]) -> list[dict[str, Any]]:
     """Segments d'une sortie whisper.cpp `-oj` (`transcription[].offsets` en ms).
 
@@ -105,7 +109,7 @@ class PassagesService:
         )
         self.recalculer(episode_oid)
 
-    def _segments(self, episode_oid: str) -> list[dict[str, Any]]:
+    def segments_de(self, episode_oid: str) -> list[dict[str, Any]]:
         document = self.mongodb_service.get_collection("episode_segments").find_one(
             {"episode_oid": episode_oid}
         )
@@ -174,7 +178,7 @@ class PassagesService:
         Un livre a au plus un Passage : un Passage corrigé ou supprimé protège
         son livre, qu'il soit retrouvé par son id ou par son titre.
         """
-        segments = self._segments(episode_oid)
+        segments = self.segments_de(episode_oid)
         if not segments:
             return
         reperage = reperer_passages(
@@ -315,7 +319,7 @@ class PassagesService:
             for p in stockes
             if p.get("supprime")
         }
-        segments = self._segments(episode_oid) if avec_segments else []
+        segments = self.segments_de(episode_oid) if avec_segments else []
         a_des_segments = bool(segments) or (
             not avec_segments and self._a_des_segments(episode_oid)
         )
@@ -416,23 +420,27 @@ class PassagesService:
 class CorrectionPassages:
     """Corrections à la main des Passages d'une émission.
 
-    Deux Passages voisins partagent une frontière : déplacer le début d'un
-    Passage déplace la fin du précédent s'ils se touchaient ou s'ils se
-    chevaucheraient (un trou entre eux reste un trou), et symétriquement pour
-    la fin. Toute correction passe les Passages touchés en `corrige` et retire
-    la validation de l'émission. Elle ne relance pas le repérage : les
-    Passages corrigés ne sont jamais refaits.
+    Une borne se pose à l'heure exacte d'un Segment : un début au début d'une
+    phrase, une fin au début ou à la fin d'une phrase. Deux Passages voisins
+    partagent une frontière : déplacer le début d'un Passage déplace la fin du
+    précédent s'ils se touchaient ou s'ils se chevaucheraient (un trou entre
+    eux reste un trou), et symétriquement pour la fin. Toute correction passe
+    les Passages touchés en `corrige` et retire la validation de l'émission.
+    Elle ne relance pas le repérage : il refait seulement les Passages
+    automatiques, en les arrêtant aux bornes des Passages corrigés, ce qui
+    donne le même résultat.
     """
 
     def __init__(self, service: PassagesService) -> None:
         self.service = service
 
-    def _passages(self) -> Any:
-        return self.service.mongodb_service.get_collection("passages")
+    def _collection(self, nom: str) -> Any:
+        return self.service.mongodb_service.get_collection(nom)
 
+    # ------------------------------------------------------------ lectures
     def _passage(self, passage_id: str) -> dict[str, Any]:
         document = (
-            self._passages().find_one({"_id": ObjectId(passage_id)})
+            self._collection("passages").find_one({"_id": ObjectId(passage_id)})
             if ObjectId.is_valid(passage_id)
             else None
         )
@@ -440,25 +448,28 @@ class CorrectionPassages:
             raise PassageInconnuError(passage_id)
         return dict(document)
 
+    def _verifier_episode(self, episode_oid: str) -> None:
+        if not ObjectId.is_valid(episode_oid) or not self._collection(
+            "episodes"
+        ).find_one({"_id": ObjectId(episode_oid)}, {"_id": 1}):
+            raise EmissionInconnueError(episode_oid)
+
     def _visibles(self, episode_oid: str) -> list[dict[str, Any]]:
         return sorted(
-            self._passages().find(
+            self._collection("passages").find(
                 {"episode_oid": episode_oid, "supprime": {"$ne": True}}
             ),
             key=lambda p: p["debut_ms"],
         )
 
-    def _voisins(
-        self, passage: dict[str, Any]
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        visibles = self._visibles(passage["episode_oid"])
-        index = next(i for i, p in enumerate(visibles) if p["_id"] == passage["_id"])
-        precedent = visibles[index - 1] if index > 0 else None
-        suivant = visibles[index + 1] if index + 1 < len(visibles) else None
-        return precedent, suivant
+    def _phrases(self, episode_oid: str) -> tuple[set[int], set[int]]:
+        """Débuts et fins des Segments de l'émission."""
+        segments = self.service.segments_de(episode_oid)
+        return {s["debut_ms"] for s in segments}, {s["fin_ms"] for s in segments}
 
+    # ----------------------------------------------------------- écritures
     def _corriger(self, passage: dict[str, Any], **bornes: int) -> None:
-        self._passages().update_one(
+        self._collection("passages").update_one(
             {"_id": passage["_id"]},
             {
                 "$set": {
@@ -469,90 +480,99 @@ class CorrectionPassages:
             },
         )
 
-    def _devalider(self, episode_oid: str) -> None:
+    def _marquer(self, passage: dict[str, Any], **champs: Any) -> None:
+        self._collection("passages").update_one(
+            {"_id": passage["_id"]},
+            {"$set": {**champs, "updated_at": datetime.now(UTC)}},
+        )
+
+    def _devalider_et_relire(self, episode_oid: str) -> dict[str, Any]:
         """Une correction après validation fait repasser l'émission en 🟠."""
-        self.service.mongodb_service.get_collection("episodes").update_one(
+        self._collection("episodes").update_one(
             {"_id": ObjectId(episode_oid)}, {"$unset": {"passages_valides_le": ""}}
         )
-
-    def _apres(self, episode_oid: str) -> dict[str, Any]:
-        self._devalider(episode_oid)
         return self.service.passages_de(episode_oid, avec_segments=False)
 
-    def deplacer_debut(self, passage_id: str, debut_ms: int) -> dict[str, Any]:
+    # ---------------------------------------------------------------- bornes
+    def _deplacer(self, passage_id: str, cote: str, ms: int) -> dict[str, Any]:
+        """Déplace le début (`cote="debut"`) ou la fin d'un Passage ; la borne
+        du voisin de ce côté suit s'ils se touchaient ou se chevaucheraient."""
         passage = self._passage(passage_id)
-        precedent, _ = self._voisins(passage)
-        if debut_ms < 0 or debut_ms >= passage["fin_ms"]:
-            raise CorrectionRefuseeError("Le début doit précéder la fin du Passage")
-        if precedent and debut_ms <= precedent["debut_ms"]:
+        if passage.get("supprime"):
+            raise CorrectionRefuseeError("Un Passage supprimé se restaure d'abord")
+        debuts, fins = self._phrases(passage["episode_oid"])
+        if ms not in debuts and (cote == "debut" or ms not in fins):
             raise CorrectionRefuseeError(
-                f"Le début ne peut pas précéder celui de « {precedent['titre']} »"
+                "Une borne se pose au début ou à la fin d'une phrase"
             )
+        visibles = self._visibles(passage["episode_oid"])
+        index = next(i for i, p in enumerate(visibles) if p["_id"] == passage["_id"])
+        if cote == "debut":
+            voisin = visibles[index - 1] if index > 0 else None
+            if ms >= passage["fin_ms"]:
+                raise CorrectionRefuseeError("Le début doit précéder la fin du Passage")
+            if voisin and ms <= voisin["debut_ms"]:
+                raise CorrectionRefuseeError(
+                    f"Le début ne peut pas précéder celui de « {voisin['titre']} »"
+                )
+            borne_voisin, autre_borne = "fin_ms", "debut_ms"
+            deborde = voisin is not None and voisin["fin_ms"] > ms
+        else:
+            voisin = visibles[index + 1] if index + 1 < len(visibles) else None
+            if ms <= passage["debut_ms"]:
+                raise CorrectionRefuseeError("La fin doit suivre le début du Passage")
+            if voisin and ms >= voisin["fin_ms"]:
+                raise CorrectionRefuseeError(
+                    f"La fin ne peut pas dépasser celle de « {voisin['titre']} »"
+                )
+            borne_voisin, autre_borne = "debut_ms", "fin_ms"
+            deborde = voisin is not None and voisin["debut_ms"] < ms
         se_touchaient = (
-            precedent is not None
-            and abs(precedent["fin_ms"] - passage["debut_ms"]) < TOLERANCE_CONTACT_MS
+            voisin is not None
+            and abs(voisin[borne_voisin] - passage[autre_borne]) < TOLERANCE_CONTACT_MS
         )
-        self._corriger(passage, debut_ms=debut_ms)
-        if (
-            precedent
-            and precedent["fin_ms"] != debut_ms
-            and (se_touchaient or precedent["fin_ms"] > debut_ms)
-        ):
-            self._corriger(precedent, fin_ms=debut_ms)
-        return self._apres(passage["episode_oid"])
+        self._corriger(passage, **{autre_borne: ms})
+        if voisin and voisin[borne_voisin] != ms and (se_touchaient or deborde):
+            self._corriger(voisin, **{borne_voisin: ms})
+        return self._devalider_et_relire(passage["episode_oid"])
+
+    def deplacer_debut(self, passage_id: str, debut_ms: int) -> dict[str, Any]:
+        return self._deplacer(passage_id, "debut", debut_ms)
 
     def deplacer_fin(self, passage_id: str, fin_ms: int) -> dict[str, Any]:
-        passage = self._passage(passage_id)
-        _, suivant = self._voisins(passage)
-        if fin_ms <= passage["debut_ms"]:
-            raise CorrectionRefuseeError("La fin doit suivre le début du Passage")
-        if suivant and fin_ms >= suivant["fin_ms"]:
-            raise CorrectionRefuseeError(
-                f"La fin ne peut pas dépasser celle de « {suivant['titre']} »"
-            )
-        se_touchaient = (
-            suivant is not None
-            and abs(suivant["debut_ms"] - passage["fin_ms"]) < TOLERANCE_CONTACT_MS
-        )
-        self._corriger(passage, fin_ms=fin_ms)
-        if (
-            suivant
-            and suivant["debut_ms"] != fin_ms
-            and (se_touchaient or suivant["debut_ms"] < fin_ms)
-        ):
-            self._corriger(suivant, debut_ms=fin_ms)
-        return self._apres(passage["episode_oid"])
+        return self._deplacer(passage_id, "fin", fin_ms)
 
+    # --------------------------------------------------- supprimer, restaurer
     def supprimer(self, passage_id: str) -> dict[str, Any]:
         """Retire un Passage qui n'en est pas un ; il est gardé pour qu'un
         recalcul ne le recrée pas, et peut être restauré."""
         passage = self._passage(passage_id)
-        self._passages().update_one(
-            {"_id": passage["_id"]}, {"$set": {"supprime": True}}
-        )
-        return self._apres(passage["episode_oid"])
+        self._marquer(passage, supprime=True)
+        return self._devalider_et_relire(passage["episode_oid"])
 
     def restaurer(self, passage_id: str) -> dict[str, Any]:
-        """Rend un Passage supprimé ; un Passage qui le chevauche s'arrête à son début."""
+        """Rend un Passage supprimé ; un Passage qui le chevauche s'arrête à
+        son début et passe en `corrige`."""
         passage = self._passage(passage_id)
-        self._passages().update_one(
-            {"_id": passage["_id"]}, {"$set": {"supprime": False}}
-        )
+        self._marquer(passage, supprime=False)
         visibles = self._visibles(passage["episode_oid"])
         for avant, apres in zip(visibles, visibles[1:], strict=False):
             if avant["fin_ms"] > apres["debut_ms"]:
-                self._passages().update_one(
-                    {"_id": avant["_id"]}, {"$set": {"fin_ms": apres["debut_ms"]}}
-                )
-        return self._apres(passage["episode_oid"])
+                self._corriger(avant, fin_ms=apres["debut_ms"])
+        return self._devalider_et_relire(passage["episode_oid"])
 
+    # ------------------------------------------------------ livre sur un trou
     def deposer(
         self, episode_oid: str, titre: str, debut_ms: int, fin_ms: int
     ) -> dict[str, Any]:
-        """Place un livre sans Passage sur un trou : il devient un Passage
-        corrigé, placé à la main."""
+        """Place un livre sans Passage sur un trou, entre deux Passages : il va
+        jusqu'à la fin du trou et commence à son début ou au début d'une
+        phrase du trou. Il devient un Passage corrigé, placé à la main."""
+        self._verifier_episode(episode_oid)
         etat = self.service.passages_de(episode_oid, avec_segments=False)
         cible = normalize_for_matching(titre)
+        if any(normalize_for_matching(s["titre"]) == cible for s in etat["supprimes"]):
+            raise CorrectionRefuseeError(f"Le Passage de « {titre} » est à restaurer")
         livre = next(
             (
                 s
@@ -563,16 +583,25 @@ class CorrectionPassages:
         )
         if livre is None:
             raise CorrectionRefuseeError(f"« {titre} » n'est pas un livre à placer")
-        if any(normalize_for_matching(s["titre"]) == cible for s in etat["supprimes"]):
-            raise CorrectionRefuseeError(f"Le Passage de « {titre} » est à restaurer")
-        if debut_ms >= fin_ms:
-            raise CorrectionRefuseeError("Le début doit précéder la fin du Passage")
-        for autre in self._visibles(episode_oid):
-            if autre["debut_ms"] < fin_ms and debut_ms < autre["fin_ms"]:
-                raise CorrectionRefuseeError(
-                    f"Ce temps appartient à « {autre['titre']} »"
-                )
-        self._passages().insert_one(
+        visibles = self._visibles(episode_oid)
+        trou = next(
+            (
+                (avant["fin_ms"], apres["debut_ms"])
+                for avant, apres in zip(visibles, visibles[1:], strict=False)
+                if avant["fin_ms"] <= debut_ms < apres["debut_ms"]
+            ),
+            None,
+        )
+        debuts, _ = self._phrases(episode_oid)
+        if trou is None or fin_ms != trou[1]:
+            raise CorrectionRefuseeError(
+                "Un livre se dépose sur un trou, jusqu'à sa fin"
+            )
+        if debut_ms != trou[0] and debut_ms not in debuts:
+            raise CorrectionRefuseeError(
+                "Un livre commence au début d'une phrase du trou"
+            )
+        self._collection("passages").insert_one(
             {
                 "episode_oid": episode_oid,
                 "titre": livre["titre"],
@@ -585,7 +614,7 @@ class CorrectionPassages:
                 "updated_at": datetime.now(UTC),
             }
         )
-        return self._apres(episode_oid)
+        return self._devalider_et_relire(episode_oid)
 
     def _place_main(self, passage_id: str) -> dict[str, Any]:
         passage = self._passage(passage_id)
@@ -596,11 +625,7 @@ class CorrectionPassages:
     def _milieu(self, episode_oid: str, debut_ms: int, fin_ms: int) -> int:
         """Milieu d'une zone, calé sur le début de la phrase la plus proche."""
         milieu = (debut_ms + fin_ms) / 2
-        debuts = [
-            s["debut_ms"]
-            for s in self.service._segments(episode_oid)
-            if debut_ms < s["debut_ms"] < fin_ms
-        ]
+        debuts = [d for d in self._phrases(episode_oid)[0] if debut_ms < d < fin_ms]
         return min(debuts, key=lambda d: abs(d - milieu)) if debuts else round(milieu)
 
     def occuper(self, passage_id: str, mode: str) -> dict[str, Any]:
@@ -629,27 +654,29 @@ class CorrectionPassages:
             fin = self._milieu(passage["episode_oid"], debut, fin)
         elif mode == "fin":
             debut = self._milieu(passage["episode_oid"], debut, fin)
-        elif mode != "tout":
-            raise CorrectionRefuseeError(f"Mode inconnu : {mode}")
         self._corriger(passage, debut_ms=debut, fin_ms=fin)
-        return self._apres(passage["episode_oid"])
+        return self._devalider_et_relire(passage["episode_oid"])
 
+    def remettre(self, passage_id: str) -> dict[str, Any]:
+        """Reprend un livre placé à la main : il redevient à placer."""
+        passage = self._place_main(passage_id)
+        self._collection("passages").delete_one({"_id": passage["_id"]})
+        return self._devalider_et_relire(passage["episode_oid"])
+
+    # ------------------------------------------------------------ validation
     def valider(self, episode_oid: str) -> dict[str, Any]:
         """Les Passages de l'émission sont vérifiés (pastille 🟢)."""
-        self.service.mongodb_service.get_collection("episodes").update_one(
+        self._verifier_episode(episode_oid)
+        self._collection("episodes").update_one(
             {"_id": ObjectId(episode_oid)},
             {"$set": {"passages_valides_le": datetime.now(UTC)}},
         )
         return self.service.passages_de(episode_oid, avec_segments=False)
 
     def retirer_validation(self, episode_oid: str) -> dict[str, Any]:
-        return self._apres(episode_oid)
-
-    def remettre(self, passage_id: str) -> dict[str, Any]:
-        """Reprend un livre placé à la main : il redevient à placer."""
-        passage = self._place_main(passage_id)
-        self._passages().delete_one({"_id": passage["_id"]})
-        return self._apres(passage["episode_oid"])
+        """Les Passages de l'émission redeviennent à vérifier (pastille 🟠)."""
+        self._verifier_episode(episode_oid)
+        return self._devalider_et_relire(episode_oid)
 
 
 passages_service = PassagesService()

@@ -28,7 +28,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 
 if TYPE_CHECKING:
@@ -3980,6 +3980,8 @@ def _corriger_passage(action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         # Comparaison par nom : voir CLAUDE.md, imports `src.` vs sans préfixe
         if type(e).__name__ == "PassageInconnuError":
             raise HTTPException(status_code=404, detail="Passage non trouvé") from e
+        if type(e).__name__ == "EmissionInconnueError":
+            raise HTTPException(status_code=404, detail="Émission non trouvée") from e
         if type(e).__name__ == "CorrectionRefuseeError":
             raise HTTPException(status_code=422, detail=str(e)) from e
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
@@ -4043,7 +4045,7 @@ class DeposerLivreRequest(BaseModel):
 
 
 class OccuperRequest(BaseModel):
-    mode: str  # "tout", "tete" ou "fin"
+    mode: Literal["tout", "tete", "fin"]
 
 
 @app.post("/api/episodes/{episode_id}/passages")
@@ -4064,7 +4066,7 @@ def occuper_trou(passage_id: str, request: OccuperRequest) -> dict[str, Any]:
     )
 
 
-@app.delete("/api/passages/{passage_id}")
+@app.post("/api/passages/{passage_id}/remettre")
 def remettre_a_placer(passage_id: str) -> dict[str, Any]:
     """Reprend un livre placé à la main : il redevient à placer."""
     return _corriger_passage(lambda: correction_passages.remettre(passage_id))
