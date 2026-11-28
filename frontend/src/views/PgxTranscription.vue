@@ -120,8 +120,7 @@
         </p>
         <template v-if="archiveEpisodes.length > 0">
           <p class="pgx-episodes-count">
-            {{ archiveEpisodes.length }} épisode(s) sans Segments — environ
-            {{ dureeArchiveHeures }} h sur PGX.
+            {{ archiveEpisodes.length }} épisode(s) sans Segments — {{ dureeArchive }} sur PGX.
           </p>
           <button
             data-testid="pgx-archive-button"
@@ -131,6 +130,7 @@
           >
             ▶️ Retranscrire l'archive
           </button>
+          <p v-if="messageArchive" class="section-help" data-testid="pgx-archive-message">{{ messageArchive }}</p>
         </template>
         <div v-else class="empty-state">Tous les épisodes ont leurs Segments.</div>
       </section>
@@ -238,6 +238,7 @@ export default {
       pgxMissingVars: [],
       pgxEpisodes: [],
       archiveEpisodes: [],
+      messageArchive: null,
       sshPublicKey: null,
       pgxProgress: {
         is_running: false,
@@ -286,8 +287,9 @@ export default {
       return this.pgxDiagnostics;
     },
 
-    dureeArchiveHeures() {
-      return Math.round((this.archiveEpisodes.length * MINUTES_PAR_EPISODE) / 60);
+    dureeArchive() {
+      const heures = Math.round((this.archiveEpisodes.length * MINUTES_PAR_EPISODE) / 60);
+      return heures < 1 ? "moins d'une heure" : `environ ${heures} h`;
     },
 
     startButtonDisabled() {
@@ -436,16 +438,22 @@ export default {
 
     async lancerRetranscriptionArchive() {
       const n = this.archiveEpisodes.length;
-      if (!confirm(`Retranscrire ${n} épisode(s) sur PGX, environ ${this.dureeArchiveHeures} h ?\n\nLeur transcription texte sera remplacée. PGX reste occupé pendant tout ce temps.`)) return;
+      if (!confirm(`Retranscrire ${n} épisode(s) sur PGX (${this.dureeArchive}) ?\n\nLeur transcription texte sera remplacée. PGX reste occupé pendant tout ce temps.`)) return;
+      this.messageArchive = null;
       try {
         const res = await axios.post('/api/pgx/transcription/archive');
         if (res.data.status === 'started') {
           this.pgxProgress.is_running = true;
           this.startPgxPolling();
           await this.checkPgxProgress();
+        } else if (res.data.status === 'already_running') {
+          this.messageArchive = 'Un cycle de transcription est déjà en cours : relancez à sa fin.';
+        } else if (res.data.status === 'nothing_to_do') {
+          this.messageArchive = 'Tous les épisodes ont déjà leurs Segments.';
+          await this.loadArchiveEpisodes();
         }
       } catch (e) {
-        console.error('Erreur déclenchement retranscription de l\'archive', e);
+        this.messageArchive = `Retranscription non lancée : ${e.message}`;
       }
     },
 

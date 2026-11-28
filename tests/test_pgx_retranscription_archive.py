@@ -23,6 +23,7 @@ from back_office_lmelp.utils.pgx_transcription_runner import PgxTranscriptionRun
 
 EP1_ID = "507f1f77bcf86cd799439011"
 EP2_ID = "507f1f77bcf86cd799439012"
+EP3_ID = "507f1f77bcf86cd799439013"
 PGX_FOUND = PgxLocation("192.168.50.151", "PGX trouvée en 192.168.50.151")
 
 
@@ -144,16 +145,27 @@ def _episode(episode_id: str, titre: str) -> dict[str, Any]:
 
 
 async def _retranscrire(
-    runner: Any, tmp_path: Path, echec_sur: str | None = None
+    runner: Any,
+    tmp_path: Path,
+    echec_sur: str | None = None,
+    nouveaux: list[dict[str, Any]] | None = None,
+    pgx_trouvee: PgxLocation = PGX_FOUND,
 ) -> Any:
     runner.episode_ids = [EP1_ID, EP2_ID]
     runner.is_running = True
     runner.archive = True
+    runner.archive_ids = {EP1_ID, EP2_ID}
     runner.start_time = datetime(2026, 3, 1, tzinfo=UTC)
     episodes = {
         EP1_ID: _episode(EP1_ID, "Episode Un"),
         EP2_ID: _episode(EP2_ID, "Episode Deux"),
+        EP3_ID: _episode(EP3_ID, "Nouvel episode"),
     }
+    # le flux RSS amène un nouvel épisode pendant le premier épisode de l'archive
+    a_venir = list(nouveaux or [])
+
+    def file_rss() -> list[dict[str, Any]]:
+        return [a_venir.pop()] if a_venir else []
 
     def envoyer(local_path: str, *args: Any, **kwargs: Any) -> None:
         if echec_sur and runner.current_episode_id == echec_sur:
@@ -166,8 +178,12 @@ async def _retranscrire(
         patch("back_office_lmelp.utils.pgx_transcription_runner.settings") as reglages,
         patch("back_office_lmelp.utils.pgx_transcription_runner.pgx_service") as pgx,
         patch("back_office_lmelp.utils.pgx_transcription_runner.passages_service"),
+        patch(
+            "back_office_lmelp.utils.pgx_transcription_runner.stats_service"
+        ) as stats,
         patch.object(runner, "_send_notification", new=AsyncMock()) as notifier,
     ):
+        stats.get_episodes_without_transcription = MagicMock(side_effect=file_rss)
         mongo.get_episode_by_id = MagicMock(side_effect=lambda eid: episodes[eid])
         mongo.episodes_collection.update_one = MagicMock()
         mongo.insert_pgx_transcription_log = MagicMock()
@@ -179,7 +195,7 @@ async def _retranscrire(
         reglages.pgx_transcription_timeout_s = 1800.0
         reglages.pgx_poll_interval_s = 10.0
         reglages.audio_storage_path = str(tmp_path)
-        pgx.locate_pgx = AsyncMock(return_value=PGX_FOUND)
+        pgx.locate_pgx = AsyncMock(return_value=pgx_trouvee)
         pgx.remote_file_exists = AsyncMock(return_value=False)
         pgx.send_audio_to_pgx = AsyncMock(side_effect=envoyer)
         pgx.wait_for_pgx_transcription = AsyncMock(return_value=True)
@@ -263,3 +279,42 @@ def test_le_bouton_lance_la_retranscription_de_l_archive():
     assert reponse.status_code == 200
     assert reponse.json() == {"status": "started", "episode_count": 250}
     demarrer.assert_awaited_once_with(trigger="manual", archive=True)
+
+
+@pytest.mark.asyncio
+async def test_un_nouvel_episode_pendant_la_passe_passe_ensuite_avec_sa_notification(
+    tmp_path,
+):
+    runner = PgxTranscriptionRunner.get_instance()
+    nouveau = {"id": EP3_ID, "titre": "Nouvel episode", "date": "2026-11-29"}
+
+    notifier, _ = await _retranscrire(runner, tmp_path, nouveaux=[nouveau])
+
+    # traité juste après l'épisode en cours, pas après toute l'archive
+    assert [e["episode_id"] for e in runner.processed] == [EP1_ID, EP3_ID, EP2_ID]
+    titres = [c.args[0] for c in notifier.call_args_list]
+    assert titres[0].startswith("Nouvel épisode Le Masque et la Plume transcrit")
+    assert titres[-1] == "Archive retranscrite (horodatage)"
+    assert notifier.call_args.args[1] == "2 épisode(s) retranscrit(s), 0 échec(s)"
+
+
+@pytest.mark.asyncio
+async def test_le_bilan_dit_que_la_passe_s_est_arretee(tmp_path):
+    runner = PgxTranscriptionRunner.get_instance()
+    introuvable = PgxLocation(None, "192.168.50.151 ne répond pas sur le port 22")
+
+    notifier, _ = await _retranscrire(runner, tmp_path, pgx_trouvee=introuvable)
+
+    assert notifier.await_count == 1
+    titre, message = notifier.call_args.args
+    assert titre == "Retranscription de l'archive interrompue"
+    assert message == "0 épisode(s) retranscrit(s), 0 échec(s), 2 non traité(s)"
+
+
+@pytest.mark.asyncio
+async def test_le_mode_archive_ne_survit_pas_au_cycle(tmp_path):
+    runner = PgxTranscriptionRunner.get_instance()
+
+    await _retranscrire(runner, tmp_path)
+
+    assert runner.get_status()["archive"] is False

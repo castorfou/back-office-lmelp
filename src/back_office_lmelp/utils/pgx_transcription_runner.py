@@ -59,6 +59,9 @@ class PgxTranscriptionRunner:
         # Retranscription horodatée de l'archive (#427) : la même boucle, sur
         # les épisodes sans Segments, avec un seul bilan ntfy à la fin
         self.archive: bool = False
+        # épisodes de l'archive : un nouvel épisode arrivé pendant la passe
+        # garde sa notification et ne compte pas dans le bilan
+        self.archive_ids: set[str] = set()
         # Réveille l'attente horaire du retry à la demande de l'UI (Issue #402)
         self._retry_now_event = asyncio.Event()
 
@@ -111,6 +114,7 @@ class PgxTranscriptionRunner:
 
             self.is_running = True
             self.archive = archive
+            self.archive_ids = {ep["id"] for ep in episodes} if archive else set()
             self.episode_ids = [ep["id"] for ep in episodes]
             self.current_episode_id = None
             self.current_episode_index = 0
@@ -271,7 +275,13 @@ class PgxTranscriptionRunner:
         known = set(self.episode_ids)
         new_ids = [ep["id"] for ep in pending if ep["id"] not in known]
         if new_ids:
-            self.episode_ids.extend(new_ids)
+            if self.archive:
+                # pendant la retranscription de l'archive (~19 h), un nouvel
+                # épisode passe juste après l'épisode en cours
+                position = self.current_episode_index + 1
+                self.episode_ids[position:position] = new_ids
+            else:
+                self.episode_ids.extend(new_ids)
             self._log(f"{len(new_ids)} épisode(s) ajouté(s) au cycle en cours")
 
     async def _has_orphan_mp3(
@@ -339,7 +349,8 @@ class PgxTranscriptionRunner:
             "episode_ids": list(self.episode_ids),
             "episodes": list(self.processed),
             "retry_attempts": list(self.retry_attempts),
-            "notification_sent": bool(self.processed),
+            # en archive, le bilan de fin de cycle est toujours envoyé
+            "notification_sent": self.archive or bool(self.processed),
             "error_message": error_message,
             "archive": self.archive,
         }
@@ -577,7 +588,7 @@ class PgxTranscriptionRunner:
                             "error": None,
                         }
                     )
-                    if not self.archive:
+                    if episode_id not in self.archive_ids:
                         episode_date_str = self._format_episode_date(episode["date"])
                         await self._send_notification(
                             "Nouvel épisode Le Masque et la Plume transcrit — "
@@ -597,7 +608,7 @@ class PgxTranscriptionRunner:
                             "error": str(exc),
                         }
                     )
-                    if not self.archive:
+                    if episode_id not in self.archive_ids:
                         if episode is not None:
                             episode_date_str = self._format_episode_date(
                                 episode["date"]
@@ -631,17 +642,27 @@ class PgxTranscriptionRunner:
             if self.start_time is not None:
                 await self._finalize_cycle(trigger, status, error_message)
                 if self.archive:
-                    await self._notifier_bilan_archive()
+                    await self._notifier_bilan_archive(error_message)
+            self.archive = False
+            self.archive_ids = set()
 
-    async def _notifier_bilan_archive(self) -> None:
-        """Un seul message pour toute la retranscription de l'archive."""
-        reussis = sum(1 for entree in self.processed if entree["success"])
-        echecs = len(self.processed) - reussis
+    async def _notifier_bilan_archive(self, error_message: str | None) -> None:
+        """Un seul message pour toute la retranscription de l'archive ; il dit
+        si la passe s'est arrêtée avant la fin (PGX injoignable, erreur)."""
+        traites = [e for e in self.processed if e["episode_id"] in self.archive_ids]
+        reussis = sum(1 for e in traites if e["success"])
+        echecs = len(traites) - reussis
+        restants = len(self.archive_ids) - len(traites)
+        message = f"{reussis} épisode(s) retranscrit(s), {echecs} échec(s)"
+        if restants:
+            titre = "Retranscription de l'archive interrompue"
+            message += f", {restants} non traité(s)"
+            if error_message:
+                message += f" ({error_message})"
+        else:
+            titre = "Archive retranscrite (horodatage)"
         try:
-            await self._send_notification(
-                "Archive retranscrite (horodatage)",
-                f"{reussis} épisode(s) retranscrit(s), {echecs} échec(s)",
-            )
+            await self._send_notification(titre, message)
         except Exception as exc:  # noqa: BLE001 - la notification ne casse rien
             logger.error(f"Bilan de la retranscription non notifié : {exc}")
 

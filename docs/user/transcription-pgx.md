@@ -203,7 +203,9 @@ audio mais pas encore de Segments, et la durée estimée sur PGX (environ 4 à 5
   même passe, et ses Segments sont enregistrés (les Passages sont alors repérés) ;
 - les résumés déjà générés ne sont pas touchés ;
 - pas de notification par épisode : une seule, à la fin, avec le nombre de réussites et
-  d'échecs ;
+  d'échecs (ou, si la passe s'est arrêtée, le nombre d'épisodes non traités et pourquoi) ;
+- un nouvel épisode arrivé pendant la passe est transcrit juste après l'épisode en cours,
+  avec sa notification habituelle ;
 - la progression se suit dans le même panneau que la transcription des nouveaux épisodes,
   et le cycle apparaît « archive » dans l'historique.
 

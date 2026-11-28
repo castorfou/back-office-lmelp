@@ -1104,6 +1104,24 @@ describe('PgxTranscription - retranscription horodatée de l\'archive (Issue #42
     expect(vue.vm.pgxPollInterval).not.toBeNull();
   });
 
+  it("dit moins d'une heure pour quelques épisodes", async () => {
+    const vue = await monter({ archive: ARCHIVE.slice(0, 3) });
+
+    expect(vue.find('[data-testid="pgx-archive"]').text()).toContain("moins d'une heure");
+  });
+
+  it('dit pourquoi rien n\'a été lancé quand un cycle tourne déjà', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    axios.post.mockResolvedValue({ data: { status: 'already_running' } });
+    const vue = await monter({ archive: ARCHIVE });
+
+    await vue.find('[data-testid="pgx-archive-button"]').trigger('click');
+    await vue.vm.$nextTick();
+    await vue.vm.$nextTick();
+
+    expect(vue.find('[data-testid="pgx-archive-message"]').text()).toContain('déjà en cours');
+  });
+
   it('ne lance rien sans confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     const vue = await monter({ archive: ARCHIVE });
