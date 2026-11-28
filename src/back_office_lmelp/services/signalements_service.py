@@ -23,10 +23,11 @@ OUVERT, CORRIGE, REJETE = "ouvert", "corrige", "rejete"
 class NouveauSignalement(BaseModel):
     episode_id: str
     livre_id: str
-    debut_ms: int = Field(ge=0, strict=True)
-    fin_ms: int = Field(ge=0, strict=True)
+    # un entier écrit en flottant (2560400.0) passe, une valeur fractionnaire non
+    debut_ms: int = Field(ge=0)
+    fin_ms: int = Field(ge=0)
     motif: Motif
-    instant_ms: int = Field(ge=0, strict=True)
+    instant_ms: int = Field(ge=0)
     commentaire: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
@@ -104,7 +105,9 @@ class SignalementsService:
                     "episode_id": episode,
                     "date": etat["date"],
                     "livre_id": s["livre_oid"],
-                    "titre": actuel["titre"] if actuel else None,
+                    "titre": actuel["titre"]
+                    if actuel
+                    else _titre_du_livre(s["livre_oid"]),
                     "motif": s["motif"],
                     "instant_ms": s["instant_ms"],
                     "commentaire": s.get("commentaire"),
@@ -145,6 +148,16 @@ class SignalementsService:
         self._signalements().update_many(
             filtre, {"$set": {"etat": etat, "clos_le": datetime.now(UTC)}}
         )
+
+
+def _titre_du_livre(livre_oid: str) -> str | None:
+    """Titre du livre en base, quand son Passage n'existe plus."""
+    if not ObjectId.is_valid(livre_oid):
+        return None
+    livre = mongodb_service.get_collection("livres").find_one(
+        {"_id": ObjectId(livre_oid)}, {"titre": 1}
+    )
+    return (livre or {}).get("titre")
 
 
 def _en_utc(date: datetime) -> datetime:

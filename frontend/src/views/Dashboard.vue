@@ -757,8 +757,9 @@ export default {
         const response = await axios.get('/api/signalements/compte');
         this.signalementsOuverts = response?.data?.ouverts ?? null;
       } catch (error) {
+        // la tuile ne reste pas sur « ... » : elle dit que le compte manque
         console.error('Erreur lors du chargement des signalements:', error);
-        this.signalementsOuverts = null;
+        this.signalementsOuverts = '—';
       }
     },
 

@@ -57,6 +57,18 @@ describe('SignalerPassage', () => {
     expect(page.find('.sig-merci').text()).toBe('✓ Signalé : Fin trop tôt à 12:40');
   });
 
+  it("joint l'instant où le menu s'ouvre, même si l'écoute continue pendant la saisie", async () => {
+    monter();
+
+    await page.find('.sig-btn').trigger('click');
+    lecteur.position = 790;
+    await page.find('.sig-menu textarea').setValue('Long commentaire');
+    await page.findAll('.sig-menu button.motif')[1].trigger('click');
+    await flushPromises();
+
+    expect(signalementsService.creer.mock.calls[0][0].instant_ms).toBe(760400);
+  });
+
   it('ne joint pas de commentaire vide', async () => {
     monter();
 

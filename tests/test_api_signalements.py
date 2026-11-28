@@ -159,6 +159,7 @@ def test_un_signalement_relaye_par_lmelp_streaming_vient_du_mobile(client, episo
         {"motif": "trop_long"},
         {"commentaire": "x" * 501},
         {"debut_ms": "début"},
+        {"instant_ms": 2.5},
         {"instant_ms": None},
         {"fin_ms": 0},
     ],
@@ -259,3 +260,32 @@ def test_les_bornes_actuelles_montrent_une_correction_faite_depuis(client, db, e
 
     assert signalement["bornes_actuelles"]["fin_ms"] == 700_000
     assert signalement["bornes_ecoutees"]["fin_ms"] == fondateur["fin_ms"]
+
+
+def test_un_entier_ecrit_en_flottant_est_accepte(client, episode):
+    fondateur = passage(client, episode, "Le Fondateur")
+
+    reponse = signaler(client, episode, fondateur, instant_ms=760400.0)
+
+    assert reponse.status_code == 201
+
+
+def test_remettre_un_livre_place_a_la_main_clot_ses_signalements(client, db, episode):
+    fondateur = passage(client, episode, "Le Fondateur")
+    db.passages.update_one({"titre": "Le Fondateur"}, {"$set": {"place_main": True}})
+    signaler(client, episode, fondateur)
+
+    client.post(f"/api/passages/{fondateur['id']}/remettre")
+
+    assert ouverts(client) == []
+
+
+def test_le_livre_d_un_passage_disparu_garde_son_titre(client, db, episode):
+    signaler(client, episode, passage(client, episode, "Le Fondateur"))
+    db.passages.delete_many({"titre": "Le Fondateur"})
+
+    [signalement] = ouverts(client)
+
+    assert signalement["titre"] == "Le Fondateur"
+    assert signalement["bornes_actuelles"] is None
+    assert signalement["passage_id"] is None

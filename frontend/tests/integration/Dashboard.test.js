@@ -924,6 +924,22 @@ describe('Dashboard - Tuile Avis orphelins (Issue #271)', () => {
       expect(push).toHaveBeenCalledWith('/signalements');
     });
 
+    it("ne reste pas sur « ... » quand le compte ne se charge pas", async () => {
+      axios.get.mockImplementation((url) => {
+        if (url === '/api/signalements/compte') return Promise.reject(new Error('réseau'));
+        if (url === '/api/dashboard/stats') {
+          return Promise.resolve({
+            data: { statistics: mockStatistics, collections_statistics: mockCollectionsStatistics },
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+      await monter();
+
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-testid="signalements-card"] .stat-value').text()).toBe('—');
+    });
+
     it('masque la tuile sans signalement ouvert', async () => {
       mockSignalements(0);
       await monter();

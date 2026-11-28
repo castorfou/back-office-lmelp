@@ -3,7 +3,7 @@
   <span v-if="passage && passage.livre_id" ref="racine" class="sig">
     <button type="button" class="sig-btn" title="Signaler un Passage mal découpé" @click.stop="ouvert = !ouvert">⚠️</button>
     <span v-if="ouvert" class="sig-menu" @click.stop>
-      <strong>Signaler à {{ formaterDuree(lecteur.position) }}</strong>
+      <strong>Signaler à {{ formaterDuree(instant) }}</strong>
       <textarea v-model="commentaire" maxlength="500" rows="2" placeholder="Commentaire (facultatif)"></textarea>
       <button v-for="m in MOTIFS" :key="m.valeur" type="button" class="motif" :disabled="envoi" @click="envoyer(m)">
         {{ m.libelle }}
@@ -24,15 +24,22 @@ const DUREE_BULLE_MS = 2500;
 export default {
   name: 'SignalerPassage',
   data() {
-    return { lecteur, MOTIFS, ouvert: false, commentaire: '', merci: null, erreur: null, envoi: false };
+    return { MOTIFS, ouvert: false, instant: 0, commentaire: '', merci: null, erreur: null, envoi: false };
   },
   computed: {
     passage: () => lecteur.passage,
   },
   watch: {
     ouvert(v) {
-      if (v) this.minuterieOuverture = setTimeout(() => document.addEventListener('click', this.dehors), 0);
-      else document.removeEventListener('click', this.dehors);
+      clearTimeout(this.minuterieOuverture);
+      if (v) {
+        // l'instant signalé est celui où l'on ouvre le menu : l'audio continue
+        // pendant qu'on écrit le commentaire
+        this.instant = lecteur.position;
+        this.minuterieOuverture = setTimeout(() => document.addEventListener('click', this.dehors), 0);
+      } else {
+        document.removeEventListener('click', this.dehors);
+      }
     },
     // un autre Passage : le commentaire en cours ne le concerne pas
     passage() {
@@ -52,7 +59,7 @@ export default {
     },
     async envoyer(motif) {
       const p = this.passage;
-      const instant = lecteur.position;
+      const { instant } = this;
       const signalement = {
         episode_id: p.episode_id, livre_id: p.livre_id, debut_ms: p.debut_ms, fin_ms: p.fin_ms,
         motif: motif.valeur, instant_ms: Math.round(instant * 1000),
