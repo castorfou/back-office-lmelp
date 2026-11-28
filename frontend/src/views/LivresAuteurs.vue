@@ -279,15 +279,15 @@
                   ⏱ Émission
                   <span class="sort-indicator" :class="getSortClass('emission')">↕</span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('author')">
+                <th class="sortable-header author-header" @click="setSortOrder('author')">
                   Auteur
                   <span class="sort-indicator" :class="getSortClass('author')">↕</span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('title')">
+                <th class="sortable-header title-header" @click="setSortOrder('title')">
                   Titre
                   <span class="sort-indicator" :class="getSortClass('title')">↕</span>
                 </th>
-                <th class="sortable-header" @click="setSortOrder('publisher')">
+                <th class="sortable-header publisher-header" @click="setSortOrder('publisher')">
                   Éditeur
                   <span class="sort-indicator" :class="getSortClass('publisher')">↕</span>
                 </th>
@@ -3212,19 +3212,24 @@ export default {
   width: 50px;
 }
 
+/* par classe et non par position : la colonne « ⏱ Émission » s'insère avant l'auteur */
 .author-cell,
-.books-table th:nth-child(2) {
+.books-table th.author-header {
   width: 180px;
 }
 
 .title-cell,
-.books-table th:nth-child(3) {
+.books-table th.title-header {
   width: 200px;
 }
 
 .publisher-cell,
-.books-table th:nth-child(4) {
+.books-table th.publisher-header {
   width: 120px;
+}
+
+.books-table th.th-emission {
+  width: 130px;
 }
 
 /* Colonne YAML visible */
