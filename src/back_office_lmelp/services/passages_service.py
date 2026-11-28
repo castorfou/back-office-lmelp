@@ -227,8 +227,35 @@ class PassagesService:
         if nouveaux:
             collection.insert_many(nouveaux)
 
-    def passages_de(self, episode_oid: str) -> dict[str, Any]:
+    def _a_des_segments(self, episode_oid: str) -> bool:
+        return (
+            self.mongodb_service.get_collection("episode_segments").find_one(
+                {"episode_oid": episode_oid, "segments.0": {"$exists": True}},
+                {"_id": 1},
+            )
+            is not None
+        )
+
+    def _date_episode(self, episode_oid: str) -> str | None:
+        """Date de l'épisode (AAAA-MM-JJ), pour situer le Passage."""
+        episode = self.mongodb_service.get_collection("episodes").find_one(
+            {"_id": ObjectId(episode_oid)}, {"date": 1}
+        )
+        date = episode.get("date") if episode else None
+        if isinstance(date, datetime):
+            return date.strftime("%Y-%m-%d")
+        return str(date)[:10] if date else None
+
+    def passages_de(
+        self, episode_oid: str, avec_segments: bool = True
+    ) -> dict[str, Any]:
         """Segments, Passages (dans l'ordre de l'émission) et livres sans Passage.
+
+        Chaque Passage porte son épisode et sa date, de quoi lire son audio.
+        Un livre sans Passage dit pourquoi : `pas_de_segments` (l'émission n'a
+        pas de transcription horodatée), `supprime` (Passage retiré à la
+        correction) ou `non_repere` ; il porte l'id de son livre s'il est en
+        base, le titre du résumé pouvant différer du titre validé.
 
         Le livre de chaque Passage est retrouvé à la lecture. Un Passage dont le
         livre n'est plus dans le résumé (titre écarté) n'est pas rendu ; il
@@ -239,48 +266,105 @@ class PassagesService:
             self._cle(livre.titre, None, noms): livre
             for livre in self._livres_du_resume(episode_oid)
         }
-        documents = sorted(
+        stockes = list(
             self.mongodb_service.get_collection("passages").find(
-                {"episode_oid": episode_oid, "supprime": {"$ne": True}}
-            ),
-            key=lambda p: p["debut_ms"],
+                {"episode_oid": episode_oid}
+            )
         )
+        visibles = sorted(
+            (p for p in stockes if not p.get("supprime")), key=lambda p: p["debut_ms"]
+        )
+        supprimes = {
+            self._cle(p["titre"], p.get("livre_oid"), noms)
+            for p in stockes
+            if p.get("supprime")
+        }
+        segments = self._segments(episode_oid) if avec_segments else []
+        a_des_segments = bool(segments) or (
+            not avec_segments and self._a_des_segments(episode_oid)
+        )
+        date = self._date_episode(episode_oid)
+
+        def raison(cle: str) -> str:
+            if not a_des_segments:
+                return "pas_de_segments"
+            return "supprime" if cle in supprimes else "non_repere"
+
+        def livre_id(cle: str) -> str | None:
+            return None if cle.startswith("titre:") else cle
+
         passages = []
-        for document in documents:
-            cle = self._cle(document["titre"], document.get("livre_oid"), noms)
+        avec_passage = set()
+        for stocke in visibles:
+            cle = self._cle(stocke["titre"], stocke.get("livre_oid"), noms)
             livre = resume.get(cle)
             if livre is None:
                 continue
+            avec_passage.add(cle)
             passages.append(
                 {
-                    "id": str(document["_id"]),
-                    "titre": document["titre"],
+                    "id": str(stocke["_id"]),
+                    "titre": stocke["titre"],
                     "auteur": livre.auteur,
                     "section": int(livre.section),
-                    "livre_id": None if cle.startswith("titre:") else cle,
-                    "debut_ms": document["debut_ms"],
-                    "fin_ms": document["fin_ms"],
-                    "origine": document.get("origine", ORIGINE_AUTO),
-                    "cle": cle,
+                    "livre_id": livre_id(cle),
+                    "episode_id": episode_oid,
+                    "date": date,
+                    "debut_ms": stocke["debut_ms"],
+                    "fin_ms": stocke["fin_ms"],
+                    "origine": stocke.get("origine", ORIGINE_AUTO),
                 }
             )
-        avec_passage = {p.pop("cle") for p in passages}
 
         return {
-            "segments": [
-                [s["debut_ms"], s["fin_ms"], s["texte"]]
-                for s in self._segments(episode_oid)
-            ],
+            "segments": [[s["debut_ms"], s["fin_ms"], s["texte"]] for s in segments],
+            "a_des_segments": a_des_segments,
             "passages": passages,
             "sans_passage": [
                 {
                     "titre": livre.titre,
                     "auteur": livre.auteur,
                     "section": int(livre.section),
+                    "livre_id": livre_id(cle),
+                    "raison": raison(cle),
                 }
                 for cle, livre in resume.items()
                 if cle not in avec_passage
             ],
+        }
+
+    def passages_du_livre(self, livre_oid: str) -> dict[str, Any]:
+        """Les Passages d'un livre dans ses émissions, par date, et les émissions
+        où il n'en a pas, avec la raison."""
+        livre = self.mongodb_service.get_collection("livres").find_one(
+            {"_id": ObjectId(livre_oid)}, {"episodes": 1}
+        )
+        passages: list[dict[str, Any]] = []
+        sans_passage: list[dict[str, Any]] = []
+        for episode_oid in (livre or {}).get("episodes") or []:
+            emission = self.passages_de(str(episode_oid), avec_segments=False)
+            trouves = [p for p in emission["passages"] if p["livre_id"] == livre_oid]
+            passages += trouves
+            if not trouves:
+                absent = next(
+                    (s for s in emission["sans_passage"] if s["livre_id"] == livre_oid),
+                    None,
+                )
+                sans_passage.append(
+                    {
+                        "episode_id": str(episode_oid),
+                        "raison": absent["raison"]
+                        if absent
+                        else (
+                            "non_repere"
+                            if emission["a_des_segments"]
+                            else "pas_de_segments"
+                        ),
+                    }
+                )
+        return {
+            "passages": sorted(passages, key=lambda p: p["date"] or ""),
+            "sans_passage": sans_passage,
         }
 
 

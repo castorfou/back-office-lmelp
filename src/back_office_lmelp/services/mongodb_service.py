@@ -1268,6 +1268,7 @@ class MongoDBService:
                     emissions_list.append(
                         {
                             "emission_id": em_id_str,
+                            "episode_id": ep_id_str,
                             "date": date_str,
                             "note_moyenne": em_note_moyenne,
                             "nombre_avis": len(em_notes),

@@ -27,6 +27,7 @@ import socket
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
 from bson import ObjectId
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from rapidfuzz import fuzz
 from thefuzz import process
@@ -3924,11 +3925,53 @@ async def add_episode_from_radiofrance_page(
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
 
+TYPES_AUDIO = {".m4a": "audio/mp4", ".mp3": "audio/mpeg"}
+
+
+@app.get("/api/episodes/{episode_id}/audio")
+def get_audio_episode(episode_id: str) -> FileResponse:
+    """L'audio de l'épisode, tel quel, pour écouter ses Passages dans lmelp.
+
+    Lu en réseau local, sans clé (la clé d'écoute ne sert qu'à lmelp-mobile).
+    Range permet au lecteur de ne charger que le Passage ; aucune copie n'est
+    gardée par le navigateur. Un chemin qui sort du dossier audio est refusé.
+    """
+    if not ObjectId.is_valid(episode_id):
+        raise HTTPException(status_code=404, detail="Épisode non trouvé")
+    episode = mongodb_service.get_episode_by_id(episode_id)
+    if not episode or not episode.get("audio_rel_filename"):
+        raise HTTPException(status_code=404, detail="Audio non trouvé")
+    dossier = Path(settings.audio_storage_path).resolve()
+    fichier = (dossier / episode["audio_rel_filename"]).resolve()
+    if dossier not in fichier.parents or not fichier.is_file():
+        raise HTTPException(status_code=404, detail="Fichier audio absent")
+    return FileResponse(
+        fichier,
+        media_type=TYPES_AUDIO.get(fichier.suffix.lower(), "application/octet-stream"),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/api/episodes/{episode_id}/passages")
-def get_passages_episode(episode_id: str) -> dict[str, Any]:
-    """Segments, Passages et livres sans Passage d'un épisode (Issue #427)."""
+def get_passages_episode(episode_id: str, segments: bool = True) -> dict[str, Any]:
+    """Segments, Passages et livres sans Passage d'un épisode.
+
+    `segments=false` omet la transcription horodatée (lecteur des fiches).
+    """
     try:
-        return passages_service.passages_de(episode_id)
+        return passages_service.passages_de(episode_id, avec_segments=segments)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/livres/{livre_id}/passages")
+def get_passages_livre(livre_id: str) -> dict[str, Any]:
+    """Les Passages d'un livre dans ses émissions, et les émissions où il n'en
+    a pas, avec la raison."""
+    if not ObjectId.is_valid(livre_id):
+        raise HTTPException(status_code=404, detail="Livre non trouvé")
+    try:
+        return passages_service.passages_du_livre(livre_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
 
