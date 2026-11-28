@@ -24,7 +24,7 @@ import json
 import os
 import re
 import socket
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -76,7 +76,7 @@ from .services.manual_episode_service import manual_episode_service
 from .services.mongodb_service import mongodb_service
 from .services.orphaned_avis_service import OrphanedAvisService
 from .services.pap_remises_service import pap_remises_service
-from .services.passages_service import passages_service
+from .services.passages_service import correction_passages, passages_service
 from .services.radiofrance_service import RadioFranceService
 from .services.recommendation_service import RecommendationService
 from .services.rss_sync_service import rss_sync_service
@@ -3962,6 +3962,112 @@ def get_passages_episode(episode_id: str, segments: bool = True) -> dict[str, An
         return passages_service.passages_de(episode_id, avec_segments=segments)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+class DebutPassageRequest(BaseModel):
+    debut_ms: int
+
+
+class FinPassageRequest(BaseModel):
+    fin_ms: int
+
+
+def _corriger_passage(action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Applique une correction de Passage : 404 inconnu, 422 refusée."""
+    try:
+        return action()
+    except Exception as e:
+        # Comparaison par nom : voir CLAUDE.md, imports `src.` vs sans préfixe
+        if type(e).__name__ == "PassageInconnuError":
+            raise HTTPException(status_code=404, detail="Passage non trouvé") from e
+        if type(e).__name__ == "CorrectionRefuseeError":
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.get("/api/passages/statuts")
+def get_statuts_passages() -> dict[str, str]:
+    """Pastille de chaque émission qui a des Segments : valide ou a_verifier."""
+    try:
+        return passages_service.statuts()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {e!s}") from e
+
+
+@app.post("/api/episodes/{episode_id}/passages/validation")
+def valider_passages(episode_id: str) -> dict[str, Any]:
+    """Les Passages de l'émission sont vérifiés (🟢)."""
+    return _corriger_passage(lambda: correction_passages.valider(episode_id))
+
+
+@app.delete("/api/episodes/{episode_id}/passages/validation")
+def retirer_validation_passages(episode_id: str) -> dict[str, Any]:
+    """Retire la validation des Passages de l'émission (🟠)."""
+    return _corriger_passage(lambda: correction_passages.retirer_validation(episode_id))
+
+
+@app.patch("/api/passages/{passage_id}/debut")
+def deplacer_debut_passage(
+    passage_id: str, request: DebutPassageRequest
+) -> dict[str, Any]:
+    """Pose le début d'un Passage ; la fin du précédent suit s'ils se touchaient."""
+    return _corriger_passage(
+        lambda: correction_passages.deplacer_debut(passage_id, request.debut_ms)
+    )
+
+
+@app.patch("/api/passages/{passage_id}/fin")
+def deplacer_fin_passage(passage_id: str, request: FinPassageRequest) -> dict[str, Any]:
+    """Pose la fin d'un Passage ; le début du suivant suit s'ils se touchaient."""
+    return _corriger_passage(
+        lambda: correction_passages.deplacer_fin(passage_id, request.fin_ms)
+    )
+
+
+@app.post("/api/passages/{passage_id}/supprimer")
+def supprimer_passage(passage_id: str) -> dict[str, Any]:
+    """Retire un Passage (gardé : un recalcul ne le recrée pas)."""
+    return _corriger_passage(lambda: correction_passages.supprimer(passage_id))
+
+
+@app.post("/api/passages/{passage_id}/restaurer")
+def restaurer_passage(passage_id: str) -> dict[str, Any]:
+    """Rend un Passage supprimé."""
+    return _corriger_passage(lambda: correction_passages.restaurer(passage_id))
+
+
+class DeposerLivreRequest(BaseModel):
+    titre: str
+    debut_ms: int
+    fin_ms: int
+
+
+class OccuperRequest(BaseModel):
+    mode: str  # "tout", "tete" ou "fin"
+
+
+@app.post("/api/episodes/{episode_id}/passages")
+def deposer_livre(episode_id: str, request: DeposerLivreRequest) -> dict[str, Any]:
+    """Place un livre sans Passage sur un trou de l'émission."""
+    return _corriger_passage(
+        lambda: correction_passages.deposer(
+            episode_id, request.titre, request.debut_ms, request.fin_ms
+        )
+    )
+
+
+@app.patch("/api/passages/{passage_id}/occuper")
+def occuper_trou(passage_id: str, request: OccuperRequest) -> dict[str, Any]:
+    """Un livre placé prend tout le trou, ou sa première ou sa dernière partie."""
+    return _corriger_passage(
+        lambda: correction_passages.occuper(passage_id, request.mode)
+    )
+
+
+@app.delete("/api/passages/{passage_id}")
+def remettre_a_placer(passage_id: str) -> dict[str, Any]:
+    """Reprend un livre placé à la main : il redevient à placer."""
+    return _corriger_passage(lambda: correction_passages.remettre(passage_id))
 
 
 @app.get("/api/livres/{livre_id}/passages")
