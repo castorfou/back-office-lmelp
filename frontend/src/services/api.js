@@ -715,6 +715,49 @@ export const passagesService = {
     });
     return response.data;
   },
+
+  /** Passages d'une émission avec ses Segments `[debut_ms, fin_ms, texte]`. */
+  async getCorrectionEpisode(episodeId) {
+    const response = await api.get(`/episodes/${episodeId}/passages`);
+    return response.data;
+  },
+
+  /** Pastille de chaque émission qui a des Segments : `valide` ou `a_verifier`. */
+  async getStatuts() {
+    const response = await api.get('/passages/statuts');
+    return response.data;
+  },
+
+  // Corrections : chaque route renvoie l'état de l'émission, sans les Segments.
+  // Une correction refusée lève une erreur qui porte la raison du serveur.
+  async deplacerDebut(passageId, debutMs) {
+    return (await api.patch(`/passages/${passageId}/debut`, { debut_ms: debutMs })).data;
+  },
+  async deplacerFin(passageId, finMs) {
+    return (await api.patch(`/passages/${passageId}/fin`, { fin_ms: finMs })).data;
+  },
+  async supprimer(passageId) {
+    return (await api.post(`/passages/${passageId}/supprimer`)).data;
+  },
+  async restaurer(passageId) {
+    return (await api.post(`/passages/${passageId}/restaurer`)).data;
+  },
+  async deposer(episodeId, titre, debutMs, finMs) {
+    const corps = { titre, debut_ms: debutMs, fin_ms: finMs };
+    return (await api.post(`/episodes/${episodeId}/passages`, corps)).data;
+  },
+  async occuper(passageId, mode) {
+    return (await api.patch(`/passages/${passageId}/occuper`, { mode })).data;
+  },
+  async remettre(passageId) {
+    return (await api.post(`/passages/${passageId}/remettre`)).data;
+  },
+  async valider(episodeId) {
+    return (await api.post(`/episodes/${episodeId}/passages/validation`)).data;
+  },
+  async retirerValidation(episodeId) {
+    return (await api.delete(`/episodes/${episodeId}/passages/validation`)).data;
+  },
 };
 
 export default api;

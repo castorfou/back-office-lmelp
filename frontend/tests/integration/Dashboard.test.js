@@ -191,6 +191,22 @@ describe('Dashboard - Tests d\'intégration', () => {
     expect(push).toHaveBeenCalledWith('/episodes');
   });
 
+  it('mène à la page « Correction des passages » (Issue #427)', async () => {
+    const push = vi.spyOn(router, 'push');
+
+    wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router]
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="function-correction-passages"]').trigger('click');
+
+    expect(push).toHaveBeenCalledWith('/correction-passages');
+  });
+
   it('est responsive sur petits écrans', async () => {
     wrapper = mount(Dashboard, {
       global: {

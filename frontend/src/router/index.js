@@ -243,6 +243,14 @@ const routes = [
     }
   },
   {
+    path: '/correction-passages',
+    name: 'CorrectionPassages',
+    component: () => import('../views/CorrectionPassages.vue'),
+    meta: {
+      title: 'Correction des passages - lmelp'
+    }
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('../views/AboutPage.vue'),

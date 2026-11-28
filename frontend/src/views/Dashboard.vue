@@ -322,6 +322,17 @@
 
           <div
             class="function-card clickable"
+            data-testid="function-correction-passages"
+            @click="navigateToCorrectionPassages"
+          >
+            <div class="function-icon">🎧</div>
+            <h3>Correction des passages</h3>
+            <p>Bornes des Passages audio de chaque livre, sur la transcription horodatée</p>
+            <div class="function-arrow">→</div>
+          </div>
+
+          <div
+            class="function-card clickable"
             data-testid="function-episode-edit"
             @click="navigateToEpisodes"
           >
@@ -758,6 +769,10 @@ export default {
     navigateToAjoutEmission() {
       this.$router.push('/ajout-emission');
     },
+    navigateToCorrectionPassages() {
+      this.$router.push('/correction-passages');
+    },
+
     navigateToPgxTranscription() {
       this.$router.push('/transcription-pgx');
     },
